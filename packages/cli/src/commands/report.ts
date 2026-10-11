@@ -61,6 +61,32 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
   return { url: String(finished.url), files, refused };
 };
 
+type Service = { url: string; key: string; fetch?: Fetch };
+
+const ask = async (o: Service, method: string, route: string, doing: string) =>
+  answer(await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${route}`, { method, headers: { authorization: `Bearer ${o.key}` } }), doing);
+
+export type ListedRun = { project: string; platform: string | null; totals: Record<string, number>; createdAt: string; url: string };
+
+export const listRuns = async (o: Service & { limit?: number }) =>
+  (await ask(o, 'GET', `/v1/runs?limit=${o.limit ?? 20}`, 'listing the runs')).runs as ListedRun[];
+
+export type Plan = { name: string; plan: string; days: number; projects: number | null; film: boolean };
+
+/** The organisation's plan, and with `upgrade` or `manage` the Stripe page that changes it. */
+export const plan = async (o: Service & { go?: 'upgrade' | 'manage' }) => {
+  const now = (await ask(o, 'GET', '/v1/billing', 'reading the plan')) as Plan;
+  if (!o.go) return { ...now, url: null };
+  const route = o.go === 'upgrade' ? '/v1/billing/checkout' : '/v1/billing/portal';
+  return { ...now, url: String((await ask(o, 'POST', route, o.go === 'upgrade' ? 'opening checkout' : 'opening the billing portal')).url) };
+};
+
+const service = (): Service | string => {
+  const url = process.env.LYNKEUS_REPORTS_URL;
+  const key = process.env.LYNKEUS_REPORTS_KEY;
+  return url && key ? { url, key } : 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)';
+};
+
 export const reportCommands = [
   define({
     name: 'report push',
@@ -79,14 +105,64 @@ export const reportCommands = [
       const dir = path.resolve(ctx.args[0]!);
       if (!fs.existsSync(path.join(dir, 'cases.jsonl')))
         return { text: `${ctx.args[0]}: no cases.jsonl; pass the directory \`case run --out\` wrote`, code: 2 };
-      const url = process.env.LYNKEUS_REPORTS_URL;
-      const key = process.env.LYNKEUS_REPORTS_KEY;
-      if (!url || !key) return { text: 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)', code: 2 };
+      const to = service();
+      if (typeof to === 'string') return { text: to, code: 2 };
       const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       try {
-        const pushed = await pushRun(dir, { url, key, project });
+        const pushed = await pushRun(dir, { ...to, project });
         const notes = pushed.refused.length ? `\nnot kept on this plan: ${pushed.refused.join(', ')}` : '';
         return { text: `${pushed.url}${notes}`, json: pushed };
+      } catch (error) {
+        return { text: (error as Error).message, code: 1 };
+      }
+    },
+  }),
+  define({
+    name: 'report list',
+    group: 'runs',
+    summary: 'List the organisation’s reports, newest first',
+    details: 'Each line is when the run started, its project and platform, how many cases passed, and the report’s address.',
+    flags: { limit: { type: 'string', help: 'how many runs (default 20, at most 100)', value: 'n' } },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const to = service();
+      if (typeof to === 'string') return { text: to, code: 2 };
+      try {
+        const runs = await listRuns({ ...to, limit: Number(ctx.flags.limit) || 20 });
+        if (runs.length === 0) return { text: 'no reports yet: `lynkeus report push <dir>` uploads one', json: runs };
+        const lines = runs.map(
+          (r) =>
+            `${r.createdAt.slice(0, 16).replace('T', ' ')}  ${r.project}${r.platform ? ` ${r.platform}` : ''}  ${r.totals.passed ?? 0}/${r.totals.cases ?? 0} passed  ${r.url}`,
+        );
+        return { text: lines.join('\n'), json: runs };
+      } catch (error) {
+        return { text: (error as Error).message, code: 1 };
+      }
+    },
+  }),
+  define({
+    name: 'report plan',
+    group: 'runs',
+    summary: 'Show the organisation’s plan, or open the page that changes it',
+    details:
+      'Free keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.',
+    flags: {
+      upgrade: { type: 'boolean', help: 'print the Stripe checkout address for the Team plan' },
+      manage: { type: 'boolean', help: 'print the Stripe portal address for a paying organisation' },
+    },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const to = service();
+      if (typeof to === 'string') return { text: to, code: 2 };
+      const go = ctx.flags.upgrade ? 'upgrade' : ctx.flags.manage ? 'manage' : undefined;
+      try {
+        const now = await plan({ ...to, go });
+        const keeps = `${now.film ? 'films and frames' : 'frames'} for ${now.days} days, ${now.projects ?? 'any number of'} project${now.projects === 1 ? '' : 's'}`;
+        return { text: `${now.name}: ${now.plan} (${keeps})${now.url ? `\n${now.url}` : ''}`, json: now };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };
       }
