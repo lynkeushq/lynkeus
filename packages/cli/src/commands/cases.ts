@@ -16,7 +16,7 @@ import { Flakes } from '../cases/flakes.js';
 import { RunFile } from '../cases/runfile.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
-import { pushRun, service } from './report.js';
+import { describeChanges, pushRun, service } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
@@ -172,7 +172,7 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
 const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string) => {
   try {
     const run = await pushRun(dir, { ...to, project });
-    return `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`;
+    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes)].join('\n');
   } catch (error) {
     return `the report was not uploaded: ${(error as Error).message}`;
   }

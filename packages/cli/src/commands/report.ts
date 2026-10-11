@@ -5,7 +5,16 @@ import { define } from '../registry.js';
 
 type Fetch = typeof fetch;
 
-export type Pushed = { url: string; files: number; refused: string[] };
+export type Pushed = { url: string; files: number; refused: string[]; changes?: { newFailures: string[]; fixed: string[] } };
+
+/** What a run changed against the one before, in a line or two for a terminal or a pull request comment. */
+export const describeChanges = (changes: Pushed['changes']): string[] =>
+  changes
+    ? [
+        ...(changes.newFailures.length ? [`newly failing (${changes.newFailures.length}): ${changes.newFailures.join(', ')}`] : []),
+        ...(changes.fixed.length ? [`fixed since the run before (${changes.fixed.length}): ${changes.fixed.join(', ')}`] : []),
+      ]
+    : [];
 
 const answer = async (response: Response, doing: string) => {
   if (response.ok) return response.json() as Promise<Record<string, unknown>>;
@@ -58,7 +67,8 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
     }
   }
   const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
-  return { url: String(finished.url), files, refused };
+  const changes = finished.changes as Pushed['changes'] | undefined;
+  return { url: String(finished.url), files, refused, ...(changes ? { changes } : {}) };
 };
 
 type Service = { url: string; key: string; fetch?: Fetch };
@@ -126,8 +136,8 @@ export const reportCommands = [
       const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       try {
         const pushed = await pushRun(dir, { ...to, project });
-        const notes = pushed.refused.length ? `\nnot kept on this plan: ${pushed.refused.join(', ')}` : '';
-        return { text: `${pushed.url}${notes}`, json: pushed };
+        const notes = [...describeChanges(pushed.changes), ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : [])];
+        return { text: [pushed.url, ...notes].join('\n'), json: pushed };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };
       }

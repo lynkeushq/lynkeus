@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { flakes, listRuns, plan, pushRun } from '../commands/report.js';
+import { describeChanges, flakes, listRuns, plan, pushRun } from '../commands/report.js';
 
 const runDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-push-'));
@@ -104,4 +104,13 @@ test('flake trends are read for the project asked', async () => {
   const found = await flakes({ url: 'https://reports.test', key: 'lk_1', project: 'my app', runs: 10, fetch: fake });
   assert.equal(found.cases[0]!.state, 'broken');
   assert.deepEqual(asked, ['/v1/flakes?project=my%20app&runs=10']);
+});
+
+test('says what a pushed run broke and fixed, and nothing for a first run', () => {
+  assert.deepEqual(describeChanges({ newFailures: ['login'], fixed: ['deposit', 'withdraw'] }), [
+    'newly failing (1): login',
+    'fixed since the run before (2): deposit, withdraw',
+  ]);
+  assert.deepEqual(describeChanges({ newFailures: [], fixed: [] }), []);
+  assert.deepEqual(describeChanges(undefined), []);
 });
