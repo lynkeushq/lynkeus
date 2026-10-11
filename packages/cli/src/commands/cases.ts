@@ -8,13 +8,16 @@ import { readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
-import { configFile } from '../config.js';
+import { claimPorts } from '../cases/portClaim.js';
+import { configFile, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
 import { RunFile } from '../cases/runfile.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { describeChanges, pushRun, service } from './report.js';
+import { TraceSink } from '../cases/traces.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -165,6 +168,16 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
     detached: true,
   });
 
+/** A run that could not be uploaded still ran: the failure is said, not raised. */
+const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string) => {
+  try {
+    const run = await pushRun(dir, { ...to, project });
+    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes)].join('\n');
+  } catch (error) {
+    return `the report was not uploaded: ${(error as Error).message}`;
+  }
+};
+
 export const caseCommands = [
   define({
     name: 'case run',
@@ -183,6 +196,13 @@ export const caseCommands = [
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
+      traces: {
+        type: 'boolean',
+        help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',
+      },
+      'traces-port': { type: 'number', help: 'where --traces listens', default: 4318, value: 'port' },
+      push: { type: 'boolean', help: 'with --out: upload the run to the reports service when it ends and print the report’s address' },
+      project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
@@ -193,6 +213,7 @@ export const caseCommands = [
         help: 'starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job',
         value: 'command',
       },
+      'in-order': { type: 'boolean', help: 'with --jobs: take the cases in the order given, not the longest first' },
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
       'dry-run': { type: 'boolean', help: 'parse and list the steps without running them' },
@@ -211,6 +232,10 @@ export const caseCommands = [
       const out = typeof ctx.flags.out === 'string' && !dry ? new RunFile(path.resolve(ctx.flags.out), ctx.root) : undefined;
       if ((ctx.flags.screenshots || ctx.flags.video) && !out)
         return { text: '--screenshots and --video keep what they take in the run directory: add --out <dir>', code: 2 };
+      // Checked before the run, so a missing key does not surface only after every case has run.
+      const reportsTo = ctx.flags.push && out ? service() : undefined;
+      if (ctx.flags.push && !out) return { text: '--push uploads the run directory: add --out <dir>', code: 2 };
+      if (typeof reportsTo === 'string') return { text: reportsTo, code: 2 };
       const evidenceOf = (id: string, attempt: number) =>
         out && (ctx.flags.screenshots || ctx.flags.video)
           ? {
@@ -222,9 +247,33 @@ export const caseCommands = [
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
       // A run file files each event under its step, so it needs them collected.
       const events = typeof ctx.flags.events === 'string' || out !== undefined;
+      const claimed = dry
+        ? undefined
+        : claimPorts(
+            typeof ctx.flags.ports === 'string'
+              ? ctx.flags.ports
+                  .split(',')
+                  .map(Number)
+                  .filter(Number.isInteger)
+                  .slice(0, Math.max(1, Number(ctx.flags.jobs ?? 1)))
+              : [portFromEnv(ctx.config) ?? 8123],
+          );
+      if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
       const host = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
+      const traces = ctx.flags.traces && !dry ? new TraceSink(Number(ctx.flags['traces-port'] ?? 4318)) : undefined;
+      if (traces) {
+        try {
+          await traces.start();
+        } catch (error) {
+          fixtures?.close();
+          return { text: `--traces could not listen on port ${traces.port}: ${(error as Error).message}`, code: 2 };
+        }
+        ctx.err(`backend traces: listening on http://localhost:${traces.port} (the backend's OTEL_EXPORTER_OTLP_ENDPOINT)`);
+      }
       const stop = () => {
+        traces?.close();
+        claimed?.release();
         fixtures?.close();
         if (host?.pid) stopGroup(host.pid);
       };
@@ -248,6 +297,12 @@ export const caseCommands = [
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
           return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
+        // Several jobs finish together only if the longest cases start first: one left for the end runs alone
+        // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
+        if (jobs > 1 && ledger && !ctx.flags['in-order']) {
+          const took = (id: string) => ledger.lastMs(id) ?? Number.POSITIVE_INFINITY;
+          cases.sort((a, b) => took(b.id) - took(a.id));
+        }
         const limit = Number(ctx.flags.ahead ?? 0);
         const store: Store | undefined =
           typeof ctx.flags.prepared === 'string' && !dry ? new Ahead(path.resolve(ctx.flags.prepared)) : limit > 0 && fixtures ? new InMemory() : undefined;
@@ -303,6 +358,7 @@ export const caseCommands = [
                     prepared,
                     continue: !!ctx.flags.continue,
                     routes: seenDir ? (host ? 'fresh' : true) : false,
+                    traces,
                   });
                   if (seenDir && report.result === 'passed' && report.routes?.length) {
                     fs.mkdirSync(seenDir, { recursive: true });
@@ -362,6 +418,15 @@ export const caseCommands = [
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
+        ...(reportsTo && out
+          ? [
+              await pushed(
+                path.resolve(ctx.flags.out as string),
+                reportsTo,
+                typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
+              ),
+            ]
+          : []),
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.

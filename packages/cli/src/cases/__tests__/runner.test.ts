@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
+import type { RequestRecord } from 'lynkeus-protocol';
+
 import { driveCommands } from '../../commands/drive.js';
 import { osCommands } from '../../commands/os.js';
 import type { Device } from '../../device/driver.js';
@@ -26,6 +28,8 @@ type Call = { method: string; params: unknown };
 const fakeApp = () => {
   const calls: Call[] = [];
   let shown = 'Hello';
+  // The app's requests as it numbers them; a press asks for the points again.
+  const requests: RequestRecord[] = [{ id: 1, method: 'GET', url: 'http://x/api/points', status: 200, startedAt: 0 }];
   const screen = () => ({
     route: 'Profile.Main',
     path: ['Profile.Main'],
@@ -50,9 +54,11 @@ const fakeApp = () => {
     server,
     screen: async () => screen(),
     trace: async () => ({ last: 0, events: [{ seq: 1, t: 0, kind: 'request', method: 'GET', url: 'http://x/api/points', status: 200 }] }),
+    requests: async (since?: number) => ({ inFlight: 0, requests: requests.filter((r) => since === undefined || r.id > since) }),
     press: async (params: unknown) => {
       calls.push({ method: 'press', params });
       shown = '25 points';
+      requests.push({ id: requests.length + 1, method: 'GET', url: 'http://x/api/points', status: 200, startedAt: 0 });
       return { x: 0, y: 0, mode: 'native' };
     },
     waitFor: async () => ({ waitedMs: 0 }),
@@ -69,7 +75,7 @@ const fakeApp = () => {
     },
     device: async () => device,
   };
-  return { base, calls };
+  return { base, calls, requests };
 };
 
 const config = { refs: { user: 'user_id' }, inspect: 'inspect' };
@@ -463,4 +469,45 @@ steps:
 test('a setup that drives the app is not made ahead', () => {
   const c = parseCase('---\nid: app\n---\nsetup:\n  - create_user: { as: u }\n  - app.login: { as: u }\n', 'app.md');
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
+});
+
+test('a step waits only for requests started after the action before it began', async () => {
+  const c = parseCase(
+    '---\nid: req\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "GET /api/points", timeoutMs: 400 }\n  - app.press: "#refresh"\n  - app.see: { request: "POST /api/points", timeoutMs: 200 }\n',
+    'req.md',
+  );
+  const { base, requests } = fakeApp();
+  // Already asked for before the case: it must not pass for the one the press causes.
+  requests.push({ id: 2, method: 'POST', url: 'http://x/api/points', status: 200, startedAt: 0 });
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed', 'passed', 'failed'],
+  );
+  assert.match(report.steps[3]!.error!, /not requested since the step before began: POST \/api\/points/);
+});
+
+test('a request the press before did not cause is not waited for', async () => {
+  const c = parseCase('---\nid: stale\n---\nsteps:\n  - app.type: { text: "x" }\n  - app.wait: { request: "GET /api/points", timeoutMs: 300 }\n', 'stale.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { type: () => Promise<unknown> }).type = async () => ({});
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.steps[1]!.status, 'failed');
+  assert.match(report.steps[1]!.error!, /no 2xx GET \/api\/points within 300 ms/);
+});
+
+test('a mark made by hand holds across the actions after it until a step has looked for a request', async () => {
+  const c = parseCase(
+    '---\nid: hand\n---\nsteps:\n  - app.requests: mark\n  - app.press: "#refresh"\n  - app.type: { text: "x" }\n  - app.see: { request: "GET /api/points", timeoutMs: 200 }\n  - app.type: { text: "y" }\n  - app.see: { request: "GET /api/points", timeoutMs: 200 }\n',
+    'hand.md',
+  );
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { type: () => Promise<unknown> }).type = async () => ({});
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed', 'passed', 'passed', 'passed', 'failed'],
+  );
 });

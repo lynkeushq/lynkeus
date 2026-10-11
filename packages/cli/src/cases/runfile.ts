@@ -3,6 +3,7 @@
  * and cases.jsonl. The manifest is written at the start and again at the end,
  * so a run that was cut short still says when it began and what it ran on.
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -34,6 +35,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
       ...(events.length > 0 ? { events } : {}),
       ...(screenshot ? { screenshot } : {}),
       ...(s.videoS !== undefined ? { videoS: s.videoS } : {}),
+      ...(s.backend?.length ? { backend: s.backend } : {}),
     };
   });
   const description = typeof c.meta.description === 'string' ? c.meta.description : undefined;
@@ -54,6 +56,21 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
   };
 };
 
+/** The branch and commit the run was made from, so a report can say which code it tested. */
+const gitOf = (root: string): RunManifest['git'] => {
+  const ask = (...args: string[]) => {
+    try {
+      return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  const commit = ask('rev-parse', '--short', 'HEAD');
+  if (!commit) return undefined;
+  const branch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || ask('rev-parse', '--abbrev-ref', 'HEAD');
+  return { commit, ...(branch && branch !== 'HEAD' ? { branch } : {}) };
+};
+
 export class RunFile {
   private readonly manifest: RunManifest;
   private readonly last = new Map<string, { result: RunCase['result']; attempt: number }>();
@@ -65,7 +82,8 @@ export class RunFile {
   ) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'cases.jsonl'), '');
-    this.manifest = { schema: RUN_SCHEMA, startedAt: startedAt.toISOString() };
+    const git = gitOf(root);
+    this.manifest = { schema: RUN_SCHEMA, startedAt: startedAt.toISOString(), ...(git ? { git } : {}) };
     this.save();
   }
 
