@@ -6,9 +6,9 @@ describe('qa.register', () => {
   it('exposes app commands by name, sorted', () => {
     const off = qa.register('reset', () => 'done');
     qa.register('busy', () => false);
-    expect(host.commands()).toEqual(['busy', 'events', 'profile', 'reset', 'stores']);
+    expect(host.commands()).toEqual(['busy', 'events', 'profile', 'reset', 'stores', 'traceContext']);
     off();
-    expect(host.commands()).toEqual(['busy', 'events', 'profile', 'stores']);
+    expect(host.commands()).toEqual(['busy', 'events', 'profile', 'stores', 'traceContext']);
     qa.unregister('busy');
   });
 
