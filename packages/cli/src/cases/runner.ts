@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, Screen, Target, TraceEvent } from 'lynkeus-protocol';
+import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
@@ -17,6 +17,7 @@ import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
+import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
@@ -66,6 +67,8 @@ export type StepReport = {
   videoS?: number;
   /** What the step made the app send its analytics SDKs, where the host captures them. */
   sent?: SentEvent[];
+  /** What the backend did for it, from the traces it exported to the run. */
+  backend?: BackendSpan[];
 };
 export type CaseReport = {
   id: string;
@@ -92,6 +95,8 @@ export type Evidence = { dir: string; screenshots?: boolean; video?: { fps: numb
 
 export type RunOptions = {
   base: Base;
+  /** Where the backend's traces arrive during the run: each app step's requests carry its id. */
+  traces?: TraceSink;
   config: CasesConfig;
   fixtures?: Fixtures;
   dry?: boolean;
@@ -200,8 +205,8 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
 const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !e.hidden || e.hidden === 'inert');
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 
-const requestMatches = (event: TraceEvent, wanted: string, status?: number): boolean => {
-  if (event.kind !== 'request') return false;
+const requestMatches = (event: RequestRecord, wanted: string, status?: number): boolean => {
+  if (event.status === undefined) return false;
   const [method, route] = wanted.includes(' ') ? wanted.split(/\s+/, 2) : ['*', wanted];
   let pathname = event.url;
   try {
@@ -213,6 +218,9 @@ const requestMatches = (event: TraceEvent, wanted: string, status?: number): boo
   if (!pathname.endsWith(route!)) return false;
   return status === undefined ? true : event.status === status;
 };
+
+// Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
+const LOOKING = new Set(['see', 'wait', 'event', 'requests', 'events']);
 
 const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event'];
 
@@ -254,6 +262,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
+  // The app numbers its requests as they start. A step that looks for one counts only those started after the
+  // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
+  // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
+  let requestsAfter: number | undefined;
+  let markedByHand = false;
   let why: string | undefined;
   const recorded: RunEvent[] = [];
   let buffer: AppEvent[] = [];
@@ -269,7 +282,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const device = () => base.device();
-  const sinceMark = async (): Promise<TraceEvent[]> => (await (await device()).trace(mark)).events;
+  const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
+  const markRequests = async (d: Device, byHand = false): Promise<void> => {
+    if (markedByHand && !byHand) return;
+    requestsAfter = await lastRequest(d);
+    markedByHand = byHand;
+  };
+  const requestsSinceMark = async (): Promise<RequestRecord[]> => {
+    const d = await device();
+    const { requests } = await d.requests(requestsAfter);
+    // An app started again numbers its requests from 1.
+    if (requests.length === 0 && requestsAfter && (await lastRequest(d)) < requestsAfter) requestsAfter = 0;
+    return requests;
+  };
   const cli = async (argv: string[]) => {
     const outcome = await execute(argv, base);
     if (outcome.error || outcome.code !== 0) {
@@ -354,7 +379,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     } else if (text !== undefined && !elements.some((e) => textOf(e).includes(text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
-      if (!(await sinceMark()).some((e) => requestMatches(e, params.request as string, status))) return `not requested since the mark: ${params.request}`;
+      if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
+        return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      markedByHand = false;
     }
     if (typeof params.event === 'string') {
       const wanted = (params.props ?? params.properties ?? {}) as Record<string, unknown>;
@@ -434,11 +461,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const deadline = Date.now() + timeoutMs;
     const status = typeof params.status === 'number' ? params.status : undefined;
     while (true) {
-      const events = await sinceMark();
-      const hit = events.some(
-        (e) => requestMatches(e, String(params.request), status) && (status !== undefined || (e.kind === 'request' && String(e.status).startsWith('2'))),
-      );
-      if (hit) return;
+      const events = await requestsSinceMark();
+      const hit = events.some((e) => requestMatches(e, String(params.request), status) && (status !== undefined || String(e.status).startsWith('2')));
+      if (hit) {
+        markedByHand = false;
+        return;
+      }
       if (Date.now() > deadline) throw new Error(`no ${status ?? '2xx'} ${String(params.request)} within ${timeoutMs} ms`);
       await sleep(300);
     }
@@ -550,6 +578,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
     mark ??= (await d.trace()).last;
+    // An interruption handled inside a wait is not the action the wait is about.
+    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
     switch (name) {
       case 'press': {
         await interrupted(value);
@@ -559,17 +589,26 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return outcome;
       }
       case 'type':
-      case 'swipe':
+      case 'swipe': {
         await interrupted(value);
+        // A field that arrives with its screen (a code input that mounts a moment after the keyboard) takes
+        // what is typed only once it is there: under load that moment is longer than the step's own wait.
+        const field = name === 'type' && params ? targetIn(params) : undefined;
+        if (field) {
+          await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
+          await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+        }
         await cli(argvFor(find(name)!, value));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
         if (name === 'swipe' && onWallClock(d)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         return undefined;
+      }
       case 'see':
         await see(value);
         return undefined;
       case 'requests':
         mark = (await d.trace()).last;
+        await markRequests(d, true);
         return undefined;
       case 'wait': {
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
@@ -637,7 +676,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
   };
 
+  // A macro is one step of the case: the requests it waits for are the ones it set off, from its first
+  // action on, not only those of its last (`app.refresh` asks for a refresh, then waits for it to settle).
+  let macroDepth = 0;
   const macro = async (steps: unknown[], value: StepValue): Promise<void> => {
+    if (macroDepth === 0 && !handling) {
+      const d = await device().catch(() => undefined);
+      if (d) await markRequests(d);
+    }
+    macroDepth++;
+    try {
+      await runMacro(steps, value);
+    } finally {
+      macroDepth--;
+    }
+  };
+  const runMacro = async (steps: unknown[], value: StepValue): Promise<void> => {
     const given = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : { value };
     // A parameter that names an alias is that alias: `as: u` makes `{{param.as.user_id}}` the user's.
     const param = Object.fromEntries(Object.entries(given).map(([k, v]) => [k, typeof v === 'string' && v in scope ? scope[v] : v]));
@@ -786,6 +840,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device().catch(() => undefined);
     await d?.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
   }
+  // Each app step gets a span id the host puts in the `traceparent` of every request the app sends while it
+  // runs; a backend that exports traces to the run files what it did under that step.
+  const tracing = options.traces && !options.dry && !options.setupOnly && (await offers('traceContext')) ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() } : undefined;
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   for (const [index, step] of todo.entries()) {
@@ -816,6 +873,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         );
     }
     const at = step.verb.startsWith('app.') || config.macros?.[step.verb] ? await frameAt() : undefined;
+    if (tracing && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      const spanId = newSpanId();
+      tracing.steps.set(spanId, { index: steps.length, startedMs: t0 });
+      await (await device()).command('traceContext', { traceparent: traceparent(tracing.traceId, spanId) }).catch(() => undefined);
+    }
     try {
       const outcome = await perform(step);
       if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await collect(steps.length + 1);
@@ -843,6 +905,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
+  if (tracing && options.traces) {
+    await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
+    // A backend exports in batches, a moment after the requests it served.
+    await options.traces.settle(tracing.traceId);
+    for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
+      const s = steps[index];
+      // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
+      if (s) s.backend = spans.slice(0, 400);
+    }
+  }
   if (options.setupOnly && !failed) options.setupOnly.keep({ scope, latest, ran: [...ran], steps });
   if (options.dry) failed = steps.some((s) => s.status === 'failed');
   const report: CaseReport = {

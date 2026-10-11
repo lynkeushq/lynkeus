@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+import type { Element } from 'lynkeus-protocol';
+
 import type { Device } from '../device/driver.js';
 import { writeJson } from '../files.js';
 import { drainEvents, type RunEvent, writeEvents } from '../knowledge/events.js';
@@ -98,6 +100,34 @@ export const runFlow = async (flow: Flow, options: RunFlowOptions): Promise<Flow
   return report;
 };
 
+/**
+ * A keypad the app raises slides in, and under load its keys are listed a while before they can take a
+ * press: disabled, under the screen it is leaving, or still moving. A press then lands on nothing, and the
+ * code comes up a digit short.
+ */
+const keyReady = async (device: Device, key: { testId: string }, timeoutMs: number): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  let was: string | undefined;
+  for (;;) {
+    const found = (await device.server.call('find', key)) as Element | null;
+    const at = found ? JSON.stringify(found.frame) : undefined;
+    const why =
+      !found || (found.hidden && found.hidden !== 'inert')
+        ? 'not on screen'
+        : !found.enabled
+          ? 'disabled'
+          : found.covered
+            ? 'covered'
+            : at !== was
+              ? 'moving'
+              : undefined;
+    if (!why) return;
+    if (Date.now() > deadline) throw new Error(`keypad key #${key.testId} is ${why} after ${timeoutMs} ms`);
+    was = at;
+    await device.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
+  }
+};
+
 const execute = async (step: FlowStep, flow: Flow, device: Device, vars: Record<string, unknown>): Promise<void> => {
   if ('note' in step) return;
   if ('launch' in step) {
@@ -132,7 +162,11 @@ const execute = async (step: FlowStep, flow: Flow, device: Device, vars: Record<
   }
   if ('keypad' in step) {
     for (const digit of step.keypad.digits) {
-      await device.press({ testId: step.keypad.pattern.replace('{d}', digit), mode: step.keypad.mode });
+      const key = { testId: step.keypad.pattern.replace('{d}', digit) };
+      await keyReady(device, key, step.keypad.timeoutMs ?? 5000);
+      await device.press({ ...key, mode: step.keypad.mode });
+      // A code field fed by the app's state drops a digit pressed before the last one rendered.
+      await device.idle({ quietMs: 50, timeoutMs: 400 }).catch(() => undefined);
     }
     return;
   }
