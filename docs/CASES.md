@@ -183,8 +183,11 @@ lynkeus needs to know nothing about it:
    kept under that step in `cases.jsonl` (`backend`), the request first and
    what it set off indented under it.
 
-The host has to offer the `traceContext` command (fastsim does); a backend's
-spans that no step's request caused, such as a scheduler's, are left out. Turn
+The agent puts the header on the app's requests itself (its `traceContext`
+command), so this works on a simulator, an emulator or a device as well as on
+fastsim; an app with an agent older than this release goes untraced. A
+backend's spans that no step's request caused, such as a scheduler's, are left
+out. Turn
 the backend's exporter on only for test runs: it costs a little on every
 request.
 
