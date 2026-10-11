@@ -10,7 +10,7 @@ import type { CaseReport } from './runner.js';
 
 const KEPT = 20;
 
-export type Outcome = { at: string; result: CaseReport['result']; retried: boolean; step?: string; error?: string };
+export type Outcome = { at: string; result: CaseReport['result']; retried: boolean; ms?: number; step?: string; error?: string };
 export type Ledger = Record<string, { runs: number; failed: number; retried: number; last: Outcome[] }>;
 
 export class Flakes {
@@ -39,9 +39,15 @@ export class Flakes {
         at: at.toISOString(),
         result: report.result,
         retried: !!report.retried,
+        ms: report.ms,
         ...(broke ? { step: broke.step, error: broke.error?.split('\n')[0] } : {}),
       },
     ].slice(-KEPT);
+  }
+
+  /** How long a case took when it last passed, if the ledger has seen it pass. */
+  lastMs(id: string): number | undefined {
+    return [...(this.ledger[id]?.last ?? [])].reverse().find((o) => o.result === 'passed' && o.ms !== undefined)?.ms;
   }
 
   /** The cases among `ids` whose recent runs disagree with each other, worded for a summary. */
