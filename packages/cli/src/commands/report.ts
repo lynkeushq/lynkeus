@@ -71,6 +71,22 @@ export type ListedRun = { project: string; platform: string | null; totals: Reco
 export const listRuns = async (o: Service & { limit?: number }) =>
   (await ask(o, 'GET', `/v1/runs?limit=${o.limit ?? 20}`, 'listing the runs')).runs as ListedRun[];
 
+export type Flaky = {
+  id: string;
+  title: string;
+  runs: number;
+  firstTryRate: number;
+  state: 'flaky' | 'broken';
+  recent: ('passed' | 'retried' | 'failed')[];
+  lastFailure: string | null;
+};
+
+export const flakes = async (o: Service & { project: string; runs?: number }) =>
+  (await ask(o, 'GET', `/v1/flakes?project=${encodeURIComponent(o.project)}&runs=${o.runs ?? 30}`, 'reading flake trends')) as {
+    runs: number;
+    cases: Flaky[];
+  };
+
 export type Plan = { name: string; plan: string; days: number; projects: number | null; film: boolean };
 
 /** The organisation's plan, and with `upgrade` or `manage` the Stripe page that changes it. */
@@ -163,6 +179,39 @@ export const reportCommands = [
         const now = await plan({ ...to, go });
         const keeps = `${now.film ? 'films and frames' : 'frames'} for ${now.days} days, ${now.projects ?? 'any number of'} project${now.projects === 1 ? '' : 's'}`;
         return { text: `${now.name}: ${now.plan} (${keeps})${now.url ? `\n${now.url}` : ''}`, json: now };
+      } catch (error) {
+        return { text: (error as Error).message, code: 1 };
+      }
+    },
+  }),
+  define({
+    name: 'report flakes',
+    group: 'runs',
+    summary: 'List the cases that do not always pass at the first try, across the project’s last runs',
+    details:
+      'Reads the reports pushed for the project and ranks its cases by how often they passed at the first try, the least reliable first. Each line shows the recent runs newest first (✓ passed, ↻ passed on a retry, ✗ failed) and the last report where it went wrong. A case that failed its last three runs is broken rather than flaky. On the Team plan.',
+    flags: {
+      project: { type: 'string', help: 'the project (default: the app’s folder name)', value: 'name' },
+      runs: { type: 'string', help: 'how many of the latest runs to read (default 30)', value: 'n' },
+    },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const to = service();
+      if (typeof to === 'string') return { text: to, code: 2 };
+      const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
+      try {
+        const found = await flakes({ ...to, project, runs: Number(ctx.flags.runs) || 30 });
+        if (found.cases.length === 0) return { text: `${project}: every case passed at the first try in the last ${found.runs} runs`, json: found };
+        const mark = { passed: '✓', retried: '↻', failed: '✗' } as const;
+        const lines = found.cases.map(
+          (c) =>
+            `${c.state === 'broken' ? 'broken' : 'flaky '}  ${Math.round(c.firstTryRate * 100)
+              .toString()
+              .padStart(3)}%  ${c.recent.map((r) => mark[r]).join('')}  ${c.id}${c.lastFailure ? `  ${c.lastFailure}` : ''}`,
+        );
+        return { text: [`${project}: ${found.runs} runs`, ...lines].join('\n'), json: found };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };
       }

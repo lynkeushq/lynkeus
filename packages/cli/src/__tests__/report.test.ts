@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { listRuns, plan, pushRun } from '../commands/report.js';
+import { flakes, listRuns, plan, pushRun } from '../commands/report.js';
 
 const runDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-push-'));
@@ -92,4 +92,16 @@ test('the plan is read, and upgrading prints the Stripe checkout', async () => {
   assert.equal((await plan({ ...service, go: 'upgrade' })).url, 'https://checkout.stripe.test/c');
   await assert.rejects(plan({ ...service, go: 'manage' }), /opening the billing portal: this organisation has not paid yet/);
   assert.deepEqual(asked, ['GET /v1/billing', 'GET /v1/billing', 'POST /v1/billing/checkout', 'GET /v1/billing', 'POST /v1/billing/portal']);
+});
+
+test('flake trends are read for the project asked', async () => {
+  const asked: string[] = [];
+  const fake = (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    asked.push(`${url.pathname}${url.search}`);
+    return new Response(JSON.stringify({ runs: 3, cases: [{ id: 'down', state: 'broken', firstTryRate: 0 }] }), { status: 200 });
+  }) as typeof fetch;
+  const found = await flakes({ url: 'https://reports.test', key: 'lk_1', project: 'my app', runs: 10, fetch: fake });
+  assert.equal(found.cases[0]!.state, 'broken');
+  assert.deepEqual(asked, ['/v1/flakes?project=my%20app&runs=10']);
 });
