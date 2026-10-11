@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 
+import type { RequestRecord } from 'lynkeus-protocol';
+
 import { driveCommands } from '../../commands/drive.js';
 import { osCommands } from '../../commands/os.js';
 import type { Device } from '../../device/driver.js';
@@ -26,6 +28,8 @@ type Call = { method: string; params: unknown };
 const fakeApp = () => {
   const calls: Call[] = [];
   let shown = 'Hello';
+  // The app's requests as it numbers them; a press asks for the points again.
+  const requests: RequestRecord[] = [{ id: 1, method: 'GET', url: 'http://x/api/points', status: 200, startedAt: 0 }];
   const screen = () => ({
     route: 'Profile.Main',
     path: ['Profile.Main'],
@@ -50,9 +54,11 @@ const fakeApp = () => {
     server,
     screen: async () => screen(),
     trace: async () => ({ last: 0, events: [{ seq: 1, t: 0, kind: 'request', method: 'GET', url: 'http://x/api/points', status: 200 }] }),
+    requests: async (since?: number) => ({ inFlight: 0, requests: requests.filter((r) => since === undefined || r.id > since) }),
     press: async (params: unknown) => {
       calls.push({ method: 'press', params });
       shown = '25 points';
+      requests.push({ id: requests.length + 1, method: 'GET', url: 'http://x/api/points', status: 200, startedAt: 0 });
       return { x: 0, y: 0, mode: 'native' };
     },
     waitFor: async () => ({ waitedMs: 0 }),
@@ -69,7 +75,7 @@ const fakeApp = () => {
     },
     device: async () => device,
   };
-  return { base, calls };
+  return { base, calls, requests };
 };
 
 const config = { refs: { user: 'user_id' }, inspect: 'inspect' };
@@ -113,6 +119,50 @@ test('the first step that fails stops the case and leaves the evidence', async (
   assert.match(report.steps[0]!.error!, /not on screen: "Goodbye"/);
   assert.match(report.evidence!.screen!, /button #refresh/);
   assert.equal(calls.filter((x) => x.method === 'press').length, 0);
+});
+
+test('with continue, the steps after a failed one still run; a failed setup still stops the case', async () => {
+  const red = parseCase('---\nid: red\n---\nsteps:\n  - app.see: { text: "Goodbye", timeoutMs: 200 }\n  - app.press: "#refresh"\n', 'red.md');
+  const { base, calls } = fakeApp();
+  const report = await runCase(red, { base, config, fixtures, continue: true });
+  assert.equal(report.result, 'failed');
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['failed', 'passed'],
+  );
+  assert.equal(calls.filter((x) => x.method === 'press').length, 1);
+
+  const broken = parseCase('---\nid: broken\n---\nsetup:\n  - no_such_fixture: {}\nsteps:\n  - app.press: "#refresh"\n', 'broken.md');
+  const stopped = await runCase(broken, { base, config, fixtures, continue: true });
+  assert.deepEqual(
+    stopped.steps.map((s) => s.status),
+    ['failed', 'skipped'],
+  );
+});
+
+test('a run that asks for routes gets the screens the case went through, not the one the app was left on', async () => {
+  const c = parseCase('---\nid: walk\n---\nsteps:\n  - app.press: "#refresh"\n', 'walk.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const asked: (number | undefined)[] = [];
+  device.trace = async (since?: number) => {
+    asked.push(since);
+    return {
+      last: 7,
+      events:
+        since === undefined
+          ? []
+          : [
+              // The reset of an app left on Profile.Main reports it once more before the case moves on.
+              { seq: 8, t: 0, kind: 'route', route: 'Profile.Main', path: [] },
+              { seq: 9, t: 0, kind: 'route', route: 'Home.Main', path: [] },
+              { seq: 10, t: 0, kind: 'route', route: 'Settings.Main', path: [] },
+            ],
+    };
+  };
+  const report = await runCase(c, { base, config, fixtures, routes: true });
+  assert.deepEqual(report.routes, ['Home.Main', 'Settings.Main']);
+  assert.equal(asked.at(-1), 7);
 });
 
 test('an optional press of something that is not there is skipped, not failed', async () => {
@@ -404,7 +454,12 @@ steps:
   await runCase(c, { base, config, fixtures, setupOnly: { keep: (p) => (kept = p) } });
   assert.ok(kept);
   const asked: string[] = [];
-  const counting = { call: async (name: string, params: Record<string, unknown>) => (asked.push(name), fixtures.call(name, params)) } as Fixtures;
+  const counting = {
+    call: async (name: string, params: Record<string, unknown>) => {
+      asked.push(name);
+      return fixtures.call(name, params);
+    },
+  } as Fixtures;
   const report = await runCase(c, { base, config, fixtures: counting, prepared: kept });
   assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
   assert.deepEqual(asked, ['inspect', 'inspect']);
@@ -414,4 +469,45 @@ steps:
 test('a setup that drives the app is not made ahead', () => {
   const c = parseCase('---\nid: app\n---\nsetup:\n  - create_user: { as: u }\n  - app.login: { as: u }\n', 'app.md');
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
+});
+
+test('a step waits only for requests started after the action before it began', async () => {
+  const c = parseCase(
+    '---\nid: req\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "GET /api/points", timeoutMs: 400 }\n  - app.press: "#refresh"\n  - app.see: { request: "POST /api/points", timeoutMs: 200 }\n',
+    'req.md',
+  );
+  const { base, requests } = fakeApp();
+  // Already asked for before the case: it must not pass for the one the press causes.
+  requests.push({ id: 2, method: 'POST', url: 'http://x/api/points', status: 200, startedAt: 0 });
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed', 'passed', 'failed'],
+  );
+  assert.match(report.steps[3]!.error!, /not requested since the step before began: POST \/api\/points/);
+});
+
+test('a request the press before did not cause is not waited for', async () => {
+  const c = parseCase('---\nid: stale\n---\nsteps:\n  - app.type: { text: "x" }\n  - app.wait: { request: "GET /api/points", timeoutMs: 300 }\n', 'stale.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { type: () => Promise<unknown> }).type = async () => ({});
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.steps[1]!.status, 'failed');
+  assert.match(report.steps[1]!.error!, /no 2xx GET \/api\/points within 300 ms/);
+});
+
+test('a mark made by hand holds across the actions after it until a step has looked for a request', async () => {
+  const c = parseCase(
+    '---\nid: hand\n---\nsteps:\n  - app.requests: mark\n  - app.press: "#refresh"\n  - app.type: { text: "x" }\n  - app.see: { request: "GET /api/points", timeoutMs: 200 }\n  - app.type: { text: "y" }\n  - app.see: { request: "GET /api/points", timeoutMs: 200 }\n',
+    'hand.md',
+  );
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { type: () => Promise<unknown> }).type = async () => ({});
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed', 'passed', 'passed', 'passed', 'failed'],
+  );
 });
