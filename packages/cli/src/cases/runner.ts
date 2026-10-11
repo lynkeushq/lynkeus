@@ -501,7 +501,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (!found) return undefined;
       const { h } = (await d.screen()).window;
       // Covered near an edge is the screen's own header or tab bar over a scrolled page, not an overlay.
-      const top = found.frame.y, bottom = found.frame.y + found.frame.h;
+      const top = found.frame.y,
+        bottom = found.frame.y + found.frame.h;
       if (top < 0 || (found.covered && top < h * 0.2)) return 'above';
       if (bottom > h || (found.covered && bottom > h * 0.8)) return 'below';
       return undefined;
@@ -842,7 +843,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   // Each app step gets a span id the host puts in the `traceparent` of every request the app sends while it
   // runs; a backend that exports traces to the run files what it did under that step.
-  const tracing = options.traces && !options.dry && !options.setupOnly && (await offers('traceContext')) ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() } : undefined;
+  const tracing =
+    options.traces && !options.dry && !options.setupOnly && (await offers('traceContext'))
+      ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() }
+      : undefined;
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   for (const [index, step] of todo.entries()) {
