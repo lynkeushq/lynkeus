@@ -28,7 +28,7 @@ report carries the screen, the requests and the reason.
 | `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
-| `app.requests` | `mark` | From here on, `request` only counts what the app asks for. |
+| `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
 | `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
 | `app.run` | `{ flow, vars? }` | A lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |

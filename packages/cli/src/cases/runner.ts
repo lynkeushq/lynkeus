@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, Screen, Target, TraceEvent } from 'lynkeus-protocol';
+import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
@@ -200,8 +200,8 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
 const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !e.hidden || e.hidden === 'inert');
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 
-const requestMatches = (event: TraceEvent, wanted: string, status?: number): boolean => {
-  if (event.kind !== 'request') return false;
+const requestMatches = (event: RequestRecord, wanted: string, status?: number): boolean => {
+  if (event.status === undefined) return false;
   const [method, route] = wanted.includes(' ') ? wanted.split(/\s+/, 2) : ['*', wanted];
   let pathname = event.url;
   try {
@@ -213,6 +213,9 @@ const requestMatches = (event: TraceEvent, wanted: string, status?: number): boo
   if (!pathname.endsWith(route!)) return false;
   return status === undefined ? true : event.status === status;
 };
+
+// Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
+const LOOKING = new Set(['see', 'wait', 'event', 'requests', 'events']);
 
 const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event'];
 
@@ -254,6 +257,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
+  // The app numbers its requests as they start. A step that looks for one counts only those started after the
+  // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
+  // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
+  let requestsAfter: number | undefined;
+  let markedByHand = false;
   let why: string | undefined;
   const recorded: RunEvent[] = [];
   let buffer: AppEvent[] = [];
@@ -269,7 +277,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const device = () => base.device();
-  const sinceMark = async (): Promise<TraceEvent[]> => (await (await device()).trace(mark)).events;
+  const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
+  const markRequests = async (d: Device, byHand = false): Promise<void> => {
+    if (markedByHand && !byHand) return;
+    requestsAfter = await lastRequest(d);
+    markedByHand = byHand;
+  };
+  const requestsSinceMark = async (): Promise<RequestRecord[]> => {
+    const d = await device();
+    const { requests } = await d.requests(requestsAfter);
+    // An app started again numbers its requests from 1.
+    if (requests.length === 0 && requestsAfter && (await lastRequest(d)) < requestsAfter) requestsAfter = 0;
+    return requests;
+  };
   const cli = async (argv: string[]) => {
     const outcome = await execute(argv, base);
     if (outcome.error || outcome.code !== 0) {
@@ -354,7 +374,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     } else if (text !== undefined && !elements.some((e) => textOf(e).includes(text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
-      if (!(await sinceMark()).some((e) => requestMatches(e, params.request as string, status))) return `not requested since the mark: ${params.request}`;
+      if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
+        return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      markedByHand = false;
     }
     if (typeof params.event === 'string') {
       const wanted = (params.props ?? params.properties ?? {}) as Record<string, unknown>;
@@ -434,11 +456,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const deadline = Date.now() + timeoutMs;
     const status = typeof params.status === 'number' ? params.status : undefined;
     while (true) {
-      const events = await sinceMark();
-      const hit = events.some(
-        (e) => requestMatches(e, String(params.request), status) && (status !== undefined || (e.kind === 'request' && String(e.status).startsWith('2'))),
-      );
-      if (hit) return;
+      const events = await requestsSinceMark();
+      const hit = events.some((e) => requestMatches(e, String(params.request), status) && (status !== undefined || String(e.status).startsWith('2')));
+      if (hit) {
+        markedByHand = false;
+        return;
+      }
       if (Date.now() > deadline) throw new Error(`no ${status ?? '2xx'} ${String(params.request)} within ${timeoutMs} ms`);
       await sleep(300);
     }
@@ -550,6 +573,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
     mark ??= (await d.trace()).last;
+    // An interruption handled inside a wait is not the action the wait is about.
+    if ((!LOOKING.has(name) && !handling) || requestsAfter === undefined) await markRequests(d);
     switch (name) {
       case 'press': {
         await interrupted(value);
@@ -570,6 +595,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return undefined;
       case 'requests':
         mark = (await d.trace()).last;
+        await markRequests(d, true);
         return undefined;
       case 'wait': {
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
