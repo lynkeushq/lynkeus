@@ -97,6 +97,16 @@ export const flakes = async (o: Service & { project: string; runs?: number }) =>
     cases: Flaky[];
   };
 
+export type CaseRun = { at: string; outcome: 'passed' | 'retried' | 'failed'; ms: number | null; branch?: string | null; commit?: string | null; url: string };
+
+export const caseHistory = async (o: Service & { project: string; id: string; runs?: number }) =>
+  (await ask(
+    o,
+    'GET',
+    `/v1/cases/history?project=${encodeURIComponent(o.project)}&case=${encodeURIComponent(o.id)}&runs=${o.runs ?? 50}`,
+    'reading the case’s history',
+  )) as { title: string; runs: CaseRun[] };
+
 export type Plan = { name: string; plan: string; days: number; projects: number | null; film: boolean };
 
 /** The organisation's plan, and with `upgrade` or `manage` the Stripe page that changes it. */
@@ -222,6 +232,38 @@ export const reportCommands = [
               .padStart(3)}%  ${c.recent.map((r) => mark[r]).join('')}  ${c.id}${c.lastFailure ? `  ${c.lastFailure}` : ''}`,
         );
         return { text: [`${project}: ${found.runs} runs`, ...lines].join('\n'), json: found };
+      } catch (error) {
+        return { text: (error as Error).message, code: 1 };
+      }
+    },
+  }),
+  define({
+    name: 'report history',
+    group: 'runs',
+    summary: 'Show how one case came out in each of the project’s last runs',
+    details:
+      'Newest first: ✓ passed, ↻ passed on a retry, ✗ failed, with how long it took, the branch and commit the run was made from, and the report to open. What tells a case that fails now and then from one a commit broke.',
+    positionals: [{ name: 'case', help: 'the case id', required: true }],
+    flags: {
+      project: { type: 'string', help: 'the project (default: the app’s folder name)', value: 'name' },
+      runs: { type: 'string', help: 'how many of the latest runs to read (default 50)', value: 'n' },
+    },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const to = service();
+      if (typeof to === 'string') return { text: to, code: 2 };
+      const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
+      try {
+        const found = await caseHistory({ ...to, project, id: ctx.args[0]!, runs: Number(ctx.flags.runs) || 50 });
+        if (found.runs.length === 0) return { text: `${ctx.args[0]} is in none of ${project}'s recent runs`, json: found };
+        const mark = { passed: '✓', retried: '↻', failed: '✗' } as const;
+        const lines = found.runs.map(
+          (r) =>
+            `${mark[r.outcome]}  ${r.at.slice(0, 16).replace('T', ' ')}  ${(r.ms === null ? '—' : `${(r.ms / 1000).toFixed(1)}s`).padStart(6)}  ${[r.branch, r.commit].filter(Boolean).join(' @ ') || '—'}  ${r.url}`,
+        );
+        return { text: [`${found.title} (${project})`, ...lines].join('\n'), json: found };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };
       }
