@@ -165,6 +165,32 @@ it took, and its steps. Each step says which part of the case it is (`setup` or
 `steps`), whether it passed, failed, was skipped or is unsupported on this host, how long it took, its error, and the events the
 app sent to its analytics while it ran. A failed attempt keeps its evidence.
 
+### What the backend did
+
+`--traces` shows, under each step, what the backend did for it: every request
+the app sent while the step ran, and the queries, jobs and calls out each one
+set off. It uses OpenTelemetry, so any backend that can export traces works and
+lynkeus needs to know nothing about it:
+
+1. The run listens for OTLP over HTTP on `localhost:4318` (`--traces-port`).
+2. Each app step gets its own span id, and the host puts it in the W3C
+   `traceparent` header of every request the app sends during the step.
+3. The backend, with its OpenTelemetry SDK on and
+   `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`, continues that trace
+   and exports what it did. Jobs carry the trace on when their instrumentation
+   propagates it (ActiveJob, Sidekiq and Celery's do).
+4. When the case ends, every span whose chain of parents reaches a step is
+   kept under that step in `cases.jsonl` (`backend`), the request first and
+   what it set off indented under it.
+
+The agent puts the header on the app's requests itself (its `traceContext`
+command), so this works on a simulator, an emulator or a device as well as on
+fastsim; an app with an agent older than this release goes untraced. A
+backend's spans that no step's request caused, such as a scheduler's, are left
+out. Turn
+the backend's exporter on only for test runs: it costs a little on every
+request.
+
 The types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in
 `lynkeus-protocol`, with `RUN_SCHEMA` in `run.json`. A field is only ever
 added; a change to what an existing field means raises the schema, and a

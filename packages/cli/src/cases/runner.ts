@@ -17,6 +17,7 @@ import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
+import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
@@ -66,6 +67,8 @@ export type StepReport = {
   videoS?: number;
   /** What the step made the app send its analytics SDKs, where the host captures them. */
   sent?: SentEvent[];
+  /** What the backend did for it, from the traces it exported to the run. */
+  backend?: BackendSpan[];
 };
 export type CaseReport = {
   id: string;
@@ -92,6 +95,8 @@ export type Evidence = { dir: string; screenshots?: boolean; video?: { fps: numb
 
 export type RunOptions = {
   base: Base;
+  /** Where the backend's traces arrive during the run: each app step's requests carry its id. */
+  traces?: TraceSink;
   config: CasesConfig;
   fixtures?: Fixtures;
   dry?: boolean;
@@ -835,6 +840,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device().catch(() => undefined);
     await d?.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
   }
+  // Each app step gets a span id the host puts in the `traceparent` of every request the app sends while it
+  // runs; a backend that exports traces to the run files what it did under that step.
+  const tracing = options.traces && !options.dry && !options.setupOnly && (await offers('traceContext')) ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() } : undefined;
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   for (const [index, step] of todo.entries()) {
@@ -865,6 +873,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         );
     }
     const at = step.verb.startsWith('app.') || config.macros?.[step.verb] ? await frameAt() : undefined;
+    if (tracing && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      const spanId = newSpanId();
+      tracing.steps.set(spanId, { index: steps.length, startedMs: t0 });
+      await (await device()).command('traceContext', { traceparent: traceparent(tracing.traceId, spanId) }).catch(() => undefined);
+    }
     try {
       const outcome = await perform(step);
       if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await collect(steps.length + 1);
@@ -892,6 +905,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
+  if (tracing && options.traces) {
+    await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
+    // A backend exports in batches, a moment after the requests it served.
+    await options.traces.settle(tracing.traceId);
+    for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
+      const s = steps[index];
+      // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
+      if (s) s.backend = spans.slice(0, 400);
+    }
+  }
   if (options.setupOnly && !failed) options.setupOnly.keep({ scope, latest, ran: [...ran], steps });
   if (options.dry) failed = steps.some((s) => s.status === 'failed');
   const report: CaseReport = {
