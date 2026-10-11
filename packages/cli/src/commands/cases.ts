@@ -17,6 +17,7 @@ import { RunFile } from '../cases/runfile.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { pushRun, service } from './report.js';
+import { TraceSink } from '../cases/traces.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -195,6 +196,11 @@ export const caseCommands = [
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
+      traces: {
+        type: 'boolean',
+        help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',
+      },
+      'traces-port': { type: 'number', help: 'where --traces listens', default: 4318, value: 'port' },
       push: { type: 'boolean', help: 'with --out: upload the run to the reports service when it ends and print the report’s address' },
       project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
@@ -254,7 +260,18 @@ export const caseCommands = [
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
       const host = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
+      const traces = ctx.flags.traces && !dry ? new TraceSink(Number(ctx.flags['traces-port'] ?? 4318)) : undefined;
+      if (traces) {
+        try {
+          await traces.start();
+        } catch (error) {
+          fixtures?.close();
+          return { text: `--traces could not listen on port ${traces.port}: ${(error as Error).message}`, code: 2 };
+        }
+        ctx.err(`backend traces: listening on http://localhost:${traces.port} (the backend's OTEL_EXPORTER_OTLP_ENDPOINT)`);
+      }
       const stop = () => {
+        traces?.close();
         claimed?.release();
         fixtures?.close();
         if (host?.pid) stopGroup(host.pid);
@@ -334,6 +351,7 @@ export const caseCommands = [
                     prepared,
                     continue: !!ctx.flags.continue,
                     routes: seenDir ? (host ? 'fresh' : true) : false,
+                    traces,
                   });
                   if (seenDir && report.result === 'passed' && report.routes?.length) {
                     fs.mkdirSync(seenDir, { recursive: true });
