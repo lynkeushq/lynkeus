@@ -202,7 +202,7 @@ const KEEP =
 export class TraceSink {
   private readonly spans = new Map<string, Span[]>();
   private server?: http.Server;
-  private lastArrival = 0;
+  private readonly arrived = new Map<string, number>();
 
   constructor(readonly port: number) {}
 
@@ -232,20 +232,22 @@ export class TraceSink {
   }
 
   add(spans: Span[]) {
-    this.lastArrival = Date.now();
     for (const span of spans) {
+      this.arrived.set(span.traceId, Date.now());
       const list = this.spans.get(span.traceId) ?? [];
       list.push(span);
       this.spans.set(span.traceId, list);
     }
   }
 
-  /** Backends export in batches: wait until a trace has been quiet a moment, or `maxMs` has passed. */
-  async settle(quietMs = 400, maxMs = 3000): Promise<void> {
-    const deadline = Date.now() + maxMs;
+  /**
+   * Backends export in batches, a moment after the requests they served: wait until the trace has had
+   * nothing new for `quietMs`, or `maxMs` has passed. Other traces (a scheduler polling) do not count.
+   */
+  async settle(traceId: string, quietMs = 300, maxMs = 3000): Promise<void> {
     const started = Date.now();
-    while (Date.now() < deadline) {
-      if (Date.now() - Math.max(this.lastArrival, started) >= quietMs) return;
+    while (Date.now() - started < maxMs) {
+      if (Date.now() - Math.max(this.arrived.get(traceId) ?? 0, started) >= quietMs) return;
       await new Promise((r) => setTimeout(r, 50));
     }
   }
@@ -257,6 +259,7 @@ export class TraceSink {
   take(traceId: string, steps: Map<string, { index: number; startedMs: number }>): Map<number, BackendSpan[]> {
     const spans = this.spans.get(traceId) ?? [];
     this.spans.delete(traceId);
+    this.arrived.delete(traceId);
     const byId = new Map(spans.map((s) => [s.spanId, s]));
     const out = new Map<number, BackendSpan[]>();
     const place = (span: Span): { step: number; depth: number } | undefined => {

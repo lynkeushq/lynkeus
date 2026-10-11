@@ -908,7 +908,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   if (tracing && options.traces) {
     await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
     // A backend exports in batches, a moment after the requests it served.
-    await options.traces.settle();
+    await options.traces.settle(tracing.traceId);
     for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
       const s = steps[index];
       // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
