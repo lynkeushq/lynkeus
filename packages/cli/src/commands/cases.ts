@@ -213,6 +213,7 @@ export const caseCommands = [
         help: 'starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job',
         value: 'command',
       },
+      'in-order': { type: 'boolean', help: 'with --jobs: take the cases in the order given, not the longest first' },
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
       'dry-run': { type: 'boolean', help: 'parse and list the steps without running them' },
@@ -296,6 +297,12 @@ export const caseCommands = [
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
           return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
+        // Several jobs finish together only if the longest cases start first: one left for the end runs alone
+        // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
+        if (jobs > 1 && ledger && !ctx.flags['in-order']) {
+          const took = (id: string) => ledger.lastMs(id) ?? Number.POSITIVE_INFINITY;
+          cases.sort((a, b) => took(b.id) - took(a.id));
+        }
         const limit = Number(ctx.flags.ahead ?? 0);
         const store: Store | undefined =
           typeof ctx.flags.prepared === 'string' && !dry ? new Ahead(path.resolve(ctx.flags.prepared)) : limit > 0 && fixtures ? new InMemory() : undefined;
