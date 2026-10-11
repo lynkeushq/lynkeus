@@ -91,3 +91,14 @@ test('a call in flight fails as disconnected when the app does not come back in 
   app.socket.close();
   await assert.rejects(pending, (e: unknown) => e instanceof AgentError && e.code === 'disconnected');
 });
+
+test('a second driver on a taken port is refused, naming the port, instead of sharing it', async () => {
+  const first = await serve();
+  const second = new AgentServer({ port: first.port });
+  await assert.rejects(second.listen(), (error: unknown) => {
+    assert.ok(error instanceof AgentError);
+    assert.equal(error.code, 'port-in-use');
+    assert.match(error.message, new RegExp(`Port ${first.port} is already taken: another lynkeus run is probably still driving`));
+    return true;
+  });
+});

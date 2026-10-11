@@ -28,7 +28,7 @@ report carries the screen, the requests and the reason.
 | `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
-| `app.requests` | `mark` | From here on, `request` only counts what the app asks for. |
+| `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
 | `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
 | `app.run` | `{ flow, vars? }` | A lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
@@ -41,7 +41,7 @@ native screen the host never shows — is kept to it; everywhere else it is
 skipped:
 
 ```yaml
-  - on: device        # or headless, ios, android
+  - on: device        # or headless, ios, android, has:<command>; ! in front turns it around
     do:
       - app.press: "364,84"
 ```
@@ -164,6 +164,32 @@ attempt (1, or 2 for the second chance), the result, when it started, how long
 it took, and its steps. Each step says which part of the case it is (`setup` or
 `steps`), whether it passed, failed, was skipped or is unsupported on this host, how long it took, its error, and the events the
 app sent to its analytics while it ran. A failed attempt keeps its evidence.
+
+### What the backend did
+
+`--traces` shows, under each step, what the backend did for it: every request
+the app sent while the step ran, and the queries, jobs and calls out each one
+set off. It uses OpenTelemetry, so any backend that can export traces works and
+lynkeus needs to know nothing about it:
+
+1. The run listens for OTLP over HTTP on `localhost:4318` (`--traces-port`).
+2. Each app step gets its own span id, and the host puts it in the W3C
+   `traceparent` header of every request the app sends during the step.
+3. The backend, with its OpenTelemetry SDK on and
+   `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318`, continues that trace
+   and exports what it did. Jobs carry the trace on when their instrumentation
+   propagates it (ActiveJob, Sidekiq and Celery's do).
+4. When the case ends, every span whose chain of parents reaches a step is
+   kept under that step in `cases.jsonl` (`backend`), the request first and
+   what it set off indented under it.
+
+The agent puts the header on the app's requests itself (its `traceContext`
+command), so this works on a simulator, an emulator or a device as well as on
+fastsim; an app with an agent older than this release goes untraced. A
+backend's spans that no step's request caused, such as a scheduler's, are left
+out. Turn
+the backend's exporter on only for test runs: it costs a little on every
+request.
 
 The types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in
 `lynkeus-protocol`, with `RUN_SCHEMA` in `run.json`. A field is only ever
