@@ -179,6 +179,8 @@ export type Response = { id: number; result: unknown } | { id: number; error: { 
 export type HelloEvent = {
   event: 'hello';
   protocolVersion: number;
+  /** The lynkeus-agent release in the app; absent from agents before it was sent. */
+  agentVersion?: string;
   platform: 'ios' | 'android' | string;
   native: boolean;
   commands: string[];
