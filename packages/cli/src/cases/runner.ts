@@ -747,11 +747,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           .replace(/^-|-$/g, '')}.png`,
       );
       // A host on another machine writes the file there; `inline` asks it for the picture as well.
+      // A host that knows what was still animating says so, as frames in points.
+      let moving: unknown;
       const taken = (await offers('screenshot'))
         ? await d.command('screenshot', { path: file, inline: true }).then(
             (answer) => {
-              const png = (answer as { png?: unknown } | undefined)?.png;
+              const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
               if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
+              if (Array.isArray(animating)) moving = animating;
               return true;
             },
             () => false,
@@ -762,7 +765,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
-        if (screen) fs.writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ ...screen, settled }));
+        if (screen) fs.writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
       }
     }
   };
