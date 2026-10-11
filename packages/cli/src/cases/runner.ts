@@ -574,7 +574,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device();
     mark ??= (await d.trace()).last;
     // An interruption handled inside a wait is not the action the wait is about.
-    if ((!LOOKING.has(name) && !handling) || requestsAfter === undefined) await markRequests(d);
+    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
     switch (name) {
       case 'press': {
         await interrupted(value);
@@ -663,7 +663,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
   };
 
+  // A macro is one step of the case: the requests it waits for are the ones it set off, from its first
+  // action on, not only those of its last (`app.refresh` asks for a refresh, then waits for it to settle).
+  let macroDepth = 0;
   const macro = async (steps: unknown[], value: StepValue): Promise<void> => {
+    if (macroDepth === 0 && !handling) {
+      const d = await device().catch(() => undefined);
+      if (d) await markRequests(d);
+    }
+    macroDepth++;
+    try {
+      await runMacro(steps, value);
+    } finally {
+      macroDepth--;
+    }
+  };
+  const runMacro = async (steps: unknown[], value: StepValue): Promise<void> => {
     const given = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : { value };
     // A parameter that names an alias is that alias: `as: u` makes `{{param.as.user_id}}` the user's.
     const param = Object.fromEntries(Object.entries(given).map(([k, v]) => [k, typeof v === 'string' && v in scope ? scope[v] : v]));
