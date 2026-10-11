@@ -4,7 +4,7 @@ import type { Backend } from './backend';
 import { fabricBackend } from './backends/fabric';
 import { createHandlers, dispatch } from './handlers';
 import type { NavigationAdapter } from './navigation';
-import { type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response } from './protocol';
+import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response } from './protocol';
 import { host } from './registry';
 import { trackRequests } from './requests';
 import { record as trace } from './trace';
@@ -72,6 +72,7 @@ export const start = (options: ClientOptions): (() => void) => {
   const hello = (): HelloEvent => ({
     event: 'hello',
     protocolVersion: PROTOCOL_VERSION,
+    agentVersion: AGENT_VERSION,
     platform: Platform.OS,
     native: backend.native,
     commands: host.commands(),

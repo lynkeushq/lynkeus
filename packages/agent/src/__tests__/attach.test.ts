@@ -61,3 +61,18 @@ describe('dialing the driver', () => {
     stop();
   });
 });
+
+describe('hello', () => {
+  it('names the agent release, which package.json and the driver agree on', () => {
+    const d = dialer();
+    const sent: string[] = [];
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+    const socket = d.sockets[0]! as { readyState: number; send: (data: string) => void };
+    socket.readyState = 1;
+    socket.send = (data) => sent.push(data);
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's' }) });
+    const { version } = jest.requireActual<{ version: string }>('../../package.json');
+    expect(JSON.parse(sent[0]!)).toMatchObject({ event: 'hello', agentVersion: version });
+    stop();
+  });
+});

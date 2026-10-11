@@ -30,7 +30,27 @@ export type RunEvent = {
   requestId?: string;
 };
 
-export type RunStepStatus = 'passed' | 'failed' | 'skipped';
+/** `unsupported`: the host the run was on has no way to do the step; it says nothing about the app. */
+export type RunStepStatus = 'passed' | 'failed' | 'skipped' | 'unsupported';
+
+/**
+ * What the backend did for a step, from the traces it exported: the request the step's app sent, and the
+ * queries, jobs and calls out it set off. One per span, in the order they began; `depth` nests them.
+ */
+export type RunBackendSpan = {
+  name: string;
+  /** server, client, internal, producer or consumer, as OpenTelemetry says. */
+  kind: string;
+  /** Milliseconds after the step began. */
+  at: number;
+  ms: number;
+  depth: number;
+  /** The service that exported it, when it says. */
+  service?: string;
+  error?: string;
+  /** What it did: method, route, status, table, job class, host called. */
+  attributes?: Record<string, string | number | boolean>;
+};
 
 export type RunStep = {
   /** The step as the case words it. */
@@ -45,6 +65,8 @@ export type RunStep = {
   screenshot?: string;
   /** The second of the case's film this step starts at. */
   videoS?: number;
+  /** What the backend did for it, when the backend exports traces to the run. */
+  backend?: RunBackendSpan[];
 };
 
 export type RunCase = {
@@ -55,11 +77,14 @@ export type RunCase = {
   file: string;
   /** 1 for the first try; a case that failed and ran again has a line for each. */
   attempt: number;
-  result: 'passed' | 'failed';
+  /** `unsupported`: one of its steps could not be done on this host, so it proved nothing here. */
+  result: 'passed' | 'failed' | 'unsupported';
   /** ISO 8601. */
   startedAt: string;
   ms: number;
   steps: RunStep[];
+  /** Why it failed, as rules read off the screen, the requests and the trace. */
+  diagnosis?: string[];
   /** When a step failed: the screen, the requests since the case began, and why. */
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** The case's film, relative to the run directory. */
@@ -76,6 +101,8 @@ export type RunManifest = {
   platform?: string;
   /** Whether the app ran on a device or simulator (true) or hosted without one. */
   native?: boolean;
+  /** Where the run was made from, when it was a git checkout. */
+  git?: { branch?: string; commit?: string };
   /** Cases by their last attempt. */
-  totals?: { cases: number; passed: number; failed: number; retried: number };
+  totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

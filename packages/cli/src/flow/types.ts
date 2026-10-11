@@ -18,8 +18,8 @@ export type FlowStep =
   | { waitFor: { route?: string; target?: Target; anyOf?: Target[]; gone?: boolean; timeoutMs?: number } }
   | { idle: { quietMs?: number; timeoutMs?: number } }
   | { assert: { route?: string; target?: Target; gone?: boolean } }
-  /** Presses one button per digit, e.g. a code on `digit-{d}-button`. */
-  | { keypad: { digits: string; pattern: string; mode?: 'native' | 'js' } }
+  /** Presses one button per digit, e.g. a code on `digit-{d}-button`, each once it is there, enabled, uncovered and still (`timeoutMs` per key, 5000 by default). */
+  | { keypad: { digits: string; pattern: string; mode?: 'native' | 'js'; timeoutMs?: number } }
   /** An app command registered with `qa.register`; the result is saved under `as`. */
   | { call: { method: string; params?: unknown; as?: string } }
   | { note: string };
