@@ -5,6 +5,15 @@ const KEEP = 200;
 const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
 
 const records: RequestRecord[] = [];
+// The test step a driver is running, as W3C trace context: a backend that traces files what it did under it.
+let traceparent: string | null = null;
+
+/** The `traceContext` command: `{ traceparent }` for the step about to run, null when the case ends. */
+export const setTraceContext = (params: unknown): { traceparent: string | null } => {
+  const given = (params as { traceparent?: unknown } | undefined)?.traceparent;
+  traceparent = typeof given === 'string' && /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/.test(given) ? given : null;
+  return { traceparent };
+};
 let nextId = 1;
 let inFlight = 0;
 let installed = false;
@@ -36,6 +45,11 @@ const trackFetch = (): void => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
     const finish = track(method.toUpperCase(), url);
+    if (traceparent) {
+      const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+      headers.set('traceparent', traceparent);
+      init = { ...init, headers };
+    }
     try {
       const response = await original(input, init);
       finish(response.status);
@@ -62,6 +76,13 @@ const trackXhr = (): void => {
     if (request) {
       const finish = track(...request);
       this.addEventListener('loadend', () => finish(this.status));
+      if (traceparent) {
+        try {
+          this.setRequestHeader('traceparent', traceparent);
+        } catch {
+          // A request already sent by hand takes no more headers; it goes untraced.
+        }
+      }
     }
     return send.apply(this, args);
   } as typeof proto.send;
