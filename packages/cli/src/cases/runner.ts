@@ -584,12 +584,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return outcome;
       }
       case 'type':
-      case 'swipe':
+      case 'swipe': {
         await interrupted(value);
+        // A field that arrives with its screen (a code input that mounts a moment after the keyboard) takes
+        // what is typed only once it is there: under load that moment is longer than the step's own wait.
+        const field = name === 'type' && params ? targetIn(params) : undefined;
+        if (field) {
+          await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
+          await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+        }
         await cli(argvFor(find(name)!, value));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
         if (name === 'swipe' && onWallClock(d)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         return undefined;
+      }
       case 'see':
         await see(value);
         return undefined;
