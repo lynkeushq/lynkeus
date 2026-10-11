@@ -3,6 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { AgentServer } from 'lynkeus-client';
+import type { HelloEvent } from 'lynkeus-protocol';
 
 import { GLOBAL_FLAGS } from './args.js';
 import { caseCommands } from './commands/cases.js';
@@ -10,14 +11,16 @@ import { driveCommands } from './commands/drive.js';
 import { headlessCommands } from './commands/headless.js';
 import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
+import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv } from './config.js';
+import { agentMismatch } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
 
-register([...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...caseCommands, ...headlessCommands]);
+register([...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...caseCommands, ...reportCommands, ...headlessCommands]);
 
 /** The global flags, read leniently from the whole argv before any command parses its own. */
 const globals = (argv: string[]) => {
@@ -37,7 +40,11 @@ const globals = (argv: string[]) => {
 
 export type Session = { ctx: Base; stop: () => Promise<void> };
 
-const contextFor = (argv: string[], attached = false, port?: number): Session => {
+// Once per process: a suite reattaches for every case.
+let mismatchTold = false;
+
+// `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device.
+const contextFor = (argv: string[], attached = false, port?: number, ownHost = false): Session => {
   const g = globals(argv);
   const root = path.resolve((g.root as string | undefined) ?? process.cwd());
   const config = loadConfig(root);
@@ -50,7 +57,15 @@ const contextFor = (argv: string[], attached = false, port?: number): Session =>
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
     const server = new AgentServer({ token: process.env.LYNKEUS_TOKEN, port: port ?? portFromEnv(config) });
-    const picking = pickAgentDevice((g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device);
+    server.on('hello', (hello: HelloEvent) => {
+      const told = mismatchTold ? undefined : agentMismatch(hello);
+      if (!told) return;
+      mismatchTold = true;
+      err(told);
+    });
+    // A host started for the case is the device: looking for the configured simulator would only replace a
+    // late app's error with one about a simulator nobody asked for.
+    const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice((g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device);
     if (g.launch && appId) {
       const d = new Device(await picking, { appId, server });
       await d.launchApp(appId, { fresh: true });
@@ -73,7 +88,7 @@ const contextFor = (argv: string[], attached = false, port?: number): Session =>
       name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),
       platform: hello.platform === 'android' ? ('android' as const) : ('ios' as const),
     };
-    const d = new Device(info, { appId: appId ?? null, server, resolving: headless ? undefined : picking });
+    const d = new Device(info, { appId: appId ?? null, server, resolving: headless || ownHost ? undefined : picking });
     attachedIn(d);
     return d;
   };
@@ -93,7 +108,7 @@ const contextFor = (argv: string[], attached = false, port?: number): Session =>
       return device;
     },
     forPort: (other) => {
-      const scoped = contextFor(argv, attached, other);
+      const scoped = contextFor(argv, attached, other, true);
       return { base: scoped.ctx, stop: scoped.stop };
     },
   };
