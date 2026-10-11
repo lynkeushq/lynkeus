@@ -16,7 +16,14 @@
  * — and a server that knows answers `{"commands": ["create_user", …]}`. With
  * that, a case naming a fixture nobody answers is refused before anything
  * runs. A server that answers `"ok": false`, as one written before this did,
- * is taken to describe nothing, and its cases run unchecked.
+ * is taken to describe nothing, and its cases run unchecked. A server that is
+ * running but cannot serve (its database is down) adds `"down": "<why>"`, and
+ * no case starts: every one would fail at its first fixture.
+ *
+ * A connection that makes cases' setups ahead of time (`case prepare`) says so
+ * first, with `lynkeus.ahead`, so a server may give its work a lower priority
+ * than the cases running meanwhile. A server that does not know it is free to
+ * answer anything.
  */
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import path from 'node:path';
@@ -29,7 +36,10 @@ export type Answer = Record<string, unknown>;
 /** The one command that is lynkeus's own and not the project's. */
 export const DESCRIBE = 'lynkeus.describe';
 
-export type Description = { commands: string[] };
+export type Description = { commands: string[]; down?: string };
+
+/** lynkeus's second own command: this connection works ahead of the cases. */
+export const AHEAD = 'lynkeus.ahead';
 
 const envOf = (params: Record<string, unknown>): Record<string, string> =>
   Object.fromEntries(
@@ -108,7 +118,13 @@ export class Fixtures {
   async describe(): Promise<Description | undefined> {
     const answer = await this.call(DESCRIBE, {}).catch(() => undefined);
     const commands = answer?.commands;
-    return Array.isArray(commands) && commands.every((c) => typeof c === 'string') ? { commands } : undefined;
+    if (!Array.isArray(commands) || !commands.every((c) => typeof c === 'string')) return undefined;
+    return typeof answer?.down === 'string' && answer.down ? { commands, down: answer.down } : { commands };
+  }
+
+  /** Says this connection works ahead of the cases being run. Whatever the server answers, it goes on. */
+  async ahead(): Promise<void> {
+    await this.call(AHEAD, {}).catch(() => undefined);
   }
 
   close(): void {

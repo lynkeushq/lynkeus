@@ -72,7 +72,17 @@ export class AgentServer extends EventEmitter {
     server.on('connection', (socket) => this.#attach(socket));
     await new Promise<void>((resolve, reject) => {
       server.once('listening', () => resolve());
-      server.once('error', reject);
+      server.once('error', (error: NodeJS.ErrnoException) => {
+        this.#server = null;
+        if (error.code !== 'EADDRINUSE') return reject(error);
+        // Sharing the port would hand the app to whichever driver it dials next: two runs' steps mixed.
+        reject(
+          new AgentError(
+            `Port ${this.port} is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`,
+            'port-in-use',
+          ),
+        );
+      });
     });
   }
 
