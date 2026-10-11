@@ -97,7 +97,7 @@ export const plan = async (o: Service & { go?: 'upgrade' | 'manage' }) => {
   return { ...now, url: String((await ask(o, 'POST', route, o.go === 'upgrade' ? 'opening checkout' : 'opening the billing portal')).url) };
 };
 
-const service = (): Service | string => {
+export const service = (): Service | string => {
   const url = process.env.LYNKEUS_REPORTS_URL;
   const key = process.env.LYNKEUS_REPORTS_KEY;
   return url && key ? { url, key } : 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)';

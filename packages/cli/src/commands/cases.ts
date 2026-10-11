@@ -15,6 +15,7 @@ import { Flakes } from '../cases/flakes.js';
 import { RunFile } from '../cases/runfile.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { pushRun, service } from './report.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -165,6 +166,16 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
     detached: true,
   });
 
+/** A run that could not be uploaded still ran: the failure is said, not raised. */
+const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string) => {
+  try {
+    const run = await pushRun(dir, { ...to, project });
+    return `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`;
+  } catch (error) {
+    return `the report was not uploaded: ${(error as Error).message}`;
+  }
+};
+
 export const caseCommands = [
   define({
     name: 'case run',
@@ -183,6 +194,8 @@ export const caseCommands = [
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
+      push: { type: 'boolean', help: 'with --out: upload the run to the reports service when it ends and print the report’s address' },
+      project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
@@ -211,6 +224,10 @@ export const caseCommands = [
       const out = typeof ctx.flags.out === 'string' && !dry ? new RunFile(path.resolve(ctx.flags.out), ctx.root) : undefined;
       if ((ctx.flags.screenshots || ctx.flags.video) && !out)
         return { text: '--screenshots and --video keep what they take in the run directory: add --out <dir>', code: 2 };
+      // Checked before the run, so a missing key does not surface only after every case has run.
+      const reportsTo = ctx.flags.push && out ? service() : undefined;
+      if (ctx.flags.push && !out) return { text: '--push uploads the run directory: add --out <dir>', code: 2 };
+      if (typeof reportsTo === 'string') return { text: reportsTo, code: 2 };
       const evidenceOf = (id: string, attempt: number) =>
         out && (ctx.flags.screenshots || ctx.flags.video)
           ? {
@@ -362,6 +379,7 @@ export const caseCommands = [
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
+        ...(reportsTo && out ? [await pushed(path.resolve(ctx.flags.out as string), reportsTo, typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root))] : []),
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.
