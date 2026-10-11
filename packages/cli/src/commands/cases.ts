@@ -8,7 +8,8 @@ import { readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
-import { configFile } from '../config.js';
+import { claimPorts } from '../cases/portClaim.js';
+import { configFile, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
@@ -239,9 +240,22 @@ export const caseCommands = [
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
       // A run file files each event under its step, so it needs them collected.
       const events = typeof ctx.flags.events === 'string' || out !== undefined;
+      const claimed = dry
+        ? undefined
+        : claimPorts(
+            typeof ctx.flags.ports === 'string'
+              ? ctx.flags.ports
+                  .split(',')
+                  .map(Number)
+                  .filter(Number.isInteger)
+                  .slice(0, Math.max(1, Number(ctx.flags.jobs ?? 1)))
+              : [portFromEnv(ctx.config) ?? 8123],
+          );
+      if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
       const host = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
       const stop = () => {
+        claimed?.release();
         fixtures?.close();
         if (host?.pid) stopGroup(host.pid);
       };
@@ -379,7 +393,15 @@ export const caseCommands = [
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
-        ...(reportsTo && out ? [await pushed(path.resolve(ctx.flags.out as string), reportsTo, typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root))] : []),
+        ...(reportsTo && out
+          ? [
+              await pushed(
+                path.resolve(ctx.flags.out as string),
+                reportsTo,
+                typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
+              ),
+            ]
+          : []),
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.
