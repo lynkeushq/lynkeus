@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { init } from '../commands/init.js';
+import { init, mountAgent } from '../commands/init.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -49,4 +49,35 @@ test('the error catalogue names the module behind a TurboModule crash', () => {
   assert.ok(e);
   assert.match(e.cause, /RNCWebView/);
   assert.equal(explainError('all good').length, 0);
+});
+
+test('an Expo Router app gets an entry that mounts the agent, then the router, and reads the token Expo lets through', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-expo-'));
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({ name: 'demo', main: 'expo-router/entry', dependencies: { expo: '~57.0.0', 'expo-router': '~57.0.0' } }),
+  );
+  const notes = mountAgent(root);
+  const index = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
+  assert.match(index, /auto\(\{ token: process\.env\.EXPO_PUBLIC_LYNKEUS_TOKEN \}\)/);
+  assert.ok(index.indexOf('lynkeus-agent/auto') < index.indexOf("import 'expo-router/entry'"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(manifest.main, 'index.js');
+  assert.equal(manifest.dependencies.expo, '~57.0.0');
+  assert.ok(notes.some((n) => n.includes('not in Expo Go')));
+  assert.ok(notes.some((n) => n.includes('EXPO_PUBLIC_LYNKEUS_TOKEN')));
+  // A second run changes nothing.
+  assert.ok(mountAgent(root).some((n) => n.includes('already mounts the agent')));
+  assert.equal(fs.readFileSync(path.join(root, 'index.js'), 'utf8'), index);
+});
+
+test('an Expo app with its own entry keeps it, and a bare React Native app reads LYNKEUS_TOKEN', () => {
+  const expo = tmpApp();
+  fs.writeFileSync(path.join(expo, 'package.json'), JSON.stringify({ name: 'demo', dependencies: { expo: '~57.0.0' } }));
+  mountAgent(expo);
+  assert.match(fs.readFileSync(path.join(expo, 'index.js'), 'utf8'), /EXPO_PUBLIC_LYNKEUS_TOKEN/);
+  const bare = tmpApp();
+  const notes = mountAgent(bare);
+  assert.match(fs.readFileSync(path.join(bare, 'index.js'), 'utf8'), /auto\(\{ token: process\.env\.LYNKEUS_TOKEN \}\)/);
+  assert.ok(!notes.some((n) => n.includes('Expo')));
 });

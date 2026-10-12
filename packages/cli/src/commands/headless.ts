@@ -6,7 +6,7 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv } from '../config.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
-import { init } from './init.js';
+import { init, mountAgent } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -32,6 +32,16 @@ hostApp(() => <entry.App />, { ${options.join(', ')} });
 };
 
 export const headlessCommands = [
+  define({
+    name: 'init',
+    group: 'drive',
+    summary: "Mount the agent from the app's entry: React Native or Expo (Expo Router gets an entry of its own)",
+    needs: 'nothing',
+    run: async (ctx) => {
+      const lines = mountAgent(ctx.root);
+      return { text: lines.join('\n'), json: lines };
+    },
+  }),
   define({
     name: 'headless start',
     group: 'headless',

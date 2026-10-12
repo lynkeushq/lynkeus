@@ -17,7 +17,7 @@ auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ && config.ENV !== 'pro
 
 `auto()` wraps the root through `AppRegistry` and finds your React Navigation
 container by itself (it looks for the container's context value, so no ref
-has to be passed around). `npx lynkeus headless init --auto` writes it for you.
+has to be passed around). `npx lynkeus init` writes it for you.
 Prefer the explicit component when you want to hand it an adapter for another
 router:
 
@@ -236,8 +236,25 @@ and a histogram of where it died and with what.
 - **Android**: `MotionEvent`s dispatched to the activity window; keys through
   the focused `EditText`. Refuses to run unless the app is debuggable
   (`FLAG_DEBUGGABLE`).
-- **Expo**: works in a development build (not Expo Go). Add the package and
-  run `expo prebuild`.
+- **Expo**: works in a development build, not in Expo Go: the agent has native
+  code, and Expo Go cannot load a native module it was not built with. No
+  config plugin is needed; the module is autolinked.
+
+  ```bash
+  npx expo install lynkeus-agent
+  npx lynkeus init          # mounts the agent; an Expo Router app gets an index.js of its own
+  npx expo run:ios          # or run:android: a development build with the agent in it
+  ```
+
+  An Expo Router app has no entry file (`"main": "expo-router/entry"`), so
+  `lynkeus init` writes an `index.js` that mounts the agent and then loads the
+  router, and points `main` at it. Expo passes the app only the environment
+  variables that start with `EXPO_PUBLIC_`, so the app reads its token from
+  `EXPO_PUBLIC_LYNKEUS_TOKEN`; start the dev server with it set to the same
+  value the CLI has in `LYNKEUS_TOKEN`. Routes come from Expo Router as they do
+  from React Navigation. A tab bar the system draws (the native tabs of recent
+  templates) is not made of React Native views, so its tabs are not elements:
+  go to a tab with `lynkeus nav <route>`.
 - **Headless**: Node 20+, the app's own jest config and babel transform.
 
 ### Security posture

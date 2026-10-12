@@ -220,6 +220,10 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
+### `lynkeus init`
+
+Mount the agent from the app's entry: React Native or Expo (Expo Router gets an entry of its own)
+
 ## os
 
 what the outside world hands the app: links, clock, sensors, the network, the simulator.

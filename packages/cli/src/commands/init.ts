@@ -59,6 +59,65 @@ export { App }
 `;
 };
 
+type Manifest = { main?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+
+const readManifest = (root: string): Manifest => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Manifest;
+  } catch {
+    return {};
+  }
+};
+
+/** Expo inlines only the variables that start with EXPO_PUBLIC_; anything else is undefined in the app. */
+const tokenIn = (expo: boolean): string => (expo ? 'process.env.EXPO_PUBLIC_LYNKEUS_TOKEN' : 'process.env.LYNKEUS_TOKEN');
+
+const mountLines = (expo: boolean): string =>
+  `import { auto } from 'lynkeus-agent/auto'\n// Dev-only QA agent; a release build never evaluates the client.\nauto({ token: ${tokenIn(expo)} })\n`;
+
+/**
+ * Mounts the agent from the app's entry, before anything registers the root component. An Expo Router app
+ * has no entry of its own (`"main": "expo-router/entry"`), so it gets one that mounts the agent and then
+ * loads the router.
+ */
+export const mountAgent = (root: string): string[] => {
+  const notes: string[] = [];
+  const manifest = readManifest(root);
+  const expo = !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo);
+  const index = findFirst(root, INDEX_CANDIDATES);
+  const routed = manifest.main === 'expo-router/entry';
+  if (routed && !index) {
+    fs.writeFileSync(path.join(root, 'index.js'), `${mountLines(true)}\nimport 'expo-router/entry'\n`);
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      `${JSON.stringify({ ...JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')), main: 'index.js' }, null, 2)}\n`,
+    );
+    notes.push("wrote index.js (mounts the agent, then loads expo-router) and pointed package.json's main at it");
+  } else if (!index) {
+    notes.push(`no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: ${tokenIn(expo)} })`);
+    return notes;
+  } else {
+    const indexPath = path.join(root, index);
+    const text = fs.readFileSync(indexPath, 'utf8');
+    if (text.includes('lynkeus-agent/auto')) {
+      notes.push(`${index} already mounts the agent`);
+    } else {
+      // After the last import, so the app's own polyfills still run first.
+      const imports = [...text.matchAll(/^import .*$/gm)];
+      const at = imports.length ? imports[imports.length - 1]!.index! + imports[imports.length - 1]![0].length + 1 : 0;
+      fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo) + text.slice(at));
+      notes.push(`added auto() to ${index}`);
+    }
+  }
+  if (expo) {
+    notes.push('Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go');
+    notes.push(
+      'Expo: start the dev server with EXPO_PUBLIC_LYNKEUS_TOKEN set to the same value as LYNKEUS_TOKEN; Expo passes the app only variables with that prefix',
+    );
+  }
+  return notes;
+};
+
 export const init = (root: string, opts: InitOptions): string[] => {
   const notes: string[] = [];
   const entryPath = path.join(root, opts.entry);
@@ -71,26 +130,7 @@ export const init = (root: string, opts: InitOptions): string[] => {
     fs.writeFileSync(entryPath, entryTemplate(relImport(entryPath, path.join(root, app)), opts.apiEnv, packageName(root), opts.locale));
     notes.push(`wrote ${opts.entry} (app: ${app})`);
   }
-  if (opts.auto) {
-    const index = findFirst(root, INDEX_CANDIDATES);
-    if (!index) {
-      notes.push("no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: ... })");
-    } else {
-      const indexPath = path.join(root, index);
-      const text = fs.readFileSync(indexPath, 'utf8');
-      if (text.includes('lynkeus-agent/auto')) {
-        notes.push(`${index} already mounts the agent`);
-      } else {
-        const line =
-          "import { auto } from 'lynkeus-agent/auto'\n// Dev-only QA agent; a release build never evaluates the client.\nauto({ token: process.env.LYNKEUS_TOKEN })\n";
-        // After the last import, so the app's own polyfills still run first.
-        const imports = [...text.matchAll(/^import .*$/gm)];
-        const at = imports.length ? imports[imports.length - 1]!.index! + imports[imports.length - 1]![0].length + 1 : 0;
-        fs.writeFileSync(indexPath, text.slice(0, at) + line + text.slice(at));
-        notes.push(`added auto() to ${index}`);
-      }
-    }
-  }
+  if (opts.auto) notes.push(...mountAgent(root));
   notes.push("jest: make sure transformIgnorePatterns lets 'lynkeus-[^/]+' through, next to react-native (lynkeus headless doctor checks it)");
   notes.push(`next: LYNKEUS_TOKEN=<token> ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start`);
   notes.push('      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)');
