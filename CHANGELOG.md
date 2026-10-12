@@ -2,6 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
+- `lynkeus-agent` on Android: an element is where its view stands, not where the shadow tree puts it. In an app that draws under the status bar the two were a status bar apart, so a press landed above its target. The native module answers `frames(tags)`; an app has to be rebuilt to get it, and until then the agent behaves as before.
 - Cases: `on:` takes `has:<command>` (the app registered that command, as a hosted build often does and a store build does not) and `!` in front of any condition, so one case or macro carries the way each host does a thing. `app.press` waits half a second for a target that is not listed and then scrolls to it, instead of spending its whole deadline first, and waits for a disabled control through the app rather than by sleeping, which lets a host with its own clock move on.
 - `case run` on a device, or a host that lists only its window: `app.see` and `app.press` scroll to what they look for, and `app.see` gives a missing target a short wait, a scroll and a long wait before its deadline counts. A case no longer needs a swipe written before each element below the fold.
 - Fixtures: before the first case lynkeus sends `{"command": "lynkeus.describe"}` to the project's fixtures command. A server that answers `{"commands": [...]}` has its cases checked first, and one that names a fixture missing from the list is refused before anything runs. A server that answers `"ok": false` is left unchecked. `case init`'s server answers it.
