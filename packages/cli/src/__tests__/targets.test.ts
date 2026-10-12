@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import type { Screen } from 'lynkeus-protocol';
 
+import { parseAdbDevices } from '../device/devices.js';
 import { describeScreen } from '../device/driver.js';
 import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 
@@ -139,4 +140,16 @@ test('a capitalised word is a route, and route: marks one a router names after a
   assert.equal(routeOf('Home.Main'), 'Home.Main');
   assert.deepEqual(expectedOf('route:index'), { route: 'index' });
   assert.deepEqual(expectedOf('index'), { text: 'index' });
+});
+
+test('adb devices: only what is ready counts, an emulator by its serial', () => {
+  const listed = parseAdbDevices('List of devices attached\nemulator-5554\tdevice\nR58M12ABCDE\tunauthorized\n0A1B2C3D\tdevice\n\n');
+  assert.deepEqual(
+    listed.map((d) => [d.id, d.type, d.platform]),
+    [
+      ['emulator-5554', 'emulator', 'android'],
+      ['0A1B2C3D', 'physical', 'android'],
+    ],
+  );
+  assert.deepEqual(parseAdbDevices('List of devices attached\n\n'), []);
 });
