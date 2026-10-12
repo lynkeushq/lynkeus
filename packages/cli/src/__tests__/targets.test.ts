@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { Screen } from 'lynkeus-protocol';
 
 import { describeScreen } from '../device/driver.js';
-import { parseTarget, scopedTarget } from '../targets.js';
+import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 
 test('a #-prefixed string is a testId', () => {
   assert.deepEqual(parseTarget('#next-button'), { testId: 'next-button' });
@@ -129,4 +129,14 @@ test('--in and --nth narrow a target', () => {
   assert.deepEqual(scopedTarget('#like-message-button', { in: 'hi from Ana' }), { testId: 'like-message-button', within: { text: 'hi from Ana' } });
   assert.deepEqual(scopedTarget('#like-message-button', { in: '#feed', nth: 2 }), { testId: 'like-message-button', within: { testId: 'feed' }, nth: 2 });
   assert.deepEqual(scopedTarget('100,200', { in: '#feed' }), { x: 100, y: 200 });
+});
+
+test('a capitalised word is a route, and route: marks one a router names after a file', () => {
+  assert.equal(isRoute('Home.Main'), true);
+  assert.equal(isRoute('index'), false);
+  assert.equal(isRoute('route:index'), true);
+  assert.equal(routeOf('route:(tabs)/settings'), '(tabs)/settings');
+  assert.equal(routeOf('Home.Main'), 'Home.Main');
+  assert.deepEqual(expectedOf('route:index'), { route: 'index' });
+  assert.deepEqual(expectedOf('index'), { text: 'index' });
 });

@@ -90,7 +90,7 @@ Until a route or element appears (or leaves), or a number of ms
 
 | Argument | |
 |---|---|
-| `what` | Route | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
 
 | Flag | |
 |---|---|
@@ -116,7 +116,7 @@ Assert a route or element is on screen now (exit 1 if not)
 
 | Argument | |
 |---|---|
-| `what` | Route | #testId | "text" | 12 (index) | 100,200 |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 |
 
 | Flag | |
 |---|---|

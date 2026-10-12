@@ -255,6 +255,10 @@ and a histogram of where it died and with what.
   from React Navigation. A tab bar the system draws (the native tabs of recent
   templates) is not made of React Native views, so its tabs are not elements:
   go to a tab with `lynkeus nav <route>`.
+
+  Expo Router names a route after its file (`index`, `explore`), and to `wait`
+  and `see` a lowercase word is a text to look for. Say it is a route:
+  `lynkeus wait route:index`, or `app.wait: "route:index"` in a case.
 - **Headless**: Node 20+, the app's own jest config and babel transform.
 
 ### Security posture

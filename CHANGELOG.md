@@ -2,6 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
+- `wait` and `see` take `route:<name>` for a route that does not start with a capital, as Expo Router's do (`route:index`): a lowercase word alone is still a text to look for.
 - `lynkeus init` mounts the agent from the app's entry. In an Expo app it reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, the only kind of variable Expo passes to the app, and an Expo Router app, which has no entry of its own, gets an `index.js` that mounts the agent and then loads the router. Tried on a new Expo SDK 57 project: a development build attaches, lists the screen and names Expo Router's routes; no config plugin is needed.
 - `lynkeus-agent` on Android: an element is where its view stands, not where the shadow tree puts it. In an app that draws under the status bar the two were a status bar apart, so a press landed above its target. The native module answers `frames(tags)`; an app has to be rebuilt to get it, and until then the agent behaves as before.
 - Cases: `on:` takes `has:<command>` (the app registered that command, as a hosted build often does and a store build does not) and `!` in front of any condition, so one case or macro carries the way each host does a thing. `app.press` waits half a second for a target that is not listed and then scrolls to it, instead of spending its whole deadline first, and waits for a disabled control through the app rather than by sleeping, which lets a host with its own clock move on.

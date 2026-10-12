@@ -10,7 +10,7 @@ import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { define } from '../registry.js';
 import { whyFor } from '../runtime.js';
-import { expectedOf, isRoute, parseTarget, scopedTarget, TARGET_HELP } from '../targets.js';
+import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
 const SCOPE_FLAGS = {
@@ -165,7 +165,7 @@ export const driveCommands = [
     mcpOmit: ['nth'],
     group: 'drive',
     summary: 'Until a route or element appears (or leaves), or a number of ms',
-    positionals: [{ name: 'what', help: `Route | ${TARGET_HELP} | 800 (ms)`, required: true }],
+    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP} | 800 (ms)`, required: true }],
     flags: {
       ...SCOPE_FLAGS,
       gone: { type: 'boolean', help: 'until it leaves the screen' },
@@ -181,7 +181,7 @@ export const driveCommands = [
       }
       return {
         json: await (await ctx.device()).waitFor({
-          ...(isRoute(raw) ? { route: raw } : { target: scopedTarget(raw, ctx.flags) }),
+          ...(isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }),
           gone: ctx.flags.gone ? true : undefined,
           scroll: ctx.flags.scroll ? true : undefined,
           timeoutMs: ctx.flags.timeout as number,
@@ -206,7 +206,7 @@ export const driveCommands = [
     name: 'see',
     group: 'drive',
     summary: 'Assert a route or element is on screen now (exit 1 if not)',
-    positionals: [{ name: 'what', help: `Route | ${TARGET_HELP}`, required: true }],
+    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP}`, required: true }],
     flags: {
       absent: { type: 'boolean', help: 'assert it is not there' },
       within: { type: 'number', help: 'allow it this long to appear', default: 0, value: 'ms' },
@@ -217,7 +217,7 @@ export const driveCommands = [
       const device = await ctx.device();
       try {
         const result = await device.waitFor({
-          ...(isRoute(raw) ? { route: raw } : { target: parseTarget(raw) }),
+          ...(isRoute(raw) ? { route: routeOf(raw) } : { target: parseTarget(raw) }),
           gone: ctx.flags.absent ? true : undefined,
           timeoutMs: Math.max(1, ctx.flags.within as number),
         });

@@ -31,14 +31,23 @@ export const scopedTarget = (raw: string, flags: { in?: unknown; nth?: unknown }
   };
 };
 
-export const isRoute = (raw: string) => /^[A-Z]\w*(\.[A-Z]\w*)*$/.test(raw);
+const ROUTE_PREFIX = 'route:';
+
+/**
+ * A word that starts with a capital is a route (`Home.Main`), as React Navigation names them. A router
+ * that names routes after files (Expo Router's `index`, `(tabs)/settings`) says so: `route:index`.
+ */
+export const isRoute = (raw: string) => raw.startsWith(ROUTE_PREFIX) || /^[A-Z]\w*(\.[A-Z]\w*)*$/.test(raw);
+
+/** The route a target names, without the prefix that marked it as one. */
+export const routeOf = (raw: string) => (raw.startsWith(ROUTE_PREFIX) ? raw.slice(ROUTE_PREFIX.length) : raw);
 
 export type Expected = { testId?: string; text?: string; route?: string };
 
 /** What a command was looking for, as `why` reads it. */
 export const expectedOf = (raw: string | undefined): Expected | undefined => {
   if (!raw) return undefined;
-  if (isRoute(raw)) return { route: raw };
+  if (isRoute(raw)) return { route: routeOf(raw) };
   const t = parseTarget(raw);
   return 'testId' in t ? { testId: t.testId } : 'text' in t ? { text: t.text } : undefined;
 };
