@@ -595,7 +595,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--report <file>] [--events <dir>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -609,9 +609,44 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 |---|---|
 | `--host` | start `headless start` for the run and stop it after |
 | `--once` | no second chance for a case that fails |
+| `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
+| `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
 | `--report <file>` | append one JSON line per case |
 | `--events <dir>` | keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl |
+| `--out <dir>` | write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt |
+| `--screenshots` | with --out: a frame of the screen after every step of the app |
+| `--video` | with --out: film each case, where the host films (the step says at what second it began) |
+| `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
+| `--traces-port <port>` | where --traces listens (default `4318`) |
+| `--push` | with --out: upload the run to the reports service when it ends and print the report’s address |
+| `--project <name>` | with --push: the project the run is filed under (default: the app’s folder name) |
+| `--video-fps <n>` | frames per second of the film (default `30`) |
+| `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
+| `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
+| `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
+| `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
+| `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
+| `--in-order` | with --jobs: take the cases in the order given, not the longest first |
+| `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
+| `--idle <share>` | with --ahead: start a setup only while this share of the CPU is idle (default `0.25`) |
 | `--dry-run` | parse and list the steps without running them |
+
+### `lynkeus case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]`
+
+Run the setup of cases ahead of them, so each starts at its first step
+
+For a suite that starts `case run --prepared <dir>` once per case: start this first, with the same cases in the order they will run, and leave it running. It runs every setup made only of the project fixtures and leaves what each produced in <dir>; a case that starts before its setup is ready runs its own, and this skips it. It asks the fixtures server for a lower priority (`lynkeus.ahead`), so it takes what the running cases leave of the machine.
+
+| Argument | |
+|---|---|
+| `files` | case files, in the order they will run (default: every .md under cases.dir) (optional) |
+
+| Flag | |
+|---|---|
+| `--prepared <dir>` | where to leave the setups (emptied first) (default `.lynkeus/prepared`) |
+| `--jobs <n>` | setups made at once (default `1`) |
+| `--ahead <n>` | setups kept ready and not yet taken, at most (default `4`) |
+| `--idle <share>` | start a setup only while at least this share of the CPU is idle (0 to 1) (default `0.25`) |
 
 ### `lynkeus case init [--force]`
 
@@ -620,6 +655,67 @@ Write an example case, the reference of the format and a fixtures server to star
 | Flag | |
 |---|---|
 | `--force` | overwrite what is there |
+
+### `lynkeus report push <dir> [--project <name>]`
+
+Upload a run to the reports service and print the report’s address
+
+Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organisation’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organisation’s plan does not keep is left out and said so.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory `case run --out` wrote |
+
+| Flag | |
+|---|---|
+| `--project <name>` | the project the run is filed under (default: the app’s folder name) |
+
+### `lynkeus report list [--limit <n>]`
+
+List the organisation’s reports, newest first
+
+Each line is when the run started, its project and platform, how many cases passed, and the report’s address.
+
+| Flag | |
+|---|---|
+| `--limit <n>` | how many runs (default 20, at most 100) |
+
+### `lynkeus report plan [--upgrade] [--manage]`
+
+Show the organisation’s plan, or open the page that changes it
+
+Free keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.
+
+| Flag | |
+|---|---|
+| `--upgrade` | print the Stripe checkout address for the Team plan |
+| `--manage` | print the Stripe portal address for a paying organisation |
+
+### `lynkeus report flakes [--project <name>] [--runs <n>]`
+
+List the cases that do not always pass at the first try, across the project’s last runs
+
+Reads the reports pushed for the project and ranks its cases by how often they passed at the first try, the least reliable first. Each line shows the recent runs newest first (✓ passed, ↻ passed on a retry, ✗ failed) and the last report where it went wrong. A case that failed its last three runs is broken rather than flaky. On the Team plan.
+
+| Flag | |
+|---|---|
+| `--project <name>` | the project (default: the app’s folder name) |
+| `--runs <n>` | how many of the latest runs to read (default 30) |
+
+### `lynkeus report history <case> [--project <name>] [--runs <n>]`
+
+Show how one case came out in each of the project’s last runs
+
+Newest first: ✓ passed, ↻ passed on a retry, ✗ failed, with how long it took, the branch and commit the run was made from, and the report to open. What tells a case that fails now and then from one a commit broke.
+
+| Argument | |
+|---|---|
+| `case` | the case id |
+
+| Flag | |
+|---|---|
+| `--project <name>` | the project (default: the app’s folder name) |
+| `--runs <n>` | how many of the latest runs to read (default 50) |
 
 ## headless
 
