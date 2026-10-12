@@ -18,7 +18,7 @@ import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
-import { type Case, dig, interpolate, matcherOf, matches, type Scope, type Step, stepOf, type StepValue } from './format.js';
+import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
   result?: unknown;
@@ -257,6 +257,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
   const scope: Scope = structuredClone(options.prepared?.scope ?? {});
+  seeded(scope, c.id);
   const ran = new Set<string>(options.prepared?.ran ?? []);
   const latest: Record<string, unknown> = structuredClone(options.prepared?.latest ?? {});
   const started = Date.now();
