@@ -128,7 +128,9 @@ const random = (kind: string, scope: Scope): string | undefined => {
   const next = (): number => {
     if (typeof scope[SEED] !== 'number') return Math.random();
     // mulberry32
-    let t = (scope[SEED] = (scope[SEED] + 0x6d2b79f5) >>> 0);
+    const state = (scope[SEED] + 0x6d2b79f5) >>> 0;
+    scope[SEED] = state;
+    let t = state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
