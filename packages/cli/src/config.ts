@@ -46,8 +46,12 @@ export type LynkeusConfig = {
   lintBaseline?: string;
   /** Regular expressions for the text this app shows when it is broken; `smoke` and `crawl` report a match. */
   errorCopy?: string[];
-  /** The shape of an untranslated key, and the smallest acceptable touch target in points. */
-  lint?: { i18nKeyPatterns?: string[]; minTouchTarget?: number };
+  /**
+   * The shape of an untranslated key, the smallest acceptable touch target in points, and how text contrast is
+   * judged: `false` turns it off; otherwise the least ratio for ordinary and for large text (4.5 and 3, WCAG 2 AA)
+   * and the testIDs to leave out, as regular expressions.
+   */
+  lint?: { i18nKeyPatterns?: string[]; minTouchTarget?: number; contrast?: false | { normal?: number; large?: number; ignore?: string[] } };
   /**
    * Regular expressions for the testIDs of controls whose content changes on
    * its own (a ticking clock, a countdown). Their text stops counting as a

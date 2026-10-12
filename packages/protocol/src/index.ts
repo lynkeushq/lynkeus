@@ -30,6 +30,8 @@ export type Element = {
   /** Masked (`•`) when the field is a secure entry. */
   value?: string;
   placeholder?: string;
+  /** The size its text is set in, in points, and whether it is bold: what makes text "large" when its contrast is judged. */
+  font?: { size: number; bold?: boolean };
   focused?: boolean;
   /** Index of the nearest listed ancestor, when there is one. */
   parent?: number;

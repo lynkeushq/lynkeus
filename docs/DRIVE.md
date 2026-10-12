@@ -95,7 +95,7 @@ npx lynkeus map plan --from Settings.Main --to Settings.Profile   # which button
 npx lynkeus run flows/login.json --var phone=1124888418 --diff --screenshots
 npx lynkeus smoke                        # open every parameter-free route, record what renders
 npx lynkeus crawl Settings.Main --depth 2    # press every safe button, learn where it leads
-npx lynkeus lint                         # unlabeled controls, small targets, untranslated keys, covered/clipped
+npx lynkeus lint                         # unlabeled controls, small targets, low contrast, untranslated keys, covered/clipped
 npx lynkeus perf                         # per screen: requests on arrival, time to quiet, errors, stalls, the slowest call
 npx lynkeus mcp                          # the core of it as MCP tools for an AI harness (--full: all)
 ```

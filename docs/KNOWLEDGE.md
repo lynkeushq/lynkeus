@@ -127,6 +127,40 @@ npx lynkeus lint --baseline .lynkeus/lint/home.json    # on the branch: print on
 `lintBaseline` in `lynkeus.config.json` names the file when `--baseline` is
 given none.
 
+### Contrast
+
+On a simulator, an emulator or any host that can take a picture of the screen,
+`lint` also measures how well each text stands out from what is behind it. It
+reads the pixels, not the styles, so a label over a photo, a gradient or a
+translucent sheet is judged as it is seen.
+
+```
+⚠ [low-contrast] #14 "Available balance" 2.9:1 (#8a8a8f on #ffffff), needs 4.5:1
+```
+
+The figures are WCAG 2's: 4.5 to 1 for ordinary text, 3 to 1 for large text
+(18 points, or 14 and bold). A disabled control is not judged, as the guideline
+leaves it out. Text over a background that is not one flat colour is reported
+as information, not a warning: the background is then a guess.
+
+Light and dark are two screens. Check both:
+
+```bash
+npx lynkeus os appearance light && npx lynkeus lint
+npx lynkeus os appearance dark  && npx lynkeus lint
+```
+
+`lint.contrast` in `lynkeus.config.json` changes what is asked, leaves
+elements out by testID, or turns the check off:
+
+```json
+{ "lint": { "contrast": { "normal": 4.5, "large": 3, "ignore": ["^watermark$"] } } }
+```
+
+`--no-contrast` skips it for one run. A low figure is a finding; a high one is
+not a certificate: whatever else is in the text's box (an icon beside a label)
+can only raise it.
+
 ## Perf
 
 `lynkeus perf` reads the trace and reports, per screen: requests on arrival,

@@ -1,4 +1,4 @@
-import { Dimensions, Platform, TextInput } from 'react-native';
+import { Dimensions, Platform, StyleSheet, TextInput } from 'react-native';
 
 import { centre, type Snapshot } from './backend';
 import { kindOf, SCREEN_CONTAINERS } from './hosts';
@@ -97,6 +97,32 @@ const textOf = (fiber: Fiber): string | undefined => {
   gatherText(fiber.child, parts);
   const text = parts.join('').replace(/\s+/g, ' ').trim();
   return text.length > 0 ? text.slice(0, 200) : undefined;
+};
+
+// React Native's own default when a style names no size.
+const DEFAULT_FONT_SIZE = 14;
+
+/** The size and weight of an element's text: its own style when it is text, or its first text's when it is a control. */
+const fontOf = (fiber: Fiber): Element['font'] => {
+  const visit = (node: Fiber | null, own: boolean): Element['font'] => {
+    for (let at = node; at; at = own ? null : at.sibling) {
+      if (at.tag === HOST_COMPONENT) {
+        const p = props(at);
+        const kind = kindOf(String(at.type), p);
+        if (kind === 'text' || kind === 'input') {
+          const style = (StyleSheet.flatten(p.style as never) ?? {}) as { fontSize?: unknown; fontWeight?: unknown };
+          const size = typeof style.fontSize === 'number' ? style.fontSize : DEFAULT_FONT_SIZE;
+          const weight = style.fontWeight;
+          const bold = weight === 'bold' || Number(weight) >= 700;
+          return bold ? { size, bold } : { size };
+        }
+      }
+      const below = visit(at.child, false);
+      if (below) return below;
+    }
+    return undefined;
+  };
+  return visit(fiber, true);
 };
 
 const firstHost = (fiber: Fiber | null): Fiber | null => {
@@ -260,6 +286,7 @@ export const snapshotElements = (): Snapshot => {
     } else if (kind !== 'view') {
       element.text = textOf(node);
     }
+    if (kind !== 'view' && (element.text !== undefined || element.value !== undefined || element.placeholder !== undefined)) element.font = fontOf(node);
     elements.push(element);
     if (layer) layers.push({ i: element.i, kind: layer, testId });
 
