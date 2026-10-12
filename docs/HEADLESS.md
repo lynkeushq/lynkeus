@@ -140,7 +140,7 @@ not know: run `lynkeus headless doctor`, then mock it in your entry (`--fix`
 writes stubs). Node resolving `localhost` to IPv6 while your backend listens
 on IPv4 is the other half of that bug; use `127.0.0.1`.
 
-**The host crashed with a jest error you do not recognise.** Paste its first
+**The host crashed with a jest error you do not recognize.** Paste its first
 line to `lynkeus headless doctor --explain "<line>"`; it maps the usual errors
 to their cause and fix.
 

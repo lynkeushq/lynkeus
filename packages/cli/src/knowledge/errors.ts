@@ -35,7 +35,7 @@ const RULES: Rule[] = [
     re: /Cannot read propert(?:y|ies) of undefined \(reading '(\w+)'\)/,
     cause: (m) => `something the app expected to exist is undefined (reading '${m[1]}')`,
     fix: () =>
-      `look one frame up the stack for the module: a mock returning {} instead of the shape the app reads, or a store not initialised because a service failed earlier.`,
+      `look one frame up the stack for the module: a mock returning {} instead of the shape the app reads, or a store not initialized because a service failed earlier.`,
   },
   {
     re: /Jest did not exit one second after the test run has completed/,

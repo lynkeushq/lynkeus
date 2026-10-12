@@ -43,7 +43,7 @@ test('lint findings already in the baseline are not new', () => {
   assert.deepEqual(fresh, [f2]);
 });
 
-test('flake runs are summarised by the step and error they died on', () => {
+test('flake runs are summarized by the step and error they died on', () => {
   const ok = (ms: number): FlowReport => ({ name: 'f', ok: true, totalMs: ms, vars: {}, steps: [{ step: { press: { testId: 'a' } }, ok: true, ms: 1 }] });
   const bad = (err: string): FlowReport => ({
     name: 'f',

@@ -24,7 +24,7 @@ const plain = (value: unknown, depth = 0): unknown => {
 };
 
 // Objects are reduced to their size so secrets and payloads never land in the trace.
-const summarise = (value: unknown): unknown => {
+const summarize = (value: unknown): unknown => {
   if (value === null || typeof value !== 'object') return value;
   return Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`;
 };
@@ -44,7 +44,7 @@ export const observe = (name: string, store: Store): (() => void) => {
     const current = next as Record<string, unknown> | undefined;
     const changed: Record<string, { from: unknown; to: unknown }> = {};
     for (const key of new Set([...Object.keys(previous ?? {}), ...Object.keys(current ?? {})])) {
-      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarise(previous?.[key]), to: summarise(current?.[key]) };
+      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarize(previous?.[key]), to: summarize(current?.[key]) };
     }
     previous = current;
     if (Object.keys(changed).length > 0) record({ kind: 'store', store: name, changed });
