@@ -5,22 +5,37 @@
  * logs in or what a user is belongs to the project, as macros and fixtures.
  */
 import { exec } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, Screen, Target, TraceEvent } from 'lynkeus-protocol';
+import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
 
-import { describeScreen } from '../device/driver.js';
+import { type Device, describeScreen } from '../device/driver.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
+import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, type Step, stepOf, type StepValue } from './format.js';
+
+export type NativeMock = {
+  result?: unknown;
+  screen?: { title?: string; subtitle?: string; image?: string; buttons?: Record<string, unknown> };
+};
 
 export type CasesConfig = {
   /** The folder of the file that declared this, set when the configuration is read. */
   base?: string;
+  /**
+   * What native SDKs a headless host cannot run answer, keyed `Module.method` (the native module's name, as
+   * `NativeModules` has it): `result` is what the call resolves with; `screen` puts up a stand-in page with a
+   * `title`, an optional `subtitle` and `image` (a URI), and `buttons`, label to result, each pressable as
+   * `#native-mock-<label>`. Sent to the app at the start of every case; a step changes it with
+   * `app.call: { command: nativeMocks, params: { set: { … } } }`, and `null` takes a key's mock away.
+   */
+  nativeMocks?: Record<string, NativeMock | null>;
   /** Where cases live (default `cases`). */
   dir?: string;
   /** Where the flows a case runs live (default `flows`). */
@@ -37,21 +52,74 @@ export type CasesConfig = {
   interruptions?: { see: string; do: unknown[]; unless?: string }[];
 };
 
-export type StepReport = { step: string; status: 'passed' | 'failed' | 'skipped'; ms: number; error?: string };
+/** What a host's analytics capture saw a step send: the SDK it went to and the event. */
+export type SentEvent = { provider: string; name: string; props?: Record<string, unknown> };
+
+/** `unsupported`: the host the case ran on has no such thing to do (a real device has no mocked responses), which says nothing about the app. */
+export type StepReport = {
+  step: string;
+  status: 'passed' | 'failed' | 'skipped' | 'unsupported';
+  ms: number;
+  error?: string;
+  /** A frame of the screen once the step was done, an absolute path. */
+  screenshot?: string;
+  /** The second of the case's film at which the step began. */
+  videoS?: number;
+  /** What the step made the app send its analytics SDKs, where the host captures them. */
+  sent?: SentEvent[];
+  /** What the backend did for it, from the traces it exported to the run. */
+  backend?: BackendSpan[];
+};
 export type CaseReport = {
   id: string;
   title?: string;
   file: string;
-  result: 'passed' | 'failed';
+  /** `unsupported`: a step could not be done on this host, so the case proved nothing here; it did not fail. */
+  result: 'passed' | 'failed' | 'unsupported';
   ms: number;
   steps: StepReport[];
   /** When a step failed: the screen, the requests since the mark, and why. */
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** What the app told its analytics, each with the step that caused it, when the run asked for it. */
   events?: RunEvent[];
+  /** The case's film, an absolute path, where the host films. */
+  video?: string;
+  /** Every screen the app went through while the case ran, when the run asked for them (`routes`). */
+  routes?: string[];
+  /** Why it failed, read as rules from the screen, the requests and the trace (`lynkeus why`). */
+  diagnosis?: string[];
 };
 
-export type RunOptions = { base: Base; config: CasesConfig; fixtures?: Fixtures; dry?: boolean; events?: boolean; log?: (line: string) => void };
+/** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
+export type Evidence = { dir: string; screenshots?: boolean; video?: { fps: number } };
+
+export type RunOptions = {
+  base: Base;
+  /** Where the backend's traces arrive during the run: each app step's requests carry its id. */
+  traces?: TraceSink;
+  config: CasesConfig;
+  fixtures?: Fixtures;
+  dry?: boolean;
+  events?: boolean;
+  evidence?: Evidence;
+  log?: (line: string) => void;
+  /** The case's setup, already run by `case prepare`: the case starts from here. */
+  prepared?: Prepared;
+  /** Run only the setup and hand what it left to `keep`, for a case that will run later. */
+  setupOnly?: { keep: (prepared: Prepared) => void };
+  /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
+  continue?: boolean;
+  /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
+  routes?: boolean | 'fresh';
+};
+
+/** What a case's setup leaves for its steps: the aliases and what they answered, and what ran. */
+export type Prepared = { scope: Scope; latest: Record<string, unknown>; ran: string[]; steps: StepReport[] };
+
+/** A setup made only of the project's fixtures can run before the case, with no app attached. */
+export const preparable = (c: Case, config: CasesConfig): boolean =>
+  c.setup.length > 0 &&
+  c.setup.every((step) => !step.on && !step.verb.startsWith('app.') && !config.macros?.[step.verb] && step.verb !== 'exec' && step.verb !== 'assert');
 
 /** What a buffer holds that it did not before, whichever end it grows from. */
 export const newSince = (before: AppEvent[], now: AppEvent[]): AppEvent[] => {
@@ -137,8 +205,8 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
 const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !e.hidden || e.hidden === 'inert');
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 
-const requestMatches = (event: TraceEvent, wanted: string, status?: number): boolean => {
-  if (event.kind !== 'request') return false;
+const requestMatches = (event: RequestRecord, wanted: string, status?: number): boolean => {
+  if (event.status === undefined) return false;
   const [method, route] = wanted.includes(' ') ? wanted.split(/\s+/, 2) : ['*', wanted];
   let pathname = event.url;
   try {
@@ -150,6 +218,9 @@ const requestMatches = (event: TraceEvent, wanted: string, status?: number): boo
   if (!pathname.endsWith(route!)) return false;
   return status === undefined ? true : event.status === status;
 };
+
+// Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
+const LOOKING = new Set(['see', 'wait', 'event', 'requests', 'events']);
 
 const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event'];
 
@@ -167,15 +238,35 @@ const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
   return undefined;
 };
 
+/**
+ * The fixtures a case names that the project's server did not list. A macro's
+ * own steps are the project's to keep right; these are the ones written in the case.
+ */
+export const missingFixtures = (c: Case, config: CasesConfig, known: string[]): string[] => {
+  const names = [...c.setup, ...c.steps].flatMap((step) => {
+    if (step.verb.startsWith('app.') || config.macros?.[step.verb] || step.verb === 'exec') return [];
+    return [step.verb === 'assert' ? (config.inspect ?? 'inspect') : step.verb];
+  });
+  return [...new Set(names)].filter((name) => !known.includes(name));
+};
+
+/** What the app or its host answers to a method it does not have; the name is what it lacks. */
+export const lacking = (message: string): string | undefined => /Unknown method (\S+)/.exec(message)?.[1];
+
 export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport> => {
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
-  const scope: Scope = {};
-  const ran = new Set<string>();
-  const latest: Record<string, unknown> = {};
+  const scope: Scope = structuredClone(options.prepared?.scope ?? {});
+  const ran = new Set<string>(options.prepared?.ran ?? []);
+  const latest: Record<string, unknown> = structuredClone(options.prepared?.latest ?? {});
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
+  // The app numbers its requests as they start. A step that looks for one counts only those started after the
+  // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
+  // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
+  let requestsAfter: number | undefined;
+  let markedByHand = false;
   let why: string | undefined;
   const recorded: RunEvent[] = [];
   let buffer: AppEvent[] = [];
@@ -191,7 +282,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const device = () => base.device();
-  const sinceMark = async (): Promise<TraceEvent[]> => (await (await device()).trace(mark)).events;
+  const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
+  const markRequests = async (d: Device, byHand = false): Promise<void> => {
+    if (markedByHand && !byHand) return;
+    requestsAfter = await lastRequest(d);
+    markedByHand = byHand;
+  };
+  const requestsSinceMark = async (): Promise<RequestRecord[]> => {
+    const d = await device();
+    const { requests } = await d.requests(requestsAfter);
+    // An app started again numbers its requests from 1.
+    if (requests.length === 0 && requestsAfter && (await lastRequest(d)) < requestsAfter) requestsAfter = 0;
+    return requests;
+  };
   const cli = async (argv: string[]) => {
     const outcome = await execute(argv, base);
     if (outcome.error || outcome.code !== 0) {
@@ -226,13 +329,24 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     for (const field of Object.values(config.refs ?? {})) if (answer[field] !== undefined) latest[field] = answer[field];
   };
 
+  // What the backend answered, until a step that can change it.
+  const inspected = new Map<string, Record<string, unknown>>();
+
   const assert = async (value: StepValue): Promise<void> => {
     const params = (value ?? {}) as Record<string, unknown>;
     const matcher = matcherOf(params);
     if (!matcher || typeof params.path !== 'string') throw new Error('assert needs a path and a matcher (equals, includes, gte, …)');
     if (!options.fixtures) throw new Error('assert reads the backend through fixtures, and the project declares none');
     const rest = Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'path' && !(k in matcher)));
-    const answer = await options.fixtures.call(config.inspect ?? 'inspect', withRefs(rest));
+    // `section` is the part of the answer the path reads: a server that works its answer out part by part
+    // need only do that part. Asserts in a row on the same section read one answer.
+    const ask = withRefs({ ...rest, section: params.path.split('.')[0] });
+    const key = JSON.stringify(ask);
+    let answer = inspected.get(key);
+    if (!answer) {
+      answer = await options.fixtures.call(config.inspect ?? 'inspect', ask);
+      inspected.set(key, answer);
+    }
     const got = dig(answer, params.path);
     if (!matches(got, matcher)) throw new Error(`${params.path} is ${JSON.stringify(got)}`);
   };
@@ -265,7 +379,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     } else if (text !== undefined && !elements.some((e) => textOf(e).includes(text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
-      if (!(await sinceMark()).some((e) => requestMatches(e, params.request as string, status))) return `not requested since the mark: ${params.request}`;
+      if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
+        return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      markedByHand = false;
     }
     if (typeof params.event === 'string') {
       const wanted = (params.props ?? params.properties ?? {}) as Record<string, unknown>;
@@ -276,16 +392,60 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return undefined;
   };
 
+  /**
+   * A device, and a host that draws like one, lists what is in the window: what
+   * a step looks for may be further down the page. This scrolls the window
+   * itself, most of a screenful at a time, until `there` holds or the screen
+   * stops changing; then back up in short pulls (at the top of a sheet a short
+   * pull springs back, where a long one would drag the sheet shut).
+   */
+  const scrollTo = async (there: () => Promise<boolean>, upward = false): Promise<boolean> => {
+    const d = await device();
+    if (!d.server.hello?.native) return false;
+    const { w, h } = (await d.screen()).window;
+    const x = Math.round(w / 2);
+    const listing = async () => JSON.stringify(presented(await d.screen()).map((e) => [e.testId, textOf(e), Math.round(e.frame.y)]));
+    const pull = async (from: number, to: number, times: number): Promise<boolean> => {
+      let before: string | undefined;
+      for (let i = 0; i < times; i++) {
+        if (await there()) return true;
+        const now = await listing();
+        if (now === before) return false;
+        before = now;
+        await execute(['swipe', '--from', `${x},${from}`, '--to', `${x},${to}`], base);
+        await d.idle({ quietMs: 150, timeoutMs: 1500 }).catch(() => undefined);
+      }
+      return there();
+    };
+    if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12))) return true;
+    const middle = Math.round(h * 0.5);
+    return pull(middle, middle + 110, 30);
+  };
+
   const see = async (value: StepValue): Promise<void> => {
     const params = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
     const absent = params.absent === true;
     const wait = typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000;
     const deadline = Date.now() + wait;
     const hard = Date.now() + Math.max(wait, 12_000);
+    // Where the listing is what the window shows, something missing gets three more looks before the
+    // deadline counts: a short wait (it may be arriving), a scroll (it may be further down), and a long
+    // wait (a carousel shows it a few seconds from now, and a host with its own clock gets there fast).
+    const what = targetIn(params) ?? (typeof params.text === 'string' ? ({ text: params.text } as Target) : undefined);
+    let looks = absent || !what || !(await device()).server.hello?.native ? 3 : 0;
     while (true) {
       await interrupted(value);
       const missing = await seen(params);
       if (absent ? missing !== undefined : missing === undefined) return;
+      if (looks < 3 && what && missing?.startsWith('not on screen')) {
+        const d = await device();
+        looks += 1;
+        if (looks === 1) await d.waitFor({ target: what, timeoutMs: 1500 }).catch(() => undefined);
+        else if (looks === 2) {
+          if (await scrollTo(async () => (await seen(params)) === undefined)) return;
+        } else await d.waitFor({ target: what, timeoutMs: 20_000 }).catch(() => undefined);
+        continue;
+      }
       if (Date.now() > deadline && Date.now() < hard && (await (await device()).screen()).busy) {
         await sleep(150);
         continue;
@@ -301,11 +461,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const deadline = Date.now() + timeoutMs;
     const status = typeof params.status === 'number' ? params.status : undefined;
     while (true) {
-      const events = await sinceMark();
-      const hit = events.some(
-        (e) => requestMatches(e, String(params.request), status) && (status !== undefined || (e.kind === 'request' && String(e.status).startsWith('2'))),
-      );
-      if (hit) return;
+      const events = await requestsSinceMark();
+      const hit = events.some((e) => requestMatches(e, String(params.request), status) && (status !== undefined || String(e.status).startsWith('2')));
+      if (hit) {
+        markedByHand = false;
+        return;
+      }
       if (Date.now() > deadline) throw new Error(`no ${status ?? '2xx'} ${String(params.request)} within ${timeoutMs} ms`);
       await sleep(300);
     }
@@ -317,20 +478,51 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (!target) throw new Error('app.press needs a target');
     const d = await device();
     if (params.optional === true) {
+      // Decided once the app has gone quiet: what it presses (a one-time question, a promo) arrives a moment
+      // after the screen before it, and a fast host gets here first.
+      await d.idle({ quietMs: 150, timeoutMs: 1000 }).catch(() => undefined);
       const there = await d.waitFor({ target, timeoutMs: 300 }).then(
         () => true,
         () => false,
       );
       if (!there) return 'skipped';
     }
-    // The control may still be arriving, or disabled while what it depends on loads.
+    // Not listed at all: arriving, or further down a page that only lists its window. A short wait, then
+    // a scroll, rather than spending the whole deadline on something that is below the fold.
+    const listed = async () => !!(await d.server.call('find', target));
+    if (!(await listed())) {
+      await d.waitFor({ target, timeoutMs: 500 }).catch(() => undefined);
+      if (!(await listed())) await scrollTo(listed);
+    }
+    // Listed, but scrolled out of the window, cut by its edge or under the header or tab bar (a page left
+    // further down than the control): towards it, until it is clear.
+    const outside = async (): Promise<'above' | 'below' | undefined> => {
+      const found = (await d.server.call('find', target)) as Element | null;
+      if (!found) return undefined;
+      const { h } = (await d.screen()).window;
+      // Covered near an edge is the screen's own header or tab bar over a scrolled page, not an overlay.
+      const top = found.frame.y,
+        bottom = found.frame.y + found.frame.h;
+      if (top < 0 || (found.covered && top < h * 0.2)) return 'above';
+      if (bottom > h || (found.covered && bottom > h * 0.8)) return 'below';
+      return undefined;
+    };
+    const side = await outside();
+    if (side) await scrollTo(async () => (await outside()) === undefined, side === 'above');
+    // The control may still be disabled while what it depends on loads. The waits go through the app,
+    // so a host with its own clock moves it on instead of standing still while this one sleeps.
     const deadline = Date.now() + (typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000);
     const hard = Date.now() + 15_000;
+    let was: string | undefined;
     while (Date.now() < hard && 'testId' in target) {
       const found = (await d.server.call('find', target)) as Element | null;
-      if (found?.enabled) break;
+      // Covered or still moving is often for a moment (a screen or button sliding in, a sheet still
+      // closing), and a press then lands on whatever covers it or where the control no longer is.
+      const at = found ? JSON.stringify(found.frame) : undefined;
+      if (found?.enabled && !found.covered && at === was) break;
+      was = at;
       if (Date.now() > deadline && !(await d.screen()).busy) break;
-      await sleep(200);
+      await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
     }
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
     await cli(argvFor(find('press')!, rest as StepValue));
@@ -356,13 +548,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   };
 
-  // Nobody acts on a screen that is still asking for what it shows: a press
-  // that lands before the data does is a different case from the one written.
-  const ready = async () => {
-    const d = await device();
-    const deadline = Date.now() + 5000;
-    while ((await d.screen()).busy && Date.now() < deadline) await sleep(100);
-  };
+  // A host that keeps its own clock lets an animation finish before it answers. A phone runs on the
+  // wall's and keeps moving after the last render, so only there is a pause worth its time; and a case's
+  // `on: device` steps are written for that phone.
+  const onWallClock = (d: Device) => !!d.server.hello?.native && !d.server.hello.commands?.includes('clock');
 
   let handling = false;
   const interrupted = async (value: StepValue): Promise<void> => {
@@ -390,28 +579,37 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
     mark ??= (await d.trace()).last;
+    // An interruption handled inside a wait is not the action the wait is about.
+    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
     switch (name) {
       case 'press': {
         await interrupted(value);
-        await ready();
         const outcome = await press(value);
         // One touch, one render: the next step reads what this one caused.
         await d.idle({ quietMs: 50, timeoutMs: 400 }).catch(() => undefined);
         return outcome;
       }
       case 'type':
-      case 'swipe':
+      case 'swipe': {
         await interrupted(value);
-        await ready();
+        // A field that arrives with its screen (a code input that mounts a moment after the keyboard) takes
+        // what is typed only once it is there: under load that moment is longer than the step's own wait.
+        const field = name === 'type' && params ? targetIn(params) : undefined;
+        if (field) {
+          await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
+          await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+        }
         await cli(argvFor(find(name)!, value));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
-        if (name === 'swipe' && d.server.hello?.native) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
+        if (name === 'swipe' && onWallClock(d)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         return undefined;
+      }
       case 'see':
         await see(value);
         return undefined;
       case 'requests':
         mark = (await d.trace()).last;
+        await markRequests(d, true);
         return undefined;
       case 'wait': {
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
@@ -433,7 +631,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           } else await cli(argvFor(find('wait')!, value));
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
           const what = typeof value === 'string' ? value : String(params?.what ?? '');
-          if (d.server.hello?.native && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
+          if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         }
         return undefined;
       }
@@ -479,7 +677,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
   };
 
+  // A macro is one step of the case: the requests it waits for are the ones it set off, from its first
+  // action on, not only those of its last (`app.refresh` asks for a refresh, then waits for it to settle).
+  let macroDepth = 0;
   const macro = async (steps: unknown[], value: StepValue): Promise<void> => {
+    if (macroDepth === 0 && !handling) {
+      const d = await device().catch(() => undefined);
+      if (d) await markRequests(d);
+    }
+    macroDepth++;
+    try {
+      await runMacro(steps, value);
+    } finally {
+      macroDepth--;
+    }
+  };
+  const runMacro = async (steps: unknown[], value: StepValue): Promise<void> => {
     const given = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : { value };
     // A parameter that names an alias is that alias: `as: u` makes `{{param.as.user_id}}` the user's.
     const param = Object.fromEntries(Object.entries(given).map(([k, v]) => [k, typeof v === 'string' && v in scope ? scope[v] : v]));
@@ -501,17 +714,26 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   };
 
+  /**
+   * `device`, `headless`, a platform, or `has:<command>` for a host whose app
+   * registered that command (a hosted build often has commands a store build
+   * does not); `!` in front turns any of them around. One case then carries the
+   * way each host does a thing, and runs on all of them.
+   */
   const runsHere = async (on: string): Promise<boolean> => {
+    if (on.startsWith('!')) return !(await runsHere(on.slice(1)));
     const hello = (await device()).server.hello;
-    const native = !!hello?.native;
-    if (on === 'device') return native;
-    if (on === 'headless') return !native;
+    const phone = onWallClock(await device());
+    if (on === 'device') return phone;
+    if (on === 'headless') return !phone;
+    if (on.startsWith('has:')) return !!hello?.commands?.includes(on.slice(4));
     return hello?.platform === on;
   };
 
   const perform = async (step: Step): Promise<'skipped' | undefined> => {
     if (step.on && !(await runsHere(step.on))) return 'skipped';
     ran.add(step.verb);
+    if (!['assert', 'app.see', 'app.wait'].includes(step.verb)) inspected.clear();
     const value = interpolate(step.value, scope);
     const custom = config.macros?.[step.verb];
     if (custom) {
@@ -529,10 +751,107 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (d?.server.connected) buffer = normalizeEvents(await d.command('events').catch(() => []));
   }
 
+  const evidence = options.dry ? undefined : options.evidence;
+  const offers = async (command: string) => !!(await base.device().catch(() => undefined))?.server.hello?.commands?.includes(command);
+  const film = evidence?.video && (await offers('record')) ? path.join(evidence.dir, 'video.mp4') : undefined;
+  // Asked only when the run keeps events: it is a call per step.
+  const capturing = !options.dry && !!options.events && (await offers('analytics'));
+  if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
+  let filming = false;
+  if (film && evidence?.video) {
+    const d = await device();
+    filming = await d.command('record', { path: film, fps: evidence.video.fps }).then(
+      () => true,
+      () => false,
+    );
+  }
+  // What the app sent before the case began is not the case's.
+  if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
+  const frameAt = async (): Promise<number | undefined> => {
+    if (!filming || !evidence?.video) return undefined;
+    const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
+    return typeof answer?.frames === 'number' ? Math.round((answer.frames / evidence.video.fps) * 100) / 100 : undefined;
+  };
+  // What a step leaves for a report: the frame after it and what it sent. Nothing here may fail the case.
+  const record = async (report: StepReport, index: number, startedAt: number | undefined) => {
+    if (startedAt !== undefined) report.videoS = startedAt;
+    const d = await device().catch(() => undefined);
+    if (!d?.server.connected) return;
+    if (capturing) {
+      const raw = (await d.command('analytics', { take: true }).catch(() => [])) as { sdk?: string; name?: string; properties?: Record<string, unknown> }[];
+      const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
+        e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}) }] : [],
+      );
+      if (sent.length > 0) report.sent = sent;
+    }
+    if (evidence?.screenshots) {
+      // A step may end mid-transition (a screen fading in, the splash fading out): the frame is of where the
+      // step left the app, so two runs' frames of the same step show the same screen.
+      // Long enough for what arrives after a short delay; a screen that never settles (an animation that
+      // keeps going) is noted as such, and its frame is of a moment, not of a state.
+      const settled = await d.idle({ quietMs: 700, timeoutMs: 3000 }).then(
+        (r) => r.idle,
+        () => false,
+      );
+      const file = path.join(
+        evidence.dir,
+        `${String(index).padStart(2, '0')}-${report.step
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .slice(0, 48)
+          .replace(/^-|-$/g, '')}.png`,
+      );
+      // A host on another machine writes the file there; `inline` asks it for the picture as well.
+      // A host that knows what was still animating says so, as frames in points.
+      let moving: unknown;
+      const taken = (await offers('screenshot'))
+        ? await d.command('screenshot', { path: file, inline: true }).then(
+            (answer) => {
+              const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
+              if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
+              if (Array.isArray(animating)) moving = animating;
+              return true;
+            },
+            () => false,
+          )
+        : (await execute(['screenshot', file], base)).code === 0;
+      if (taken && fs.existsSync(file)) {
+        report.screenshot = file;
+        // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
+        // a balance) from how it was drawn.
+        const screen = await d.screen().catch(() => undefined);
+        if (screen) fs.writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
+      }
+    }
+  };
+
   let failed = false;
-  for (const step of [...c.setup, ...c.steps]) {
+  // A setup that failed leaves the steps nothing to stand on, with or without `continue`.
+  let setupFailed = false;
+  let unsupported = false;
+  let routesFrom: number | undefined;
+  // The screen a reused app was left on: a reset reports it once more before the case's own screens.
+  let routesStale: string | undefined;
+  if (options.prepared) {
+    steps.push(...options.prepared.steps);
+    log(`  ⚡ setup made ahead (${options.prepared.steps.length} steps)`);
+  }
+  // What native SDKs answer in this case starts as the config says, whatever the last case on this app set.
+  if (config.nativeMocks && !options.setupOnly && !options.dry) {
+    const d = await device().catch(() => undefined);
+    await d?.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
+  }
+  // Each app step gets a span id the host puts in the `traceparent` of every request the app sends while it
+  // runs; a backend that exports traces to the run files what it did under that step.
+  const tracing =
+    options.traces && !options.dry && !options.setupOnly && (await offers('traceContext'))
+      ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() }
+      : undefined;
+  const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
+  const setupLength = todo === c.steps ? 0 : c.setup.length;
+  for (const [index, step] of todo.entries()) {
     const text = label(step);
-    if (failed) {
+    if (unsupported || setupFailed || (failed && !options.continue)) {
       steps.push({ step: text, status: 'skipped', ms: 0 });
       continue;
     }
@@ -543,24 +862,91 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       continue;
     }
     const t0 = Date.now();
+    // Where the app's trace stood before the case first touched it: the screens after it are the case's.
+    if (options.routes && routesFrom === undefined && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      const d = await device().catch(() => undefined);
+      routesFrom = await d?.trace().then(
+        (t) => t.last,
+        () => undefined,
+      );
+      // An app started for this case begins where it begins; one reused from a case before was left elsewhere.
+      if (options.routes !== 'fresh')
+        routesStale = await d?.screen().then(
+          (sc) => sc.route,
+          () => undefined,
+        );
+    }
+    const at = step.verb.startsWith('app.') || config.macros?.[step.verb] ? await frameAt() : undefined;
+    if (tracing && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      const spanId = newSpanId();
+      tracing.steps.set(spanId, { index: steps.length, startedMs: t0 });
+      await (await device()).command('traceContext', { traceparent: traceparent(tracing.traceId, spanId) }).catch(() => undefined);
+    }
     try {
       const outcome = await perform(step);
       if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await collect(steps.length + 1);
-      steps.push({ step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0 });
+      const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0 };
+      steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
+      if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb]))
+        await record(done, steps.length, at);
     } catch (error) {
-      failed = true;
       const message = error instanceof Error ? error.message : String(error);
-      steps.push({ step: text, status: 'failed', ms: Date.now() - t0, error: message });
+      const missing = lacking(message);
+      if (missing) {
+        // Not the app's doing: the rest of the case would be standing on a step that never happened.
+        unsupported = true;
+        steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: `this host has no ${missing}` });
+        log(`  🚫 ${text}  — this host has no ${missing}`);
+        continue;
+      }
+      failed = true;
+      if (index < setupLength) setupFailed = true;
+      const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
+      steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
+      if (evidence || capturing) await record(broke, steps.length, at);
     }
   }
 
+  if (tracing && options.traces) {
+    await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
+    // A backend exports in batches, a moment after the requests it served.
+    await options.traces.settle(tracing.traceId);
+    for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
+      const s = steps[index];
+      // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
+      if (s) s.backend = spans.slice(0, 400);
+    }
+  }
+  if (options.setupOnly && !failed) options.setupOnly.keep({ scope, latest, ran: [...ran], steps });
   if (options.dry) failed = steps.some((s) => s.status === 'failed');
-  const report: CaseReport = { id: c.id, title: c.title, file: c.file, result: failed ? 'failed' : 'passed', ms: Date.now() - started, steps };
+  const report: CaseReport = {
+    id: c.id,
+    title: c.title,
+    file: c.file,
+    result: failed ? 'failed' : unsupported ? 'unsupported' : 'passed',
+    ms: Date.now() - started,
+    steps,
+  };
   if (options.events) report.events = recorded;
-  if (failed && !options.dry) {
+  if (routesFrom !== undefined) {
+    const events = await device()
+      .then((d) => d.trace(routesFrom))
+      .then((t) => t.events)
+      .catch(() => []);
+    const walked = events.flatMap((e) => (e.kind === 'route' && e.route ? [e.route] : []));
+    while (walked.length > 0 && walked[0] === routesStale) walked.shift();
+    report.routes = [...new Set(walked)].sort();
+  }
+  if (filming) {
+    await (await device()).command('record', { stop: true }).catch(() => undefined);
+    if (film && fs.existsSync(film)) report.video = film;
+  }
+  if (failed && !options.dry && !options.setupOnly) {
     const d = await device().catch(() => undefined);
+    // A step that failed on its own reading of the screen left no reasons; ask for them.
+    if (!why && d?.server.connected) why = (await execute(['why'], base).catch(() => undefined))?.text || undefined;
     if (d?.server.connected) {
       const screen = await d.screen().catch(() => undefined);
       const events = await d.trace(mark).catch(() => undefined);
@@ -570,6 +956,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         why,
       };
     }
+    const reasons = (why ?? '')
+      .split('\n')
+      .map((l) => l.replace(/^\s*•\s*/, '').trim())
+      .filter((l) => l.length > 0);
+    if (reasons.length > 0) report.diagnosis = reasons;
   }
   return report;
 };

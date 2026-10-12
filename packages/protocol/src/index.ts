@@ -179,6 +179,8 @@ export type Response = { id: number; result: unknown } | { id: number; error: { 
 export type HelloEvent = {
   event: 'hello';
   protocolVersion: number;
+  /** The lynkeus-agent release in the app; absent from agents before it was sent. */
+  agentVersion?: string;
   platform: 'ios' | 'android' | string;
   native: boolean;
   commands: string[];
@@ -189,3 +191,5 @@ export type NavigationEvent = { event: 'navigation'; route?: string };
 /** The driver's first message. `session` is random per driver process, so the app can tell a reconnect (whose resent requests it may have answered) from a new driver reusing request ids. */
 export type AuthEvent = { event: 'auth'; session: string; token?: string };
 export type AgentEvent = HelloEvent | NavigationEvent;
+
+export * from './run.js';
