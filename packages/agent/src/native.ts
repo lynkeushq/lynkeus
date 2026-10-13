@@ -40,6 +40,8 @@ export const touch = {
       points.map((p) => p.x),
       points.map((p) => p.y),
     );
-    return JSON.parse(json) as number[][];
+    const chains = JSON.parse(json) as number[][];
+    // An answer that is short of a chain per point is no answer: nothing is called covered on it.
+    return chains.length === points.length ? chains : null;
   },
 };
