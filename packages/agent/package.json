@@ -21,6 +21,7 @@
       "types": "./lib/typescript/src/presentation.d.ts",
       "default": "./lib/module/presentation.js"
     },
+    "./babel": "./babel.js",
     "./hosts": {
       "lynkeus-agent-source": "./src/hosts.ts",
       "types": "./lib/typescript/src/hosts.d.ts",
@@ -35,6 +36,7 @@
     "cpp",
     "*.podspec",
     "react-native.config.js",
+    "babel.js",
     "!ios/build",
     "!android/build",
     "!android/gradle",

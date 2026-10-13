@@ -75,6 +75,26 @@ const tokenIn = (expo: boolean): string => (expo ? 'process.env.EXPO_PUBLIC_LYNK
 const mountLines = (expo: boolean): string =>
   `import { auto } from 'lynkeus-agent/auto'\n// Dev-only QA agent; a release build never evaluates the client.\nauto({ token: ${tokenIn(expo)} })\n`;
 
+const BABEL_CANDIDATES = ['babel.config.js', 'babel.config.cjs'];
+const TOKEN_PLUGIN = 'lynkeus-agent/babel';
+
+/** React Native gives the app no environment: the plugin writes LYNKEUS_TOKEN where the entry reads it. */
+const addTokenPlugin = (root: string): string => {
+  const byHand = `add '${TOKEN_PLUGIN}' to the plugins in babel.config.js, so the app can read LYNKEUS_TOKEN`;
+  const file = findFirst(root, BABEL_CANDIDATES);
+  if (!file) return byHand;
+  const text = fs.readFileSync(path.join(root, file), 'utf8');
+  if (text.includes(TOKEN_PLUGIN)) return `${file} already has ${TOKEN_PLUGIN}`;
+  const plugins = /\bplugins\s*:\s*\[/.exec(text);
+  const presets = /^([ \t]*)presets\s*:/m.exec(text);
+  if (!plugins && !presets) return byHand;
+  const next = plugins
+    ? `${text.slice(0, plugins.index + plugins[0].length)}'${TOKEN_PLUGIN}', ${text.slice(plugins.index + plugins[0].length)}`
+    : `${text.slice(0, presets!.index)}${presets![1]}plugins: ['${TOKEN_PLUGIN}'],\n${text.slice(presets!.index)}`;
+  fs.writeFileSync(path.join(root, file), next);
+  return `added ${TOKEN_PLUGIN} to ${file}`;
+};
+
 /**
  * Mounts the agent from the app's entry, before anything registers the root component. An Expo Router app
  * has no entry of its own (`"main": "expo-router/entry"`), so it gets one that mounts the agent and then
@@ -108,6 +128,10 @@ export const mountAgent = (root: string): string[] => {
       fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo) + text.slice(at));
       notes.push(`added auto() to ${index}`);
     }
+  }
+  if (!expo) {
+    notes.push(addTokenPlugin(root));
+    notes.push('start Metro with LYNKEUS_TOKEN set to the value the CLI reads; after changing it, start Metro with --reset-cache');
   }
   if (expo) {
     notes.push('Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go');

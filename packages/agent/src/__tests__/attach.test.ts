@@ -25,6 +25,20 @@ const dialer = () => {
   return { dials, sockets, createSocket, refuse };
 };
 
+describe('a token that did not arrive', () => {
+  it('keeps the agent off instead of serving anyone', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    for (const token of [undefined, '']) {
+      const d = dialer();
+      start({ navigation: noNavigation, backend, createSocket: d.createSocket, token })();
+      expect(d.dials).toHaveLength(0);
+    }
+    expect(warn).toHaveBeenCalledTimes(2);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('lynkeus-agent/babel');
+    warn.mockRestore();
+  });
+});
+
 describe('dialing the driver', () => {
   beforeEach(() => {
     jest.useFakeTimers({ now: 0 });

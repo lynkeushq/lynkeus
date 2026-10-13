@@ -18,6 +18,23 @@ auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ && config.ENV !== 'pro
 `auto()` wraps the root through `AppRegistry` and finds your React Navigation
 container by itself (it looks for the container's context value, so no ref
 has to be passed around). `npx lynkeus init` writes it for you.
+
+React Native gives the app no environment: `process.env.LYNKEUS_TOKEN` is
+undefined there unless something writes it into the bundle. The agent ships
+the Babel plugin that does, and `lynkeus init` adds it:
+
+```js
+// babel.config.js
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+Start Metro with `LYNKEUS_TOKEN` set to the value the CLI reads. Metro keeps
+what it has transformed, so after changing the token start it once with
+`--reset-cache`. A release bundle is left alone: the token is never written
+into one. An Expo app does not need the plugin: it reads `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 Prefer the explicit component when you want to hand it an adapter for another
 router:
 
@@ -55,7 +72,7 @@ socket and the second stays quiet.
 | `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` / `10.0.2.2`, `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
-| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. |
+| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
 | `app` | — | Free-form, sent in `hello` (name, version, environment). |
 
 ## Drive it

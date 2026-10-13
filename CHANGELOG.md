@@ -2,6 +2,7 @@
 
 ## 0.2.0 (unreleased)
 
+- `lynkeus-agent`: a token that the app passes and that arrives empty keeps the agent off, with a line in the app's log saying why. It used to mean "no token", and the agent served any driver that connected. In a React Native app that was every app that followed the README, because `process.env.LYNKEUS_TOKEN` is undefined inside a bundle. **An app that passes `token` now needs the value to reach it**: `lynkeus-agent/babel`, a Babel plugin, writes `LYNKEUS_TOKEN` into a development bundle (never a release one), and `lynkeus init` adds it to `babel.config.js`. `auto()` with no `token` at all still serves without one.
 - An app that says it runs on Android has its device found through `adb devices`. With an iOS simulator booted beside the emulator, the CLI took the simulator's id for it, and a screenshot, a launch or an `os` command went to `adb` with an id it did not know.
 - `wait` and `see` take `route:<name>` for a route that does not start with a capital, as Expo Router's do (`route:index`): a lowercase word alone is still a text to look for.
 - `lynkeus init` mounts the agent from the app's entry. In an Expo app it reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, the only kind of variable Expo passes to the app, and an Expo Router app, which has no entry of its own, gets an `index.js` that mounts the agent and then loads the router. Tried on a new Expo SDK 57 project: a development build attaches, lists the screen and names Expo Router's routes; no config plugin is needed.

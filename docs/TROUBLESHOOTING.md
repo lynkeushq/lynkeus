@@ -41,6 +41,13 @@ that the token the app was built with is the `LYNKEUS_TOKEN` the driver reads.
 `--attach-timeout <ms>` (or `attachTimeout` in the config) gives it longer;
 `--launch --app <bundleId>` relaunches the app first.
 
+**The app logs `lynkeus: the app passed a token and it is empty`.** The entry
+reads `process.env.LYNKEUS_TOKEN` and nothing put a value there, so the agent
+stays off rather than serve whoever connects. In a React Native app, add
+`'lynkeus-agent/babel'` to the plugins in `babel.config.js` and start Metro
+with `LYNKEUS_TOKEN` set, once with `--reset-cache`. In Expo the variable is
+`EXPO_PUBLIC_LYNKEUS_TOKEN`.
+
 **An overlay the app raises eats the screen.** A lock screen, a "rate us"
 sheet, a forced-update wall: lynkeus has no idea what yours looks like, on
 purpose. Compose it from primitives in your own tooling (`lynkeus wait '#key-1'`,

@@ -62,6 +62,16 @@ import { auto } from 'lynkeus-agent/auto';
 auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
 ```
 
+React Native gives the app no environment, so the token is written into the
+bundle by a Babel plugin. Add it in `babel.config.js` and start Metro with
+`LYNKEUS_TOKEN` set:
+
+```js
+plugins: ['lynkeus-agent/babel'],
+```
+
+`npx lynkeus init` makes both changes for you.
+
 **2. Drive the app** from a terminal:
 
 ```sh

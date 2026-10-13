@@ -80,4 +80,26 @@ test('an Expo app with its own entry keeps it, and a bare React Native app reads
   const notes = mountAgent(bare);
   assert.match(fs.readFileSync(path.join(bare, 'index.js'), 'utf8'), /auto\(\{ token: process\.env\.LYNKEUS_TOKEN \}\)/);
   assert.ok(!notes.some((n) => n.includes('Expo')));
+  assert.ok(notes.some((n) => n.includes("add 'lynkeus-agent/babel' to the plugins")));
+});
+
+test('a bare React Native app gets the plugin that carries the token into the bundle', () => {
+  const withPlugins = tmpApp();
+  fs.writeFileSync(
+    path.join(withPlugins, 'babel.config.js'),
+    "module.exports = {\n  presets: ['module:@react-native/babel-preset'],\n  plugins: ['react-native-worklets/plugin'],\n};\n",
+  );
+  const notes = mountAgent(withPlugins);
+  assert.match(fs.readFileSync(path.join(withPlugins, 'babel.config.js'), 'utf8'), /plugins: \['lynkeus-agent\/babel', 'react-native-worklets\/plugin'\]/);
+  assert.ok(notes.some((n) => n.includes('added lynkeus-agent/babel to babel.config.js')));
+  assert.ok(notes.some((n) => n.includes('--reset-cache')));
+
+  const presetsOnly = tmpApp();
+  fs.writeFileSync(path.join(presetsOnly, 'babel.config.js'), "module.exports = {\n  presets: ['module:@react-native/babel-preset'],\n};\n");
+  mountAgent(presetsOnly);
+  const config = fs.readFileSync(path.join(presetsOnly, 'babel.config.js'), 'utf8');
+  assert.match(config, /^ {2}plugins: \['lynkeus-agent\/babel'\],\n {2}presets:/m);
+  // A second run changes nothing.
+  assert.ok(mountAgent(presetsOnly).some((n) => n.includes('already has lynkeus-agent/babel')));
+  assert.equal(fs.readFileSync(path.join(presetsOnly, 'babel.config.js'), 'utf8'), config);
 });
