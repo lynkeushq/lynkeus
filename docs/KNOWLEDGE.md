@@ -144,7 +144,7 @@ translucent sheet is judged as it is seen.
 
 The figures are WCAG 2's: 4.5 to 1 for ordinary text, 3 to 1 for large text
 (18 points, or 14 and bold). A disabled control is not judged, as the guideline
-leaves it out. Text over a background that is not one flat colour is reported
+leaves it out. Text over a background that is not one flat color is reported
 as information, not a warning: the background is then a guess.
 
 Light and dark are two screens. Check both:
@@ -185,7 +185,7 @@ values, states, no geometry. A renamed heading or a lost button is a changed
 line; a font hint is nothing. It works everywhere, the headless host
 included.
 
-`--pixels` adds a screenshot compared with a red-on-grey diff
+`--pixels` adds a screenshot compared with a red-on-gray diff
 (`--tolerance <ratio>` for how many pixels may differ). The status bar is
 frozen first (9:41, full battery) so the clock does not count; `--no-freeze`
 skips that. Keep pixels for the screens where the visual *is* the product: a

@@ -104,7 +104,7 @@ port 8123 is held by another lynkeus case run (pid 4242), which is probably stil
 **What you see.**
 
 ```text
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.2.1: they can misread each other without an error. Install lynkeus-agent@0.2.1 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.3.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
 ```
 
 **Why.** The agent in the app and the CLI are from different releases. They may still talk, and one may misread the other without any error, such as typing into nothing.

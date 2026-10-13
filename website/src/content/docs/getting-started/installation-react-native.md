@@ -41,7 +41,7 @@ npm install --save-dev lynkeus-agent lynkeus
 Keep the two packages on the same version. If they differ, the CLI prints a warning when it attaches, because an agent and a CLI from different releases can misread each other without raising an error:
 
 ```text
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.2.1: they can misread each other without an error. Install lynkeus-agent@0.2.1 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.3.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
 ```
 
 ### 2. Mount the agent
@@ -192,7 +192,7 @@ attached in 104ms (ios)
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.2.1",
+  "agentVersion": "0.3.0",
   "platform": "ios",
   "native": true,
   "commands": ["events", "profile", "stores", "traceContext"],

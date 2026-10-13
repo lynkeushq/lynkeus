@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.3.0
 
 - `lynkeus-agent`: a token that the app passes and that arrives empty keeps the agent off, with a line in the app's log saying why. It used to mean "no token", and the agent served any driver that connected. In a React Native app that was every app that followed the README, because `process.env.LYNKEUS_TOKEN` is undefined inside a bundle. **An app that passes `token` now needs the value to reach it**: `lynkeus-agent/babel`, a Babel plugin, writes `LYNKEUS_TOKEN` into a development bundle (never a release one), and `lynkeus init` adds it to `babel.config.js`. `auto()` with no `token` at all still serves without one.
 - An app that says it runs on Android has its device found through `adb devices`. With an iOS simulator booted beside the emulator, the CLI took the simulator's id for it, and a screenshot, a launch or an `os` command went to `adb` with an id it did not know.
@@ -22,6 +22,9 @@
 - Fixtures: before the first case lynkeus sends `{"command": "lynkeus.describe"}` to the project's fixtures command. A server that answers `{"commands": [...]}` has its cases checked first, and one that names a fixture missing from the list is refused before anything runs. A server that answers `"ok": false` is left unchecked. `case init`'s server answers it.
 - A case step the host cannot do (the app or host answers `Unknown method`) is reported as `unsupported` instead of failed. The case stops there with result `unsupported`, is not retried, and does not fail the run: `3/5 passed, 2 cannot run on this host`.
 - `case run --out <dir>` writes the run as a directory: `run.json` (when, on what, totals) and `cases.jsonl` (a line per attempt, each step with its section, outcome and the analytics events it caused). `lynkeus-protocol` exports its types (`RunManifest`, `RunCase`, `RunStep`, `RunEvent`) and `RUN_SCHEMA`, the contract for whatever reads a run.
+
+## 0.2.0
+
 - `lynkeus`: commands regrouped. Static knowledge is `lynkeus map build|screens|show|paths|plan|impact|check|changes` (was `graph`, `screens`, `screen-info`, `paths`, `plan`, `impact`, `check`). What the OS hands the app is `lynkeus os deeplink|appstate|clock|biometrics|scan|gallery|permissions|push|appearance|location|language` (was the bare names and `lynkeus device …`). The host is `lynkeus headless start|init|doctor` (was `headless`, `init`, `doctor`). `lynkeus mock` is unchanged. The old spellings still work as aliases.
 - New commands: `see` (assert a route or element is on screen now), `hello` (what the app said about itself), `screen --tree` (the screen as nested lines of meaning, no geometry), `snapshot <name>` (a tree baseline by default; `--pixels` adds the screenshot), `flake` (the same flow n times), `why` (why the last step failed, from the screen, requests and trace), `record` (a flow from what a person does in the app), `lint --save` / `--baseline` (only the findings that are new).
 - `lynkeus.config.json` in the app's folder holds what was repeated as flags: `entry`, `apiEnv`, `port`, `device`, `app`, `attachTimeout`, `lintBaseline`. Flags win over the environment, the environment over the file.

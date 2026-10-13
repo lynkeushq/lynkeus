@@ -8,7 +8,7 @@ import { contrastRatio, lintContrast, measureContrast, type Pixels, type Rgb } f
 const WHITE: Rgb = [255, 255, 255];
 const BLACK: Rgb = [0, 0, 0];
 
-/** A picture of one colour, with rectangles of others painted on it. */
+/** A picture of one color, with rectangles of others painted on it. */
 const picture = (width: number, height: number, background: Rgb, patches: { x: number; y: number; w: number; h: number; rgb: Rgb }[] = []): Pixels => {
   const data = new Uint8Array(width * height * 4);
   const paint = (x: number, y: number, rgb: Rgb) => data.set([...rgb, 255], (y * width + x) * 4);
@@ -28,13 +28,13 @@ const element = (over: Partial<Element>): Element => ({
 });
 const screen = (elements: Element[]): Screen => ({ elements, window: { w: 100, h: 100 } }) as Screen;
 
-test('black on white is 21 to 1, and a colour against itself is 1', () => {
+test('black on white is 21 to 1, and a color against itself is 1', () => {
   assert.equal(Math.round(contrastRatio(BLACK, WHITE)), 21);
   assert.equal(contrastRatio(WHITE, WHITE), 1);
 });
 
 test('the background is what most of the box has, and the text what stands furthest from it', () => {
-  // Glyphs in mid grey with a paler fringe around them, as antialiasing leaves.
+  // Glyphs in mid gray with a paler fringe around them, as antialiasing leaves.
   const measured = measureContrast(
     picture(100, 20, WHITE, [
       { x: 10, y: 5, w: 40, h: 10, rgb: [200, 200, 200] },
@@ -49,11 +49,11 @@ test('the background is what most of the box has, and the text what stands furth
   assert.equal(measured.plain, true);
 });
 
-test('a box of one colour has no text to judge', () => {
+test('a box of one color has no text to judge', () => {
   assert.equal(measureContrast(picture(100, 20, WHITE), { x: 0, y: 0, w: 100, h: 20 }), undefined);
 });
 
-test('pale grey text on white is a warning that names both colours and what it needs', () => {
+test('pale gray text on white is a warning that names both colors and what it needs', () => {
   const [finding] = lintContrast(
     screen([element({ testId: 'balance-label' })]),
     picture(100, 100, WHITE, [{ x: 10, y: 5, w: 60, h: 8, rgb: [170, 170, 170] }]),
@@ -84,7 +84,7 @@ test('what cannot be read or used is not judged: disabled, hidden, covered, or l
 });
 
 test('text over a picture is said, but only as information', () => {
-  // No colour has half the box: a photograph or a gradient behind the label.
+  // No color has half the box: a photograph or a gradient behind the label.
   const bands = [0, 1, 2, 3, 4].map((n) => ({ x: n * 20, y: 0, w: 20, h: 20, rgb: [40 + n * 40, 90, 200 - n * 30] as Rgb }));
   const [finding] = lintContrast(screen([element({})]), picture(100, 100, [10, 10, 10], bands));
   assert.ok(finding);

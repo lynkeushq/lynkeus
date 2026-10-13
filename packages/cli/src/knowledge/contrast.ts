@@ -1,6 +1,6 @@
 /**
  * How well a screen's text stands out from what is behind it, measured on the pixels of a screenshot: the
- * colours an app declares say nothing of a label over a photo, a gradient or a translucent sheet.
+ * colors an app declares say nothing of a label over a photo, a gradient or a translucent sheet.
  */
 import type { Element, Screen } from 'lynkeus-protocol';
 
@@ -15,7 +15,7 @@ export type ContrastOptions = {
   normal?: number;
   /** The least ratio for large text: 18 points, or 14 and bold (WCAG 2 AA asks 3). */
   large?: number;
-  /** testIDs left out: a watermark, a brand colour nobody may change. */
+  /** testIDs left out: a watermark, a brand color nobody may change. */
   ignore?: RegExp[];
 };
 
@@ -23,7 +23,7 @@ const AA_NORMAL = 4.5;
 const AA_LARGE = 3;
 // A text box this uniform has a flat background; under it the text sits on a picture or a gradient.
 const PLAIN_SHARE = 0.5;
-// Enough pixels of one colour to be glyphs and not the fringe where a glyph meets its background.
+// Enough pixels of one color to be glyphs and not the fringe where a glyph meets its background.
 const LEAST_SHARE = 0.004;
 const LEAST_PIXELS = 6;
 
@@ -32,10 +32,10 @@ const channel = (value: number): number => {
   return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 };
 
-/** WCAG's relative luminance of an sRGB colour. */
+/** WCAG's relative luminance of an sRGB color. */
 export const luminance = ([r, g, b]: Rgb): number => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 
-/** WCAG's contrast ratio, from 1 (the same colour) to 21 (black on white). */
+/** WCAG's contrast ratio, from 1 (the same color) to 21 (black on white). */
 export const contrastRatio = (a: Rgb, b: Rgb): number => {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
   return (light + 0.05) / (dark + 0.05);
@@ -44,8 +44,8 @@ export const contrastRatio = (a: Rgb, b: Rgb): number => {
 export const hex = (rgb: Rgb): string => `#${rgb.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
 
 /**
- * The contrast of the text inside a rectangle of the picture, in pixels. The background is the colour most
- * of the rectangle has; the text is the colour, among those with enough pixels to be glyphs, that stands
+ * The contrast of the text inside a rectangle of the picture, in pixels. The background is the color most
+ * of the rectangle has; the text is the color, among those with enough pixels to be glyphs, that stands
  * furthest from it. Anything else in the box (an icon beside a label) can only raise the figure, so a low one
  * is a finding and a high one is not a certificate.
  */
@@ -56,7 +56,7 @@ export const measureContrast = (picture: Pixels, box: { x: number; y: number; w:
   const bottom = Math.min(picture.height, Math.ceil(box.y + box.h));
   if (right - left < 2 || bottom - top < 2) return undefined;
 
-  // Colours are gathered 8 levels to a bucket: antialiasing and compression never give one flat value.
+  // Colors are gathered 8 levels to a bucket: antialiasing and compression never give one flat value.
   const buckets = new Map<number, { count: number; r: number; g: number; b: number }>();
   let total = 0;
   for (let y = top; y < bottom; y++) {
@@ -78,19 +78,19 @@ export const measureContrast = (picture: Pixels, box: { x: number; y: number; w:
       total++;
     }
   }
-  const colours = [...buckets.values()].map((bucket) => ({
+  const colors = [...buckets.values()].map((bucket) => ({
     count: bucket.count,
     rgb: [bucket.r / bucket.count, bucket.g / bucket.count, bucket.b / bucket.count] as Rgb,
   }));
-  const background = colours.reduce((most, colour) => (colour.count > most.count ? colour : most));
+  const background = colors.reduce((most, color) => (color.count > most.count ? color : most));
   const least = Math.max(LEAST_PIXELS, total * LEAST_SHARE);
   let best: { ratio: number; rgb: Rgb } | undefined;
-  for (const colour of colours) {
-    if (colour === background || colour.count < least) continue;
-    const ratio = contrastRatio(colour.rgb, background.rgb);
-    if (!best || ratio > best.ratio) best = { ratio, rgb: colour.rgb };
+  for (const color of colors) {
+    if (color === background || color.count < least) continue;
+    const ratio = contrastRatio(color.rgb, background.rgb);
+    if (!best || ratio > best.ratio) best = { ratio, rgb: color.rgb };
   }
-  // Nothing but background: an empty field, or text the same colour as what is behind it.
+  // Nothing but background: an empty field, or text the same color as what is behind it.
   if (!best || best.ratio < 1.05) return undefined;
   return { ratio: best.ratio, text: best.rgb, background: background.rgb, plain: background.count / total >= PLAIN_SHARE };
 };
@@ -126,6 +126,8 @@ export const lintContrast = (screen: Screen, picture: Pixels, options: ContrastO
       // Over a picture the background is a guess, so it is said and left to a person.
       severity: measured.plain ? 'warn' : 'info',
       element: e.i,
+      // The text, not the ratio: a baseline knows the finding again when the measurement moves.
+      subject: said,
       message: `"${said}" ${measured.ratio.toFixed(1)}:1 (${hex(measured.text)} on ${hex(measured.background)}${measured.plain ? '' : ', over a varied background'}), needs ${needed}:1${large ? ' for large text' : ''}`,
     });
   }
