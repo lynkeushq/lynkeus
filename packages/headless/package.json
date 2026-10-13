@@ -31,6 +31,9 @@
     "directory": "packages/headless"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "ws": "^8.18.0",
     "yoga-layout": "3.2.1"

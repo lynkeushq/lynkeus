@@ -30,6 +30,9 @@
     "directory": "packages/cli"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "lynkeus-client": "workspace:^",

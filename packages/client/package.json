@@ -27,6 +27,9 @@
     "directory": "packages/client"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "lynkeus-protocol": "workspace:^",
     "ws": "^8.18.0"

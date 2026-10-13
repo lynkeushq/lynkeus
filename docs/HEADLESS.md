@@ -118,6 +118,10 @@ does with the messages back), native crashes, and pixels (`lynkeus snapshot
 those, the same cases run on a simulator; only the way the host starts
 differs.
 
+An Expo Router app has no root component to export: its screens are files the
+router loads. `headless init` stops with `no App component found`, and such an
+app runs on a simulator or an emulator.
+
 ## Security posture
 
 - `headless start` refuses to run without `LYNKEUS_TOKEN`. The token is the
