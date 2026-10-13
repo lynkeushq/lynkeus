@@ -120,6 +120,10 @@ Cases and fixtures often live in a repository of their own: `LYNKEUS_CONFIG`
 names a second configuration file, read over the app's, and the paths under
 its `cases` are relative to it.
 
+`{{random.letters}}` and `{{random.digits}}` are new on every run. With
+`LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
+different ones from the case beside it: what comparing two runs' screens needs.
+
 ## Configuration
 
 ```json
