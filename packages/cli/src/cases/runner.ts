@@ -91,7 +91,7 @@ export type CaseReport = {
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
-export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; video?: { fps: number } };
+export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; video?: { fps: number; scale?: number } };
 
 export type RunOptions = {
   base: Base;
@@ -769,7 +769,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   let filming = false;
   if (film && evidence?.video) {
     const d = await device();
-    filming = await d.command('record', { path: film, fps: evidence.video.fps }).then(
+    // A host that films at one size only ignores the scale.
+    filming = await d.command('record', { path: film, fps: evidence.video.fps, ...(evidence.video.scale ? { scale: evidence.video.scale } : {}) }).then(
       () => true,
       () => false,
     );

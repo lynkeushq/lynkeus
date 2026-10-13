@@ -195,7 +195,12 @@ export const caseCommands = [
       events: { type: 'string', help: 'keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl', value: 'dir' },
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
-      settle: { type: 'number', help: 'with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by', default: 150, value: 'ms' },
+      settle: {
+        type: 'number',
+        help: 'with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by',
+        default: 150,
+        value: 'ms',
+      },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
       traces: {
         type: 'boolean',
@@ -205,6 +210,7 @@ export const caseCommands = [
       push: { type: 'boolean', help: 'with --out: upload the run to the reports service when it ends and print the report’s address' },
       project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
+      'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told)', value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
       jobs: { type: 'number', help: 'cases at once, each on its own host (needs --ports)', value: 'n', default: 1 },
@@ -243,7 +249,9 @@ export const caseCommands = [
               dir: out.evidenceDir(id, attempt),
               screenshots: !!ctx.flags.screenshots,
               settleMs: Number(ctx.flags.settle ?? 150),
-              ...(ctx.flags.video ? { video: { fps: Number(ctx.flags['video-fps'] ?? 30) } } : {}),
+              ...(ctx.flags.video
+                ? { video: { fps: Number(ctx.flags['video-fps'] ?? 30), ...(ctx.flags['video-scale'] ? { scale: Number(ctx.flags['video-scale']) } : {}) } }
+                : {}),
             }
           : undefined;
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
