@@ -166,6 +166,21 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
     return frames.toString()
   }
 
+  // What each tag's field holds, null for a tag that is not a text field. Read like hitTest.
+  override fun texts(tags: ReadableArray): String {
+    if (!debuggable) return "[]"
+    val wanted = HashSet<Int>()
+    for (i in 0 until tags.size()) wanted.add(tags.getDouble(i).toInt())
+    val found = HashMap<Int, View>()
+    rootView()?.let { collect(it, wanted, found) }
+    val texts = JSONArray()
+    for (i in 0 until tags.size()) {
+      val view = found[tags.getDouble(i).toInt()]
+      texts.put(if (view is EditText) view.text.toString() else JSONObject.NULL)
+    }
+    return texts.toString()
+  }
+
   // The deepest visible view containing the point, in window coordinates.
   private fun hitView(view: View, x: Float, y: Float): View? {
     if (view.visibility != View.VISIBLE) return null

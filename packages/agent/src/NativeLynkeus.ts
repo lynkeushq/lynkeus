@@ -32,6 +32,12 @@ export interface Spec extends TurboModule {
    * answers; iOS returns `[]`, where the shadow tree already agrees with the views.
    */
   frames(tags: number[]): string;
+  /**
+   * What each tag's native field holds, as JSON (`(string | null)[]`, null for
+   * a tag that is not a text field). A field the app does not control keeps
+   * its text in the view and nowhere in React.
+   */
+  texts(tags: number[]): string;
 }
 
 export default TurboModuleRegistry.get<Spec>('Lynkeus');

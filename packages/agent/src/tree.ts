@@ -171,6 +171,21 @@ const placeAsViews = (elements: Element[]): void => {
   moveToViews(elements, (tag) => byTag.get(tag));
 };
 
+type Field = { element: Element; secure: boolean };
+
+// A field the app does not control keeps what was typed in its view, and one with a defaultValue goes on
+// saying that in its props. So the view is asked, and the props stand wherever it does not answer.
+const readFields = (fields: Field[]): void => {
+  const asked = fields.filter((f) => f.element.tag !== undefined);
+  const texts = touch.texts(asked.map((f) => f.element.tag as number));
+  if (!texts) return;
+  asked.forEach(({ element, secure }, index) => {
+    const text = texts[index];
+    if (typeof text !== 'string') return;
+    element.value = text.length === 0 ? undefined : secure ? '•'.repeat(text.length) : text;
+  });
+};
+
 type Walk = {
   depth: number;
   inButton: boolean;
@@ -185,6 +200,7 @@ export const snapshotElements = (): Snapshot => {
   const window = { w: width, h: height };
   const focusedInput = TextInput.State.currentlyFocusedInput();
   const elements: Element[] = [];
+  const fields: Field[] = [];
   const layers: Layer[] = [];
 
   const walkChildren = (parent: Fiber, at: Walk) => {
@@ -255,6 +271,7 @@ export const snapshotElements = (): Snapshot => {
       if (typeof value === 'string' && value.length > 0) {
         element.value = p.secureTextEntry ? '•'.repeat(value.length) : value;
       }
+      fields.push({ element, secure: !!p.secureTextEntry });
       if (typeof p.placeholder === 'string') element.placeholder = p.placeholder;
       if (focusedInput && instanceOf(node)?.canonical?.publicInstance === focusedInput) element.focused = true;
     } else if (kind !== 'view') {
@@ -279,6 +296,7 @@ export const snapshotElements = (): Snapshot => {
     walkChildren(root, { depth: 0, inButton: false, rootAttached: true });
   }
   placeAsViews(elements);
+  readFields(fields);
   const presenting = resolvePresentation(elements, layers);
   markCovered(elements);
   return { elements, presenting };
