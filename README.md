@@ -34,13 +34,13 @@ The same app can also run **with no simulator at all**: `lynkeus headless start`
 - **Facts, not pixels** — assert on routes, values and network requests that a screenshot cannot see.
 - **Device or headless** — the same case runs on a simulator, a phone, or in Node with no simulator.
 - **App-agnostic** — it knows nothing about your screens. Preparing backend state stays a separate tool that a script, a CI job or an AI agent composes with it.
-- **Safe in release** — the native module compiles to no-ops outside debug builds, and the JavaScript is never evaluated when disabled.
+- **Safe in release** — the native module compiles to no-ops outside debug builds, and what reads the screen and talks to the driver is never evaluated when disabled.
 - **Built for automation** — a CLI, a JSON-lines session, a Node client and an MCP server for AI agents.
 
 ## Requirements
 
 - React Native 0.76 or newer with the New Architecture
-- iOS and Android development builds
+- iOS and Android development builds, on a simulator or an emulator
 - Node 22 or newer for the CLI and the headless host
 
 ## Installation
@@ -125,7 +125,7 @@ The runner waits out what only a device does — a pager's momentum, a screen st
 ## FAQ
 
 **Does anything ship in my release build?**
-No. The native module compiles to no-ops outside debug builds, and the agent's JavaScript is never evaluated when `enabled` is false.
+The package is in the bundle and does nothing there. The native module compiles to no-ops outside debug builds. The client, which is everything that reads the screen and talks to the driver, is required only when `enabled` is true, whichever way the app imports the package and whatever Metro is configured to inline.
 
 **How does it compare to Detox, Maestro or Appium?**
 It covers the same ground — driving a real build end to end — but from inside the app instead of through the operating system. That is what makes it fast, and why it needs a development build.

@@ -238,7 +238,17 @@ and a histogram of where it died and with what.
   (`FLAG_DEBUGGABLE`).
 - **Expo**: works in a development build (not Expo Go). Add the package and
   run `expo prebuild`.
-- **Headless**: Node 20+, the app's own jest config and babel transform.
+- **Headless**: Node 22 or newer, the app's own jest config and babel
+  transform. `headless init` looks for the app's root component (`App.tsx`
+  and the like, or `--component <path>`); an Expo Router app has none, so it
+  runs on a simulator or an emulator and not on the headless host.
+- **Physical devices**: not supported. The CLI looks for a booted simulator
+  or emulator, and launching, screenshots and the `os` commands go through
+  `simctl` and `adb` on one.
+- **Film**: `case run --video` films a case where the host offers a `record`
+  command, which it names in `hello`. The built-in headless host draws
+  nothing and a simulator or emulator session offers none, so there a run
+  keeps its screenshots and no film.
 
 ### Security posture
 
