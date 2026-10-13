@@ -7,6 +7,7 @@ const root = path.resolve(__dirname, '../packages/agent');
 module.exports = getConfig(
   {
     presets: ['module:@react-native/babel-preset'],
+    plugins: ['lynkeus-agent/babel'],
   },
   { root, pkg }
 );
