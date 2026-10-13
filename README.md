@@ -32,7 +32,7 @@ The same app can also run **with no simulator at all**: `lynkeus headless start`
 
 - **Fast** — milliseconds per step instead of seconds, because nothing leaves the process to decide what to do next.
 - **Facts, not pixels** — assert on routes, values and network requests that a screenshot cannot see.
-- **Device or headless** — the same case runs on a simulator, a phone, or in Node with no simulator.
+- **Device or headless** — the same case runs on a simulator, an emulator, or in Node with neither.
 - **App-agnostic** — it knows nothing about your screens. Preparing backend state stays a separate tool that a script, a CI job or an AI agent composes with it.
 - **Safe in release** — the native module compiles to no-ops outside debug builds, and what reads the screen and talks to the driver is never evaluated when disabled.
 - **Built for automation** — a CLI, a JSON-lines session, a Node client and an MCP server for AI agents.
