@@ -27,7 +27,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jonamischener/lynkeus.git",
+    "url": "git+https://github.com/lynkeushq/lynkeus.git",
     "directory": "packages/headless"
   },
   "license": "MIT",
@@ -78,5 +78,5 @@
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?|yoga-layout)/)"
     ]
   },
-  "homepage": "https://github.com/jonamischener/lynkeus#readme"
+  "homepage": "https://github.com/lynkeushq/lynkeus#readme"
 }
