@@ -13,6 +13,9 @@ import android.widget.EditText
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.uimanager.TouchTargetHelper
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -118,23 +121,37 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
     promise.resolve(true)
   }
 
-  // Synchronous: the view tree is read on whichever thread asks; reading
-  // layout is safe off the main thread and this never mutates anything.
+  // Synchronous: asked on the JS thread, answered on the main one, by React Native's own search for the
+  // target of a touch. It is the search a real touch goes through, so a view that lets touches pass (the
+  // debugging overlay over every dev build, anything with pointerEvents none) covers nothing.
   override fun hitTest(xs: ReadableArray, ys: ReadableArray): String {
     if (!debuggable) return "[]"
-    val root = rootView()
-    val chains = JSONArray()
-    val count = minOf(xs.size(), ys.size())
-    for (i in 0 until count) {
-      val chain = JSONArray()
-      var view = root?.let { hitView(it, px(xs.getDouble(i)), px(ys.getDouble(i))) }
-      while (view != null) {
-        if (view.id > 0) chain.put(view.id)
-        view = view.parent as? View
+    val points = List(minOf(xs.size(), ys.size())) { px(xs.getDouble(it)) to px(ys.getDouble(it)) }
+    return onMain("[]") {
+      val root = rootView() as? ViewGroup
+      val chains = JSONArray()
+      for ((x, y) in points) {
+        val chain = JSONArray()
+        if (root != null) {
+          for (target in TouchTargetHelper.findTargetPathAndCoordinatesForTouch(x, y, root, FloatArray(2))) {
+            if (target.getViewId() > 0) chain.put(target.getViewId())
+          }
+        }
+        chains.put(chain)
       }
-      chains.put(chain)
+      chains.toString()
     }
-    return chains.toString()
+  }
+
+  private fun <T> onMain(otherwise: T, work: () -> T): T {
+    if (Looper.myLooper() == Looper.getMainLooper()) return work()
+    val task = FutureTask(work)
+    main.post(task)
+    return try {
+      task.get(1, TimeUnit.SECONDS)
+    } catch (e: Exception) {
+      otherwise
+    }
   }
 
   private fun collect(view: View, wanted: Set<Int>, found: MutableMap<Int, View>) {
@@ -164,22 +181,6 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
       }
     }
     return frames.toString()
-  }
-
-  // The deepest visible view containing the point, in window coordinates.
-  private fun hitView(view: View, x: Float, y: Float): View? {
-    if (view.visibility != View.VISIBLE) return null
-    val location = IntArray(2)
-    view.getLocationInWindow(location)
-    val inside = x >= location[0] && x < location[0] + view.width && y >= location[1] && y < location[1] + view.height
-    if (!inside) return null
-    if (view is ViewGroup) {
-      for (i in view.childCount - 1 downTo 0) {
-        val hit = hitView(view.getChildAt(i), x, y)
-        if (hit != null) return hit
-      }
-    }
-    return view
   }
 
   companion object {
