@@ -23,7 +23,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jonamischener/lynkeus.git",
+    "url": "git+https://github.com/lynkeushq/lynkeus.git",
     "directory": "packages/client"
   },
   "license": "MIT",
@@ -40,5 +40,5 @@
     "tsx": "^4.19.2",
     "typescript": "^6.0.3"
   },
-  "homepage": "https://github.com/jonamischener/lynkeus#readme"
+  "homepage": "https://github.com/lynkeushq/lynkeus#readme"
 }

@@ -69,12 +69,12 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jonamischener/lynkeus.git",
+    "url": "git+https://github.com/lynkeushq/lynkeus.git",
     "directory": "packages/agent"
   },
   "author": "Jonathan Mischener <jmischener@gmail.com> (https://github.com/jonamischener)",
   "license": "MIT",
-  "homepage": "https://github.com/jonamischener/lynkeus#readme",
+  "homepage": "https://github.com/lynkeushq/lynkeus#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
