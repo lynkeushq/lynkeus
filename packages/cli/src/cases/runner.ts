@@ -173,8 +173,8 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
   if (typeof value !== 'object' || Array.isArray(value)) return [...argv, ...(Array.isArray(value) ? value.map(String) : [String(value)])];
   const given = { ...(value as Record<string, unknown>) };
   const positionals = command.positionals ?? [];
-  // A case names a control by `testId` wherever a command takes a target.
-  if ('testId' in given && !('target' in given) && !('testId' in (command.flags ?? {})) && positionals.some((p) => p.name === 'target')) {
+  // A case names a control by `testId` wherever a command takes a target (`wait` calls its own `what`).
+  if ('testId' in given && !('target' in given) && !('testId' in (command.flags ?? {})) && positionals.some((p) => p.name === 'target' || p.name === 'what')) {
     given.target = `#${String(given.testId)}`;
     delete given.testId;
   }
