@@ -12,7 +12,8 @@ Supone que ya instalaste lynkeus. Si no, empieza por [Instalación en React Nati
 - **La Nueva Arquitectura.** En iOS es obligatoria. El agente mide cada elemento a través del árbol de Fabric, con una llamada síncrona.
 - **Un build de depuración.** En un build de producción el agente no existe (más abajo, [Por qué solo en depuración](#por-qué-solo-en-depuración)).
 - **React Native 0.76 o posterior.**
-- **Un simulador encendido**, con la app abierta. El CLI consulta los simuladores con `xcrun simctl`, así que necesita las herramientas de Xcode.
+- **Un simulador encendido**, con la app abierta. El CLI consulta los simuladores con `xcrun simctl`, así que necesita las herramientas de Xcode. Un iPhone físico no sirve (más abajo, [Límites](#límites)).
+- **Node 22 o posterior** para el CLI.
 
 Después de instalar o actualizar `lynkeus-agent`, instala los pods y recompila una vez:
 
@@ -106,7 +107,7 @@ Para generar un toque que los reconocedores de gestos acepten como real, el agen
 
 Ese código está envuelto en `#if DEBUG`. En un build de producción los símbolos no existen en el binario: no están desactivados, están ausentes. No hay nada que una revisión de la tienda pueda encontrar ni nada que un tercero pueda activar.
 
-Del lado de JavaScript ocurre algo equivalente: el cliente del agente solo se carga cuando `enabled` es verdadero.
+Del lado de JavaScript ocurre algo equivalente. El cliente del agente, que es todo lo que lee la pantalla y habla con el driver, solo se carga cuando `enabled` es verdadero. Eso vale sea cual sea la forma en que la app importa el paquete y lo que Metro esté configurado para incorporar.
 
 ## Problemas conocidos
 
@@ -122,7 +123,18 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 
 ### El CLI no encuentra la app
 
-La app intenta conectarse a `localhost:8123` apenas arranca. Si el CLI no la ve, revisa que sea un build de depuración, que `enabled` sea verdadero en este entorno y que el token con el que se compiló la app sea el `LYNKEUS_TOKEN` del CLI.
+La app intenta conectarse a `localhost:8123` apenas arranca. Si el CLI no la ve, revisa:
+
+1. Que sea un build de depuración.
+2. Que `enabled` sea verdadero en este entorno.
+3. Que el log de la app no diga `lynkeus: the app passed a token and it is empty`. Si lo dice, el token no llegó a la app y el agente quedó apagado; el arreglo está en [Solución de problemas](/es/troubleshooting/).
+4. Que el token que recibió la app sea el `LYNKEUS_TOKEN` del CLI.
+
+### Un campo se lee vacío después de escribir en él
+
+`lynkeus screen` muestra `value=""` en un campo donde `type` acaba de escribir. Pasa en una app compilada antes de actualizar `lynkeus-agent`: el agente lee el valor de las propiedades de React, y un campo que la app no controla con una propiedad `value` no lo tiene ahí.
+
+Desde la versión 0.3.0 el valor es lo que contiene el campo nativo. La lectura vive en el módulo nativo, así que hay que instalar los pods y recompilar la app después de actualizar. Hasta entonces, el agente lee las propiedades como antes.
 
 ### La app lleva otra versión del agente
 
@@ -130,7 +142,8 @@ Si actualizaste el CLI pero no recompilaste la app, lynkeus avisa que las versio
 
 ## Límites
 
-- **Dispositivos físicos.** Esta documentación cubre el simulador. El CLI escucha en la dirección local de tu máquina y la app se conecta a `localhost`, algo que un iPhone real no puede alcanzar sin configuración adicional.
+- **Dispositivos físicos.** No están soportados. El CLI busca un simulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` sobre un simulador.
+- **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de simulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Builds de producción.** No hay forma de activar el agente en uno, y es intencional.
 
 ## Próximos pasos

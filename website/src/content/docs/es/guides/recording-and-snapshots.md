@@ -10,7 +10,7 @@ Las tres sirven a quien escribe tests y prefiere partir de algo observado antes 
 ## Antes de empezar
 
 - La app corre con el agente montado ([instalación](/es/getting-started/installation-react-native/)).
-- Para grabar toques, el agente está montado con `auto()` y la app corre en un dispositivo, un simulador o un emulador.
+- Para grabar toques, el agente está montado con `auto()` y la app corre en un simulador o un emulador.
 - Para comparar píxeles, un simulador.
 
 ## Grabar lo que hace una persona

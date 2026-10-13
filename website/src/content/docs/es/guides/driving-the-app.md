@@ -9,8 +9,8 @@ Esta guía recorre los comandos que actúan sobre la app en ejecución: `screen`
 
 ## Antes de empezar
 
-- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
-- La variable `LYNKEUS_TOKEN` de tu terminal tiene el mismo valor que el token con el que se compiló la app.
+- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Los dispositivos físicos no están soportados. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
+- La variable `LYNKEUS_TOKEN` de tu terminal tiene el mismo valor que el token que recibió la app. En React Native, es el valor con el que arrancó Metro.
 - Estás en la carpeta de la app. Si no, agrega `--root <dir>` a cada comando.
 
 ## Leer la pantalla
@@ -33,13 +33,17 @@ Settings.Main (Tabs > Settings.Main) +overlay#account-sheet · 12 hidden: 12 beh
 
 La primera línea es el encabezado: la ruta (el nombre de la pantalla según tu navegación), el camino de navegadores hasta llegar a ella y, si hay algo abierto encima, la capa que lo cubre. Al final cuenta lo que la app tiene montado pero no está mostrando, como otra pestaña o la pantalla que quedó debajo de una hoja.
 
-Después viene un elemento por línea: su índice, su tipo (`button`, `input`, `text`, `scroll`, `switch`, `image`, `view`), su `#testId`, su texto y su estado. Hay tres estados que importan:
+Después viene un elemento por línea: su índice, su tipo (`button`, `input`, `text`, `scroll`, `switch`, `image`, `view`), su `#testId`, su texto y su estado. Un campo de entrada muestra además su valor (`value="…"`), que es lo que contiene el campo nativo. Hay tres estados que importan:
 
 | Marca | Significado |
 |---|---|
 | `!disabled` | El control no responde a un toque. |
-| `~covered` | Hay algo dibujado encima: un toque en su centro caería en otro elemento. |
+| `~covered` | Hay algo encima que detendría el toque: un toque en su centro caería en otro elemento. |
 | `~inert` | Se puede leer, pero no tocar. |
+
+:::note[Desde 0.3.0]
+Dos lecturas cambian con la versión 0.3.0, y las dos requieren recompilar la app después de actualizar `lynkeus-agent`. El valor de un campo se lee del campo nativo; antes salía de las propiedades de React, y un campo sin propiedad `value` se leía vacío después de escribir en él. Y en Android un control cuenta como `~covered` solo por lo que detendría un toque; antes, en un build de desarrollo, todos los controles se leían como cubiertos.
+:::
 
 `screen` tiene variantes para cada necesidad:
 
@@ -66,11 +70,20 @@ Prefiere siempre `#testId`: no cambia cuando cambia la redacción ni el idioma. 
 
 Dos reglas evitan sorpresas. Un elemento cubierto nunca coincide con un objetivo. Y cuando dos elementos empatan, gana el último, porque es el que se dibuja encima.
 
-En la terminal, las comillas del texto forman parte del objetivo, así que hay que protegerlas del shell:
+### Comillas: un texto y nada más
+
+Un objetivo sin `#` que no es un número ni un punto ya se lee como texto, así que `npx lynkeus press Continue` funciona. Las comillas propias sirven para los casos en que la forma engaña. Un objetivo que lleva sus propias comillas es el texto que está adentro, y nunca una ruta, un índice ni un `testID`:
 
 ```bash
-npx lynkeus press '"Continue"'
+npx lynkeus wait '"Next"'     # espera el botón "Next", no una ruta llamada Next
+npx lynkeus press '"12"'      # el control cuyo texto es 12, no el elemento de índice 12
 ```
+
+Son dos pares de comillas. Las de afuera son para el shell, que de otro modo se quedaría con las de adentro; las de adentro son las que lee lynkeus.
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada. Y para `wait` y `see`, una palabra con mayúscula inicial solo podía ser una ruta.
+:::
 
 ### Acotar cuando el objetivo se repite
 
@@ -136,6 +149,7 @@ Una prueba confiable no espera un tiempo fijo: espera un hecho. lynkeus ofrece t
 ```bash
 npx lynkeus wait Settings.Main          # una ruta
 npx lynkeus wait '#next-button'         # un elemento
+npx lynkeus wait '"Next"'               # un texto que, sin comillas, se tomaría por una ruta
 npx lynkeus wait '#spinner' --gone      # hasta que se vaya
 npx lynkeus wait '#row-25' --scroll     # desliza la lista hasta que entre en la ventana
 npx lynkeus wait 800                    # milisegundos, cuando de verdad no hay otra señal
@@ -195,6 +209,12 @@ Después de un `press`, `wait`, `type` o `nav` fallido, lynkeus ya imprime la ca
 **`wait` agota el tiempo en una pantalla que claramente está ahí.** El nombre de la ruta viene del adaptador de navegación; mira en `screen` cuál es el nombre real. Sin adaptador no hay rutas, solo elementos.
 
 **Un objetivo de texto no coincide.** Una palabra dentro de un párrafo nunca es un objetivo: los párrafos solo coinciden por texto exacto. `npx lynkeus why '"Continue"'` dice si el texto difiere por una palabra o por un acento.
+
+**`wait` o `see` buscan una ruta donde querías un texto.** Una palabra con mayúscula inicial, como `Next`, se toma por una ruta. Dale comillas propias: `npx lynkeus wait '"Next"'`.
+
+**Un campo muestra `value=""` después de escribir en él.** La app se compiló antes de actualizar `lynkeus-agent`, y el agente sigue leyendo el valor de las propiedades de React. Recompila la app.
+
+**En Android, todos los controles aparecen `~covered`.** Es el mismo motivo: un build de desarrollo compilado antes de actualizar `lynkeus-agent`. Recompila la app.
 
 **No aparece el teclado en el simulador.** El simulador está tomando las teclas del Mac. Desactiva I/O → Keyboard → Connect Hardware Keyboard.
 

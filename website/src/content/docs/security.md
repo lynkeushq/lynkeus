@@ -11,7 +11,7 @@ It is written for the lead who decides whether to adopt lynkeus, and for the dev
 
 - The agent runs in debug builds only. In a release build the native code that synthesizes touches is not compiled in, and the JavaScript that talks to the driver is never loaded.
 - The app dials **out** to the local machine. Nothing listens inside the app, and nothing is reachable from the network.
-- With a token, the app serves only the driver that knows the secret.
+- With a token, the app serves only the driver that knows the secret. If the app asks for a token and the value does not reach it, the agent stays off.
 - The headless host refuses to start without a token, and refuses a backend that is not local.
 - Nothing leaves your machine unless you push a run to the report service. What you push is deleted after 7 days on the Free plan and 90 days on the Team plan.
 
@@ -36,11 +36,11 @@ The agent limits what it reads in three places.
 |---|---|
 | Inputs with `secureTextEntry` | The value is masked with `•`. A password never appears in a screen listing. |
 | HTTP requests | Method, URL, status and duration only. Headers and bodies are never recorded. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`. |
-| Store changes in the trace | Which top-level keys changed. An object is reduced to its number of keys and an array to its length, so payloads do not land in the trace. |
+| Store changes in the trace | Which top-level keys changed, with short values. An object is reduced to its number of keys and an array to its length, a string longer than 80 characters is cut, and the value under a key named like a secret (`token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session`, `auth`) is replaced with `…`. A trace is part of what a report uploads, so secrets and payloads do not land in it. |
 
 Two things are not reduced, and you control both:
 
-- The `stores` command returns the state of a store you passed to `qa.observe`. Observe a store only if a test may read it.
+- The `stores` command returns the state of a store you passed to `qa.observe`, in full, secret-named keys included. Observe a store only if a test may read it.
 - The properties you pass to `qa.event` are recorded as given.
 
 ## Debug builds only
@@ -52,7 +52,7 @@ The agent is built so that it cannot run in a release build, at two levels.
 - On iOS it is wrapped in `#if DEBUG`. The symbols do not exist in a release binary. This matters for more than safety: touch synthesis uses private UIKit API, the technique KIF and Detox rely on, and it must never reach App Store review.
 - On Android the module checks the application's `FLAG_DEBUGGABLE` flag and refuses every call unless the app is debuggable.
 
-**JavaScript.** `enabled` defaults to `__DEV__`. When it is false, `auto()` returns at once and `<Lynkeus>` never loads the code that opens the connection.
+**JavaScript.** `enabled` defaults to `__DEV__`. When it is false, `auto()` returns at once and `<Lynkeus>` never loads the client: the code that reads the screen and talks to the driver. The package is in the release bundle and does nothing there. The client is loaded only when the agent is enabled, whichever way the app imports the package and whatever Metro is configured to inline.
 
 ### Gate `enabled` on your environment
 
@@ -96,15 +96,33 @@ export LYNKEUS_TOKEN=<the same value>
 lynkeus screen
 ```
 
-Without a token, the app serves whatever process is listening on the port it dials. On a developer's own machine that may be acceptable. Set a token wherever the app can reach anything that matters: a shared staging backend, a CI runner that runs other jobs.
+Without a token, meaning an app that passes no `token` at all, the app serves whatever process is listening on the port it dials. On a developer's own machine that may be acceptable. Set a token wherever the app can reach anything that matters: a shared staging backend, a CI runner that runs other jobs.
+
+### A token that does not arrive
+
+An app that passes a token expects protection. If the value arrives empty, the agent stays off and writes the reason to the app's log. It never falls back to serving any driver.
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. …
+```
+
+This case is common, not exotic. React Native gives the app no environment, so `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes it there. The `lynkeus-agent/babel` plugin does, and `lynkeus init` adds it to `babel.config.js`. Metro must be started with `LYNKEUS_TOKEN` set, and once with `--reset-cache` after the value changes.
+
+The plugin writes the token into a development bundle only. A release bundle is left alone: a developer's secret has no place in a build that ships.
+
+:::note[Since 0.3.0]
+Before 0.3.0 an empty token meant "no token", and the agent served any driver that connected. In a React Native app without the plugin, that was every app that read `process.env.LYNKEUS_TOKEN`.
+:::
+
+### Handling the token
 
 Treat the token like any other secret:
 
 - Do not commit it. Keep it in your environment, and in CI in the CI's secret store.
 - Use one per machine or per pipeline rather than one for everybody.
-- It is compiled into the debug build that reads it, so do not reuse a secret that protects something else.
+- It is written into the development bundle of the app that reads it, so do not reuse a secret that protects something else.
 
-In an Expo app the app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, because Expo only inlines variables with that prefix. The value ends up in the bundle of your development build, which is the same exposure as any other build-time token.
+In an Expo app the app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, because Expo only inlines variables with that prefix, and the Babel plugin is not needed. The value ends up in the bundle of your development build, which is the same exposure as any other build-time token.
 
 ## The headless host
 

@@ -38,6 +38,10 @@ Each screenshot has a `.json` file beside it with the screen's structure at that
 
 Add `--video` to film each case, where the host can film. Each step then records the second of the video at which it began. `--video-fps <n>` sets the frame rate (30 by default).
 
+:::note
+`--video` films a case only where the host offers a `record` command, which the host names in `hello` (`lynkeus hello` lists it). The built-in headless host draws nothing, and a simulator or emulator session offers no such command, so on those a run keeps its screenshots and has no video. The flag is not an error there: the case runs and is not filmed.
+:::
+
 ## Step 2: Read the run directory
 
 You do not need the hosted service to use a run. The directory is a documented format that a script or a dashboard of your own can read.
@@ -189,7 +193,7 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no screenshots.** The host takes none. The headless host renders nothing to capture; use a simulator or an emulator for runs that need pictures.
 
-**The run has no video.** A case is filmed only where the host can film. Other hosts skip the video without failing the case.
+**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it.
 
 ## Next steps
 

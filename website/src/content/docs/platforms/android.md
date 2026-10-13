@@ -11,7 +11,7 @@ Everything that goes through the agent (reading the screen, pressing, typing, wa
 
 - **A debuggable build.** The agent's native module checks the application's `FLAG_DEBUGGABLE` flag and refuses to run without it. A standard debug build has it; a release build does not.
 - **React Native 0.76 or newer with the New Architecture.**
-- **An Android emulator** with the app installed and running, and `adb` on your `PATH` for the commands that act on the device from outside the app.
+- **An Android emulator** with the app installed and running, and `adb` on your `PATH` for the commands that act on the device from outside the app. A physical phone is not supported.
 - **Node 22 or newer** for the CLI.
 
 The native module is linked automatically. After adding `lynkeus-agent`, build the app once:
@@ -33,6 +33,14 @@ In an Expo project, use `npx expo prebuild` and `npx expo run:android` instead. 
 :::caution
 That placement was added in `lynkeus-agent` 0.2.0, and it lives in native code. An app must be **rebuilt** after upgrading to get it. Until then the agent behaves as before, and in an app that draws under the status bar a press can land above its target.
 :::
+
+**What covers a control** is decided by what a touch would stop at. To mark an element `~covered`, the agent asks React Native's own search for the target of a touch at the element's center. A view that is drawn over the control but takes no touches does not cover it.
+
+:::caution[Since 0.3.0]
+This matters in every development build, because React Native lays an invisible debugging overlay over the whole app. An older native module took any visible view over the point as covering it, so every control read `~covered` and a case waited out its deadline before each press. The fix is in native code: **rebuild** the app after updating `lynkeus-agent`.
+:::
+
+**An input's value** is what its native field holds, which is also what a person sees in it. The agent used to read React's props, so a field the app does not control (one with no `value` prop) read as empty after typing. This too needs the app rebuilt after updating `lynkeus-agent`; until then the agent reads the props as before. It applies to iOS as well.
 
 ## How an emulator reaches the driver
 
@@ -150,7 +158,8 @@ Of the commands that act from outside the app, `lynkeus screenshot` is the one t
 
 - **System UI is not part of the screen.** Permission dialogs, the system keyboard, the notification shade and anything else drawn by Android rather than by React Native are not listed as elements.
 - **Debuggable builds only.** lynkeus cannot drive a release build or a build installed from Google Play.
-- **The emulator is the documented target.** The default address, `10.0.2.2`, exists only inside an emulator, and the driver listens on your machine's loopback address only.
+- **Physical devices are not supported.** The CLI looks for a booted emulator, and launching, screenshots and the `os` commands go through `adb` on one. The default address, `10.0.2.2`, exists only inside an emulator, and the driver listens on your machine's loopback address only.
+- **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. A emulator session offers none, so a run keeps its screenshots and no video.
 
 ## Known problems
 
@@ -158,13 +167,17 @@ Of the commands that act from outside the app, `lynkeus screenshot` is the one t
 
 The app draws under the status bar, and the installed binary predates the native placement described above. Upgrade `lynkeus-agent` to the CLI's version and rebuild the app. When it attaches, the CLI prints a warning if the agent in the app and the CLI are from different releases; install the matching version, and then rebuild rather than reload, because the placement is in native code.
 
+### Every control reads `~covered`
+
+The installed binary predates the fix described under [How the agent works on Android](#how-the-agent-works-on-android): it counts React Native's invisible debugging overlay as covering everything. Update `lynkeus-agent` and rebuild the app. A Metro reload is not enough.
+
 ### The driver never attaches
 
 ```text
 ✗ No app attached on 127.0.0.1:8123 within 15000ms. Is a dev build running with <Lynkeus>?
 ```
 
-Check that the build is a debug build, that `enabled` is true for this environment, and that the token the app was built with is the `LYNKEUS_TOKEN` the CLI reads. If you passed `host` to the agent, check that the address reaches your machine from inside the emulator. `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
+Check that the build is a debug build, that `enabled` is true for this environment, and that the token the app received is the `LYNKEUS_TOKEN` the CLI reads. If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off; see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty). If you passed `host` to the agent, check that the address reaches your machine from inside the emulator. `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
 
 ### A press does nothing
 

@@ -29,20 +29,32 @@ Every command that touches or looks for an element takes a **target**: the way y
 | `12` | The element at that index in the last `lynkeus screen` listing. |
 | `100,200` | A point, in window points. |
 | `#row[2]` or `Continue[2]` | The third match of a `testID` or a text (counted from 0). The same as `--nth 2`. |
+| `"Next"` or `"12"`, in quotes of its own | The text between the quotes, and only ever a text: never a route, an index or a `testID`. |
 
 Covered elements are never matched. When two elements tie, the later one wins, because it draws on top.
 
-The CLI's own help writes a text target as `"text"`. The quotes there are for your shell, so that a label with spaces arrives as one argument; they are not part of the target. Quote targets that start with `#` too, since `#` starts a comment in most shells.
+Your shell removes one pair of quotes before lynkeus sees the argument. Quote a label with spaces so that it arrives as one argument, and quote targets that start with `#`, since `#` starts a comment in most shells.
 
 ```bash
 lynkeus press '#next-button'
 lynkeus press 'Log in'
 ```
 
-Where a command accepts a route or a target (`wait`, `see`, `why`), a word that looks like a route name is read as a route: words that start with a capital letter, joined by dots, such as `Settings.Main` or `Home`.
+Quotes that reach lynkeus mean something. A target that arrives inside quotes of its own, single or double, is the text between them and nothing else. Write them inside the shell's quotes:
+
+```bash
+lynkeus wait '"Next"'     # the element that says Next, not a route called Next
+lynkeus press '"12"'      # the control labeled 12, not the element at index 12
+```
+
+:::note[Since 0.3.0]
+Before 0.3.0 quotes that reached lynkeus stayed in the text, so `press '"Next"'` looked for a label with the quotes in it and found nothing.
+:::
+
+Where a command accepts a route or a target (`wait`, `see`, `why`), a word that looks like a route name is read as a route: words that start with a capital letter, joined by dots, such as `Settings.Main` or `Home`. A route that does not start with a capital, as expo-router's do, is written with the `route:` prefix: `route:index` (since 0.3.0).
 
 :::caution
-This rule also catches a one-word label that starts with a capital letter. `lynkeus wait Continue` waits for a route named `Continue`, not for a button. Wait for such a control by its `testID`.
+This rule also catches a one-word label that starts with a capital letter. `lynkeus wait Continue` waits for a route named `Continue`, not for a button. Wait for such a control by its `testID`, or quote the text: `lynkeus wait '"Continue"'`.
 :::
 
 ### Exit codes
@@ -188,7 +200,7 @@ Waits until a route or an element appears (or leaves), or for a number of millis
 
 | Argument | Meaning |
 |---|---|
-| `what` | A route, a target, or a number of milliseconds such as `800`. |
+| `what` | A route (`Settings.Main`, or `route:index` for a lowercase name), a target, or a number of milliseconds such as `800`. A text in quotes of its own (`'"Next"'`) is always a target. |
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -202,6 +214,7 @@ Waits until a route or an element appears (or leaves), or for a number of millis
 lynkeus wait Settings.Main
 lynkeus wait '#spinner' --gone
 lynkeus wait '#row-25' --scroll
+lynkeus wait '"Next"'
 ```
 
 ### `lynkeus screenshot`
@@ -210,7 +223,7 @@ lynkeus wait '#row-25' --scroll
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. It needs a device or a simulator: the headless host renders nothing to capture.
+Writes what the screen looks like right now to a PNG file. It needs a simulator or an emulator: the headless host renders nothing to capture.
 
 | Argument | Meaning |
 |---|---|
@@ -226,7 +239,7 @@ Asserts that a route or an element is on screen now. Exits with 1 if it is not.
 
 | Argument | Meaning |
 |---|---|
-| `what` | A route or a target. |
+| `what` | A route (`Checkout.Confirm`, or `route:index` for a lowercase name) or a target. A text in quotes of its own (`'"Next"'`) is always a target. |
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -268,6 +281,8 @@ lynkeus trace [--since <seq>] [--last <n>]
 ```
 
 Lists what happened in the app, in order: routes, requests, store changes, touches and commands.
+
+A store change names the top-level keys that changed and keeps their values short: an object as its size, a string over 80 characters cut, and a key named like a secret (`token`, `password`, `session` and the like) as `…`. `lynkeus call stores '{"name":"…"}'` returns a store's state in full.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -353,6 +368,8 @@ Reads the current screen and reports controls with no label, small touch targets
 | `--save <file>` | Keep this screen's findings in a baseline file. |
 | `--baseline <file>` | Print only what is new against a baseline file. Without it, `lintBaseline` in `lynkeus.config.json`. |
 
+A finding is known again by its rule, its `testID` and what it is about (the control's label, the text), not by its message. The message carries what was measured, so a target that went from 32 to 30 points is still the finding the baseline has. Since 0.3.0; a baseline saved by an earlier version still matches on its message until you save it again.
+
 :::note[Since 0.3.0]
 The contrast check and `--no-contrast` arrived in version 0.3.0.
 :::
@@ -386,6 +403,26 @@ Reports what React spent rendering, per route, as measured by the Profiler that 
 | Argument | Meaning |
 |---|---|
 | `action` | Optional. `start` clears and starts recording. `stop` reports and stops. Omit it to report what was recorded so far. |
+
+### `lynkeus init`
+
+```bash
+lynkeus init
+```
+
+Mounts the agent from the app's entry file, in a React Native or an Expo app. Run it from the app's folder. It does not need the app to be running. Since 0.3.0.
+
+What it changes depends on the project:
+
+| Project | What `init` does |
+|---|---|
+| React Native CLI | Adds the `auto()` call to `index.js`, `index.tsx` or `index.ts`, after the last import, reading the token from `process.env.LYNKEUS_TOKEN`. Adds the `lynkeus-agent/babel` plugin to `babel.config.js` or `babel.config.cjs`, so that the value reaches the bundle. |
+| Expo with an entry file | Adds the `auto()` call to that file, reading the token from `process.env.EXPO_PUBLIC_LYNKEUS_TOKEN`. No Babel plugin. |
+| Expo Router (`"main": "expo-router/entry"`, no entry file) | Writes an `index.js` that mounts the agent and then loads the router, and points `main` in `package.json` at it. No Babel plugin. |
+
+It prints one line per change, and a reminder of what is left to you: in a React Native CLI app, to start Metro with `LYNKEUS_TOKEN` set and once with `--reset-cache` after the value changes; in an Expo app, to use a development build and to start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set.
+
+Running it again changes nothing: it answers that the entry already mounts the agent and that the Babel configuration already has the plugin. When it cannot edit the Babel configuration, it prints the line to add by hand.
 
 ## os
 
@@ -945,7 +982,7 @@ Without files, it runs every case in `cases.dir`. A failed case runs once more b
 | `--events <dir>` | | Keep what the app told its analytics, per case, as `<dir>/<case id>/events.jsonl`. |
 | `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt. |
 | `--screenshots` | | With `--out`: a frame of the screen after every app step. |
-| `--video` | | With `--out`: film each case, where the host can film. Each step says at what second it began. |
+| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. Each step says at what second it began. |
 | `--traces` | | Listen for the backend's OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it. Point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:<traces-port>`. |
 | `--traces-port <port>` | `4318` | Where `--traces` listens. |
 | `--push` | | With `--out`: upload the run to the report service when it ends and print the report's address. |
@@ -1105,12 +1142,14 @@ lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>
 
 Writes the headless entry: the default mocks, a guard that refuses a backend that is not local, and your `App`.
 
+It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app has none, so it cannot run on the headless host.
+
 | Flag | Default | Meaning |
 |---|---|---|
 | `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
 | `--component <App.tsx>` | | The file of the `App` component. It is found by itself when it sits in a standard place. |
 | `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else `API_URL` | The environment variable the app reads its API base from. |
-| `--auto` | | Also mount the agent from `index.js` with `auto()`. |
+| `--auto` | | Also mount the agent from `index.js` with `auto()`, as [`lynkeus init`](#lynkeus-init) does. |
 | `--force` | | Overwrite an existing entry. |
 
 ### `lynkeus headless doctor`

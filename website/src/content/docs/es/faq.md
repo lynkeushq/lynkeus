@@ -60,7 +60,7 @@ Aun así, el `testID` es la forma más estable: no cambia con el idioma ni con l
 
 ### ¿Tengo que modificar mis pantallas?
 
-No. El agente se monta con una llamada a `auto()` en el punto de entrada de la app, y ninguna pantalla renderiza nada adicional. El comando `lynkeus init` agrega esa llamada por ti (desde la versión 0.3.0).
+No. El agente se monta con una llamada a `auto()` en el punto de entrada de la app, y ninguna pantalla renderiza nada adicional. El comando `lynkeus init` agrega esa llamada por ti (desde la versión 0.3.0). En una app de React Native agrega también un plugin a `babel.config.js`, que es lo que hace llegar el token a la app.
 
 ### ¿Con qué librerías de navegación funciona?
 
@@ -74,13 +74,27 @@ Para que solo tu driver pueda manejar la app. El agente atiende únicamente a qu
 
 La app lo recibe en la opción `token`; el CLI lo lee de `LYNKEUS_TOKEN`. El host sin pantalla no arranca sin él.
 
+### ¿Por qué hay un plugin de Babel?
+
+Porque React Native no le da a la app ningún entorno: dentro de un bundle, `process.env.LYNKEUS_TOKEN` vale `undefined` mientras nada escriba ahí el valor. El plugin `lynkeus-agent/babel` lo escribe, en un bundle de desarrollo solamente, con el valor que la variable tiene donde arranca Metro. Después de cambiar ese valor, arranca Metro una vez con `--reset-cache`.
+
+Expo no lo necesita: la app lee `EXPO_PUBLIC_LYNKEUS_TOKEN`.
+
+### ¿Qué pasa si el token llega vacío a la app?
+
+El agente queda apagado, y la app lo dice en su log con `lynkeus: the app passed a token and it is empty`. No pasa a atender a cualquiera. Desde la terminal lo ves como una app que no se conecta; el arreglo está en [Solución de problemas](/es/troubleshooting/).
+
+### ¿Queda algo en mi build de producción?
+
+El paquete está en el bundle y no hace nada ahí. El módulo nativo se compila sin efecto fuera de los builds de depuración. El cliente, que es todo lo que lee la pantalla y habla con el driver, solo se carga cuando `enabled` es verdadero, sea cual sea la forma en que la app importa el paquete y lo que Metro esté configurado para incorporar. Y el token nunca se escribe en un bundle de producción. Más en [Seguridad](/es/security/).
+
 ### ¿La app queda expuesta a la red?
 
 No. La app es la que se conecta hacia afuera, a tu propia máquina. Dentro de la app nada queda escuchando, y nada es alcanzable desde la red.
 
 ### ¿Funciona en un dispositivo físico?
 
-Esta documentación cubre el simulador de iOS y el emulador de Android. Por defecto la app se conecta a `localhost` en iOS y a `10.0.2.2` en Android, dos direcciones que un teléfono real no puede usar para llegar a tu máquina.
+No. Los dispositivos físicos no están soportados. El CLI busca un simulador o un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` y `adb` sobre uno de ellos.
 
 ## Al escribir tests
 
@@ -96,7 +110,7 @@ Con fixtures: datos de prueba que tu propio comando crea cuando un caso los pide
 
 ### ¿Puedo ejecutar los tests sin simulador?
 
-Sí. `lynkeus headless start` aloja la app en Node, bajo Jest y React Native Testing Library, y `case run --host` lo hace por ti durante una ejecución. La capa nativa queda reemplazada por mocks, así que hay cosas que solo un simulador puede probar. Más en [Sin pantalla (headless)](/es/platforms/headless/).
+Sí. `lynkeus headless start` aloja la app en Node, bajo Jest y React Native Testing Library, y `case run --host` lo hace por ti durante una ejecución. La capa nativa queda reemplazada por mocks, así que hay cosas que solo un simulador puede probar. Una app con expo-router no puede correr en este host. Más en [Sin pantalla (headless)](/es/platforms/headless/).
 
 ### ¿El mismo test sirve para iOS, Android y sin pantalla?
 

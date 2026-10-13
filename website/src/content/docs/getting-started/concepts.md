@@ -23,13 +23,13 @@ The **driver** is whatever holds the other end of that socket and tells the agen
 
 A driver listens on a port (8123 unless you change it) and waits for the app to dial in. Only one driver can hold a port at a time.
 
-The agent and the driver share a **token**: a secret the app is built with and the driver presents. The CLI reads it from `LYNKEUS_TOKEN`. An agent with a token ignores a driver that does not present the same one.
+The agent and the driver share a **token**: a secret the app is given when it is bundled and the driver presents. The CLI reads it from `LYNKEUS_TOKEN`. An agent with a token ignores a driver that does not present the same one. An app that passes a token whose value turns out to be empty keeps its agent off and says so in its log; it does not serve without one.
 
 ### Host
 
 The **host** is where the app runs during a test. There are two kinds, and they differ in what is real.
 
-On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels.
+On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels. In this documentation "device" always means a simulator or an emulator. Physical phones are not supported.
 
 On the **headless host** the app runs in Node, with no simulator. `lynkeus headless start` renders the app under Jest and React Native Testing Library, with the native modules mocked, and the agent inside dials out exactly as it does on a device. It starts in about 40 seconds with no build, and several can run at once, which is what makes it suited to CI. What the operating system would hand the app (a deep link, the clock, a biometric prompt, a network failure) becomes a command instead.
 
@@ -65,7 +65,7 @@ An **element** is one thing on the screen that a user could see or touch. Each h
 
 - A **kind**: `button`, `input`, `text`, `scroll`, `switch`, `image` or `view`.
 - What identifies it: a `testID` (printed as `#name`), a text or accessibility label, and an index in the listing.
-- What it carries: an input's **value** (masked for password fields), its placeholder, whether it has focus.
+- What it carries: an input's **value** (what its native field holds, masked for password fields), its placeholder, whether it has focus.
 - Its **state**, which says whether a touch would work.
 
 Three states matter:
@@ -80,7 +80,7 @@ A fourth marker, `~inert`, is for an element that can be read but not touched.
 
 ### Target
 
-A **target** is how a command or a step points at an element. There are four spellings:
+A **target** is how a command or a step points at an element. There are five spellings:
 
 | Spelling | Matches |
 |---|---|
@@ -88,6 +88,9 @@ A **target** is how a command or a step points at an element. There are four spe
 | a text, such as `Continue` | A control (a button or an input) by its exact label, then by part of it. A paragraph only by its exact text. |
 | `12` | The element at that index in the last screen listing. |
 | `100,200` | A point, in window points. |
+| `"Continue"`, in quotes of its own | That text and nothing else. Quoted, a word is never read as a route, an index or a `testID`. |
+
+The quoted spelling exists because the others overlap. `12` is an index, so a label that reads 12 is written `"12"`. To `wait` and `see`, a capitalized word such as `Next` is a route, so a button labeled Next is written `"Next"`: `lynkeus wait '"Next"'` in a shell, where the outer quotes belong to the shell, and `app.wait: '"Next"'` in a case.
 
 Two rules decide ties. A covered element is matched only when nothing reachable matches. When two elements match equally, the later one wins, because it is drawn on top.
 
@@ -139,7 +142,7 @@ A **step** is one line of a case: a verb and its value. There are three families
 - **Fixture steps** are any other name: `create_user`, `give_points`. They go to your backend tooling (see below).
 - **Built-in backend steps**: `assert` reads the backend and checks one value of the answer, and `exec` runs a shell command.
 
-A step that fails stops the case. A step the current host has no way to perform, such as a mocked network response on a real device, is reported as **unsupported** rather than failed: the case stops there and does not fail the run.
+A step that fails stops the case. A step the current host has no way to perform, such as a mocked network response on a simulator or an emulator, is reported as **unsupported** rather than failed: the case stops there and does not fail the run.
 
 ### Fixtures
 
@@ -160,7 +163,7 @@ A **run** is one execution of `lynkeus case run`: a set of cases, on one host, a
 
 Each case ends with one of three results: passed, failed, or unsupported on this host. Only a failed case fails the run.
 
-With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` and `--video` add a screenshot after every app step and a video of each case to that directory.
+With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case where the host offers a `record` command; the headless host and a simulator or emulator session offer none.
 
 ### Report
 

@@ -143,6 +143,12 @@ You should see either `nothing new on Home.Main against .lynkeus/lint/home.json`
 
 A baseline file is keyed by route, so one file can hold several screens: `--save` to the same file from each screen adds or replaces that route's entry and keeps the others.
 
+A finding is known again by three things: its rule, its testID, and what it is about (the control's label, the text). What was measured is not one of them. A touch target that the baseline has at 32 points and the branch shrank to 30 is still the finding the baseline has, so it is not reported as new.
+
+:::note[Since 0.3.0]
+Before 0.3.0 a finding was matched by its message, which carries the measurement, so a target that went from 32 to 30 points came back as new. A baseline saved by an earlier version still matches on the message it kept. Save it again with `--save` to get the new behavior.
+:::
+
 To avoid repeating the path, name the file in the configuration. `lint` then compares against that file whenever it exists, with no flag.
 
 ```json title="lynkeus.config.json"
@@ -190,7 +196,7 @@ For contrast, `lint` takes one screenshot and looks at the rectangle of each tex
 
 **`untranslated` flags real copy.** Your product has identifiers that look like keys. Narrow `lint.i18nKeyPatterns` to the shape of your own keys.
 
-**A finding you saved comes back as new.** A finding matches the baseline when its rule, its testID and its message are all the same. The message carries the measurement, so a target that went from 32 to 30 points, or a contrast ratio that moved from 2.9 to 2.8, is a new finding. So is an element whose testID changed.
+**A finding you saved comes back as new.** A finding matches the baseline when its rule, its testID and what it is about are the same. An element whose testID changed, or whose label or text changed, is therefore a new finding. If a finding comes back only because its measurement moved, such as a target that went from 32 to 30 points, the baseline was saved before 0.3.0 and still matches on the message. Save it again.
 
 **The contrast check is not available.** It arrived in version 0.3.0. Run `npx lynkeus help lint`: if `--no-contrast` is not listed, your version predates it.
 

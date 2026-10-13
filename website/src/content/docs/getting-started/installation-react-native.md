@@ -14,7 +14,7 @@ Two packages, with two different jobs:
 - `lynkeus-agent` goes **inside the app**. It has native code (the part that synthesizes touches and keystrokes), so the app must be rebuilt once after adding it.
 - `lynkeus` is the **CLI**. It runs on your machine or on CI and talks to the agent.
 
-The agent only runs in debug builds. Its native module compiles to no-ops outside them, and its JavaScript is never evaluated when the agent is disabled, so adding it does not change what you ship.
+The agent only runs in debug builds. Its native module compiles to no-ops outside them. The client, which is the JavaScript that reads the screen and talks to the driver, is loaded only when the agent is enabled, however your app imports the package. Adding it does not change what you ship.
 
 ## Before you start
 
@@ -56,17 +56,27 @@ You should see:
 
 ```text
 added auto() to index.js
+added lynkeus-agent/babel to babel.config.js
+start Metro with LYNKEUS_TOKEN set to the value the CLI reads; after changing it, start Metro with --reset-cache
 ```
 
-`init` looks for `index.js`, `index.tsx` or `index.ts` and inserts the import and the `auto()` call after the file's last import, so that your own polyfills still run first. Run it again and it answers `index.js already mounts the agent` and changes nothing.
+The first two lines are what it changed. The third is a reminder of step 3.
+
+`init` looks for `index.js`, `index.tsx` or `index.ts` and inserts the import and the `auto()` call after the file's last import, so that your own polyfills still run first. It then adds a Babel plugin, `lynkeus-agent/babel`, to `babel.config.js` (or `babel.config.cjs`); step 3 explains what the plugin is for. Run `init` again and it answers `index.js already mounts the agent` and `babel.config.js already has lynkeus-agent/babel`, and changes nothing.
+
+If `init` cannot find a Babel configuration it knows how to edit, it prints the change for you to make instead:
+
+```text
+add 'lynkeus-agent/babel' to the plugins in babel.config.js, so the app can read LYNKEUS_TOKEN
+```
 
 :::note[Since 0.3.0]
-`lynkeus init` arrived in version 0.3.0. On an earlier version, add the call by hand as shown below.
+`lynkeus init` arrived in version 0.3.0, together with the Babel plugin. On an earlier version, make the changes by hand as shown below.
 :::
 
 #### What it does, and doing it by hand
 
-The call goes in the app's entry file, before `AppRegistry.registerComponent`:
+There are two changes. The first is the call that mounts the agent. It goes in the app's entry file, before `AppRegistry.registerComponent`:
 
 ```js title="index.js"
 import { AppRegistry } from 'react-native';
@@ -97,21 +107,56 @@ The two options shown are the ones that matter on day one:
 
 `auto()` also accepts `host`, `port` and `app`; they are described in the [agent API reference](/reference/agent-api/).
 
+The second change is the Babel plugin that lets the app read the token:
+
+```js title="babel.config.js"
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
 ### 3. Choose a token
 
 The token keeps other processes on your machine from driving the app. The app is built with a value, and the CLI reads the same value from the `LYNKEUS_TOKEN` environment variable. If the two differ, the agent does not answer.
 
-Pick any string and export it in the shell where you run the CLI:
+Two programs need the value, and they get it in different ways.
+
+The CLI reads `LYNKEUS_TOKEN` from its environment, like any Node program.
+
+The app cannot. React Native gives the app no environment, so `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes the value there. That is the job of the `lynkeus-agent/babel` plugin from step 2: when Metro transforms your code, the plugin replaces `process.env.LYNKEUS_TOKEN` with the value the variable has in Metro's environment. It does this in a development bundle only. A release bundle is left alone, so the token is never written into one.
+
+So pick any string, and export it both in the shell where you start Metro and in the shell where you run the CLI:
 
 ```bash
 export LYNKEUS_TOKEN=some-local-secret
 ```
 
-The app must receive the same string as the `token` option. The example above reads `process.env.LYNKEUS_TOKEN`, which only has a value inside the bundle if your build inlines environment variables (a Babel plugin, or a configuration module you already use for values such as the API URL). The option is an ordinary string, so pass it from wherever your app keeps its build-time configuration.
+Then start Metro from a shell that has it:
 
-:::caution
-If `token` is `undefined` in the app, the agent serves any driver that connects, with or without a token. Check that the value reaches the bundle; do not assume it.
+```bash
+yarn start
+```
+
+Metro keeps what it has already transformed. After you set the token for the first time, or change its value, start Metro once with `--reset-cache` so the new value reaches the bundle:
+
+```bash
+yarn start --reset-cache
+```
+
+:::caution[Since 0.3.0]
+A token that the app passes and that arrives empty keeps the agent off. The app says so in its log, and `lynkeus` never attaches:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. …
+```
+
+The agent does not fall back to serving any driver that connects. If you see this line, Metro was started without `LYNKEUS_TOKEN`, the plugin is missing from `babel.config.js`, or Metro is still serving what it transformed before the value changed. See [The app logs that the token is empty](#the-app-logs-that-the-token-is-empty).
 :::
+
+`auto()` called with no `token` key at all is a different case: the app asked for no protection, and the agent serves any driver that connects. That can be acceptable on a machine of your own; see [Security](/security/#the-token) for when it is not.
+
+The `token` option is an ordinary string. An app that already has a configuration module for build-time values, such as the API URL, can pass the token from there instead, and then does not need the plugin.
 
 ### 4. Rebuild the app
 
@@ -208,6 +253,8 @@ export default function App() {
 | `token` | none | The shared secret from step 3. |
 | `app` | none | Free-form description sent when the app attaches (name, version, environment). |
 
+The same rule as in step 3 applies to the `token` prop: leave the prop out and the agent serves without a token; pass it with an empty or undefined value and the agent stays off and logs why.
+
 An app that uses both `auto()` and `<Lynkeus>` keeps working: the first one to start owns the connection, and the second stays quiet.
 
 Two things are only available with `auto()`, because it wraps the root: `lynkeus record`, which turns a person's touches into steps, and `lynkeus profile`, which measures React rendering time per route.
@@ -236,10 +283,23 @@ The CLI listened for 15 seconds and no app dialed in with the right token. Check
 
 1. The app is running, and it is a debug build.
 2. `enabled` is true for the environment this build points at.
-3. The token the app was built with is the `LYNKEUS_TOKEN` in this shell. A mismatch looks exactly like no app at all.
-4. Nothing else moved the port. The app dials 8123 unless you passed `port`; the CLI listens on 8123 unless `LYNKEUS_PORT` or `port` in `lynkeus.config.json` says otherwise.
+3. The token reached the app. Look in the app's log, where its `console.warn` output goes, for `lynkeus: the app passed a token and it is empty`; if it is there, see the next problem.
+4. The token the app was built with is the `LYNKEUS_TOKEN` in this shell. A mismatch looks exactly like no app at all.
+5. Nothing else moved the port. The app dials 8123 unless you passed `port`; the CLI listens on 8123 unless `LYNKEUS_PORT` or `port` in `lynkeus.config.json` says otherwise.
 
 `--attach-timeout <ms>` gives the app longer. `--launch --app <bundleId>` relaunches the app before attaching.
+
+### The app logs that the token is empty
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+```
+
+The entry file reads `process.env.LYNKEUS_TOKEN` and nothing put a value there, so the agent stays off rather than serve whoever connects. The CLI then reports that no app attached. Check three things:
+
+1. `babel.config.js` lists `'lynkeus-agent/babel'` among its plugins. `npx lynkeus init` adds it.
+2. Metro was started from a shell where `LYNKEUS_TOKEN` is set.
+3. Metro was started once with `--reset-cache` after the value was set or changed. Without that, Metro serves the file it transformed earlier, when the variable was empty.
 
 ### The port is already taken
 

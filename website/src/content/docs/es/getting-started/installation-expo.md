@@ -15,13 +15,13 @@ Son tres diferencias, y conviene conocerlas antes de empezar porque explican cad
 
 **expo-router no tiene `index.js`.** El agente se monta en el punto de entrada de la app, antes de que se renderice nada. Un proyecto con expo-router no tiene ese archivo. El comando `lynkeus init` lo crea por ti.
 
-**El token viaja en otra variable.** Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con `EXPO_PUBLIC_`. La app y el CLI terminan leyendo dos variables distintas, que deben tener el mismo valor.
+**El token viaja en otra variable.** Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con `EXPO_PUBLIC_`. La app y el CLI terminan leyendo dos variables distintas, que deben tener el mismo valor. A cambio, Expo no necesita el plugin de Babel `lynkeus-agent/babel` que usa una app de React Native CLI.
 
 ## Antes de empezar
 
 - Un proyecto de Expo que ya puedas compilar con `npx expo run:ios` o `npx expo run:android`.
 - Node 22 o posterior.
-- Un simulador de iOS o un emulador de Android.
+- Un simulador de iOS o un emulador de Android. Los dispositivos físicos no están soportados.
 
 No hace falta ningún *config plugin*: el módulo nativo se enlaza solo.
 
@@ -76,12 +76,18 @@ El token es un secreto compartido: el agente solo atiende al proceso que abre la
 | La app | `EXPO_PUBLIC_LYNKEUS_TOKEN` |
 | El CLI | `LYNKEUS_TOKEN` |
 
-Define las dos con el mismo valor en la terminal donde vas a trabajar:
+Define las dos con el mismo valor en la terminal donde vas a trabajar. El servidor de desarrollo de Expo tiene que arrancar con `EXPO_PUBLIC_LYNKEUS_TOKEN` ya definida:
 
 ```bash
 export EXPO_PUBLIC_LYNKEUS_TOKEN=un-secreto-local
 export LYNKEUS_TOKEN=un-secreto-local
 ```
+
+Si la variable de la app no está definida, o su nombre no empieza con `EXPO_PUBLIC_`, el token llega vacío. En ese caso el agente queda apagado y la app lo dice en su log con una línea que empieza con `lynkeus: the app passed a token and it is empty`. Nunca pasa a atender sin token.
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, un token que llegaba vacío se trataba como "sin token" y el agente atendía a cualquier proceso que se conectara.
+:::
 
 :::caution
 El valor de `EXPO_PUBLIC_LYNKEUS_TOKEN` queda escrito en el bundle en el momento de empaquetar. Si lo cambias, la app tiene que volver a empaquetarse para verlo.
@@ -169,7 +175,8 @@ Las causas, de la más común a la menos:
 1. Montaste el agente a mano y `main` en `package.json` sigue apuntando a `expo-router/entry`.
 2. Estás abriendo la app en Expo Go y no en el development build.
 3. No recompilaste después de instalar `lynkeus-agent`.
-4. Las dos variables del token no tienen el mismo valor, o cambiaste `EXPO_PUBLIC_LYNKEUS_TOKEN` sin volver a empaquetar.
+4. El token llegó vacío a la app, y su log lo dice: `lynkeus: the app passed a token and it is empty`. Define `EXPO_PUBLIC_LYNKEUS_TOKEN` antes de arrancar el servidor de desarrollo.
+5. Las dos variables del token no tienen el mismo valor, o cambiaste `EXPO_PUBLIC_LYNKEUS_TOKEN` sin volver a empaquetar.
 
 ### Las pestañas no aparecen en `lynkeus screen`
 

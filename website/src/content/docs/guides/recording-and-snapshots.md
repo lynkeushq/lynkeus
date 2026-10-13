@@ -10,7 +10,7 @@ They answer different questions. `record`: what did I do a moment ago, written d
 ## Before you start
 
 - The app is running with the agent. See [Driving the app](/guides/driving-the-app/).
-- For `record`: a build on a simulator, an emulator or a device, with the agent mounted through `auto()`. Touches are traced only there.
+- For `record`: a build on a simulator or an emulator, with the agent mounted through `auto()`. Touches are traced only there.
 - For `snapshot --pixels`: a simulator or an emulator.
 
 ## Record a flow

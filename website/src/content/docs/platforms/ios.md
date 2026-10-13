@@ -12,7 +12,7 @@ Everything that goes through the agent (reading the screen, pressing, typing, wa
 - **The New Architecture.** On iOS the agent requires it. It measures elements through the Fabric shadow tree and its native module is a Turbo Module.
 - **A debug build.** The native code that synthesizes touches is wrapped in `#if DEBUG`. In a release build those symbols do not exist, and the module's methods are no-ops.
 - **React Native 0.76 or newer.**
-- **Xcode and a booted simulator.** The CLI uses `xcrun simctl` for everything it does to the simulator from outside.
+- **Xcode and a booted simulator.** The CLI uses `xcrun simctl` for everything it does to the simulator from outside. A physical iPhone is not supported.
 - **Node 22 or newer** for the CLI.
 
 After adding `lynkeus-agent`, install its pod and build the app once:
@@ -144,7 +144,8 @@ npx lynkeus screenshot home.png
 - **System UI is not part of the screen.** Permission dialogs, the share sheet, the system keyboard and anything else drawn by iOS rather than by React Native are not listed as elements. Use `lynkeus os permissions` for permissions, and expect a native screen your app opens to need a press at a point (`lynkeus press 100,200`).
 - **Tabs and bars drawn by the system are not elements.** A tab bar rendered natively, as in the newest Expo template, cannot be pressed by name. Navigate with `lynkeus nav <route>`.
 - **Debug builds only.** lynkeus cannot drive a release build or a build from TestFlight or the App Store.
-- **The simulator is the documented target.** The agent dials `localhost`, which on a simulator is the Mac. The driver listens on the Mac's loopback address only.
+- **Physical devices are not supported.** The CLI looks for a booted simulator, and launching, screenshots and the `os` commands go through `simctl` on one. The agent dials `localhost`, which on a simulator is the Mac, and the driver listens on the Mac's loopback address only.
+- **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. A simulator session offers none, so a run keeps its screenshots and no video.
 
 ## Known problems
 
@@ -158,7 +159,7 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 
 ### The driver never attaches
 
-The agent dials `localhost:8123` and keeps retrying, so the order in which you start the app and the CLI does not matter. If the CLI still times out, check that the build is a debug build, that `enabled` is true for this environment, and that the token the app was built with is the `LYNKEUS_TOKEN` the CLI reads. `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
+The agent dials `localhost:8123` and keeps retrying, so the order in which you start the app and the CLI does not matter. If the CLI still times out, check that the build is a debug build, that `enabled` is true for this environment, and that the token the app received is the `LYNKEUS_TOKEN` the CLI reads. If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off: add the `lynkeus-agent/babel` plugin and start Metro with `LYNKEUS_TOKEN` set, once with `--reset-cache` (see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty)). `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
 
 ### A press does nothing
 

@@ -13,7 +13,7 @@ Whatever the host, a job that runs cases needs five things.
 
 1. **Node and your dependencies.** The CLI and the headless host need Node 22 or newer. Install the project's packages as usual; `lynkeus` and `lynkeus-agent` are among them.
 2. **The app, running somewhere.** Either hosted in Node by the headless host, or as a debug build on a simulator or an emulator. The next section helps you choose.
-3. **A shared token.** `LYNKEUS_TOKEN` must hold the same value for the app and for the CLI. In a job that builds or hosts the app itself, any value works, as long as both sides read the same one.
+3. **A shared token.** `LYNKEUS_TOKEN` must hold the same value for the app and for the CLI. In a job that builds or hosts the app itself, any value works, as long as both sides read the same one. An app that passes a token and receives an empty one keeps its agent off, so a job that forgets the variable on the app's side fails to attach rather than run unprotected.
 4. **A backend to talk to.** The app under test makes real requests. Run the backend the job tests, with its database and cache, seeded for tests. No shared environment is needed, and no production data is involved.
 5. **A fixtures command, if your cases use fixtures.** It is started by `case run` from `cases.fixtures` in `lynkeus.config.json`, so it must be runnable in the job. See [Fixtures](/guides/fixtures/).
 
@@ -119,13 +119,14 @@ A long-lived host grows: Node's heap gains a few dozen MB per full app reset. A 
 
 ## Run on a simulator or an emulator
 
-Use this for what the headless host cannot show: screenshots, video, contrast, and anything native.
+Use this for what the headless host cannot show: screenshots, contrast, and anything native. The device here is a simulator or an emulator; physical devices are not supported.
 
 The job has more to prepare, and those steps are your platform's, not lynkeus's:
 
-1. Build the **debug** build of the app, with the agent enabled and the token the job will use. lynkeus does not work in a release build: the code that synthesizes touches is not compiled into one.
-2. Boot the simulator or emulator, install the app and launch it.
-3. Run the cases.
+1. Build the **debug** build of the app, with the agent enabled. lynkeus does not work in a release build: the code that synthesizes touches is not compiled into one.
+2. Give the app the token the job will use. In a React Native CLI app the token is written into the development bundle by the `lynkeus-agent/babel` plugin, so start Metro with `LYNKEUS_TOKEN` set in its environment. In an Expo app, start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set to the same value.
+3. Boot the simulator or emulator, install the app and launch it.
+4. Run the cases.
 
 ```bash
 npx lynkeus launch com.example.myapp --clean --attach-timeout 60000
@@ -158,7 +159,7 @@ Store the organization's API key as a secret and add `--push`:
 
 The step prints the report's link, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
 
-On a simulator or an emulator, add `--screenshots` to keep a frame after every step, and `--video` to film each case where the host can film. Video is kept on the Team plan.
+On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. Where a video is recorded, it is kept on the Team plan.
 
 ### Comment on the pull request
 
@@ -217,7 +218,7 @@ Each of these acts on the screen the app is showing or on a recorded run, so the
 
 ## Common problems
 
-**The run hangs and then fails to attach.** The app never connected. On the headless host, check that `LYNKEUS_TOKEN` is set: `headless start` refuses to run without it. On a simulator or an emulator, check that the build is a debug build, that the agent is enabled for the environment the build targets, and that the app's token equals the job's `LYNKEUS_TOKEN`. Then raise `--attach-timeout`.
+**The run hangs and then fails to attach.** The app never connected. On the headless host, check that `LYNKEUS_TOKEN` is set: `headless start` refuses to run without it. On a simulator or an emulator, check that the build is a debug build, that the agent is enabled for the environment the build targets, that Metro (or Expo's development server) was started with the token variable set, and that the app's token equals the job's `LYNKEUS_TOKEN`. If the app's log says `lynkeus: the app passed a token and it is empty`, the variable did not reach the bundle. Then raise `--attach-timeout`.
 
 **`the host failed to start: …`.** The headless host hit a Jest error; the message ends with the last lines of its output. Run `npx lynkeus headless doctor` locally to see which native modules still need a mock, and `npx lynkeus headless doctor --explain "<first line of the error>"` for a specific error.
 

@@ -5,6 +5,8 @@ description: Todos los comandos de lynkeus y todas sus opciones, agrupados por l
 
 Esta página lista cada comando del CLI `lynkeus` con sus argumentos y opciones. Sirve para consultar: si todavía no has usado la herramienta, empieza por [Tu primer test](/es/getting-started/first-test/) y vuelve aquí cuando necesites el nombre exacto de una opción.
 
+El CLI necesita Node 22 o posterior.
+
 Los comandos están agrupados igual que en `lynkeus help`: manejar la app, el sistema operativo, el mapa, las ejecuciones y el host sin pantalla. Al final están los modos de larga duración (`session`, `mcp`) y las opciones globales, que acepta cualquier comando.
 
 ## Cómo leer esta página
@@ -20,13 +22,19 @@ Muchos comandos reciben un **objetivo**: el elemento sobre el que actúan. Se es
 | `12` | El elemento con ese índice en el último listado de `lynkeus screen`. |
 | `100,200` | Un punto de la ventana, en puntos. |
 
-En la terminal, las comillas del texto forman parte del objetivo, así que hay que protegerlas del shell: `lynkeus press '"Continuar"'`. Lo mismo vale para `#`, que algunos shells tratan como comentario: `lynkeus press '#next-button'`.
+Un objetivo con comillas propias es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`: `"12"` no es el elemento de índice 12, y `"Next"` no es la ruta `Next`. Sin comillas, lo que no empieza con `#` ni es un número o un punto también se lee como texto; las comillas hacen falta cuando la forma engaña, sobre todo en `wait` y `see`, donde una palabra con mayúscula inicial es una ruta.
+
+El shell se queda con las comillas que encuentra, así que hay que protegerlas con otras: `lynkeus wait '"Next"'`. Lo mismo vale para `#`, que algunos shells tratan como comentario: `lynkeus press '#next-button'`.
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado, que entonces no coincidía con nada, y una palabra con mayúscula inicial solo podía ser una ruta.
+:::
 
 Todos los comandos terminan con código de salida `0` si salieron bien. Cuando un `press`, `wait`, `type`, `swipe` o `nav` falla, lynkeus imprime además el diagnóstico de [`lynkeus why`](#lynkeus-why).
 
 ## Manejar la app
 
-Estos comandos hablan con la app que está corriendo, a través del agente que lleva dentro. Necesitan una app conectada: un build de depuración en un simulador, un emulador o un dispositivo, o el host sin pantalla.
+Estos comandos hablan con la app que está corriendo, a través del agente que lleva dentro. Necesitan una app conectada: un build de depuración en un simulador o un emulador, o el host sin pantalla. Los dispositivos físicos no están soportados.
 
 ### `lynkeus screen`
 
@@ -149,7 +157,7 @@ Espera hasta que aparezca una ruta o un elemento, hasta que se vaya, o una canti
 
 | Argumento | Qué es |
 |---|---|
-| `what` | Una ruta, un objetivo, o un número de milisegundos (`800`). |
+| `what` | Una ruta, un objetivo, o un número de milisegundos (`800`). Una palabra con mayúscula inicial (`Settings.Main`) es una ruta, y una con el prefijo `route:` también (`route:index`). Entre comillas propias es siempre un texto: `'"Next"'`. |
 
 | Opción | Qué hace |
 |---|---|
@@ -161,6 +169,7 @@ Espera hasta que aparezca una ruta o un elemento, hasta que se vaya, o una canti
 
 ```bash
 lynkeus wait Settings.Main
+lynkeus wait '"Next"'
 lynkeus wait '#row-25' --scroll
 lynkeus wait '#spinner' --gone --timeout 20000
 ```
@@ -171,7 +180,7 @@ lynkeus wait '#spinner' --gone --timeout 20000
 lynkeus screenshot <file>
 ```
 
-Guarda en un archivo PNG cómo se ve la pantalla en este momento. Solo funciona en un dispositivo o un simulador: el host sin pantalla no dibuja nada que capturar.
+Guarda en un archivo PNG cómo se ve la pantalla en este momento. Solo funciona en un simulador o un emulador: el host sin pantalla no dibuja nada que capturar.
 
 | Argumento | Qué es |
 |---|---|
@@ -187,7 +196,7 @@ Comprueba que una ruta o un elemento está en pantalla ahora. Si no lo está, te
 
 | Argumento | Qué es |
 |---|---|
-| `what` | Una ruta o un objetivo. |
+| `what` | Una ruta o un objetivo. Se distinguen como en [`lynkeus wait`](#lynkeus-wait): entre comillas propias es siempre un texto. |
 
 | Opción | Qué hace |
 |---|---|
@@ -258,7 +267,7 @@ lynkeus call events '{"clear":true}'
 
 ### `lynkeus hello`
 
-Muestra lo que la app dijo de sí misma al conectarse: plataforma, si tiene toques nativos y qué comandos registró. No tiene argumentos ni opciones.
+Muestra lo que la app dijo de sí misma al conectarse: plataforma, versión del agente, si tiene toques nativos y qué comandos registró. No tiene argumentos ni opciones.
 
 ### `lynkeus launch`
 
@@ -311,6 +320,8 @@ Revisa la pantalla actual y avisa de controles sin etiqueta, objetivos táctiles
 | `--save <file>` | Guarda los hallazgos de esta pantalla en un archivo de referencia. |
 | `--baseline <file>` | Imprime solo lo que es nuevo respecto de un archivo de referencia. Si no la das, se usa `lintBaseline` de la configuración. |
 
+Contra el archivo de referencia, un hallazgo se reconoce por su regla, su `testID` y aquello de lo que trata, no por su mensaje: un área de toque que pasó de 32 a 30 puntos no es un hallazgo nuevo. Un archivo guardado antes de la versión 0.3.0 sigue comparando por el mensaje; guárdalo otra vez con `--save` para obtener el comportamiento nuevo.
+
 ### `lynkeus perf`
 
 ```bash
@@ -337,6 +348,34 @@ Muestra cuánto tiempo pasó React renderizando, por ruta. Lo mide el `Profiler`
 | `action` | Opcional. `start` borra lo anterior y empieza a grabar; `stop` informa y detiene. Sin argumento, informa lo grabado hasta ahora. |
 
 La grabación está apagada hasta que la inicias, así que una app que nunca la pide no paga nada.
+
+### `lynkeus init`
+
+```bash
+lynkeus init
+```
+
+Monta el agente desde el punto de entrada de la app, sea de React Native o de Expo. No tiene argumentos ni opciones propias. Existe desde la versión 0.3.0.
+
+Lo que hace depende del proyecto:
+
+| Proyecto | Qué cambia |
+|---|---|
+| React Native | Agrega `auto({ token: process.env.LYNKEUS_TOKEN })` a `index.js`, `index.tsx` o `index.ts`, después del último `import`. Agrega además el plugin `lynkeus-agent/babel` a `babel.config.js` o `babel.config.cjs`. |
+| Expo con un punto de entrada propio | Agrega `auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN })` a ese archivo. No toca la configuración de Babel. |
+| Expo con expo-router | Escribe un `index.js` que monta el agente y después carga el enrutador, y apunta `main` de `package.json` a ese archivo. |
+
+Imprime una línea por cada cosa que hizo o que te toca hacer. En una app de React Native:
+
+```text
+added auto() to index.js
+added lynkeus-agent/babel to babel.config.js
+start Metro with LYNKEUS_TOKEN set to the value the CLI reads; after changing it, start Metro with --reset-cache
+```
+
+No repite un cambio que ya está: `index.js already mounts the agent`, `babel.config.js already has lynkeus-agent/babel`. Si no encuentra la configuración de Babel o no reconoce su forma, no la modifica y lo pide: `add 'lynkeus-agent/babel' to the plugins in babel.config.js, so the app can read LYNKEUS_TOKEN`.
+
+El plugin es lo que hace llegar el token a una app de React Native. Lo explica la [API del agente](/es/reference/agent-api/#el-token-tiene-que-llegar-a-la-app).
 
 ## Sistema operativo (`os`)
 
@@ -886,7 +925,7 @@ Opciones que deciden qué queda guardado:
 |---|---|
 | `--out <dir>` | Escribe la ejecución como un directorio que un reporte puede leer: `run.json` y `cases.jsonl`, con una línea por intento. |
 | `--screenshots` | Con `--out`: una captura de pantalla después de cada paso de la app. |
-| `--video` | Con `--out`: graba cada caso en video, donde el host puede hacerlo. Cada paso indica en qué segundo empezó. |
+| `--video` | Con `--out`: graba cada caso en video, donde el host ofrece un comando `record` (lo nombra en `hello`). El host sin pantalla incluido y una sesión de simulador o de emulador no lo ofrecen; ahí la ejecución conserva sus capturas y no tiene video. Cada paso indica en qué segundo empezó. |
 | `--video-fps <n>` | Cuadros por segundo del video. Por defecto `30`. |
 | `--report <file>` | Agrega al archivo una línea de JSON por caso. |
 | `--events <dir>` | Guarda lo que la app envió a su analítica, por caso, en `<dir>/<id del caso>/events.jsonl`. |
@@ -1080,7 +1119,7 @@ Escribe el archivo de entrada del host: los mocks por defecto, una comprobación
 | `--entry <file>` | Dónde escribir la entrada. Por defecto, `entry` de la configuración o `qa/headless.tsx`. |
 | `--component <App.tsx>` | El archivo del componente `App`. Si está en un lugar habitual, se encuentra solo. |
 | `--api-env <NAME>` | La variable de entorno de la que la app lee la dirección de su API. Por defecto, `apiEnv` de la configuración o `API_URL`. |
-| `--auto` | Además monta el agente desde `index.js` con `auto()`. |
+| `--auto` | Además monta el agente como lo hace [`lynkeus init`](#lynkeus-init): agrega `auto()` al punto de entrada y, en una app de React Native, el plugin `lynkeus-agent/babel` a `babel.config.js`. |
 | `--force` | Sobrescribe una entrada existente. |
 
 ### `lynkeus headless doctor`

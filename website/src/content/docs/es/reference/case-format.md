@@ -82,11 +82,22 @@ Muchos verbos reciben un **objetivo**: el elemento sobre el que actúan. Se escr
 | Forma | Qué encuentra |
 |---|---|
 | `"#next-button"` | El elemento con ese `testID`. |
-| `'"Continuar"'` | Un control cuya etiqueta es ese texto y, si no hay, uno que lo contenga. Un párrafo solo coincide por texto exacto. |
+| `Continuar` o `'"Continuar"'` | Un control cuya etiqueta es ese texto y, si no hay, uno que lo contenga. Un párrafo solo coincide por texto exacto. |
 | `12` | El elemento con ese índice en el listado de la pantalla. |
 | `"100,200"` | Un punto de la ventana. |
 
-En YAML, `#` empieza un comentario, así que un objetivo por `testID` va siempre entre comillas. Un objetivo por texto lleva sus propias comillas dobles dentro de las del YAML: `'"Continuar"'`.
+En YAML, `#` empieza un comentario, así que un objetivo por `testID` va siempre entre comillas.
+
+Las comillas de YAML no llegan a lynkeus: `"Continuar"` y `Continuar` son el mismo valor. Un texto con **comillas propias**, dentro de las del YAML, es otra cosa: `'"Continuar"'` es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`. Hacen falta en dos situaciones:
+
+- En `app.wait` y `app.see`, una palabra con mayúscula inicial, como `Next`, se lee como una ruta. `'"Next"'` es el texto.
+- Un texto hecho solo de dígitos, como `12`, se lee como un índice. `'"12"'` es el texto.
+
+Todo verbo que recibe `target` recibe también `testId` en su lugar, con el identificador sin `#`: `{ testId: pay-button }` equivale a `{ target: "#pay-button" }`.
+
+:::note[Desde 0.3.0]
+Las comillas propias y `testId` en lugar de `target` llegan con la versión 0.3.0. Antes, las comillas quedaban dentro del texto buscado y no coincidían con nada, y un paso con `testId` se rechazaba con `press has no testId`.
+:::
 
 Cuando hay varias coincidencias, dos parámetros eligen entre ellas:
 
@@ -105,11 +116,15 @@ Pulsa un control. Antes de pulsar espera a que el control esté en pantalla, hab
 - app.press: "#pay-button"
 - app.press: { target: "#like-button", within: '"hola de Ana"' }
 - app.press: { target: "#skip-promo", optional: true }
+- app.press: { testId: pay-button }
+- app.press: { text: "Continuar" }
 ```
 
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `target` | objetivo | obligatorio | Lo que se pulsa. |
+| `target` | objetivo | obligatorio, salvo que des `testId` o `text` | Lo que se pulsa. |
+| `testId` | texto | ninguno | En lugar de `target`: el `testID` del control, sin `#`. |
+| `text` | texto | ninguno | En lugar de `target`: el texto del control. |
 | `within` | objetivo | ninguno | Elige la coincidencia más cercana a este objetivo. |
 | `nth` | número | ninguno | Elige la coincidencia número `nth`, desde 0. |
 | `optional` | booleano | `false` | Pulsa solo si el control está en pantalla. Si no está, el paso queda como omitido y el caso sigue. |
@@ -118,6 +133,8 @@ Pulsa un control. Antes de pulsar espera a que el control esté en pantalla, hab
 | `js` | booleano | `false` | Llama a `onPress` directamente, sin sintetizar un toque. |
 
 Si el objetivo no aparece en el listado, `app.press` espera un momento y después se desplaza por la página para buscarlo. Lo mismo si está en el listado pero fuera de la ventana.
+
+Sin `target`, `testId` ni `text`, el paso falla con `app.press needs a target`.
 
 ### `app.type`
 
@@ -130,13 +147,16 @@ Escribe en un campo.
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `text` | texto | obligatorio | Lo que se escribe. |
-| `target` | objetivo | el campo con foco | El campo que se toca antes de escribir. |
+| `target` | objetivo | el campo con foco | El campo que se toca antes de escribir. También como `testId`. |
 | `within`, `nth` | | | Eligen entre varias coincidencias, como en `app.press`. |
+| `timeoutMs` | número (ms) | `5000` | Con `target`: cuánto puede tardar el campo en llegar a la pantalla antes de que se lo toque. |
 | `clear` | booleano | `false` | Vacía el campo primero. |
 | `paste` | booleano | `false` | Inserta todo el texto de una vez, en lugar de tecla por tecla. |
 | `submit` | booleano | `false` | Termina con la tecla de retorno. |
 
 Sin `paste`, las teclas se envían de a una, con una pequeña pausa entre ellas, para que los formateadores del campo se comporten como con un teclado real.
+
+`timeoutMs` existe para el campo que se monta un momento después que su pantalla, como el de un código de verificación. El paso espera a que el campo esté y recién entonces lo toca y escribe.
 
 ### `app.swipe`
 
@@ -151,10 +171,12 @@ Arrastra el dedo.
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `direction` | `up`, `down`, `left`, `right` | ninguno | Hacia dónde se mueve el dedo. |
-| `target` | objetivo | toda la ventana | El elemento sobre el que se arrastra: un deslizador, una hoja inferior. |
+| `target` | objetivo | toda la ventana | El elemento sobre el que se arrastra: un deslizador, una hoja inferior. También como `testId`. |
 | `distance` | número (puntos) | el 60 % de la ventana en esa dirección | Cuánto se mueve el dedo. |
 | `from`, `to` | `"x,y"` | ninguno | Los dos extremos del arrastre, en lugar de una dirección. |
 | `durationMs` | número (ms) | `250` | Cuánto dura el arrastre. |
+
+`app.swipe` no recibe `timeoutMs`: con esa clave el paso falla con `swipe has no timeoutMs`.
 
 En un dispositivo, después de un `app.swipe` el caso espera a que la pantalla deje de moverse. Un paginador sigue en movimiento después de que el dedo se levanta, y se tragaría un arrastre enviado durante esa inercia.
 
@@ -166,6 +188,7 @@ Espera. Según el valor, espera un tiempo fijo, una ruta, un elemento o una peti
 - app.wait: 800                                  # milisegundos
 - app.wait: Settings.Main                        # una ruta
 - app.wait: "#row-25"                            # un objetivo
+- app.wait: '"Next"'                             # un texto, no la ruta Next
 - app.wait: { target: "#row-25", scroll: true }  # desplazando hasta verlo
 - app.wait: { target: "#spinner", gone: true }   # hasta que se vaya
 - app.wait: { request: "POST /v1/orders", status: 201 }
@@ -175,7 +198,7 @@ Con una ruta o un objetivo:
 
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `target` | ruta u objetivo | obligatorio | Lo que se espera. |
+| `target` | ruta u objetivo | obligatorio | Lo que se espera. Un elemento también como `testId`. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
@@ -406,7 +429,7 @@ steps:
 
 | Condición | Se cumple cuando |
 |---|---|
-| `device` | La app corre en un simulador, un emulador o un dispositivo, con toques reales. |
+| `device` | La app corre en un simulador o un emulador, con toques reales. |
 | `headless` | La app corre en un host sin pantalla. |
 | `ios`, `android` | La app informa esa plataforma. |
 | `has:<comando>` | La app registró ese comando. Sirve cuando un build tiene comandos que otro no. |

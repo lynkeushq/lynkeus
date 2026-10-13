@@ -3,7 +3,7 @@ title: Writing cases
 description: Write a test as a case file, reuse values between steps, define steps of your own, and run one case or a whole suite.
 ---
 
-A **case** is one test, written as a markdown file a person can read top to bottom: what has to exist, what the user does, and what must be true afterward. The same file runs on a simulator, an emulator, a device and the headless host.
+A **case** is one test, written as a markdown file a person can read top to bottom: what has to exist, what the user does, and what must be true afterward. The same file runs on a simulator, an emulator and the headless host.
 
 This guide covers the format in practice. For every step and parameter, see the [case format reference](/reference/case-format/).
 
@@ -74,8 +74,8 @@ Steps that start with `app.` are the terminal commands you already know.
 
 | Step | Value |
 |---|---|
-| `app.press` | A target, or `{ target, within?, nth?, optional?, hold? }` |
-| `app.type` | `{ text, target?, submit?, clear? }` |
+| `app.press` | A target, or `{ target, within?, nth?, optional?, hold?, timeoutMs? }`. In place of `target`: `testId` or `text` |
+| `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` |
 | `app.wait` | A route, a target, a number of ms, `{ target, scroll? }` or `{ request, status? }` |
 | `app.see` | A target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` |
@@ -83,11 +83,36 @@ Steps that start with `app.` are the terminal commands you already know.
 | `app.back` | No value |
 | `app.call` | `{ command, params?, expect?, as? }` |
 
-A target is spelled as on the command line: `#testId`, `"text"`, an index or `x,y`.
+A target is spelled as on the command line: `#testId`, a text, an index or `x,y`.
+
+Where a step takes `target`, it also takes `testId`, which is the same thing without the `#`. `app.press`, `app.type`, `app.swipe`, `app.wait` and `app.see` accept it. `app.press` takes `text` as well:
+
+```yaml
+steps:
+  - app.press: { testId: settings-button }      # the same as target: "#settings-button"
+  - app.press: { text: "Dark" }
+  - app.type: { text: "ana@example.com", testId: email-input }
+```
+
+A text inside quotes of its own is always a text, never a route, an index or a `testId`. It matters most for `app.wait`, which reads a capitalized word as a route:
+
+```yaml
+steps:
+  - app.wait: Next        # waits for a route called Next
+  - app.wait: '"Next"'    # waits for the element that says Next
+  - app.press: '"12"'     # the control labeled 12, not the element at index 12
+```
+
+The outer quotes are YAML's and the inner ones reach lynkeus, so use one kind inside the other.
+
+:::note[Since 0.3.0]
+`testId` in place of `target`, `text` in `app.press`, `timeoutMs` in `app.type` and quoted targets arrived in 0.3.0. An earlier version refuses them with `press has no testId`, `app.press needs a target` or `type has no timeoutMs`, and keeps the quotes as part of the text.
+:::
 
 A few behaviors are worth knowing before you write many cases:
 
 - `app.press` waits for the control to be there and enabled. With `optional: true` it presses only if the control is on screen, which suits a one-time prompt.
+- `app.type` with a target taps that field first, once the field is there. A field that mounts a moment after its screen is given 5 seconds to arrive; `timeoutMs` changes that. `app.swipe` has no `timeoutMs`.
 - `app.see` is an assertion. Everything it names must hold at once. It waits up to 3 seconds by default; `timeoutMs` changes that.
 - `app.see` and `app.press` scroll to what they look for. You do not need a swipe before each element below the fold.
 - `app.wait: { request: "POST /v1/orders" }` waits for the app to make that request and get a 2xx answer. Add `status` to expect another code.
@@ -162,7 +187,7 @@ steps:
 
 | Value | The step runs when |
 |---|---|
-| `device` | The app runs on a simulator, an emulator or a phone |
+| `device` | The app runs on a simulator or an emulator |
 | `headless` | The app runs on a host without a device |
 | `ios`, `android` | The app reports that platform |
 | `has:<command>` | The app registered that command |
@@ -248,7 +273,7 @@ A failed case runs once more before it counts as failed. One that passes the sec
 
 ### Unsupported is not failed
 
-A step the host cannot do, such as a mocked response on a real device, is `unsupported`. The case stops there and is reported as one that cannot run on this host. It does not fail the run:
+A step the host cannot do, such as a mocked response on a simulator or an emulator, is `unsupported`. The case stops there and is reported as one that cannot run on this host. It does not fail the run:
 
 ```text
 3/5 passed, 2 cannot run on this host
@@ -279,6 +304,8 @@ The runner also absorbs what only a device does. After a swipe on a device it wa
 **`app.foo is not a step: lynkeus has no command foo, and the project declares no macro for it`.** The verb is misspelled, or the macro is missing from `cases.macros`. `--dry-run` finds these without running anything.
 
 **`port 8123 is held by another lynkeus case run`.** Two runs on one port would take turns at the app. Stop the other run or give this one other `--ports`.
+
+**`app.wait: Next` times out on a screen where the Next button is plainly there.** A capitalized word is a route to `app.wait`. Quote the text, `app.wait: '"Next"'`, or use the element's `testId`.
 
 **A request assertion passes for the wrong request.** A `request` counts only what the app asked for after the step before it began. To look further back, put `app.requests: mark` where the counting should start.
 

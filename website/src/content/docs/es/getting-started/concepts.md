@@ -27,7 +27,7 @@ El agente no sabe ni le importa cuál es. Todos hablan el mismo protocolo, descr
 
 El **host** es el lugar donde corre la app durante el test. Puede ser:
 
-- un simulador de iOS o un emulador de Android, donde la capa nativa es real;
+- un simulador de iOS o un emulador de Android, donde la capa nativa es real (los dispositivos físicos no están soportados);
 - el **host sin pantalla** (*headless*), que `lynkeus headless start` levanta en Node: renderiza la app bajo Jest y React Native Testing Library, con la capa nativa reemplazada por mocks.
 
 En los tres, el agente se conecta de la misma manera, así que los mismos comandos y los mismos casos sirven en cualquiera. Lo que cambia es qué es real. La comparación completa está en [Sin pantalla (headless)](/es/platforms/headless/).
@@ -52,14 +52,14 @@ Un **elemento** es cada cosa que aparece en la pantalla. Tiene:
 
 - un **tipo**: `button`, `input`, `text`, `scroll`, `switch`, `image` o `view`;
 - un marco, es decir, su posición y tamaño en puntos de la ventana;
-- lo que lleve consigo: su `testID`, su texto o etiqueta de accesibilidad, y en un campo de entrada, su **valor**, su texto de ayuda y si tiene el foco. El valor de un campo con `secureTextEntry` aparece enmascarado.
+- lo que lleve consigo: su `testID`, su texto o etiqueta de accesibilidad, y en un campo de entrada, su **valor**, su texto de ayuda y si tiene el foco. El valor es lo que contiene el campo nativo, de modo que refleja lo que se escribió aunque la app no controle el campo con una propiedad `value`. El valor de un campo con `secureTextEntry` aparece enmascarado.
 
 Tres estados importan más que el resto:
 
 | Estado | En el listado | Qué significa |
 |---|---|---|
 | deshabilitado | `!disabled` | El control no va a responder a un toque. |
-| tapado | `~covered` | Un toque en su centro caería sobre otra cosa. Lo determina la propia plataforma. |
+| tapado | `~covered` | Un toque en su centro caería sobre otra cosa. Lo determina la propia plataforma, y solo cuenta lo que detendría el toque. |
 | oculto | no se lista; se cuenta en la primera línea | La app no lo está presentando: pertenece a otra pestaña o a la pantalla que una hoja cubre. |
 
 Un cuarto estado, `~inert`, marca un elemento que se puede leer pero no tocar.
@@ -79,6 +79,8 @@ Un **objetivo** es la forma de señalar un elemento en un comando o en un paso. 
 
 Dos reglas resuelven los casos dudosos. Un elemento tapado nunca coincide. Y cuando dos elementos empatan, gana el último, porque es el que se dibuja encima.
 
+Un objetivo que lleva comillas propias es siempre el texto que está adentro, y nada más: `"12"` no es un índice y `"Next"` no es una ruta. En la terminal esas comillas se protegen con otras, `'"Next"'`; en un caso se escribe igual, `app.wait: '"Next"'`.
+
 Si un control se repite en cada fila de una lista, el objetivo se acota: `--in` elige la coincidencia más cercana a otro objetivo y `--nth` la enésima. Lo explica [Manejar la app](/es/guides/driving-the-app/).
 
 ### Ruta
@@ -87,7 +89,7 @@ Una **ruta** es el nombre de una pantalla tal como lo informa la navegación de 
 
 Las rutas no las inventa lynkeus. Vienen de un **adaptador de navegación**, la pieza que traduce entre el agente y el enrutador de tu app. El paquete incluye uno para React Navigation, y `auto()` lo conecta solo. Sin adaptador, lynkeus sigue viendo elementos pero no rutas, y `wait Settings.Main` no tiene qué esperar.
 
-`wait` y `see` reconocen una ruta por su mayúscula inicial. Una ruta en minúscula, como las de expo-router, se escribe con el prefijo `route:`, por ejemplo `route:index` (desde la versión 0.3.0).
+`wait` y `see` reconocen una ruta por su mayúscula inicial. Una ruta en minúscula, como las de expo-router, se escribe con el prefijo `route:`, por ejemplo `route:index` (desde la versión 0.3.0). En sentido inverso, un texto que empieza con mayúscula se escribe con comillas propias para que no se tome por una ruta: `'"Next"'`.
 
 ## Lo que escribes y ejecutas
 
@@ -170,7 +172,7 @@ Cuando el mismo valor está en más de un lugar, el orden de prioridad es: la op
 
 ### El token y el puerto
 
-`LYNKEUS_TOKEN` es el secreto compartido entre la app y su driver. El agente solo atiende a quien lo presenta.
+`LYNKEUS_TOKEN` es el secreto compartido entre la app y su driver. El agente solo atiende a quien lo presenta. El driver lo lee del entorno; a la app hay que hacérselo llegar, y si le llega vacío el agente queda apagado en lugar de atender a cualquiera. Cómo llega está en la instalación en [React Native](/es/getting-started/installation-react-native/) y en [Expo](/es/getting-started/installation-expo/).
 
 `LYNKEUS_PORT` mueve juntos a la app, al host y al driver. Sirve para tener varias parejas en la misma máquina sin que se crucen. El puerto por defecto es 8123.
 

@@ -46,15 +46,16 @@ En `lynkeus session`, el mismo diagnóstico viaja en el campo `why` de la respue
 
 **Qué ves.** Cualquier comando espera unos segundos y termina con `No app attached on 127.0.0.1:8123 within 15000ms. Is a dev build running with <Lynkeus>?`
 
-**Por qué pasa.** La app es la que se conecta al driver, no al revés. Busca al driver en `localhost:8123` en iOS y en `10.0.2.2:8123` en el emulador de Android, y reintenta mientras nadie contesta. Este error significa que en todo ese tiempo ninguna app se presentó.
+**Por qué pasa.** La app es la que se conecta al driver, no al revés. Busca al driver en `localhost:8123` en iOS y en `10.0.2.2:8123` en el emulador de Android, y reintenta mientras nadie contesta: cada 100 ms durante los primeros 3 segundos, y después a intervalos crecientes hasta 1,5 segundos. Este error significa que en todo ese tiempo ninguna app se presentó.
 
 **Cómo se arregla.** Revisa estas causas, en este orden:
 
 1. **El build no es de depuración.** El agente solo existe en builds de depuración. Un build de producción no lo contiene.
 2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: __DEV__ && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo.
-3. **El token no coincide.** El token con el que se compiló la app tiene que ser el valor de `LYNKEUS_TOKEN` que lee el CLI. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
-4. **Los puertos no coinciden.** Si definiste `LYNKEUS_PORT` o `port` en la configuración, la app tiene que haber recibido el mismo puerto al montar el agente.
-5. **La app tarda en arrancar.** Dale más tiempo con `--attach-timeout 60000`, o con `attachTimeout` en la configuración.
+3. **El token llegó vacío a la app.** El agente queda apagado y la app lo dice en su log. Está más abajo: [el log dice que el token está vacío](#la-app-registra-lynkeus-the-app-passed-a-token-and-it-is-empty).
+4. **El token no coincide.** El token que recibió la app tiene que ser el valor de `LYNKEUS_TOKEN` que lee el CLI. En una app de React Native es el valor con el que arrancó Metro. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
+5. **Los puertos no coinciden.** Si definiste `LYNKEUS_PORT` o `port` en la configuración, la app tiene que haber recibido el mismo puerto al montar el agente.
+6. **La app tarda en arrancar.** Dale más tiempo con `--attach-timeout 60000`, o con `attachTimeout` en la configuración.
 
 Para descartar que la app haya quedado en mal estado, vuelve a abrirla antes de conectar:
 
@@ -64,6 +65,41 @@ npx lynkeus screen --launch --app com.example.myapp
 
 :::note[En Expo]
 Hay dos causas propias de Expo. El agente no funciona en Expo Go, porque tiene código nativo: hace falta un development build. Y la app lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, no de `LYNKEUS_TOKEN`; las dos variables tienen que tener el mismo valor. Ver [Expo](/es/platforms/expo/).
+:::
+
+:::note[Dispositivos físicos]
+Un teléfono real no está soportado. El CLI busca un simulador o un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` y `adb` sobre uno de ellos.
+:::
+
+### La app registra `lynkeus: the app passed a token and it is empty`
+
+**Qué ves.** El CLI no encuentra la app, y en el log de la app aparece una línea que empieza con `lynkeus: the app passed a token and it is empty, so the agent stays off`.
+
+**Por qué pasa.** El punto de entrada lee `process.env.LYNKEUS_TOKEN` y nada puso un valor ahí. React Native no le da a la app ningún entorno, así que dentro de un bundle esa expresión vale `undefined` mientras algo no la reemplace. Ante un token que se pidió y no llegó, el agente queda apagado en lugar de atender a quien se conecte.
+
+**Cómo se arregla.** En una app de React Native:
+
+1. Agrega `'lynkeus-agent/babel'` a los plugins de `babel.config.js`. `npx lynkeus init` lo hace por ti.
+2. Arranca Metro con `LYNKEUS_TOKEN` definida, con el mismo valor que lee el CLI.
+3. La primera vez, y cada vez que cambies el valor, arranca Metro con `--reset-cache`. Metro guarda lo que ya transformó.
+
+```js title="babel.config.js"
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+```bash
+LYNKEUS_TOKEN=un-secreto-local npx react-native start --reset-cache
+```
+
+En Expo no hace falta el plugin: la variable de la app se llama `EXPO_PUBLIC_LYNKEUS_TOKEN`, y tiene que estar definida donde arranca el servidor de desarrollo.
+
+El plugin no escribe nada en un bundle de producción. Es deliberado: el secreto de tu máquina no tiene lugar en un build de producción.
+
+:::note[Desde 0.3.0]
+Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trataba como "sin token" y el agente atendía a cualquier proceso que se conectara, sin avisar.
 :::
 
 ### `No booted simulator. Boot one first.`
@@ -115,6 +151,22 @@ Los errores correspondientes son:
 
 **Una comparación útil.** `--js` llama al `onPress` de React en lugar de sintetizar un toque. Si con `--js` funciona y sin él no, el control existe y algo se interpone entre el dedo y él. Es un diagnóstico, no un arreglo: un test que solo pasa con `--js` no está probando lo que haría un usuario.
 
+### En Android, todos los controles aparecen `~covered`
+
+**Qué ves.** En un build de desarrollo, `lynkeus screen` marca cada control como `~covered`, y un caso agota su plazo antes de cada pulsación.
+
+**Por qué pasa.** La app se compiló antes de actualizar `lynkeus-agent`. React Native pone una capa invisible de depuración sobre todo build de desarrollo, y el agente anterior tomaba por obstáculo cualquier vista visible sobre el punto. Desde la versión 0.3.0, un control cuenta como cubierto solo por aquello en lo que un toque se detendría.
+
+**Cómo se arregla.** Recompila la app. El arreglo vive en el código nativo, y no llega con una recarga de Metro.
+
+## Un campo se lee vacío después de escribir en él
+
+**Qué ves.** `lynkeus type` escribe en un campo, el texto se ve en la app, y `lynkeus screen` lo lista con `value=""`. Una afirmación sobre el valor falla. Otra forma del mismo problema: un campo con `defaultValue` sigue mostrando ese valor después de escribir otro.
+
+**Por qué pasa.** La app se compiló antes de actualizar `lynkeus-agent`. Desde la versión 0.3.0, el valor de un campo es lo que contiene el campo nativo, y lo responde el módulo nativo. Una app compilada antes no tiene esa parte, y el agente lee el valor de las propiedades de React, como hacía hasta entonces. Un campo que la app no controla (sin propiedad `value`) no tiene ahí lo que se escribió.
+
+**Cómo se arregla.** Recompila la app después de actualizar `lynkeus-agent`. En iOS, instala antes los pods.
+
 ## Un objetivo por texto no coincide
 
 **Qué ves.** `lynkeus press '"Continuar"'` falla con `No element matches {"text":"Continuar"}`, y el texto está a la vista.
@@ -128,6 +180,24 @@ npx lynkeus why '"Continuar"'
 ```
 
 Si el texto cambia con el idioma o con el contenido, un `testID` es un objetivo más estable.
+
+### Un texto se lee como una ruta
+
+**Qué ves.** `lynkeus wait Next` termina con `Timed out waiting for Next`, y el botón "Next" está en pantalla.
+
+**Por qué pasa.** `wait` y `see` deciden por la forma, y una palabra con mayúscula inicial es una ruta.
+
+**Cómo se arregla.** Dale al texto comillas propias. Un objetivo entre comillas es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`:
+
+```bash
+npx lynkeus wait '"Next"'
+```
+
+```yaml
+  - app.wait: '"Next"'
+```
+
+Las comillas simples son para el shell o para YAML; las dobles son las que lee lynkeus. Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada.
 
 ## Una espera se agota y la pantalla está ahí
 
@@ -386,10 +456,12 @@ Estas son las causas que reconoce:
 
 - **Hace falta la New Architecture.** El agente no funciona con la arquitectura anterior.
 - **Solo builds de depuración.** La síntesis de toques usa una API privada de UIKit, envuelta en `#if DEBUG`. En un build de producción esos símbolos no existen.
+- **Solo el simulador.** Un iPhone físico no está soportado.
 
 ### Android
 
 - **La app tiene que ser depurable.** El agente se niega a correr si la app no tiene `FLAG_DEBUGGABLE`.
+- **Solo el emulador.** Un teléfono físico no está soportado.
 - **En el emulador, la app busca al driver en `10.0.2.2`.** Es la dirección con la que el emulador llega a tu máquina. Si el driver escucha en otro lado, pásale la opción `host` al montar el agente.
 
 ### Expo
@@ -401,7 +473,9 @@ Estas son las causas que reconoce:
 
 ### Host sin pantalla
 
-- **Requiere Node 20 o posterior**, y usa la configuración de jest y la transformación de Babel de tu propia app.
+- **Requiere Node 22 o posterior**, y usa la configuración de jest y la transformación de Babel de tu propia app.
+- **Una app con expo-router no puede correr aquí.** No tiene un componente raíz que exportar, y `headless init` se detiene con `no App component found`. Corre en un simulador o en un emulador.
+- **No hay video.** `case run --video` filma solo donde el host ofrece un comando `record`, y este host no lo ofrece.
 - **No hay píxeles.** `lynkeus screenshot` y `lynkeus snapshot --pixels` necesitan un simulador. La comparación por árbol de `snapshot` sí funciona.
 - **Todo lo nativo está simulado.** La cámara, la biometría y las integraciones con el sistema son mocks. Un WebView se renderiza como una caja vacía. Para probar eso, los mismos casos corren en un simulador.
 

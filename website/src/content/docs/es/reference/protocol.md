@@ -22,11 +22,13 @@ El detalle que más sorprende es la dirección de la conexión: **la app es el c
 
 `10.0.2.2` es la dirección con la que el emulador de Android llega a la máquina que lo aloja. El host y el puerto se cambian con las opciones `host` y `port` al [montar el agente](/es/reference/agent-api/).
 
-Mientras nadie escucha, la app reintenta en silencio. Durante los primeros 3 segundos después de arrancar, o de perder una conexión, lo intenta cada 100 ms. Después duplica la espera en cada intento, hasta un máximo de 1,5 segundos. Para un driver esto significa que no hay un orden de arranque obligatorio: puede empezar a escuchar antes o después que la app.
+Mientras nadie escucha, la app reintenta en silencio. Durante los primeros 3 segundos después de arrancar, o de perder una conexión, lo intenta cada 100 ms. Después duplica la espera en cada intento, hasta un máximo de 1,5 segundos. Para un driver esto significa que no hay un orden de arranque obligatorio: puede empezar a escuchar antes o después que la app. El máximo se cambia con la opción `reconnectMs` del agente.
+
+Hay un caso en que la app no se conecta nunca: cuando se montó con un token y el valor le llegó vacío. El agente queda apagado y la app lo dice en su log; no pasa a atender sin token. Para el driver se ve como una app que no está.
 
 ## El saludo
 
-Apenas la app se conecta, el driver envía el primer mensaje.
+El saludo tiene un orden fijo: el driver habla primero, con `auth`, y la app le contesta con `hello`. En un socket nuevo, `auth` es siempre el primer mensaje.
 
 **Driver → app: `auth`**
 
@@ -37,9 +39,11 @@ Apenas la app se conecta, el driver envía el primer mensaje.
 | Campo | Qué es |
 |---|---|
 | `session` | Un texto al azar, distinto para cada proceso del driver. La app lo usa para distinguir una reconexión del mismo driver de un driver nuevo. |
-| `token` | El secreto compartido. Se omite si la app se montó sin token. |
+| `token` | El secreto compartido. Va cuando el driver tiene uno. |
 
-El driver tiene que enviar `auth` siempre, aunque no haya token. La app espera ese mensaje para presentarse.
+El driver tiene que enviar `auth` siempre, aunque no haya token. La app espera ese mensaje para presentarse: no envía `hello` por su cuenta al conectarse.
+
+Una app montada con un token contesta cada petición con el error `unauthenticated` hasta que llega un `auth` con el mismo valor.
 
 **App → driver: `hello`**
 
@@ -63,8 +67,8 @@ Si el token coincide, o si la app no tiene token, responde:
 | `protocolVersion` | La versión del protocolo que habla la app. |
 | `agentVersion` | La versión de `lynkeus-agent` en la app. Los agentes anteriores a este campo no lo envían. |
 | `platform` | `ios`, `android` u otro texto. |
-| `native` | `true` si los toques son toques reales sintetizados. Solo ocurre en builds de depuración sobre un dispositivo, simulador o emulador. |
-| `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. |
+| `native` | `true` si los toques son toques reales sintetizados. Solo ocurre en builds de depuración, sobre un simulador o un emulador. |
+| `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. Un host que puede filmar nombra aquí su comando `record`; es lo que mira `case run --video`. |
 | `route` | La ruta actual, si hay un adaptador de navegación. |
 | `app` | Lo que la app quiso decir de sí misma. Un host sin pantalla envía aquí `"runtime": "headless"`. |
 
@@ -309,11 +313,17 @@ type Element = {
 };
 ```
 
+### De dónde sale `value`
+
+El `value` de un campo es lo que contiene el campo nativo. Por eso refleja lo que se escribió aunque la app no controle el campo con una propiedad `value`, o aunque le haya dado un `defaultValue`.
+
+Desde la versión 0.3.0 lo responde el módulo nativo, y la app tiene que recompilarse para tenerlo. En una app compilada antes, el agente lee el valor de las propiedades de React, como hacía hasta entonces: un campo no controlado se lee vacío después de escribir, y uno con `defaultValue` sigue mostrando ese valor.
+
 ### `covered` y `hidden` no son lo mismo
 
 Los dos dicen que un elemento no se puede tocar, pero por razones distintas, y la diferencia importa al diagnosticar.
 
-**`covered`** significa "un dedo caería sobre otra cosa". Sale de una prueba de toque nativa en el centro del elemento, cuando el módulo nativo está disponible.
+**`covered`** significa "un dedo caería sobre otra cosa". Sale de una prueba de toque nativa en el centro del elemento, cuando el módulo nativo está disponible. Solo cuenta aquello en lo que un toque se detendría. En Android, desde la versión 0.3.0, la respuesta viene de la búsqueda con la que React Native decide el destino de un toque; antes, la capa invisible de depuración de un build de desarrollo hacía que todos los controles se leyeran cubiertos. Requiere recompilar la app después de actualizar `lynkeus-agent`.
 
 **`hidden`** significa "esto no está en pantalla". El elemento está montado, pero la app no lo presenta. Es la respuesta más fuerte de las dos, y dice el motivo:
 
@@ -354,7 +364,7 @@ Cada entrada de la traza tiene un número de secuencia `seq`, un instante `t` y 
 |---|---|---|
 | `route` | `route?`, `path` | Un cambio de ruta. |
 | `request` | `method`, `url`, `status?`, `ms?`, `error?` | Una petición que terminó. |
-| `store` | `store`, `changed` | Un cambio en un store observado con `qa.observe`: por cada clave, `{ from, to }`. |
+| `store` | `store`, `changed` | Un cambio en un store observado con `qa.observe`: por cada clave de primer nivel que cambió, `{ from, to }`. Los valores van en forma corta: un objeto como su tamaño (`{3}`), una lista como su largo (`[12]`), un texto de más de 80 caracteres cortado, y el valor de una clave con nombre de secreto (`token`, `password`, `session`…) como `…`. |
 | `event` | `name`, `props?`, `route?` | Un evento de analítica informado con `qa.event`. |
 | `command` | `method`, `ms`, `error?` | Un método que ejecutó el driver. Las lecturas (`screen`, `find`, `trace`, `requests`, `ping`, `idle`, `waitFor`) no se anotan, salvo cuando fallan. |
 | `touch` | `x`, `y`, `testId?`, `text?`, `route?` | El dedo de una persona, resuelto al control que había debajo. Solo en builds de dispositivo montados con `auto()`. |

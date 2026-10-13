@@ -16,6 +16,7 @@ Expo funciona en las dos plataformas. En Android, con un development build, el a
 - **Un development build.** No funciona en Expo Go.
 - **Los proyectos nativos generados**, con `npx expo prebuild`.
 - **Node 22 o posterior** para el CLI.
+- **Un simulador de iOS o un emulador de Android.** Los dispositivos físicos no están soportados.
 
 No hace falta un *config plugin*. El módulo nativo se enlaza automáticamente al compilar.
 
@@ -79,10 +80,16 @@ Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con 
 | La app, dentro del bundle | `EXPO_PUBLIC_LYNKEUS_TOKEN` |
 | El CLI, en tu terminal | `LYNKEUS_TOKEN` |
 
-Las dos deben tener el mismo valor.
+Las dos deben tener el mismo valor. Arranca el servidor de desarrollo con `EXPO_PUBLIC_LYNKEUS_TOKEN` ya definida.
+
+Una app de React Native CLI recibe el token por el plugin de Babel `lynkeus-agent/babel`. Expo no lo necesita: incorpora la variable al bundle por su cuenta.
 
 :::caution
-Si la app recibe `undefined` como token, el agente no exige ninguno y atiende a cualquier proceso de tu máquina que se conecte. Comprueba que el nombre de la variable empiece con `EXPO_PUBLIC_`.
+Si la app recibe el token vacío o `undefined`, el agente queda apagado y la app lo dice en su log: `lynkeus: the app passed a token and it is empty`. No pasa a atender sin token. Comprueba que el nombre de la variable empiece con `EXPO_PUBLIC_` y que esté definida donde arranca el servidor de desarrollo.
+:::
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, un token vacío se trataba como "sin token" y el agente atendía a cualquier proceso que se conectara.
 :::
 
 ## Las rutas
@@ -149,6 +156,12 @@ steps:
 Ten presente lo que esto implica para tus tests. `nav` es un salto directo, no una acción de usuario, así que un caso escrito de este modo no demuestra que tocar la pestaña funcione. Demuestra lo que ocurre una vez que estás en ella.
 
 Si tu app usa una barra de pestañas dibujada con componentes de React Native, este límite no aplica.
+
+### El host sin pantalla, con expo-router
+
+Una app con expo-router no puede correr en el host sin pantalla. Ese host renderiza el componente raíz que la app exporta, y una app con expo-router no tiene ninguno: sus pantallas son archivos que carga el enrutador. `lynkeus headless init` se detiene con `no App component found`.
+
+Una app así corre en un simulador o en un emulador.
 
 ### Expo Go
 

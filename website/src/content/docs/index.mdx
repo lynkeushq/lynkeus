@@ -74,7 +74,7 @@ The npm packages are:
 ## Requirements
 
 - React Native 0.76 or newer, with the New Architecture.
-- A debug build of the app, for iOS, Android, or both. Expo apps need a development build; Expo Go does not work.
+- A debug build of the app, for iOS, Android, or both, running on a simulator or an emulator. Expo apps need a development build; Expo Go does not work.
 - Node 22 or newer for the CLI and the headless host.
 
 ## What lynkeus does not do
@@ -82,6 +82,8 @@ The npm packages are:
 It does not know your product. It has no list of your screens, no idea what your buttons do, and no notion of a user or a session. Everything it reports was read from the running app or from your source code. Where a test needs product knowledge (which user exists, how to log in, what the backend holds), you supply it, through [fixtures](/guides/fixtures/) and [configuration](/reference/configuration/).
 
 It does not run on release builds. See [Security](/security/) for what the agent exposes and why it is limited to debug builds.
+
+It does not run on physical devices. The app runs on an iOS simulator, an Android emulator or the headless host.
 
 ## Where to go next
 

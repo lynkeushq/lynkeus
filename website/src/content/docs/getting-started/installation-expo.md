@@ -19,7 +19,7 @@ If your app does not use Expo, follow [Install in a React Native app](/getting-s
 - Node 22 or newer.
 - React Native 0.76 or newer with the New Architecture enabled.
 
-No config plugin is needed. The agent's native module is autolinked.
+No config plugin is needed: the agent's native module is autolinked. The Babel plugin that a React Native CLI app uses to pass the token (`lynkeus-agent/babel`) is not needed either, because Expo has its own way to pass a variable to the app.
 
 ## Steps
 
@@ -106,8 +106,14 @@ export LYNKEUS_TOKEN=some-local-secret
 
 The app's copy is read when the JavaScript is bundled, so it must be set before the development server starts.
 
-:::caution
-If the app reads `process.env.LYNKEUS_TOKEN` (without the `EXPO_PUBLIC_` prefix), the value is `undefined` inside the bundle. The agent then serves any driver that connects, with or without a token.
+:::caution[Since 0.3.0]
+If the app reads `process.env.LYNKEUS_TOKEN` (without the `EXPO_PUBLIC_` prefix), or the development server was started without `EXPO_PUBLIC_LYNKEUS_TOKEN`, the value is `undefined` inside the bundle. A token that the app passes and that arrives empty keeps the agent off: it never falls back to serving any driver. The app says so in its log:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. …
+```
+
+The CLI then reports that no app attached.
 :::
 
 ### 4. Generate the native projects and build
@@ -173,8 +179,8 @@ Check, in this order:
 
 1. The app is a development build, not Expo Go. In Expo Go the agent's native module does not exist.
 2. `package.json` has `"main": "index.js"`, and `index.js` calls `auto()` before it imports `expo-router/entry`. `npx lynkeus init` sets both up.
-3. `EXPO_PUBLIC_LYNKEUS_TOKEN` and `LYNKEUS_TOKEN` hold the same value. A mismatch looks exactly like no app at all.
-4. The development server was started with `EXPO_PUBLIC_LYNKEUS_TOKEN` set. A value exported afterwards is not in the bundle.
+3. The development server was started with `EXPO_PUBLIC_LYNKEUS_TOKEN` set. A value exported afterwards is not in the bundle. When the app's log shows `lynkeus: the app passed a token and it is empty`, this is the cause, or the entry reads the variable without its `EXPO_PUBLIC_` prefix.
+4. `EXPO_PUBLIC_LYNKEUS_TOKEN` and `LYNKEUS_TOKEN` hold the same value. A mismatch looks exactly like no app at all.
 
 ### The screen reads, but a press fails
 

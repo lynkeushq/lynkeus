@@ -11,7 +11,7 @@ Está escrita para quien decide si lo adopta y para quien lo instala. Tiene tres
 
 - El agente solo existe en builds de depuración. En iOS, el código nativo que sintetiza toques no se compila en un build de producción. En Android, se niega a correr si la app no es depurable.
 - Dentro de la app no escucha nada. La app se conecta hacia afuera, a tu propia máquina.
-- Con un token, el agente solo atiende al driver que conoce el secreto.
+- Con un token, el agente solo atiende al driver que conoce el secreto. Un token que la app pasa y llega vacío deja al agente apagado: nunca termina atendiendo a cualquiera.
 - El CLI, el agente y el host sin pantalla no envían nada a ningún servicio. Lo único que sale de tu máquina es lo que subes con `--push` o con `lynkeus report push`, y eso lo decides en cada ejecución.
 
 ## El agente dentro de la app
@@ -37,9 +37,13 @@ El agente recorta algunos datos antes de que salgan de la app:
 - **Los campos de contraseña.** El valor de un campo con `secureTextEntry` llega enmascarado con `•`.
 - **Las cabeceras y los cuerpos de las peticiones.** No se registran nunca. De una petición solo quedan el método, la URL, el estado y la duración.
 - **Los valores sensibles de la URL.** En la cadena de consulta, se oculta el valor de todo parámetro cuyo nombre contenga `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`.
-- **El contenido de los stores en la traza.** Cuando un store observado cambia, la traza anota qué claves cambiaron. Los objetos y las listas se reducen a su tamaño.
+- **El contenido de los stores en la traza.** Cuando un store observado cambia, la traza anota qué claves de primer nivel cambiaron, con sus valores en forma corta. Un objeto o una lista se reduce a su tamaño. Un texto de más de 80 caracteres se corta. Y el valor de una clave con nombre de secreto se reemplaza por `…`: toda clave cuyo nombre contenga `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`. La traza es parte de lo que un reporte sube, y por eso no lleva secretos ni cargas completas.
 
-Hay dos límites que conviene conocer. El recorte de las URL actúa sobre la cadena de consulta: un secreto que viaja en la ruta, como `/reset/<token>`, queda visible. Y en la traza de un store, los valores simples de primer nivel (un texto, un número) se anotan tal cual. No observes con `qa.observe` un store que guarda una credencial en claro en su primer nivel.
+Hay tres límites que conviene conocer. El recorte de las URL actúa sobre la cadena de consulta: un secreto que viaja en la ruta, como `/reset/<token>`, queda visible. En la traza de un store, el recorte se guía por el nombre de la clave: un texto corto o un número bajo una clave que no parece un secreto se anota tal cual. Y el comando `stores` no recorta nada: `lynkeus call stores` devuelve el estado completo a quien maneja la app. No observes con `qa.observe` un store que guarda una credencial en claro.
+
+:::note[Desde 0.3.0]
+El recorte de los textos largos y de las claves con nombre de secreto en la traza llega con la versión 0.3.0.
+:::
 
 ### A quién se lo expone
 
@@ -59,11 +63,19 @@ auto({ token: process.env.LYNKEUS_TOKEN });
 
 El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN`.
 
+A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo: el token nunca se escribe en un build de producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
+
+**Un token vacío no abre la puerta.** Si la app pasa un token y el valor llega vacío, porque falta el plugin o porque Metro arrancó sin la variable, el agente queda apagado y la app lo dice en su log. No se convierte en un agente sin token que atiende a cualquiera. Solo una app que monta el agente sin la clave `token` atiende sin exigir ninguno.
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, un token vacío significaba "sin token". Como `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle, una app de React Native que montaba el agente con esa expresión atendía a cualquier driver que se conectara. Si actualizas desde una versión anterior, agrega el plugin (`npx lynkeus init` lo hace) y arranca Metro con la variable definida.
+:::
+
 Tres recomendaciones:
 
 - **Úsalo siempre.** Sin token, cualquier proceso de tu máquina que escuche en ese puerto maneja tu build de depuración.
 - **Que sea por máquina y no esté en el repositorio.** El token protege contra otros procesos de la misma máquina. Un valor fijo que todos conocen protege menos.
-- **Tenlo por lo que es.** El valor queda dentro del bundle de JavaScript del build de depuración. Protege una app en desarrollo contra procesos locales; no es una credencial para proteger datos de producción.
+- **Tenlo por lo que es.** El valor queda dentro del bundle de desarrollo. Protege una app en desarrollo contra procesos locales; no es una credencial para proteger datos de producción.
 
 El token viaja sin cifrar por una conexión WebSocket local (`ws://`). Eso es adecuado para una conexión dentro de la misma máquina, que es para lo que está pensado.
 
@@ -74,7 +86,8 @@ Un componente que acepta órdenes de afuera no debe existir en la app que recibe
 | Capa | Qué garantiza |
 |---|---|
 | `enabled` vale `__DEV__` por defecto | En un bundle de producción, el agente no arranca. |
-| El cliente se carga de forma perezosa | El código que abre la conexión solo se evalúa si `enabled` es verdadero. Un bundle de producción nunca lo ejecuta. |
+| El cliente se carga solo cuando hace falta | El cliente es todo lo que lee la pantalla y habla con el driver. Solo se evalúa si `enabled` es verdadero, sea cual sea la forma en que la app importa el paquete y lo que Metro esté configurado para incorporar. Un bundle de producción lleva el paquete, y ese código nunca se ejecuta ahí. |
+| El token no viaja a producción | El plugin `lynkeus-agent/babel` escribe el token solo en un bundle de desarrollo. |
 | iOS: `#if DEBUG` | La síntesis de toques usa una API privada de UIKit, la misma técnica en la que se apoyan KIF y Detox. Está envuelta en `#if DEBUG`: en un binario de producción esos símbolos no existen. No están desactivados; no están. |
 | Android: `FLAG_DEBUGGABLE` | El módulo nativo se niega a correr si la app no es depurable. |
 
@@ -194,9 +207,9 @@ No lo confundas con `lynkeus mcp`, el comando del CLI. Ese corre en tu máquina,
 
 Antes de dejar lynkeus instalado en un proyecto, repasa esto:
 
-1. El agente se monta con un `token`, y el valor no está en el repositorio.
+1. El agente se monta con un `token`, el valor no está en el repositorio y llega a la app: el plugin `lynkeus-agent/babel` está en `babel.config.js`, o la variable es `EXPO_PUBLIC_LYNKEUS_TOKEN` en Expo.
 2. `enabled` depende de tu entorno, no solo de `__DEV__`.
-3. Ningún store que guarde credenciales en claro pasa por `qa.observe`.
+3. Ningún store que guarde credenciales en claro pasa por `qa.observe`: la traza las recorta por el nombre de la clave, pero el comando `stores` devuelve el estado completo.
 4. Los comandos registrados con `qa.register` no hacen nada que no quieras que un proceso local pueda disparar.
 5. Los tests corren contra un backend de pruebas, con datos de prueba.
 6. `crawl.never` nombra los controles irreversibles de tu app.

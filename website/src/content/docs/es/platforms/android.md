@@ -13,6 +13,7 @@ Supone que ya instalaste lynkeus. Si no, empieza por [Instalación en React Nati
 - **React Native 0.76 o posterior.**
 - **Un emulador encendido**, con la app abierta.
 - **`adb` disponible en la terminal.** El CLI lo usa para encontrar el dispositivo y para todo lo que ocurre fuera de la app, como tomar una captura de pantalla.
+- **Node 22 o posterior** para el CLI.
 
 El agente trae código nativo. Después de instalar o actualizar `lynkeus-agent`, recompila la app una vez.
 
@@ -132,13 +133,26 @@ Ocurría en apps que dibujan debajo de la barra de estado. La posición calculad
 
 Está corregido a partir de la versión 0.2.0: el módulo nativo informa dónde está realmente cada vista. El arreglo vive en el código nativo, así que **hay que recompilar la app** después de actualizar `lynkeus-agent`. Hasta que lo hagas, el agente se comporta como antes.
 
+### Todos los controles aparecen `~covered`
+
+En un build de desarrollo, `lynkeus screen` marcaba cada control como `~covered`, y un caso agotaba su plazo antes de cada toque. La causa: React Native pone una capa invisible de depuración sobre todo build de desarrollo, y la búsqueda del agente tomaba por obstáculo cualquier vista visible sobre el punto.
+
+Desde la versión 0.3.0, un control cuenta como cubierto solo por aquello en lo que un toque se detendría: el agente le pregunta a React Native cuál sería el destino del toque. El arreglo vive en el código nativo, así que **hay que recompilar la app** después de actualizar `lynkeus-agent`.
+
+### Un campo se lee vacío después de escribir en él
+
+`lynkeus screen` muestra `value=""` en un campo donde `type` acaba de escribir. Pasa en una app compilada antes de actualizar `lynkeus-agent`: el agente lee el valor de las propiedades de React, y un campo que la app no controla con una propiedad `value` no lo tiene ahí.
+
+Desde la versión 0.3.0 el valor es lo que contiene el campo nativo. También aquí hay que recompilar la app después de actualizar; hasta entonces, el agente lee las propiedades como antes.
+
 ### El CLI no encuentra la app
 
 La app intenta conectarse a `10.0.2.2:8123` apenas arranca. Si el CLI no la ve, revisa:
 
 1. Que la app sea un build de depuración.
 2. Que `enabled` sea verdadero en este entorno.
-3. Que el token con el que se compiló la app sea el `LYNKEUS_TOKEN` que lee el CLI.
+3. Que el log de la app no diga `lynkeus: the app passed a token and it is empty`. Si lo dice, el token no llegó a la app y el agente quedó apagado; el arreglo está en [Solución de problemas](/es/troubleshooting/).
+4. Que el token que recibió la app sea el `LYNKEUS_TOKEN` que lee el CLI.
 
 Si la app tarda en arrancar, `--attach-timeout <ms>` le da más tiempo.
 
@@ -148,7 +162,8 @@ Si actualizaste el CLI sin recompilar la app, lynkeus avisa que las versiones di
 
 ## Límites
 
-- **Dispositivos físicos.** Esta documentación cubre el emulador. La dirección por defecto, `10.0.2.2`, solo existe dentro de él; un teléfono real no llega a tu máquina por ahí.
+- **Dispositivos físicos.** No están soportados. El CLI busca un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `adb` sobre un emulador.
+- **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Notificaciones push e idioma.** No hay comando para entregarlas o cambiarlo en Android.
 - **Builds de producción.** El agente no funciona en uno, y es intencional.
 

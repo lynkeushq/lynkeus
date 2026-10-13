@@ -9,13 +9,13 @@ Three parts can read the environment, and it matters which:
 
 - The **CLI**: the `lynkeus` command, on your machine or in CI.
 - The **headless host**: the app running in Node, started by `lynkeus headless start`.
-- **Your app**: the agent itself reads no environment variable. It receives its options from your code (`auto({ token, port })`), and your code decides where those values come from.
+- **Your app**: the agent itself reads no environment variable. It receives its options from your code (`auto({ token, port })`), and your code decides where those values come from. React Native gives the app no environment at all, so a variable reaches the app only if something writes its value into the bundle when the bundle is made. For the token, the `lynkeus-agent/babel` plugin does that.
 
 ## Summary
 
 | Variable | Read by | Purpose |
 |---|---|---|
-| [`LYNKEUS_TOKEN`](#lynkeus_token) | CLI, headless host | The shared secret between the app and its driver. |
+| [`LYNKEUS_TOKEN`](#lynkeus_token) | CLI, headless host, Metro through `lynkeus-agent/babel` | The shared secret between the app and its driver. |
 | [`LYNKEUS_PORT`](#lynkeus_port) | CLI, headless host | The port the driver listens on. |
 | [`LYNKEUS_HOST`](#lynkeus_host) | headless host | Where the driver is listening. |
 | [`LYNKEUS_DEVICE`](#lynkeus_device) | CLI | The simulator to use. |
@@ -37,16 +37,23 @@ The shared secret between the app and its driver. When the app was mounted with 
 
 - The **CLI** reads it and presents it to the app when the app attaches.
 - **`lynkeus headless start`** requires it and refuses to start without it. The hosted app uses its value as the agent's token.
-- **Your app** gets the token from your code. The common form is `auto({ token: process.env.LYNKEUS_TOKEN })`, which works when your build inlines that variable into the bundle.
+- **Your app** gets the token from your code. The common form is `auto({ token: process.env.LYNKEUS_TOKEN })`. Inside a React Native bundle that expression is `undefined` unless something writes the value there.
+- **Metro**, when `babel.config.js` lists the `lynkeus-agent/babel` plugin, reads it while it transforms your code and writes its value wherever the app reads `process.env.LYNKEUS_TOKEN`. It does so in a development bundle only, never a release one. `lynkeus init` adds the plugin. Since 0.3.0.
 
 ```bash
 export LYNKEUS_TOKEN=$(openssl rand -hex 16)
 ```
 
+Set it in the shell that starts Metro as well as in the one that runs the CLI. Metro keeps what it has transformed, so after the value changes, start Metro once with `--reset-cache`.
+
 Both ends must hold the same value. When they do not, the app never attaches. See [Security](/security/) for what the token protects.
 
+:::caution[Since 0.3.0]
+If the app passes a token and the value arrives empty, because Metro was started without the variable, the plugin is missing, or Metro's cache is stale, the agent stays off and the app logs `lynkeus: the app passed a token and it is empty`. It never falls back to serving any driver. See [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
+:::
+
 :::note
-In an Expo app, only variables that start with `EXPO_PUBLIC_` are inlined into the bundle. The app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, and the CLI still reads `LYNKEUS_TOKEN`. Set both to the same value.
+In an Expo app, only variables that start with `EXPO_PUBLIC_` are inlined into the bundle. The app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, and the CLI still reads `LYNKEUS_TOKEN`. Set both to the same value. An Expo app does not need the Babel plugin.
 :::
 
 ### `LYNKEUS_PORT`
@@ -55,7 +62,7 @@ The port the driver listens on and the app dials. Default: `port` in `lynkeus.co
 
 - The **CLI** listens on it.
 - **`lynkeus headless start`** writes it into the host it starts, so the host and its driver move together.
-- **Your app** on a simulator or a device dials the `port` you pass to `auto()` or `<Lynkeus>`. To move it, change that option too.
+- **Your app** on a simulator or an emulator dials the `port` you pass to `auto()` or `<Lynkeus>`. To move it, change that option too.
 
 Use it to run several app and driver pairs on one machine: each pair gets its own port.
 
@@ -145,7 +152,7 @@ lynkeus reads or sets a few variables that belong to other tools.
 | `CI` | CLI, `headless start` | Set to `1` for the jest process that hosts the app. |
 | The variable named by `apiEnv` (default `API_URL`) | The generated headless entry | The entry refuses to start unless this variable points at `localhost`, `127.0.0.1` or `10.0.2.2`. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Your backend | Not read by lynkeus. With `case run --traces`, point your backend's exporter at `http://localhost:4318` (or the port given with `--traces-port`). |
-| `EXPO_PUBLIC_LYNKEUS_TOKEN` | Your Expo app | Not read by lynkeus. It is how an Expo app receives the token. |
+| `EXPO_PUBLIC_LYNKEUS_TOKEN` | Your Expo app | Not read by lynkeus. It is how an Expo app receives the token: Expo inlines it, with no Babel plugin. Start the development server with it set to the value of `LYNKEUS_TOKEN`. |
 
 Three more places hand the environment through:
 

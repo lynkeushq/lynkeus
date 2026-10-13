@@ -38,16 +38,41 @@ La leen tres partes, y las tres tienen que ver el mismo valor:
 | El CLI | La presenta a la app en su primer mensaje, en cada comando que se conecta. |
 | `lynkeus headless start` | La exige: sin ella se niega a arrancar. Se la pasa a la app alojada como su token. |
 | Tu app | La lee donde montas el agente: `auto({ token: process.env.LYNKEUS_TOKEN })`. |
+| Metro, en una app de React Native | El plugin `lynkeus-agent/babel` lee la variable del entorno de Metro y escribe su valor en el bundle de desarrollo, donde la app lo encuentra. |
 
 ```bash
 export LYNKEUS_TOKEN=un-secreto-por-maquina
 npx lynkeus screen
 ```
 
-En la app, la situación es distinta de la del CLI. Un simulador o un dispositivo no ve el entorno de tu terminal, así que el valor tiene que quedar incorporado al bundle de JavaScript cuando se compila. Cómo llega ahí depende de tu proyecto: del mecanismo que tu app ya use para sus variables de entorno. lynkeus no agrega ninguno. Lo que importa es que el valor que recibe la opción `token` sea el mismo que el CLI lee de `LYNKEUS_TOKEN`.
+En la app, la situación es distinta de la del CLI. React Native no le da a la app ningún entorno: dentro de un bundle, `process.env.LYNKEUS_TOKEN` vale `undefined` mientras nada escriba ahí el valor. De eso se encarga `lynkeus-agent/babel`, un plugin de Babel que viene con el agente y que `lynkeus init` agrega a `babel.config.js`:
+
+```js title="babel.config.js"
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+Con el plugin puesto, lo que cuenta es el entorno de Metro:
+
+```bash
+# La terminal de Metro: el valor que la app va a recibir
+LYNKEUS_TOKEN=un-secreto-por-maquina npx react-native start --reset-cache
+```
+
+- **Arranca Metro con `LYNKEUS_TOKEN` definida**, con el mismo valor que lee el CLI.
+- **Después de cambiar el valor, arranca Metro una vez con `--reset-cache`.** Metro guarda lo que ya transformó, y sin eso la app sigue con el valor anterior.
+- **El plugin solo escribe en un bundle de desarrollo.** En un bundle de producción el token nunca se escribe.
+
+Si la app pasa un token y le llega vacío, el agente queda apagado, y la app lo dice en su log con una línea que empieza con `lynkeus: the app passed a token and it is empty`. No pasa a atender sin token. Una app que llama a `auto()` sin la clave `token` es otro caso: ahí el agente atiende a cualquier driver, sin exigir ninguno.
+
+:::note[Desde 0.3.0]
+El plugin `lynkeus-agent/babel` y la regla del token vacío llegan con la versión 0.3.0. Antes, un token vacío se trataba como "sin token".
+:::
 
 :::note[En Expo]
-Expo solo incorpora al bundle las variables que empiezan con `EXPO_PUBLIC_`. La app lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, y el CLI sigue leyendo `LYNKEUS_TOKEN`. Las dos tienen que tener el mismo valor. Los pasos están en la [instalación en Expo](/es/getting-started/installation-expo/).
+Expo solo incorpora al bundle las variables que empiezan con `EXPO_PUBLIC_`. La app lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, y el CLI sigue leyendo `LYNKEUS_TOKEN`. Las dos tienen que tener el mismo valor. Una app de Expo no necesita el plugin de Babel. Los pasos están en la [instalación en Expo](/es/getting-started/installation-expo/).
 :::
 
 Si los valores no coinciden, la app rechaza al driver y el CLI termina con `No app attached on …`. Ese síntoma está en [Solución de problemas](/es/troubleshooting/).
@@ -179,7 +204,7 @@ Estas variables no son de lynkeus, pero influyen en lo que hace.
 | `NODE_OPTIONS` | `headless start` | Le agrega `--dns-result-order=ipv4first` antes de arrancar jest, y conserva lo que ya tuviera. Node resuelve `localhost` primero como IPv6, y un backend local suele escuchar solo en IPv4. |
 | `CI` | `headless start` | La define como `1` para el proceso de jest que aloja la app. |
 | la que nombre `apiEnv` (por defecto `API_URL`) | host sin pantalla | La entrada que genera `headless init` comprueba que apunte a un backend local antes de renderizar la app. Si no, se detiene con `lynkeus headless only drives a local backend; API_URL is "…"`. |
-| `EXPO_PUBLIC_LYNKEUS_TOKEN` | tu app en Expo | El token, con el prefijo que Expo exige para incorporarlo al bundle. |
+| `EXPO_PUBLIC_LYNKEUS_TOKEN` | tu app en Expo | El token, con el prefijo que Expo exige para incorporarlo al bundle. Si llega vacío, el agente queda apagado. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | tu backend | No la lee lynkeus. Es la variable estándar de OpenTelemetry con la que tu backend sabe adónde exportar sus trazas. Con `case run --traces`, apúntala a `http://localhost:4318`, o al puerto de `--traces-port`. Ver [Trazas del backend](/es/guides/backend-traces/). |
 
 ## Variables en los casos y en los fixtures

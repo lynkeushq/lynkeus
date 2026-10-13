@@ -9,8 +9,8 @@ This guide covers the commands you will use most (`screen`, `press`, `type`, `sw
 
 ## Before you start
 
-- The agent is mounted in your app and the app is running as a debug build. See [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
-- `LYNKEUS_TOKEN` in your terminal holds the same value the app was built with.
+- The agent is mounted in your app and the app is running as a debug build on a simulator or an emulator. See [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
+- `LYNKEUS_TOKEN` in your terminal holds the same value the app received when it was bundled.
 - You run the commands from the app's folder.
 
 ## Read the screen
@@ -52,14 +52,17 @@ Useful variants:
 
 ## Name an element: targets
 
-A **target** is how you tell a command which element you mean. There are four spellings.
+A **target** is how you tell a command which element you mean. There are five spellings.
 
 | Spelling | Matches |
 |---|---|
 | `#next-button` | The element with that `testID`. |
-| `"Continue"` | A control (a button or an input) by exact label, then by substring. A paragraph matches only by its exact text. |
+| `Continue` | A control (a button or an input) by exact label, then by substring. A paragraph matches only by its exact text. |
+| `"Continue"` | The same text, and only ever a text. See [Quoted targets](#quoted-targets). |
 | `12` | The element at that index in the last screen listing. |
 | `100,200` | A point, in window points. |
+
+Add `[n]` to a `#testId` or a text to pick among several matches, counting from 0: `'#row[2]'` is the third element with that `testID`.
 
 Prefer `#testId`. Text changes with copy and language, an index changes whenever the screen does, and a point changes with the device.
 
@@ -70,6 +73,23 @@ In a shell, quote targets that start with `#` so the shell does not read them as
 ```bash
 npx lynkeus press '#next-button'
 ```
+
+### Quoted targets
+
+lynkeus decides what a target is from its shape. Digits are an index, `#` starts a `testID`, and to `wait` and `see` a word that starts with a capital is a route. That leaves some texts you cannot write plainly: a label that reads `12`, a hashtag, a button labeled `Next`.
+
+A target inside quotes of its own is the text between them and never anything else:
+
+```bash
+npx lynkeus wait '"Next"'      # the element that says Next, not a route called Next
+npx lynkeus press '"12"'       # the control labeled 12, not the element at index 12
+```
+
+There are two pairs of quotes because there are two readers. The shell takes the outer pair; the inner pair reaches lynkeus. Either kind of quote works on the inside.
+
+:::note[Since 0.3.0]
+Before 0.3.0 the inner quotes stayed in the text, so `press '"Next"'` looked for a label with quotes in it and found nothing, and a capitalized word given to `wait` or `see` could only be a route.
+:::
 
 ## Press, type and swipe
 
@@ -108,12 +128,15 @@ After an action, the app needs time: a request, an animation, a navigation. `wai
 ```bash
 npx lynkeus wait Settings.Main              # until that route is on screen
 npx lynkeus wait '#pay-button'              # until that element appears
+npx lynkeus wait '"Pay now"'                # until an element with that text appears
 npx lynkeus wait '#spinner' --gone          # until it leaves
 npx lynkeus wait '#row-25' --scroll         # scroll the nearest scroller until it is in the window
 npx lynkeus wait 800                        # a plain pause, in ms
 ```
 
 `wait` gives up after 10 seconds by default. Change that with `--timeout <ms>`.
+
+`wait` and `see` take a route or a target in the same position. A word that starts with a capital letter (`Settings.Main`, `Next`) is a route. To wait for a text that looks like one, quote it: `'"Next"'`. A route that does not start with a capital, as expo-router's do, takes the `route:` prefix: `npx lynkeus wait route:index`.
 
 `idle` waits for something different: for the app to stop committing renders, which means data arrived and animations finished.
 
@@ -189,7 +212,11 @@ The agent inside your app walks React's own tree, keeps the components a user co
 
 Touches and keystrokes are synthesized natively inside the app's process, so they travel the same path as a real finger and a real keyboard. Waits end on the render that satisfies them.
 
-Values of `secureTextEntry` fields are masked. The request log keeps method, path, status and duration, never headers or bodies.
+An input's `value` is what its native field holds, not what React was told to put there. A field the app does not control (one with no `value` prop) therefore reads as what was typed into it. Values of `secureTextEntry` fields are masked. The request log keeps method, path, status and duration, never headers or bodies.
+
+:::note[Since 0.3.0]
+Reading the value from the native field needs the native module of `lynkeus-agent` 0.3.0, so rebuild the app after updating the package. Until then the agent reads React's props as before: an uncontrolled field reads as empty after typing, and one with a `defaultValue` keeps reading as that. The same rebuild gives Android its corrected `~covered`; see [Android](/platforms/android/).
+:::
 
 ## Common problems
 
@@ -204,11 +231,15 @@ npx lynkeus why --route Checkout.Confirm
 
 **A text target does not match.** A word inside a paragraph is never a target: a paragraph matches only by its exact text. `npx lynkeus why '"Continue"'` says whether the text is a wording or an accent away.
 
+**`wait Next` times out although the button is on screen.** A capitalized word is a route to `wait` and `see`. Quote the text: `npx lynkeus wait '"Next"'`.
+
+**An input reads `value=""` after typing into it.** The app was built before `lynkeus-agent` was updated, and the field has no `value` prop. Rebuild the app.
+
 **A wait times out on a screen that is clearly there.** The route name comes from the navigation adapter. Check `npx lynkeus screen` for the real name.
 
 **No keyboard appears on the iOS simulator.** The simulator is taking keys from the Mac. Turn off I/O → Keyboard → Connect Hardware Keyboard.
 
-**The driver never attaches.** Check that the build is a debug build, that the agent is enabled for this environment, and that the app's token equals `LYNKEUS_TOKEN`. `--attach-timeout <ms>` waits longer. More in [Troubleshooting](/troubleshooting/).
+**The driver never attaches.** Check that the build is a debug build, that the agent is enabled for this environment, that the app's log does not say `the app passed a token and it is empty`, and that the app's token equals `LYNKEUS_TOKEN`. `--attach-timeout <ms>` waits longer. More in [Troubleshooting](/troubleshooting/).
 
 ## Next steps
 

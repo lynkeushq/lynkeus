@@ -36,7 +36,7 @@ Calling `auto` a second time does nothing. Calling it with `enabled` false does 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
 | `enabled` | boolean | `__DEV__` | Whether the agent runs at all. |
-| `token` | string | none | The shared secret. When set, the driver must present it before any command is served. |
+| `token` | string | none | The shared secret. When set, the driver must present it before any command is served. Passed but empty, it keeps the agent off. See [The token option](#the-token-option). |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
 | `port` | number | `8123` | The driver's port. |
 | `app` | object | none | A free-form description of the app, sent to the driver when the app attaches: name, version, environment. |
@@ -45,6 +45,49 @@ Calling `auto` a second time does nothing. Calling it with `enabled` false does 
 | `onError` | `(error, context) => void` | none | Called when something fails inside the connection. The app itself stays quiet. |
 
 `auto` takes every prop of `<Lynkeus>` except `navigation`, which it finds by itself, plus `discoverEveryMs`.
+
+### The token option
+
+`token` has three cases, and the difference between the last two matters.
+
+| What the app passes | What the agent does |
+|---|---|
+| A non-empty string | Serves only a driver that presents the same value. |
+| No `token` key at all: `auto()`, `auto({ enabled })` | Serves any driver that connects. |
+| A `token` key whose value is empty or `undefined` | Stays off, and logs why. It serves nobody. |
+
+The third case is what happens when the app reads a variable that never reached the bundle. The agent does not treat it as "no token": an app that asked for protection and did not get the value must not end up serving whoever connects. The line it writes to the app's log, with `console.warn`, is:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+```
+
+The same applies to the `token` prop of `<Lynkeus>`.
+
+:::note[Since 0.3.0]
+Before 0.3.0 an empty token meant "no token", and the agent served any driver that connected.
+:::
+
+### `lynkeus-agent/babel`
+
+React Native gives the app no environment. `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes the value there. `lynkeus-agent/babel` is a Babel plugin that does: wherever the app's code reads `process.env.LYNKEUS_TOKEN`, it writes the value the variable has in Metro's environment.
+
+```js title="babel.config.js"
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+| | |
+|---|---|
+| What it rewrites | The expression `process.env.LYNKEUS_TOKEN`, and nothing else. |
+| When | In a development bundle only. A release bundle is left alone, so the token is never written into one. |
+| When the variable is not set | It rewrites nothing. The expression stays `undefined` in the app, and the agent stays off as described above. |
+| Who adds it | `lynkeus init`, or you by hand. |
+| Expo | Not needed. An Expo app reads `EXPO_PUBLIC_LYNKEUS_TOKEN`, which Expo inlines itself. |
+
+Start Metro with `LYNKEUS_TOKEN` set to the value the CLI reads. Metro keeps what it has transformed, so after the value changes start it once with `--reset-cache`. Available since 0.3.0.
 
 ## `<Lynkeus>`
 
@@ -68,7 +111,9 @@ const App = () => {
 };
 ```
 
-Mount it once, anywhere under your navigation container. It renders nothing. The code that talks to the driver is loaded only when `enabled` is true, so a release bundle never evaluates it.
+Mount it once, anywhere under your navigation container. It renders nothing.
+
+The client, which is everything that reads the screen and talks to the driver, is loaded only when `enabled` is true. That holds whichever way the app imports the package and whatever Metro is configured to inline, so a release bundle never evaluates it. Since 0.3.0 this includes an app that imports `<Lynkeus>` from the package root and leaves it disabled; before, that import evaluated the client unless Metro inlined its requires.
 
 The options are read once, when the component mounts. Changing `host`, `port` or `token` on a later render has no effect; changing `enabled` or `navigation` restarts the connection.
 
@@ -80,7 +125,7 @@ The options are read once, when the component mounts. Changing `host`, `port` or
 | `navigation` | `NavigationAdapter` | none | How the agent reads and drives your router. Without one you still get the screen, touches and waits, but no routes. |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
 | `port` | number | `8123` | The driver's port. Change it on both ends to run several apps on one machine. |
-| `token` | string | none | The shared secret. When set, the driver must present it before any command is served, which keeps other local processes from driving the app. The CLI reads its copy from `LYNKEUS_TOKEN`. |
+| `token` | string | none | The shared secret. When set, the driver must present it before any command is served, which keeps other local processes from driving the app. The CLI reads its copy from `LYNKEUS_TOKEN`. Passed but empty, it keeps the agent off; see [The token option](#the-token-option). |
 | `app` | object | none | A free-form description sent when the app attaches. `lynkeus hello` prints it. |
 | `reconnectMs` | number (ms) | `1500` | The longest wait between two attempts to reach the driver. For 3 seconds after the app starts or a connection drops, it retries every 100 ms; after that each wait doubles, up to this value. |
 | `onError` | `(error, context) => void` | none | Called when something fails inside the connection. |
@@ -168,14 +213,28 @@ qa.observe('session', useSessionStore);
 | Parameter | Type | Meaning |
 |---|---|---|
 | `name` | string | What the store is called in the trace and in the `stores` command. |
-| `store` | `{ getState(), subscribe(listener) }` | Anything with these two methods. `subscribe` must call the listener with the new state on every change, and return an unsubscribe function. |
+| `store` | `{ getState(), subscribe(listener) }` | Anything with these two methods: a Zustand store, a Redux store. `subscribe` must call the listener on every change and return an unsubscribe function. The agent reads the new state from `getState()`, so the listener needs no argument. |
 
 It returns a function that stops observing.
 
 Two things follow from observing a store:
 
-- Every change adds a line to the trace with the top-level keys that changed. Values are reduced before they are recorded: an object becomes its number of keys and an array its length, so secrets and payloads never land in the trace.
-- `lynkeus call stores '{"name":"session"}'` reads the store's state. The state is cut to four levels deep and 50 items per array, and functions are left out.
+- Every change adds a line to the trace with the top-level keys that changed, each with its value before and after. The values are kept short, as the table below shows, because a trace is part of what a report uploads.
+- `lynkeus call stores '{"name":"session"}'` reads the store's state, in full: none of the shortening below applies to it. The state is cut only to four levels deep and 50 items per array, and functions are left out.
+
+| A top-level value that is | Appears in the trace as |
+|---|---|
+| An object | Its number of keys, such as `{3}`. |
+| An array | Its length, such as `[12]`. |
+| A string longer than 80 characters | Its first 80 characters, then `…`. |
+| Under a key named like a secret | `…`, whatever the value. |
+| Anything else (a number, a boolean, a short string) | Itself. |
+
+A key is named like a secret when its name contains `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth`, in any letter case.
+
+:::note[Since 0.3.0]
+Redux stores work since 0.3.0. Before, the agent read the new state from the listener's argument, which Zustand passes and Redux does not, so every key of a Redux store was traced as changing to nothing. The masking of secret-named keys and the cut at 80 characters also arrived in 0.3.0.
+:::
 
 :::tip
 Call `qa.observe` before your app subscribes to the store itself. Stores notify listeners in the order they subscribed and stop at the first one that throws, so an app listener that fails would otherwise hide the change from the trace.
@@ -272,7 +331,7 @@ These exist for people who host the app themselves or write tooling on top of th
 
 | Export | From | Purpose |
 |---|---|---|
-| `start(options)` | `lynkeus-agent` | Starts the connection without a component. Returns a stop function. |
+| `start(options)` | `lynkeus-agent` | Starts the connection without a component. Returns a stop function. Like `createHandlers` and `dispatch`, it loads the client when it is called, not when the package is imported. |
 | `host` | `lynkeus-agent` | For whatever speaks for the app instead of the agent's own connection, such as the headless host: claim the connection, hook into `reset`. |
 | `createHandlers`, `dispatch` | `lynkeus-agent` | The handlers behind each protocol method. |
 | `traceRecord` | `lynkeus-agent` | Adds an entry to the trace. |

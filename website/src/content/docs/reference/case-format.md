@@ -93,7 +93,7 @@ A step has one of four results:
 | `passed` | It did what it says. |
 | `failed` | It did not. The case fails. |
 | `skipped` | It was not run: an `on:` condition did not hold, an `optional` press found nothing, or an earlier step failed. |
-| `unsupported` | The host has no way to do it, such as a mocked response on a real device. The case stops there with result `unsupported`. It is not retried and does not fail the run. |
+| `unsupported` | The host has no way to do it, such as a mocked response on a simulator or an emulator. The case stops there with result `unsupported`. It is not retried and does not fail the run. |
 
 ## Targets
 
@@ -106,8 +106,38 @@ Steps that touch or look for an element take a **target**, written as a string:
 | `"12"` | The element at that index in the screen listing. |
 | `"364,84"` | A point, in window points. |
 | `"#row[2]"` | The third match (counted from 0). |
+| `'"Next"'` | The text between the inner quotes, and only ever a text. |
 
 In YAML, quote a target that starts with `#`: an unquoted `#` starts a comment.
+
+### Quoted targets
+
+The quotes in the table above are YAML's: they mark a string and do not reach lynkeus. A target that carries quotes of its own, inside YAML's, is the text between them and never a route, an index or a `testID`.
+
+```yaml
+- app.wait: Next          # a route called Next
+- app.wait: '"Next"'      # the element that says Next
+- app.press: "12"         # the element at index 12
+- app.press: '"12"'       # the control labeled 12
+```
+
+Either kind of quote works on the inside, as long as YAML's are the other kind: `'"Next"'` or `"'Next'"`.
+
+:::note[Since 0.3.0]
+Before 0.3.0 the inner quotes stayed in the text, so the target matched nothing, and `app.wait` could only read a capitalized word as a route.
+:::
+
+### `testId` in place of `target`
+
+Where a step takes `target`, it also takes `testId`: the same name without the `#`. Give one or the other. `app.press`, `app.type`, `app.swipe`, `app.wait` and `app.see` accept it.
+
+```yaml
+- app.press: { testId: next-button }                       # target: "#next-button"
+- app.type: { text: "Ana", testId: name-input }
+- app.swipe: { direction: left, testId: carousel }
+```
+
+Before 0.3.0 only `app.see` accepted it, and the other steps refused it with errors such as `press has no testId`.
 
 ## Steps that drive the app
 
@@ -120,11 +150,15 @@ Presses an element. It waits for the control to be listed, in the window, enable
 - app.press: { target: "#like-button", within: "hi from Ana" }
 - app.press: { target: "#promo-close", optional: true }
 - app.press: { target: "#message", hold: 600 }
+- app.press: { testId: next-button }
+- app.press: { text: "Continue" }
 ```
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
-| `target` | target | required | What to press. A plain string value is the target. |
+| `target` | target | required, unless `testId` or `text` is given | What to press. A plain string value is the target. |
+| `testId` | string | | In place of `target`: the element with that `testID`. Since 0.3.0. |
+| `text` | string | | In place of `target`: the element with that text. Used only when neither `target` nor `testId` is given. Since 0.3.0. |
 | `within` | target | | Among several matches, take the one nearest this `#testId` or text. |
 | `nth` | number | | Take the nth match, counted from 0. |
 | `optional` | boolean | `false` | Press only if the target is on screen once the app has gone quiet. Otherwise the step is skipped, not failed. |
@@ -134,23 +168,27 @@ Presses an element. It waits for the control to be listed, in the window, enable
 
 When the target is not listed, the step waits half a second and then scrolls to find it. When it is listed but outside the window, the step scrolls toward it.
 
+A step that names nothing to press fails with `app.press needs a target`.
+
 ### `app.type`
 
-Types text. With a `target`, the field is tapped first.
+Types text. With a `target`, the step waits for the field to be there and taps it first.
 
 ```yaml
 - app.type: { text: "1124888418", target: "#phone-input", submit: true }
+- app.type: { text: "482913", testId: code-input, timeoutMs: 15000 }
 ```
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `text` | string | required | What to type. A plain string value is the text, typed into the focused input. |
-| `target` | target | | The field to tap first. |
+| `target` | target | | The field to tap first. `testId` is accepted in its place. |
 | `within` | target | | Among several matches, take the one nearest this target. |
 | `nth` | number | | Take the nth match, counted from 0. |
 | `submit` | boolean | `false` | Press the return key afterwards. |
 | `clear` | boolean | `false` | Clear the field first. |
 | `paste` | boolean | `false` | Insert the whole text at once instead of key by key. |
+| `timeoutMs` | number (ms) | `5000` | With a target: how long the field may take to arrive. A field that mounts a moment after its screen, such as a code input, takes what is typed only once it is there. Since 0.3.0; before, the step refused it with `type has no timeoutMs`. |
 
 ### `app.swipe`
 
@@ -165,10 +203,12 @@ Drags a finger, across the window or on an element.
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
 | `direction` | `up`, `down`, `left`, `right` | | Which way to drag. A plain string value is the direction. |
-| `target` | target | | Swipe on this element: drives its own gesture (a slider, a sheet). The whole drag is kept inside the window. |
+| `target` | target | | Swipe on this element: drives its own gesture (a slider, a sheet). The whole drag is kept inside the window. `testId` is accepted in its place. |
 | `distance` | number (points) | | How far to drag. |
 | `from`, `to` | `"x,y"` | | Both ends of the drag, in points, instead of a direction. |
 | `durationMs` | number (ms) | | How long the drag takes. |
+
+`app.swipe` does not take `timeoutMs`: it does not wait for its target the way `app.press` and `app.type` do.
 
 On a device, a swipe is followed by a wait for the screen to stop moving. A pager keeps going after the finger lifts, and would swallow a swipe sent into that momentum.
 
@@ -206,7 +246,7 @@ Waits for something. The value decides for what.
 A `request` counts only the requests the app started after the previous acting step began, so an earlier screen's request to the same path does not pass for the one you mean. See [`app.requests`](#apprequests) to mark further back.
 
 :::caution
-A one-word label that starts with a capital letter, such as `Continue`, is read as a route by `app.wait`. Wait for such a control by its `testID`, or assert it with `app.see`.
+A one-word label that starts with a capital letter, such as `Continue`, is read as a route by `app.wait`. Wait for such a control by its `testID`, or put the text in quotes of its own so that it is always a text: `app.wait: '"Continue"'`. See [Quoted targets](#quoted-targets).
 :::
 
 ### `app.see`
@@ -444,7 +484,7 @@ steps:
 
 | Condition | Holds when |
 |---|---|
-| `device` | The app runs on a phone, a simulator or an emulator. |
+| `device` | The app runs on a simulator or an emulator. |
 | `headless` | The app runs anywhere else. |
 | `ios` | The app reports the platform `ios`. |
 | `android` | The app reports the platform `android`. |

@@ -27,25 +27,51 @@ The [last section](#what-why-tells-you) lists every answer `why` can give.
 ✗ No app attached on 127.0.0.1:8123 within 15000ms. Is a dev build running with <Lynkeus>?
 ```
 
-**Why.** The CLI listens, and the app dials in. The app dials `localhost:8123` on iOS and `10.0.2.2:8123` on the Android emulator, and keeps retrying. If nothing arrives, the agent in the app is not running, is dialing somewhere else, or is being refused.
+**Why.** The CLI listens, and the app dials in. The app dials `localhost:8123` on iOS and `10.0.2.2:8123` on the Android emulator, every 100 ms for the first 3 seconds and then at growing intervals up to 1.5 seconds. If nothing arrives, the agent in the app is not running, is dialing somewhere else, or is being refused.
 
 **Fix.** Check these in order:
 
 1. **The build is a debug build.** The agent does not run in a release build.
 2. **`enabled` is true for this environment.** If you gate it, as in `enabled: __DEV__ && config.ENV !== 'prod'`, check what the expression gives in the build you are running.
-3. **The tokens match.** The token the app was built with must be the value of `LYNKEUS_TOKEN` in the terminal where you run the CLI. A mismatch looks exactly like no app at all.
-4. **The ports match.** If you set `LYNKEUS_PORT` or `port` in `lynkeus.config.json`, the app's `port` option must be the same number.
-5. **The app was rebuilt after you added the package.** The native module is compiled into the app.
-6. **The app is running.** `--launch --app <bundleId>` relaunches it before attaching.
+3. **The token reached the app.** Look in the app's log for `lynkeus: the app passed a token and it is empty`. If the line is there, the agent is off; see [the next entry](#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
+4. **The tokens match.** The token the app received when it was bundled must be the value of `LYNKEUS_TOKEN` in the terminal where you run the CLI. A mismatch looks exactly like no app at all.
+5. **The app runs on a simulator or an emulator.** Physical devices are not supported: the CLI looks for a booted simulator or emulator.
+6. **The ports match.** If you set `LYNKEUS_PORT` or `port` in `lynkeus.config.json`, the app's `port` option must be the same number.
+7. **The app was rebuilt after you added the package.** The native module is compiled into the app.
+8. **The app is running.** `--launch --app <bundleId>` relaunches it before attaching.
 
 If the app is only slow to start, give it longer with `--attach-timeout <ms>`, or `attachTimeout` in `lynkeus.config.json`.
+
+### The app logs `lynkeus: the app passed a token and it is empty`
+
+**What you see.** The CLI reports that no app attached. The app's log, where its `console.warn` output goes, has this line:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+```
+
+**Why.** The entry file passes `token: process.env.LYNKEUS_TOKEN` and nothing put a value there. React Native gives the app no environment, so that expression is `undefined` inside a bundle unless something writes the value in. An app that asks for a token and does not get one keeps the agent off, rather than serve whoever connects.
+
+**Fix.** In a React Native CLI app:
+
+1. Add `'lynkeus-agent/babel'` to the plugins in `babel.config.js`. `npx lynkeus init` does it for you.
+2. Start Metro from a shell where `LYNKEUS_TOKEN` is set to the value the CLI reads.
+3. Start it once with `--reset-cache`. Metro keeps what it has transformed, so without this it goes on serving the entry file as it was when the variable was empty.
+
+In an Expo app the plugin is not needed. Name the variable `EXPO_PUBLIC_LYNKEUS_TOKEN`, read that name in the entry file, and start the development server with it set.
+
+The plugin writes the token into a development bundle only, never a release one.
+
+:::note[Since 0.3.0]
+Before 0.3.0 an empty token did not turn the agent off: it served any driver, with or without a token. If an app that attached before the update stopped attaching after it, this is the reason.
+:::
 
 ### The app attaches in a React Native app but not in Expo
 
 **Why.** Two things are specific to Expo:
 
 - The agent has native code, so it does not work in Expo Go. It needs a development build: `npx expo prebuild`, then `npx expo run:ios` or `npx expo run:android`.
-- Expo only inlines environment variables that start with `EXPO_PUBLIC_`. An app that reads `process.env.LYNKEUS_TOKEN` gets `undefined`.
+- Expo only inlines environment variables that start with `EXPO_PUBLIC_`. An app that reads `process.env.LYNKEUS_TOKEN` gets `undefined`, and with an empty token the agent stays off.
 
 **Fix.** Run a development build, and read the token from `EXPO_PUBLIC_LYNKEUS_TOKEN` in the app. The CLI still reads `LYNKEUS_TOKEN`. Both must hold the same value. See [Expo](/platforms/expo/).
 
@@ -109,11 +135,27 @@ lynkeus screen
 
 | You see | Meaning | Fix |
 |---|---|---|
-| `~covered` | A touch at its center would land on something else. | Close what is over it, or press what covers it. |
+| `~covered` | A touch at its center would land on something else. | Close what is over it, or press what covers it. If every control reads `~covered` on Android, see the next entry. |
 | `!disabled` | The control will not answer a touch. | A form is not valid yet, or a request it depends on is still in flight. Wait for it. |
 | `3 hidden: 3 behind-overlay` in the header | The element is mounted but belongs to a screen the app is not showing. | Close what is open, or target something inside it. `lynkeus screen --all` lists the hidden elements. |
 
 `lynkeus press <target> --js` presses through the React handler instead of the OS. If that works where a normal press does not, something is over the element. It is a useful comparison, not a fix.
+
+### On Android, every control reads `~covered`
+
+**What you see.** In a development build on Android, `lynkeus screen` marks every control `~covered`, and a case waits out its deadline before each press.
+
+**Why.** React Native lays an invisible debugging overlay over every development build. An older native module counted any visible view over a control as covering it, the overlay included. The current one asks React Native what a touch would stop at, so a control is covered only by something that would take the touch.
+
+**Fix.** Update `lynkeus-agent` to 0.3.0 or newer and rebuild the app. The fix is in the native module, so a Metro reload is not enough.
+
+### An input's value reads empty after typing
+
+**What you see.** `lynkeus type` succeeds and the text is visible in the app, but the listing shows `value=""`, or still shows the field's `defaultValue`. An `app.see` on the field's text fails.
+
+**Why.** An input's value is what its native field holds. An app built before `lynkeus-agent` 0.3.0 has a native module that cannot answer that question, so the agent reads React's props instead, as it used to. A field the app does not control, one with no `value` prop, has nothing in its props after typing, and one with a `defaultValue` goes on reading as that.
+
+**Fix.** Rebuild the app after updating `lynkeus-agent`. Updating the package and reloading Metro is not enough: the native module has to be compiled in.
 
 ### On Android, a press lands above its target
 
@@ -131,7 +173,9 @@ lynkeus screen
 
 **Why.** A text target matches a control (button or input) by its exact label first, then by substring. A paragraph matches only by its exact text, so a word inside running copy is never a target. The text may also differ from what you wrote by wording, by an accent or by case.
 
-**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. Prefer a `testID` for anything a test presses.
+A text that looks like something else is read as that. `12` is an index, and to `wait` and `see` a capitalized word is a route.
+
+**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. Put a text that could be mistaken in quotes of its own, inside the shell's: `lynkeus press '"12"'`. Since 0.3.0 the quotes mean "this is a text"; before, they stayed in the text and matched nothing. Prefer a `testID` for anything a test presses.
 
 ### A wait times out on a screen that is clearly there
 
@@ -147,7 +191,7 @@ lynkeus screen
 - The app has no navigation adapter. Without one there are no routes at all, only elements.
 - You meant a text, and lynkeus read a route. A word that starts with a capital letter, such as `Continue`, is read as a route name by `wait` and `see`.
 
-**Fix.** `lynkeus screen` prints the real route on its first line. If it prints no route, mount the agent with `auto()` or pass `navigation` to `<Lynkeus>`. To wait for a control, use its `testID`.
+**Fix.** `lynkeus screen` prints the real route on its first line. If it prints no route, mount the agent with `auto()` or pass `navigation` to `<Lynkeus>`. To wait for a control, use its `testID`, or quote its text so that it cannot be a route: `lynkeus wait '"Continue"'`, or `app.wait: '"Continue"'` in a case.
 
 ### `lynkeus idle` never settles
 
@@ -266,7 +310,7 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **What you see.** A step is marked 🚫 with `this host has no <command>`, and the summary says `2 cannot run on this host`.
 
-**Why.** The step needs something this host cannot do: a mocked response on a real device, or a command the app does not register in this build. That says nothing about the app, so the case is not failed and the run still exits with 0.
+**Why.** The step needs something this host cannot do: a mocked response on a simulator or an emulator, or a command the app does not register in this build. That says nothing about the app, so the case is not failed and the run still exits with 0.
 
 **Fix.** Nothing is broken. Run the case where the host can do it, or keep the step to that host with `on:`. See [Conditions with `on:`](/reference/case-format/#conditions-with-on).
 

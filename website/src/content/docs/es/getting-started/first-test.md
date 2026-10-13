@@ -12,7 +12,7 @@ El orden no es casual. Un caso es la misma secuencia de comandos que escribiría
 - lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
 - La app abierta en un simulador o un emulador, en build de depuración.
 - `npx lynkeus screen` funcionando: imprime la pantalla actual.
-- Si configuraste un token, la variable `LYNKEUS_TOKEN` definida en tu terminal.
+- Si configuraste un token, la variable `LYNKEUS_TOKEN` definida en tu terminal, con el mismo valor que recibió la app.
 
 Los ejemplos usan una app imaginaria con un botón de ajustes y un selector de tema. Los `testID` y las rutas de tu app son otros: cada vez que veas `#settings-button` o `Settings.Main`, reemplázalos por lo que te muestre `lynkeus screen`.
 
@@ -58,6 +58,8 @@ Un **objetivo** es la forma de señalar un elemento. Todos los comandos que toca
 | `100,200` | un punto de la ventana |
 
 Usa el `testID` siempre que exista. No cambia con el idioma ni con la redacción de los textos.
+
+Un objetivo que lleva sus propias comillas es siempre el texto que está adentro, nunca una ruta, un índice ni un `testID`. Para que las comillas lleguen a lynkeus hay que protegerlas de la terminal con otras: `'"Settings"'`. Cuándo hace falta está en [Errores habituales](#errores-habituales).
 
 ### 3. Toca un elemento
 
@@ -211,11 +213,24 @@ steps:
 
 ### Una palabra con mayúscula se toma como ruta
 
-`wait` y `see` deciden qué buscar por la forma de lo que les pasas. Una sola palabra que empieza con mayúscula, como `Dark`, se interpreta como el nombre de una ruta, no como un texto. En un caso, evita la ambigüedad con la forma larga:
+`wait` y `see` deciden qué buscar por la forma de lo que les pasas. Una sola palabra que empieza con mayúscula, como `Dark`, se interpreta como el nombre de una ruta, no como un texto.
+
+Para decir que es un texto, dale sus propias comillas. Un objetivo entre comillas nunca es una ruta:
+
+```bash
+npx lynkeus wait '"Dark"'
+```
+
+Las comillas simples de afuera son para la terminal; las dobles de adentro son las que lee lynkeus. En un caso se escribe igual, o con la forma larga:
 
 ```yaml
+  - app.wait: '"Dark"'
   - app.see: { text: "Dark" }
 ```
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada.
+:::
 
 ### Una ruta en minúscula se toma como texto
 

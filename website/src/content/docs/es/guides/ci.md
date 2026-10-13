@@ -171,8 +171,10 @@ En cada pull request, ese flujo construye el mapa de la app a partir del código
 El job tiene más trabajo antes de llegar a lynkeus: compilar el build de depuración, encender el dispositivo virtual, instalar la app y abrirla. Eso depende de tu proyecto y de tu sistema de CI. Lo que lynkeus necesita saber es poco:
 
 - **Solo builds de depuración.** En iOS, además, la Nueva Arquitectura. En Android, la app debe ser depurable; de lo contrario el agente se niega a funcionar.
-- **La app es quien se conecta.** Marca a `localhost:8123` en el simulador de iOS y a `10.0.2.2:8123` en el emulador de Android, y reintenta cada 1,5 segundos. No hay que abrir ningún puerto hacia la app.
-- **El token se fija al compilar.** El valor con el que se compiló la app debe ser el `LYNKEUS_TOKEN` del paso que ejecuta los casos.
+- **Un dispositivo virtual, no uno físico.** El CLI busca un simulador o un emulador encendido. Los dispositivos físicos no están soportados.
+- **La app es quien se conecta.** Marca a `localhost:8123` en el simulador de iOS y a `10.0.2.2:8123` en el emulador de Android. Durante los primeros 3 segundos reintenta cada 100 ms; después espacia los intentos hasta un máximo de 1,5 segundos. No hay que abrir ningún puerto hacia la app.
+- **El token se escribe en el bundle.** En una app de React Native lo escribe el plugin `lynkeus-agent/babel` cuando Metro transforma el código, así que el paso que arranca Metro necesita `LYNKEUS_TOKEN` con el mismo valor que el paso que ejecuta los casos. En Expo, la variable de la app es `EXPO_PUBLIC_LYNKEUS_TOKEN`. Un bundle de producción nunca recibe el token.
+- **Un token vacío apaga el agente.** Si la app pasa un token y le llega vacío, el agente no arranca y lo dice en el log de la app: `lynkeus: the app passed a token and it is empty`. En el job se ve como una app que nunca se conecta.
 
 Con la app instalada, el comando cambia poco:
 
@@ -180,7 +182,7 @@ Con la app instalada, el comando cambia poco:
 npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --push
 ```
 
-`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso, y `--video` filma cada caso donde el host puede hacerlo.
+`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` filma solo donde el host ofrece un comando `record`, y una sesión de simulador o de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 
 ## Cómo funciona
 

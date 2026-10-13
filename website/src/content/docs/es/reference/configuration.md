@@ -131,7 +131,7 @@ Se usan en tres lugares: `lynkeus os language` toma este idioma cuando no le das
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `lintBaseline` | texto | ninguno | El archivo de referencia contra el que compara `lynkeus lint` cuando no le das `--baseline`. |
+| `lintBaseline` | texto | ninguno | El archivo de referencia contra el que compara `lynkeus lint` cuando no le das `--baseline`. Un hallazgo se reconoce por su regla, su `testID` y aquello de lo que trata, no por su mensaje; un archivo guardado antes de la versión 0.3.0 sigue comparando por el mensaje hasta que lo guardas otra vez con `lynkeus lint --save`. |
 | `lint.i18nKeyPatterns` | lista de textos | dos patrones (ver abajo) | Expresiones regulares que describen cómo se ve una clave de traducción sin traducir. No distinguen mayúsculas. Una lista vacía apaga la regla. |
 | `lint.minTouchTarget` | número (puntos) | `44` | El lado más chico que se acepta para un objetivo táctil. |
 | `lint.contrast` | `false` u objeto | activado | Cómo se mide el contraste del texto. `false` apaga la comprobación. |
@@ -258,7 +258,7 @@ La configuración se envía a la app al comienzo de cada caso, así que un caso 
 
 ## Lo que no va en este archivo
 
-- **El token.** Es un secreto y se lee de la variable `LYNKEUS_TOKEN`. No lo pongas en un archivo que se sube al repositorio.
+- **El token.** Es un secreto y se lee de la variable `LYNKEUS_TOKEN`. No lo pongas en un archivo que se sube al repositorio. El CLI la lee de su entorno; a una app de React Native el valor le llega por el plugin `lynkeus-agent/babel`, desde el entorno de Metro.
 - **La dirección y la clave del servicio de reportes.** Van en `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`.
 
 Las dos están en [Variables de entorno](/es/reference/environment-variables/).

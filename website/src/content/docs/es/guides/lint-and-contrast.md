@@ -91,6 +91,12 @@ npx lynkeus lint --baseline .lynkeus/lint/home.json --strict
 
 Si la rama no agregó nada verás `nothing new on Settings.Main against .lynkeus/lint/home.json`. Si agregó algo, `1 new against .lynkeus/lint/home.json:` seguido solo de lo nuevo.
 
+Un hallazgo se reconoce por su regla, su `testID` y aquello de lo que trata (la etiqueta del control, el texto), no por lo que se midió. Un área de toque que pasó de 32 a 30 puntos sigue siendo el hallazgo que la línea base ya tiene, y no aparece como nuevo.
+
+:::note[Desde 0.3.0]
+Antes de la versión 0.3.0, un hallazgo se reconocía por su mensaje, y el mensaje incluye la medida: cualquier cambio en el número lo hacía volver como nuevo. Una línea base guardada antes sigue comparando por el mensaje que guardó. Guárdala otra vez con `--save` para obtener el comportamiento nuevo.
+:::
+
 El archivo guarda los hallazgos por ruta, así que un mismo archivo sirve para todas las pantallas: ejecuta `--save` en cada una y se van acumulando. Para no repetir la ruta del archivo en cada comando, nómbralo en la configuración; `lint` lo usa siempre que no se le indique otro:
 
 ```json title="lynkeus.config.json"

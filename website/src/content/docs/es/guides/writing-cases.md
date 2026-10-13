@@ -100,8 +100,8 @@ Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son l
 
 | Paso | Valor | Notas |
 |---|---|---|
-| `app.press` | objetivo, o `{ target, within?, nth?, optional?, hold? }` | Espera a que el control esté y esté habilitado. Con `optional` solo toca si está en pantalla. |
-| `app.type` | `{ text, target?, submit?, clear? }` | Toca primero `target`. |
+| `app.press` | objetivo, o `{ target, within?, nth?, optional?, hold?, timeoutMs? }` | Espera a que el control esté y esté habilitado. Con `optional` solo toca si está en pantalla. También acepta `{ text }` en lugar de `target`. |
+| `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | Toca primero `target`, cuando ya está en pantalla; `timeoutMs` es cuánto puede tardar en llegar. |
 | `app.swipe` | `{ direction, target?, distance? }` o `{ from, to }` | |
 | `app.wait` | ruta, objetivo, ms, `{ target, scroll? }` o `{ request, status? }` | Una `request` se escribe `MÉTODO /ruta`. |
 | `app.see` | objetivo, o `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | Una afirmación. Todo lo que nombres debe cumplirse. |
@@ -110,6 +110,15 @@ Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son l
 | `app.call` | `{ command, params?, expect?, as? }` | Un comando que la app registró con `qa.register`. |
 
 Cualquier otro comando de lynkeus también es un paso, con sus argumentos por nombre: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
+
+Un objetivo se escribe como en la terminal: `#testId`, un texto, un índice o `x,y`. Dos detalles son propios de los casos:
+
+- **Donde un paso recibe `target`, también recibe `testId`**, sin el `#`: `app.press: { testId: pay-button }` equivale a `app.press: "#pay-button"`.
+- **Un texto con comillas propias es siempre un texto.** Para `app.wait` y `app.see`, una palabra con mayúscula inicial como `Next` es una ruta. `app.wait: '"Next"'` espera el botón. Las comillas simples son las del YAML; las dobles, las que lee lynkeus.
+
+:::note[Desde 0.3.0]
+`testId` en cualquier paso con `target`, `{ text }` en `app.press`, `timeoutMs` en `app.type` y las comillas propias llegan con la versión 0.3.0. Antes, esos pasos se rechazaban con `press has no testId`, `app.press needs a target` o `type has no timeoutMs`.
+:::
 
 `app.press` y `app.see` hacen más de lo que parece. Si el objetivo no está, esperan un momento por si está llegando, deslizan por si quedó más abajo y esperan otro poco por si un carrusel está por mostrarlo. Solo entonces empieza a correr el plazo del paso (3000 ms en `app.see`, salvo que indiques `timeoutMs`). Por eso rara vez hace falta escribir un deslizamiento a mano.
 

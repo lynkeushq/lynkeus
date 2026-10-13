@@ -19,11 +19,15 @@ That has a benefit and a cost. The benefit is speed and precision: a step takes 
 
 ### Does anything ship in my release build?
 
-No. The agent's native module compiles to no-ops outside debug builds, and the agent's JavaScript is never evaluated when `enabled` is false, which is the default whenever `__DEV__` is false. On iOS the touch-synthesis code is inside `#if DEBUG`, so its symbols do not exist in a release binary. On Android the module refuses to run unless the app is debuggable. See [Security](/security/).
+The package is in the bundle and does nothing there. The agent's native module compiles to no-ops outside debug builds. The client, which is everything that reads the screen and talks to the driver, is loaded only when `enabled` is true, whichever way the app imports the package and whatever Metro is configured to inline; `enabled` is false by default whenever `__DEV__` is false. The Babel plugin that passes the token writes it into a development bundle only, never a release one. On iOS the touch-synthesis code is inside `#if DEBUG`, so its symbols do not exist in a release binary. On Android the module refuses to run unless the app is debuggable. See [Security](/security/).
 
 ### Can it test a release build, or the app from the store?
 
 No. The agent runs only in debug builds, by design. lynkeus tests your app's behavior in a development build; it is not a tool for testing a signed binary.
+
+### Can it run on a physical phone?
+
+No. Physical devices are not supported. The CLI looks for a booted iOS simulator or Android emulator, and launching the app, screenshots and the `os` commands go through `simctl` and `adb` on one. The third place an app can run is the headless host, in Node.
 
 ### Which versions of React Native does it support?
 
@@ -31,13 +35,13 @@ React Native 0.76 or newer, with the New Architecture. On iOS the New Architectu
 
 ### Does it work with Expo?
 
-Yes, in a development build. It does not work in Expo Go, because the agent has native code. No config plugin is needed. There are three Expo-specific points: an entry file that mounts the agent before expo-router loads, the token under the name `EXPO_PUBLIC_LYNKEUS_TOKEN`, and native tab bars, which cannot be pressed by name. See [Install in an Expo app](/getting-started/installation-expo/) and [Expo](/platforms/expo/).
+Yes, in a development build. It does not work in Expo Go, because the agent has native code. No config plugin is needed. There are three Expo-specific points: an entry file that mounts the agent before expo-router loads, the token under the name `EXPO_PUBLIC_LYNKEUS_TOKEN`, and native tab bars, which cannot be pressed by name. An app that uses Expo Router runs on a simulator or an emulator, not on the headless host. See [Install in an Expo app](/getting-started/installation-expo/) and [Expo](/platforms/expo/).
 
 ### Is it free?
 
 The tool is open source under the MIT license: the agent, the CLI, the headless host and the protocol. Running tests and keeping their results as files on your own machine or CI costs nothing.
 
-The hosted reports service at [lynkeus.io](https://lynkeus.io) is a separate, paid product with a free plan. The Free plan keeps screenshots for 7 days and covers one project. The Team plan also keeps video, for 90 days, across any number of projects. Using it is optional. See [Reports](/guides/reports/).
+The hosted reports service at [lynkeus.io](https://lynkeus.io) is a separate, paid product with a free plan. The Free plan keeps screenshots for 7 days and covers one project. The Team plan also keeps video, where a run has one, for 90 days, across any number of projects. Using it is optional. See [Reports](/guides/reports/).
 
 ### Does it know anything about my app?
 
@@ -47,7 +51,7 @@ No, and that is deliberate. lynkeus has no list of your screens and no notion of
 
 ### Do I need a simulator?
 
-Not necessarily. The **headless host** runs the app in Node under Jest, with no simulator and no native build, and the same tests run on it. It is the usual choice for CI. The native layer is mocked there, so things like the real camera, WebView contents, push delivery and pixels need a simulator or emulator.  See [Headless](/platforms/headless/).
+Not necessarily. The **headless host** runs the app in Node under Jest, with no simulator and no native build, and the same tests run on it. It is the usual choice for CI. The native layer is mocked there, so things like the real camera, WebView contents, push delivery and pixels need a simulator or emulator. An Expo Router app is the exception: it has no root component for the host to render, so it always needs a simulator or an emulator. See [Headless](/platforms/headless/).
 
 ### Do I need a Mac?
 
@@ -63,11 +67,17 @@ No. An element can be targeted by its `testID`, by its text, by its index in the
 
 ### What is the token for?
 
-It keeps other processes on your machine from driving the app. The app is built with a value and the driver must present the same one before the agent serves it. The CLI reads it from `LYNKEUS_TOKEN`. If the app has no token at all, the agent serves any driver, so check that the value reaches your bundle. The headless host refuses to start without one.
+It keeps other processes on your machine from driving the app. The app is given a value when it is bundled, and the driver must present the same one before the agent serves it. The CLI reads it from `LYNKEUS_TOKEN`. The headless host refuses to start without one.
+
+An app that passes no `token` at all is served to any driver. An app that passes one whose value arrives empty keeps its agent off and logs why; it never falls back to serving any driver.
+
+### Why is `process.env.LYNKEUS_TOKEN` undefined in my app?
+
+React Native gives the app no environment. The expression has a value only if something writes it into the bundle. Add the `lynkeus-agent/babel` plugin to `babel.config.js` (`npx lynkeus init` does it), start Metro with `LYNKEUS_TOKEN` set, and start it once with `--reset-cache` after the value changes. In an Expo app, use `EXPO_PUBLIC_LYNKEUS_TOKEN` instead; no plugin is needed. See [Install in a React Native app](/getting-started/installation-react-native/#3-choose-a-token).
 
 ### Why does the CLI say "No app attached"?
 
-The CLI listened and no app dialed in with the right token within 15 seconds. The usual causes, in order: the app is not a debug build or is not running; `enabled` is false for this environment; the token in the app and `LYNKEUS_TOKEN` differ; the app and the CLI are on different ports. See [Troubleshooting](/troubleshooting/).
+The CLI listened and no app dialed in with the right token within 15 seconds. The usual causes, in order: the app is not a debug build or is not running; `enabled` is false for this environment; the token never reached the app, which the app's log reports as `lynkeus: the app passed a token and it is empty`; the token in the app and `LYNKEUS_TOKEN` differ; the app and the CLI are on different ports. See [Troubleshooting](/troubleshooting/).
 
 ### Can I drive several apps at once on one machine?
 
@@ -103,7 +113,7 @@ Through **fixtures**. Any step in a case that is not an `app.` step is sent to a
 
 ### Can the same test run on iOS, Android and headless?
 
-Yes. That is the normal case. Where one step applies to only one of them, wrap it in `on: ios`, `on: android`, `on: device` or `on: headless`. A step the current host cannot perform, such as a mocked network response on a real device, is reported as unsupported there and does not fail the run.
+Yes. That is the normal case. Where one step applies to only one of them, wrap it in `on: ios`, `on: android`, `on: device` or `on: headless`. A step the current host cannot perform, such as a mocked network response on a simulator or an emulator, is reported as unsupported there and does not fail the run.
 
 ### What happens when a test fails?
 
@@ -137,7 +147,7 @@ To a driver that presents the token: the screen as React rendered it, the abilit
 
 ### Does it record sensitive data?
 
-Values of password fields (`secureTextEntry`) are masked in the screen. The request log keeps the method, path, status and duration of each request; it never keeps headers or bodies, and sensitive query values are redacted.
+Values of password fields (`secureTextEntry`) are masked in the screen. The request log keeps the method, path, status and duration of each request; it never keeps headers or bodies, and sensitive query values are redacted. A store you expose with `qa.observe` appears in the trace as the keys that changed, with short values: an object as its size, a long string cut at 80 characters, and a key named like a secret (`token`, `password`, `session` and the like) as `…`. The `stores` command, which you call on purpose, still returns the state in full.
 
 ### Should the agent run against production?
 

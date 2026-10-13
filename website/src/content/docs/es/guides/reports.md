@@ -35,10 +35,12 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 | Opción | Qué guarda |
 |---|---|
 | `--screenshots` | Una imagen de la pantalla después de cada paso de la app, y a su lado un `.json` con lo que la pantalla contenía. |
-| `--video` | Una película de cada caso, donde el host puede filmar. Cada paso anota en qué segundo empezó. |
+| `--video` | Una película de cada caso, donde el host ofrece un comando `record`. Cada paso anota en qué segundo empezó. |
 | `--video-fps <n>` | Los cuadros por segundo de la película. Por defecto, 30. |
 
 Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
+
+La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película.
 
 Si un caso falla y se reintenta, el segundo intento deja su evidencia en una carpeta aparte con el sufijo `.2`.
 

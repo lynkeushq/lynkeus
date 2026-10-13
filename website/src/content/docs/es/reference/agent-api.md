@@ -13,6 +13,7 @@ Hay dos formas de montarlo, `auto()` y el componente `<Lynkeus>`, y un objeto `q
 |---|---|
 | `lynkeus-agent/auto` | `auto`, la forma de montar el agente con una línea. |
 | `lynkeus-agent` | `Lynkeus`, `qa`, `reactNavigationAdapter`, `noNavigation` y los tipos. |
+| `lynkeus-agent/babel` | Un plugin de Babel, para `babel.config.js`. Escribe el token en el bundle de desarrollo; lo explica [El token tiene que llegar a la app](#el-token-tiene-que-llegar-a-la-app). |
 
 ```ts
 import { auto } from 'lynkeus-agent/auto';
@@ -42,6 +43,8 @@ Tiene que llamarse antes de `AppRegistry.registerComponent`, porque funciona env
 4. Rodea la app con un `Profiler` de React, que alimenta a `lynkeus profile`. No guarda nada hasta que se lo pides.
 
 Una segunda llamada a `auto()` no hace nada. Con `enabled` en `false`, tampoco.
+
+Importar el paquete no evalúa el cliente, que es todo lo que lee la pantalla y habla con el driver. El cliente se carga recién cuando el agente está habilitado, sea cual sea la forma en que la app importa el paquete (`auto` o `<Lynkeus>`) y lo que Metro esté configurado para incorporar. En un build de producción, con `enabled` en `false`, ese código nunca se ejecuta.
 
 ### Opciones
 
@@ -85,7 +88,7 @@ Se monta una sola vez, en cualquier lugar bajo el contenedor de navegación. No 
 |---|---|---|---|
 | `enabled` | booleano | `__DEV__` | Si el agente corre o no. |
 | `navigation` | `NavigationAdapter` | ninguno | Cómo lee y maneja el agente tu navegación. Sin adaptador hay pantalla, toques y esperas, pero no rutas. |
-| `token` | texto | ninguno | El secreto compartido con el driver. Si lo defines, el agente solo atiende al driver que lo presenta. |
+| `token` | texto | ninguno | El secreto compartido con el driver. Si lo defines, el agente solo atiende al driver que lo presenta. Si pasas la clave y el valor llega vacío, el agente queda apagado. |
 | `host` | texto | `localhost`; `10.0.2.2` en Android | Dónde escucha el driver. |
 | `port` | número | `8123` | El puerto del driver. |
 | `app` | objeto | ninguno | Una descripción libre de la app (nombre, versión, entorno). Se envía al driver al conectarse y `lynkeus hello` la muestra. |
@@ -98,6 +101,43 @@ Las opciones se leen una sola vez, al montar. Cambiarlas en un render posterior 
 
 :::caution
 `enabled` vale `__DEV__` por defecto, y eso alcanza para que el agente no corra en un build de producción. No alcanza para un build de depuración que apunta a tu backend real, con cuentas reales. Condiciónalo también a tu entorno: `enabled={__DEV__ && config.ENV !== 'prod'}`. La página de [Seguridad](/es/security/) explica por qué.
+:::
+
+### El token tiene que llegar a la app
+
+Hay tres situaciones, y el agente las trata distinto:
+
+| Qué recibe el agente | Qué hace |
+|---|---|
+| Ninguna clave `token`: `auto()` o `auto({})` | Atiende a cualquier driver que se conecte, sin exigir token. |
+| Un `token` con valor | Atiende solo al driver que presenta ese valor. |
+| La clave `token` con un valor vacío o `undefined` | Queda apagado: no abre ninguna conexión. La app lo dice en su log. |
+
+El tercer caso es el que sorprende. React Native no le da a la app ningún entorno, así que `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle mientras nada escriba ahí el valor. El agente no convierte ese descuido en atender a cualquiera: se apaga y escribe esta línea en el log de la app:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+```
+
+El plugin `lynkeus-agent/babel` es lo que escribe el valor. Reemplaza cada `process.env.LYNKEUS_TOKEN` del código por el valor que la variable tiene en el entorno de Metro:
+
+```js title="babel.config.js"
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+Tres reglas del plugin:
+
+- **Solo actúa en un bundle de desarrollo.** En una transformación de producción no toca nada: el token nunca se escribe en un build de producción.
+- **Lee la variable del entorno de Metro.** Arranca Metro con `LYNKEUS_TOKEN` definida. Si no lo está, el plugin no reemplaza nada y el token llega vacío.
+- **Metro guarda lo que ya transformó.** Después de cambiar el valor, arranca Metro una vez con `--reset-cache`.
+
+`npx lynkeus init` agrega el plugin a `babel.config.js`. Una app de Expo no lo necesita: lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, que Expo incorpora al bundle por su cuenta.
+
+:::note[Desde 0.3.0]
+El plugin y la regla del token vacío llegan con la versión 0.3.0. Antes, un token vacío significaba "sin token" y el agente atendía a cualquier driver que se conectara.
 :::
 
 ### Cómo se conecta
@@ -187,19 +227,37 @@ qa.observe('session', useSessionStore);
 | Parámetro | Tipo | Qué es |
 |---|---|---|
 | `name` | texto | El nombre con el que aparece en la traza y con el que se lee. |
-| `store` | `{ getState(), subscribe(listener) }` | Cualquier objeto con esos dos métodos. Un store de Zustand o de Redux los tiene. |
+| `store` | `{ getState(), subscribe(listener) }` | Cualquier objeto con esos dos métodos. Un store de Zustand y un store de Redux los tienen. |
 
 Devuelve una función que deja de observarlo.
 
 Observar un store tiene dos efectos:
 
-- **En la traza.** Cada vez que el store cambia, la traza registra qué claves de primer nivel cambiaron. Los valores simples se anotan tal cual; los objetos y las listas se reducen a su tamaño, para que no lleguen cargas completas a la traza. Se ve con `lynkeus trace`.
-- **En el comando `stores`.** `lynkeus call stores '{"name":"session"}'` devuelve el estado del store. Se recorta a cuatro niveles de profundidad y a 50 elementos por lista, y las funciones se omiten.
+- **En la traza.** Cada vez que el store cambia, la traza registra qué claves de primer nivel cambiaron, con el valor anterior y el nuevo de cada una. Se ve con `lynkeus trace`.
+- **En el comando `stores`.** `lynkeus call stores '{"name":"session"}'` devuelve el estado del store completo. Se recorta a cuatro niveles de profundidad y a 50 elementos por lista, y las funciones se omiten.
+
+La traza es parte de lo que un reporte sube, así que dice que un valor cambió sin llevarse secretos ni cargas completas. Cada valor se anota en forma corta:
+
+| El valor es | En la traza queda |
+|---|---|
+| un número, un booleano, un texto de hasta 80 caracteres | tal cual |
+| un texto de más de 80 caracteres | sus primeros 80 caracteres, seguidos de `…` |
+| un objeto | su cantidad de claves, como `{3}` |
+| una lista | su cantidad de elementos, como `[12]` |
+| cualquier valor bajo una clave con nombre de secreto | `…` |
+
+Una clave tiene nombre de secreto cuando contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`, sin distinguir mayúsculas.
+
+Ese recorte vale solo para la traza. El comando `stores` sigue devolviendo el estado sin ocultar nada.
+
+:::note[Desde 0.3.0]
+Dos cosas cambian con la versión 0.3.0. `qa.observe` funciona con Redux: antes leía el estado nuevo del argumento que Zustand le pasa al suscriptor y Redux no, y todas las claves de un store de Redux aparecían cambiando a nada. Y los valores de la traza se recortan como muestra la tabla.
+:::
 
 Llama a `qa.observe` antes de que tu app se suscriba al store. Un store avisa a sus suscriptores en el orden en que se suscribieron y se detiene en el primero que lanza un error. Si un suscriptor de tu app falla bajo un host, el cambio nunca llegaría a la traza.
 
 :::caution
-El estado de un store observado es legible para quien maneja la app, y los valores simples de primer nivel aparecen en la traza. No observes un store que guarda credenciales en claro si esa traza va a terminar en un reporte compartido.
+El estado de un store observado es legible, completo, para quien maneja la app con el comando `stores`. En la traza, un valor simple de primer nivel aparece tal cual salvo que su clave tenga nombre de secreto. Si un store guarda una credencial bajo una clave que no lo parece, como `value`, no lo observes cuando esa traza va a terminar en un reporte compartido.
 :::
 
 ### `qa.event(name, props?, route?)`

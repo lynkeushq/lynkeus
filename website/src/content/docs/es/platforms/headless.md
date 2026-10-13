@@ -35,6 +35,7 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 - lynkeus instalado y el agente montado en la app ([Instalación en React Native](/es/getting-started/installation-react-native/)).
 - El paquete `lynkeus-headless` instalado en el proyecto, junto con Jest y `@testing-library/react-native`. El host usa la configuración de Jest y la transformación de Babel de tu propia app.
 - Un backend local al que la app pueda apuntar.
+- Una app con un componente raíz que se pueda exportar. Una app con expo-router no lo tiene y no puede correr en este host (más abajo, [Lo que el host no puede decirte](#lo-que-el-host-no-puede-decirte)).
 
 ## Pasos
 
@@ -44,7 +45,7 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 npx lynkeus headless init --auto
 ```
 
-Esto escribe `qa/headless.tsx`, el archivo de entrada del host. Es el único lugar que conoce tu app: instala los mocks por defecto, comprueba que el backend sea local e importa tu componente `App`. Con `--auto` agrega además la llamada a `auto()` en `index.js`, si todavía no estaba.
+Esto escribe `qa/headless.tsx`, el archivo de entrada del host. Es el único lugar que conoce tu app: instala los mocks por defecto, comprueba que el backend sea local e importa tu componente `App`. Con `--auto` monta además el agente como lo hace `lynkeus init`: agrega el plugin `lynkeus-agent/babel` a `babel.config.js` y la llamada a `auto()` en `index.js`, si todavía no estaba.
 
 El comando busca tu componente `App` en los lugares habituales (`App.tsx`, `src/App.tsx`, `app/App.tsx` y sus variantes en JavaScript). Si está en otro lado, indícalo con `--component <archivo>`.
 
@@ -169,8 +170,11 @@ El host ejecuta el JavaScript de tu app contra un backend real, con la capa nati
 - **Lo que renderiza un WebView.** Sí se puede probar el borde: qué le envía la app y qué hace con los mensajes que vuelven.
 - **Los fallos nativos.**
 - **Los píxeles.** `lynkeus screenshot` y `lynkeus snapshot --pixels` necesitan un simulador. La comparación por árbol de `snapshot` sí funciona en el host.
+- **Una película del caso.** `case run --video` filma solo donde el host ofrece un comando `record`. Este host no dibuja nada y no lo ofrece.
 
 Para todo eso, ejecuta los mismos casos en un simulador.
+
+Hay además una clase de app que el host no puede alojar: la que usa expo-router. El host renderiza el componente raíz que tu app exporta, y una app con expo-router no tiene ninguno, porque sus pantallas son archivos que carga el enrutador. `headless init` se detiene con `no App component found`. Una app así corre en un simulador o en un emulador.
 
 Dentro de un caso, un paso que solo tiene sentido en un lado se marca con `on:`:
 

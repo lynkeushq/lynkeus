@@ -11,7 +11,7 @@ Driving by hand first is not a detour. A case is made of the same commands, so a
 
 - The agent is installed and `npx lynkeus screen` prints your app's screen. If not, follow [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
 - The app is running on a simulator or emulator.
-- `LYNKEUS_TOKEN` is exported in your shell, with the value the app was built with.
+- `LYNKEUS_TOKEN` is exported in your shell, with the value the app received when it was bundled.
 
 The examples use a small app with two screens. `Home` has a title, a text input and a button; the button opens `Details`. Substitute your own `testID`s and routes as you go.
 
@@ -48,16 +48,19 @@ An element that has neither a `testID` nor a label of its own, or shares its nam
 
 ### 2. Point at an element
 
-Every command that touches or looks for an element takes a **target**. There are four ways to write one:
+Every command that touches or looks for an element takes a **target**. There are four ways to write one, and a fifth for a text that could be mistaken for something else:
 
 | You write | It matches |
 |---|---|
 | `'#next-button'` | The element with that `testID`. |
 | `'Next'` | A button or input by its exact label, then by part of it. A paragraph of text matches only by its exact, full text. |
+| `'"Next"'` | The same, and nothing else: a text in quotes of its own is never read as a route, an index or a `testID`. |
 | `12` | The element with that index in the last screen listing. |
 | `100,200` | A point on the screen, in points. |
 
 Prefer the `testID`. It does not change when the copy changes or the app is translated. Quote targets in the shell: `#` starts a comment in most shells when it is unquoted.
+
+The quoted form has two pairs of quotes for a reason. The outer pair is for the shell, which removes it. The inner pair reaches lynkeus and says "this is a text": `'"12"'` is a label that reads 12 and not the element at index 12. Since 0.3.0; before, the inner quotes stayed in the text and matched nothing.
 
 ### 3. Type and press
 
@@ -115,7 +118,7 @@ on screen: #details
 `see --absent` asserts the opposite, and `see --within <ms>` allows the element some time to appear.
 
 :::note
-`wait` and `see` accept either a route or a target in the same position. They read the argument as a route when it starts with a capital letter and contains only letters, digits, underscores and dots (`Details`, `Settings.Main`). So `npx lynkeus wait Next` waits for a *route* called `Next`, not for a button labeled "Next". To wait for an element, use its `testID`.
+`wait` and `see` accept either a route or a target in the same position. They read the argument as a route when it starts with a capital letter and contains only letters, digits, underscores and dots (`Details`, `Settings.Main`). So `npx lynkeus wait Next` waits for a *route* called `Next`, not for a button labeled "Next". To wait for the button, use its `testID`, or put the text in quotes of its own: `npx lynkeus wait '"Next"'`. In a case that is `app.wait: '"Next"'`.
 
 A lowercase word alone is read as a text. A router that names routes in lowercase, as expo-router does (`index`, `explore`), needs the `route:` prefix to say that a route is meant: `npx lynkeus wait route:index`, or `app.wait: "route:index"` in a case. The prefix is available since 0.3.0.
 :::
@@ -263,6 +266,8 @@ A step whose name does not start with `app.` is not sent to the app. It is a **f
 **`app.wait` times out on a screen that is clearly there.** The route name in the case is not the one the app reports. Run `npx lynkeus screen` on that screen and copy the name from its first line.
 
 **A text target does not match.** A text matches a button or input by its exact label first, then by part of it. A paragraph matches only by its exact, full text, so a word inside a sentence is never a target. `npx lynkeus why 'Log in'` says whether the text on screen is a wording or an accent away.
+
+**`app.wait` on a button's text waits for a route instead.** A capitalized word such as `Next` is read as a route name. Write the text in quotes of its own, `app.wait: '"Next"'`, and it is always a text.
 
 **The second run fails where the first passed.** The case depends on where the previous run left the app. Start it from a known place: `app.nav` to the first screen in `setup`, and, when your app registers a `reset` command, `app.call: { command: reset }` before it.
 

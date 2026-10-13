@@ -17,6 +17,7 @@ The roles are the reverse of what you might expect. The **driver** is the WebSoc
 |---|---|
 | Where the app dials | `ws://localhost:8123` on iOS, `ws://10.0.2.2:8123` on the Android emulator. The app can be given another host and port. |
 | When nobody answers | The app retries quietly: every 100 ms for the first 3 seconds after it starts or loses a connection, then with a wait that doubles each time, up to 1.5 seconds. |
+| When the app does not dial at all | An app that was given a `token` option whose value is empty keeps its agent off and logs why. It never opens a socket, so a driver sees the same thing as with no app running. |
 | When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. |
 
 There are three kinds of message:
@@ -29,7 +30,7 @@ There are three kinds of message:
 
 ### 1. The driver sends `auth`
 
-The driver's first message on every new connection is `auth`. Send it even when no token is configured: the app says nothing until it has received it.
+The driver's first message on every new connection is always `auth`, and it always carries a `session`. Send it even when no token is configured: the app says nothing until it has received it, and `hello` is its answer.
 
 ```json
 { "event": "auth", "session": "k3j9x0q1mfz8", "token": "…" }
@@ -133,6 +134,8 @@ type Target =
 | `{ x, y }` | A point, in window points. |
 
 A substring inside running copy is never a target, because tapping the center of a paragraph lands on whatever link or word sits there.
+
+On the wire a target is always one of these objects. The spellings the CLI accepts (`#next-button`, `12`, a text in quotes of its own) are the CLI's way of writing them: it sends `'"12"'` as `{ "text": "12" }` and `12` as `{ "i": 12 }`. A driver of your own has no such ambiguity to resolve.
 
 When several elements match:
 
@@ -370,7 +373,7 @@ type Element = {
 | `enabled` | False for a disabled control. |
 | `depth` | Its nesting among the listed elements. |
 | `text` | The rendered text of a `text` element, or the label of a button or input. |
-| `value` | An input's value. Masked with `•` when the field is a secure entry. |
+| `value` | An input's value: what its native field holds. Masked with `•` when the field is a secure entry. |
 | `parent` | The index of the nearest listed ancestor. |
 | `tag` | The React native tag of the host view. |
 | `covered` | A touch at its center would not reach it: something is on top. |
@@ -379,7 +382,11 @@ type Element = {
 
 `covered` and `hidden` mean different things, and both are reported.
 
-`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available.
+`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available. On Android the test asks React Native what a touch at that point would stop at, so a view that is drawn over the control but takes no touches, such as the invisible debugging overlay of a development build, does not cover it.
+
+:::note[Since 0.3.0]
+Two reads moved to the native module in 0.3.0, and both need the app rebuilt after `lynkeus-agent` is updated. `value` was read from React's props, so a field with no `value` prop read as empty after typing and one with a `defaultValue` kept reading as that; an app that has not been rebuilt still answers that way. On Android, `covered` was true for any visible view over the point, which in a development build was every control.
+:::
 
 `hidden` answers "is this on screen at all?", and it is the stronger of the two. It is read from the structure of the tree, so a host with no layout answers the same as a device.
 
@@ -416,7 +423,7 @@ Every entry has `seq` (a sequence number) and `t` (a timestamp in milliseconds),
 |---|---|---|
 | `route` | `route?`, `path` | The focused route changed. |
 | `request` | `method`, `url`, `status?`, `ms?`, `error?` | A request finished. |
-| `store` | `store`, `changed` | A store observed with `qa.observe` changed. `changed` maps each top-level key to `{ from, to }`. |
+| `store` | `store`, `changed` | A store observed with `qa.observe` changed. `changed` maps each top-level key that changed to `{ from, to }`. The two values are kept short: an object as its number of keys (`{3}`), an array as its length (`[12]`), a string over 80 characters cut, and the value of a key named like a secret (`token`, `password`, `session`, …) as `…`. The `stores` command returns the state in full. |
 | `event` | `name`, `props?`, `route?` | The app reported an analytics event through `qa.event`. |
 | `command` | `method`, `ms`, `error?` | The driver ran a method that acts. Reads such as `screen`, `find` and `waitFor` are left out, unless they fail. |
 | `touch` | `x`, `y`, `testId?`, `text?`, `route?` | A person touched the screen, on a device build mounted with `auto()`. |

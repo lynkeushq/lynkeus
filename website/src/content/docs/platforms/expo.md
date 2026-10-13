@@ -15,7 +15,8 @@ The facts here were verified on a new Expo SDK 57 project, with React Native 0.8
 | Development build | Required. |
 | Config plugin | None needed. The native module is autolinked. |
 | Mounting the agent | `npx lynkeus init` (since 0.3.0). In an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
-| Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN` |
+| Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN`. The `lynkeus-agent/babel` plugin of React Native CLI apps is not needed. |
+| Headless host | Not available for an expo-router app. |
 | Token in the CLI | `LYNKEUS_TOKEN` |
 | Routes | Recognized, with expo-router's names (`index`, not `Home`). In `wait` and `see`, written `route:index` (since 0.3.0). |
 | Native tab bar | Not listed as elements. Navigate with `lynkeus nav`. |
@@ -84,9 +85,17 @@ export LYNKEUS_TOKEN=some-local-secret
 
 The first must be set when the development server bundles the app. The second must be set in every shell, and every CI step, that runs `lynkeus`.
 
-:::caution
-A token that is `undefined` in the app does not make the agent refuse drivers. It makes the agent serve any driver. If you copy the React Native example, which reads `process.env.LYNKEUS_TOKEN`, into an Expo app, the app runs unprotected and everything appears to work.
+:::caution[Since 0.3.0]
+A token that the app passes and that arrives empty keeps the agent off. If you copy the React Native example, which reads `process.env.LYNKEUS_TOKEN`, into an Expo app, the value is `undefined`, the agent does not start, and the app logs:
+
+```text
+lynkeus: the app passed a token and it is empty, so the agent stays off. …
+```
+
+The same happens when the development server was started without `EXPO_PUBLIC_LYNKEUS_TOKEN`. Before 0.3.0 the agent served any driver in that case, and everything appeared to work while the app ran unprotected.
 :::
+
+An Expo app does not use the `lynkeus-agent/babel` plugin that a React Native CLI app needs. Expo's own inlining of `EXPO_PUBLIC_` variables does that job, and nothing about it changed.
 
 A value with the `EXPO_PUBLIC_` prefix is embedded in the JavaScript bundle. That is acceptable here because the token protects a debug build on your own machine, and the agent does not run in a release build. Do not reuse a secret that matters elsewhere.
 
@@ -168,12 +177,13 @@ steps:
 - **Expo Go** is not supported and cannot be, for the reason given above.
 - **Native tab bars** cannot be inspected or pressed.
 - **Lowercase route names** need the `route:` prefix in `lynkeus wait` and `lynkeus see`.
-- **The headless host** (`lynkeus headless start`) is documented for React Native CLI projects. `lynkeus headless init` looks for the app's root component in `App.tsx`, `App.jsx`, `App.js`, `app/App.tsx` or under `src/`, which an expo-router project does not have, and the sources do not describe a setup for expo-router. Run Expo apps on a simulator or emulator.
+- **The headless host** cannot run an expo-router app. The host renders the app's root component, and `lynkeus headless init` looks for it in `App.tsx` and the like, or at the path given with `--component`. An expo-router app has none: its screens are files the router loads. `headless init` stops with `no App component found`. Run such an app on a simulator or an emulator.
+- **Physical devices** are not supported, as in any React Native app.
 - **Versions tested**: Expo SDK 57, React Native 0.86, expo-router, on the iOS simulator and the Android emulator. Other SDK versions need React Native 0.76 or newer with the New Architecture.
 
 ## Common problems
 
-**The app runs but the CLI never attaches.** Confirm you are in a development build and not Expo Go, that `"main"` is `index.js` and that file calls `auto()` before it loads the router, and that the two token variables hold the same value. A token mismatch produces the same message as no app at all: `No app attached on 127.0.0.1:8123 within 15000ms`.
+**The app runs but the CLI never attaches.** Confirm you are in a development build and not Expo Go, that `"main"` is `index.js` and that file calls `auto()` before it loads the router, that the development server was started with `EXPO_PUBLIC_LYNKEUS_TOKEN` set, and that the two token variables hold the same value. A token mismatch, or an empty token in the app, produces the same message as no app at all: `No app attached on 127.0.0.1:8123 within 15000ms`. For the empty token, the app's log has the line `lynkeus: the app passed a token and it is empty`.
 
 **`lynkeus screen` works but `lynkeus press` fails with `Lynkeus native module unavailable`.** The binary on the device was built before the agent was added. Run `npx expo prebuild` and `npx expo run:ios` or `npx expo run:android` again.
 

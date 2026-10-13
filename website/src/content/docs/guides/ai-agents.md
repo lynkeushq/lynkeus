@@ -151,7 +151,7 @@ Some commands are never served over MCP, in either size: `case run`, `record` an
 
 **The client shows no tools, or the server exits.** Run `npx lynkeus mcp` in the client's working directory by hand. It should start and wait. Check that the folder is the app's, or pass `--root`.
 
-**Every tool call fails to attach.** The app is not running, is not a debug build, or was built with a different token than the `LYNKEUS_TOKEN` in the server's environment. Set the variable in the environment the client gives the server.
+**Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has a different token than the `LYNKEUS_TOKEN` in the server's environment. Set the variable in the environment the client gives the server.
 
 **`map_plan` has no directions.** Build the map with `npx lynkeus map build`, then add observed edges with `npx lynkeus crawl`.
 

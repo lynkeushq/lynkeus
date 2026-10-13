@@ -149,7 +149,7 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 **El cliente no muestra herramientas.** El servidor no arrancó. Ejecuta `npx lynkeus mcp --root /ruta/a/tu/app` a mano para ver el error; lo habitual es una ruta equivocada.
 
-**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Revisa que la app esté abierta, que sea un build de depuración y que el token coincida. `npx lynkeus hello` desde la terminal confirma la conexión.
+**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Revisa que la app esté abierta, que sea un build de depuración, que el token haya llegado a la app (si llegó vacío, el agente queda apagado y el log de la app lo dice) y que coincida con el del servidor. `npx lynkeus hello` desde la terminal confirma la conexión.
 
 **`map_plan` no devuelve indicaciones.** El grafo estático solo conoce las navegaciones que pudo leer en el código. `npx lynkeus crawl` recorre la app y agrega los caminos observados.
 

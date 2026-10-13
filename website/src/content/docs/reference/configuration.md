@@ -94,7 +94,9 @@ The values above are examples. `app.unlock` and `IdScanner.start` stand for a ma
 | `app` | string | none | The app's bundle id (iOS) or application id (Android), for `launch`, `--launch` and the simulator commands. |
 | `attachTimeout` | number (ms) | `15000` | How long a command waits for the app to attach before it gives up. |
 
-When no simulator is booted and no device was asked for, the CLI assumes a headless host will dial in.
+When no simulator is booted and no device was asked for, the CLI assumes a headless host will dial in. Physical devices are not supported: `device` names a simulator or an emulator.
+
+The token is not a configuration key. It is a secret, so the CLI reads it only from the `LYNKEUS_TOKEN` environment variable. See [Environment variables](/reference/environment-variables/#lynkeus_token).
 
 ## Headless host
 
@@ -120,7 +122,7 @@ lynkeus never reads your copy. It passes these values on, and three things use t
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `lintBaseline` | string | none | The baseline file `lynkeus lint` compares against when `--baseline` is not given. |
+| `lintBaseline` | string | none | The baseline file `lynkeus lint` compares against when `--baseline` is not given. A finding matches the baseline by its rule, its `testID` and what it is about, not by its message. A file saved before 0.3.0 still matches on the message until it is saved again with `lint --save`. |
 | `lint.i18nKeyPatterns` | string[] | keys shaped like `a.b.c` and like `snake_case_key` | Regular expressions (case-insensitive) for what an untranslated key looks like in your app. An empty array turns the rule off. |
 | `lint.minTouchTarget` | number (points) | `44` | The smallest acceptable touch target. |
 | `lint.contrast` | `false` or object | on | How text contrast is judged. `false` turns the check off. |

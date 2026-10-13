@@ -30,6 +30,7 @@ It exists for speed and scale. A host starts in about 40 seconds, several run si
   ```
 
 - Node 22 or newer.
+- An app with a root component the host can import (`App.tsx` and the like). An app that uses Expo Router has none, and cannot run on the headless host; see [What headless cannot tell you](#what-headless-cannot-tell-you).
 - A backend the app can reach on a local address, if the app needs one to get past its first screen.
 
 ## Steps
@@ -51,7 +52,7 @@ next: LYNKEUS_TOKEN=<token> API_URL=http://127.0.0.1:3000/ lynkeus headless star
       then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)
 ```
 
-`--api-env` names the environment variable your app reads its API base URL from; it defaults to `API_URL`. `init` finds the root component when it is in a standard place (`App.tsx`, `App.jsx` or `App.js`, at the root or under `src/`, or `app/App.tsx`); otherwise pass `--component <path>`. Add `--auto` to also insert the `auto()` call into `index.js` if you have not mounted the agent yet. `--force` overwrites an existing entry.
+`--api-env` names the environment variable your app reads its API base URL from; it defaults to `API_URL`. `init` finds the root component when it is in a standard place (`App.tsx`, `App.jsx` or `App.js`, at the root or under `src/`, or `app/App.tsx`); otherwise pass `--component <path>`. When it finds none, it stops with `no App component found`. Add `--auto` to also insert the `auto()` call into `index.js` if you have not mounted the agent yet. `--force` overwrites an existing entry.
 
 The generated file looks like this:
 
@@ -275,10 +276,17 @@ The host runs your JavaScript against a real backend with the native layer mocke
 - **What a WebView renders.** It is an empty box. The boundary is still testable: what the app sends the WebView and what it does with the messages that come back.
 - **Native crashes.** There is no native code to crash. A native module that is missing surfaces as a Jest error instead.
 - **Pixels.** The host renders nothing to capture. `lynkeus screenshot` and `lynkeus snapshot --pixels` need a simulator; the tree baseline of `lynkeus snapshot` works under the host.
+- **Video.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so it offers none and a run has no video.
 
 For those, run the same cases on a simulator or emulator. Only the way the app is started differs.
 
+### An Expo Router app
+
+An Expo Router app cannot run on the headless host. The host imports the app's root component and renders it, and an Expo Router app has no root component to export: its screens are files the router loads. `lynkeus headless init` stops with `no App component found`. Such an app runs on a simulator or an emulator.
+
 ## Common problems
+
+**`headless init` stops with `no App component found`.** The root component is not in a standard place: pass `--component <path>`. If the app uses Expo Router, there is no root component to point at, and the app cannot run on the headless host.
 
 **The host stops with `Unexpected token 'export'`.** Jest is not transforming `lynkeus-agent`. See step 2.
 
