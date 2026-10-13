@@ -1,7 +1,8 @@
 /** What a person would flag in review, read off one screen: not accessibility certification, the usual suspects. */
 import type { Screen } from 'lynkeus-protocol';
 
-export type Finding = { rule: string; severity: 'warn' | 'info'; element: number; message: string };
+/** `subject` is what the finding is about, without what was measured: it is how a baseline knows the finding again. */
+export type Finding = { rule: string; severity: 'warn' | 'info'; element: number; message: string; subject?: string };
 
 const DEFAULT_I18N_KEY_PATTERNS = [/^[a-z][a-z0-9]*(\.[a-z0-9]+){2,}$/i, /^[a-z0-9]+(_[a-z0-9]+){2,}$/i];
 
@@ -31,7 +32,7 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
   for (const e of els) {
     const named = e.text ?? e.accessibilityLabel;
     if ((e.kind === 'button' || e.kind === 'switch') && named === undefined && e.testId === undefined) {
-      out.push({ rule: 'unlabeled-control', severity: 'warn', element: e.i, message: `${e.kind} with no text, label or testId` });
+      out.push({ rule: 'unlabeled-control', severity: 'warn', element: e.i, message: `${e.kind} with no text, label or testId`, subject: e.kind });
     }
     if ((e.kind === 'button' || e.kind === 'switch') && e.enabled !== false && e.frame) {
       const { w, h } = e.frame;
@@ -43,11 +44,12 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
           severity: iconOnly ? 'warn' : 'info',
           element: e.i,
           message: `${Math.round(w)}×${Math.round(h)}pt target (< ${minTouch}) ${label(e) ?? ''}`.trim(),
+          subject: label(e) ?? e.kind,
         });
       }
     }
     if (e.kind === 'text' && e.text && looksLikeI18nKey(e.text, options.i18nKeyPatterns ?? DEFAULT_I18N_KEY_PATTERNS)) {
-      out.push({ rule: 'untranslated', severity: 'warn', element: e.i, message: `"${e.text}" looks like an i18n key, not copy` });
+      out.push({ rule: 'untranslated', severity: 'warn', element: e.i, message: `"${e.text}" looks like an i18n key, not copy`, subject: e.text });
     }
     if ((e.kind === 'button' || e.kind === 'input' || e.kind === 'switch') && e.covered && e.enabled !== false) {
       out.push({
@@ -55,6 +57,7 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
         severity: 'info',
         element: e.i,
         message: `${e.kind} ${label(e) ?? ''} is covered; a tap would not reach it`.replace('  ', ' ').trim(),
+        subject: label(e) ?? e.kind,
       });
     }
     if (e.frame && win.w > 0 && label(e) !== undefined) {
@@ -65,6 +68,7 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
           severity: 'info',
           element: e.i,
           message: `${label(e)} extends past the ${win.w}×${win.h} window (x${Math.round(x)} y${Math.round(y)} ${Math.round(w)}×${Math.round(h)})`,
+          subject: label(e),
         });
       }
     }
@@ -74,6 +78,7 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
         severity: 'info',
         element: e.i,
         message: `"${e.text.slice(0, 30)}" has ${Math.round(e.frame.w)}×${Math.round(e.frame.h)} size`,
+        subject: e.text,
       });
     }
   }
@@ -86,7 +91,13 @@ export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[]
   }
   for (const [id, at] of byTestId)
     if (at.length > 1)
-      out.push({ rule: 'duplicate-testid', severity: 'info', element: at[0]!, message: `testId "${id}" is on ${at.length} elements (${at.join(', ')})` });
+      out.push({
+        rule: 'duplicate-testid',
+        severity: 'info',
+        element: at[0]!,
+        message: `testId "${id}" is on ${at.length} elements (${at.join(', ')})`,
+        subject: id,
+      });
   return out;
 };
 

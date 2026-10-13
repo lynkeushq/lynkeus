@@ -55,15 +55,22 @@ export const diffGraphs = (base: ScreenGraph, head: ScreenGraph): GraphDiff => {
 };
 
 /** Lint findings per route, as `lynkeus lint --save` writes them. */
-export type LintBaseline = Record<string, { rule: string; testId?: string; message: string }[]>;
+export type LintBaseline = Record<string, { rule: string; testId?: string; subject?: string; message: string }[]>;
 
 type LintedFinding = { finding: Finding; testId?: string };
 
-const key = (rule: string, testId: string | undefined, message: string) => `${rule}|${testId ?? ''}|${message}`;
+const key = (rule: string, testId: string | undefined, what: string) => `${rule}|${testId ?? ''}|${what}`;
 
+/**
+ * A finding is known by its rule and what it is about, not by what was measured: a target that went from
+ * 32 to 30 points is the finding the baseline already has. A baseline saved before findings named their
+ * subject has only the message to go by.
+ */
 export const newFindings = (baseline: LintBaseline, route: string, findings: LintedFinding[]): LintedFinding[] => {
-  const seen = new Set((baseline[route] ?? []).map((b) => key(b.rule, b.testId, b.message)));
-  return findings.filter((f) => !seen.has(key(f.finding.rule, f.testId, f.finding.message)));
+  const seen = new Set((baseline[route] ?? []).map((b) => key(b.rule, b.testId, b.subject ?? b.message)));
+  return findings.filter(
+    (f) => !seen.has(key(f.finding.rule, f.testId, f.finding.subject ?? f.finding.message)) && !seen.has(key(f.finding.rule, f.testId, f.finding.message)),
+  );
 };
 
 export const describeGraphDiff = (d: GraphDiff): string => {

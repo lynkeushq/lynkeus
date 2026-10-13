@@ -127,6 +127,10 @@ npx lynkeus lint --baseline .lynkeus/lint/home.json    # on the branch: print on
 `lintBaseline` in `lynkeus.config.json` names the file when `--baseline` is
 given none.
 
+A finding is known again by its rule, its testId and what it is about (the
+control's label, the text), not by what was measured: a target that went from
+32 to 30 points is still the finding the baseline has.
+
 ## Perf
 
 `lynkeus perf` reads the trace and reports, per screen: requests on arrival,
