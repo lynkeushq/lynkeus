@@ -191,13 +191,14 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 |---|---|
 | `--route <Route>` | the route that was expected |
 
-### `lynkeus lint [--strict] [--save <file>] [--baseline <file>]`
+### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 
-Unlabeled controls, small targets, untranslated keys, covered or clipped elements
+Unlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements
 
 | Flag | |
 |---|---|
 | `--strict` | exit 1 on any warning |
+| `--no-contrast` | skip the contrast of text against its background (it takes a screenshot) |
 | `--save <file>` | keep this screen's findings in a baseline file |
 | `--baseline <file>` | print only what is new against a baseline file |
 

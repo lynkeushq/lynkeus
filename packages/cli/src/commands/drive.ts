@@ -1,9 +1,13 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+
+import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
 import { describeScreen, describeTrace } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
+import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
 import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
@@ -341,9 +345,10 @@ export const driveCommands = [
   define({
     name: 'lint',
     group: 'drive',
-    summary: 'Unlabeled controls, small targets, untranslated keys, covered or clipped elements',
+    summary: 'Unlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements',
     flags: {
       strict: { type: 'boolean', help: 'exit 1 on any warning' },
+      'no-contrast': { type: 'boolean', help: 'skip the contrast of text against its background (it takes a screenshot)' },
       save: { type: 'string', help: "keep this screen's findings in a baseline file", value: 'file' },
       baseline: { type: 'string', help: 'print only what is new against a baseline file', value: 'file' },
     },
@@ -353,6 +358,24 @@ export const driveCommands = [
       const { lint, lintBaseline } = ctx.config;
       let findings = lintScreen(screen, { i18nKeyPatterns: lint?.i18nKeyPatterns?.map((p) => new RegExp(p, 'i')), minTouchTarget: lint?.minTouchTarget });
       const route = screen.route ?? '?';
+      const notes: string[] = [];
+      if (lint?.contrast !== false && !ctx.flags['no-contrast']) {
+        // Contrast is read off the pixels, so it needs a host that can take a picture of the screen.
+        const file = path.join(os.tmpdir(), `lynkeus-lint-${process.pid}-${Date.now()}.png`);
+        try {
+          await (await ctx.device()).screenshot(file);
+          const picture = PNG.sync.read(fs.readFileSync(file));
+          const contrast = lint?.contrast;
+          findings = [
+            ...findings,
+            ...lintContrast(screen, picture, { normal: contrast?.normal, large: contrast?.large, ignore: contrast?.ignore?.map((p) => new RegExp(p)) }),
+          ];
+        } catch {
+          notes.push('contrast not measured: this host takes no screenshots');
+        } finally {
+          fs.rmSync(file, { force: true });
+        }
+      }
       const withIds = findings.map((finding) => ({ finding, testId: screen.elements[finding.element]?.testId }));
       const lines: string[] = [];
       const save = ctx.flags.save as string | undefined;
@@ -366,7 +389,7 @@ export const driveCommands = [
         findings = newFindings(readJson<LintBaseline>(baselineFile), route, withIds).map((f) => f.finding);
         lines.push(findings.length ? `${findings.length} new against ${baselineFile}:` : `nothing new on ${route} against ${baselineFile}`);
       }
-      lines.push(describeFindings(findings, screen.route));
+      lines.push(describeFindings(findings, screen.route), ...notes);
       return { text: lines.join('\n'), json: findings, code: ctx.flags.strict && findings.some((f) => f.severity === 'warn') ? 1 : 0 };
     },
   }),
