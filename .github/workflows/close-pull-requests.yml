@@ -17,7 +17,7 @@ jobs:
           PR: ${{ github.event.pull_request.html_url }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          # The repository belongs to an organisation, so its owner is never the
+          # The repository belongs to an organization, so its owner is never the
           # author: whoever can push here is the one whose pull requests stay open.
           permission=$(gh api "repos/$GITHUB_REPOSITORY/collaborators/$AUTHOR/permission" --jq .permission || true)
           case "$permission" in admin | write) exit 0 ;; esac

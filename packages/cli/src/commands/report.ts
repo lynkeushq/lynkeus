@@ -24,7 +24,7 @@ const answer = async (response: Response, doing: string) => {
 
 /**
  * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
- * film the cases name. A file the organisation's plan does not keep (a film on Free) is left out and listed.
+ * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
  */
 export const pushRun = async (dir: string, o: { url: string; key: string; project: string; fetch?: Fetch }): Promise<Pushed> => {
   const call = o.fetch ?? fetch;
@@ -109,7 +109,7 @@ export const caseHistory = async (o: Service & { project: string; id: string; ru
 
 export type Plan = { name: string; plan: string; days: number; projects: number | null; film: boolean };
 
-/** The organisation's plan, and with `upgrade` or `manage` the Stripe page that changes it. */
+/** The organization's plan, and with `upgrade` or `manage` the Stripe page that changes it. */
 export const plan = async (o: Service & { go?: 'upgrade' | 'manage' }) => {
   const now = (await ask(o, 'GET', '/v1/billing', 'reading the plan')) as Plan;
   if (!o.go) return { ...now, url: null };
@@ -120,7 +120,7 @@ export const plan = async (o: Service & { go?: 'upgrade' | 'manage' }) => {
 export const service = (): Service | string => {
   const url = process.env.LYNKEUS_REPORTS_URL;
   const key = process.env.LYNKEUS_REPORTS_KEY;
-  return url && key ? { url, key } : 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)';
+  return url && key ? { url, key } : 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organization’s API key)';
 };
 
 export const reportCommands = [
@@ -129,7 +129,7 @@ export const reportCommands = [
     group: 'runs',
     summary: 'Upload a run to the reports service and print the report’s address',
     details:
-      'Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organisation’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organisation’s plan does not keep is left out and said so.',
+      'Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organization’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organization’s plan does not keep is left out and said so.',
     positionals: [{ name: 'dir', help: 'the run directory `case run --out` wrote', required: true }],
     flags: {
       project: { type: 'string', help: 'the project the run is filed under (default: the app’s folder name)', value: 'name' },
@@ -156,7 +156,7 @@ export const reportCommands = [
   define({
     name: 'report list',
     group: 'runs',
-    summary: 'List the organisation’s reports, newest first',
+    summary: 'List the organization’s reports, newest first',
     details: 'Each line is when the run started, its project and platform, how many cases passed, and the report’s address.',
     flags: { limit: { type: 'string', help: 'how many runs (default 20, at most 100)', value: 'n' } },
     needs: 'nothing',
@@ -181,12 +181,12 @@ export const reportCommands = [
   define({
     name: 'report plan',
     group: 'runs',
-    summary: 'Show the organisation’s plan, or open the page that changes it',
+    summary: 'Show the organization’s plan, or open the page that changes it',
     details:
       'Free keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.',
     flags: {
       upgrade: { type: 'boolean', help: 'print the Stripe checkout address for the Team plan' },
-      manage: { type: 'boolean', help: 'print the Stripe portal address for a paying organisation' },
+      manage: { type: 'boolean', help: 'print the Stripe portal address for a paying organization' },
     },
     needs: 'nothing',
     session: false,

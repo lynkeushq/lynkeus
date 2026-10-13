@@ -131,7 +131,7 @@ export const headlessCommands = [
       if (ctx.flags.explain) {
         const found = explainError(ctx.flags.explain as string);
         return {
-          text: found.length ? describeExplanations(found).trim() : 'nothing in the catalogue matches; paste the first line of the error, not the stack.',
+          text: found.length ? describeExplanations(found).trim() : 'nothing in the catalog matches; paste the first line of the error, not the stack.',
           json: found,
         };
       }

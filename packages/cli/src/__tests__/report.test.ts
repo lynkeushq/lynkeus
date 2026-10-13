@@ -73,7 +73,7 @@ const billingService = () => {
       });
     if (url.pathname === '/v1/billing') return reply({ name: 'Acme', plan: 'free', days: 7, projects: 1, film: false });
     if (url.pathname === '/v1/billing/checkout') return reply({ url: 'https://checkout.stripe.test/c' });
-    return new Response(JSON.stringify({ error: 'this organisation has not paid yet' }), { status: 409 });
+    return new Response(JSON.stringify({ error: 'this organization has not paid yet' }), { status: 409 });
   }) as typeof fetch;
   return { fake, asked };
 };
@@ -90,7 +90,7 @@ test('the plan is read, and upgrading prints the Stripe checkout', async () => {
   const service = { url: 'https://reports.test', key: 'lk_1', fetch: fake };
   assert.equal((await plan(service)).url, null);
   assert.equal((await plan({ ...service, go: 'upgrade' })).url, 'https://checkout.stripe.test/c');
-  await assert.rejects(plan({ ...service, go: 'manage' }), /opening the billing portal: this organisation has not paid yet/);
+  await assert.rejects(plan({ ...service, go: 'manage' }), /opening the billing portal: this organization has not paid yet/);
   assert.deepEqual(asked, ['GET /v1/billing', 'GET /v1/billing', 'POST /v1/billing/checkout', 'GET /v1/billing', 'POST /v1/billing/portal']);
 });
 

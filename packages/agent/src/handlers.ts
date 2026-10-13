@@ -176,7 +176,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return { ...point, mode: 'native' as const };
   };
 
-  // No touch, no gesture recogniser, no settle wait; but a disabled or covered
+  // No touch, no gesture recognizer, no settle wait; but a disabled or covered
   // control stays unreachable, or the UI's own gates would mean nothing.
   const pressJs = async (target: Target) => {
     const element = presented(target);

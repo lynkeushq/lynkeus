@@ -28,7 +28,7 @@ const LONGEST = 80;
 
 // The trace leaves the machine with a report, so it says that a value changed without carrying secrets or
 // payloads: objects are reduced to their size, a long string to its start, and a key named like a secret to nothing.
-const summarise = (key: string, value: unknown): unknown => {
+const summarize = (key: string, value: unknown): unknown => {
   if (value === null || value === undefined) return value;
   if (SENSITIVE.test(key)) return '…';
   if (typeof value === 'string') return value.length > LONGEST ? `${value.slice(0, LONGEST)}…` : value;
@@ -52,7 +52,7 @@ export const observe = (name: string, store: Store): (() => void) => {
     const current = store.getState() as Record<string, unknown> | undefined;
     const changed: Record<string, { from: unknown; to: unknown }> = {};
     for (const key of new Set([...Object.keys(previous ?? {}), ...Object.keys(current ?? {})])) {
-      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarise(key, previous?.[key]), to: summarise(key, current?.[key]) };
+      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarize(key, previous?.[key]), to: summarize(key, current?.[key]) };
     }
     previous = current;
     if (Object.keys(changed).length > 0) record({ kind: 'store', store: name, changed });

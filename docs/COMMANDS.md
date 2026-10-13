@@ -665,7 +665,7 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Upload a run to the reports service and print the report’s address
 
-Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organisation’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organisation’s plan does not keep is left out and said so.
+Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organization’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organization’s plan does not keep is left out and said so.
 
 | Argument | |
 |---|---|
@@ -677,7 +677,7 @@ Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame a
 
 ### `lynkeus report list [--limit <n>]`
 
-List the organisation’s reports, newest first
+List the organization’s reports, newest first
 
 Each line is when the run started, its project and platform, how many cases passed, and the report’s address.
 
@@ -687,14 +687,14 @@ Each line is when the run started, its project and platform, how many cases pass
 
 ### `lynkeus report plan [--upgrade] [--manage]`
 
-Show the organisation’s plan, or open the page that changes it
+Show the organization’s plan, or open the page that changes it
 
 Free keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.
 
 | Flag | |
 |---|---|
 | `--upgrade` | print the Stripe checkout address for the Team plan |
-| `--manage` | print the Stripe portal address for a paying organisation |
+| `--manage` | print the Stripe portal address for a paying organization |
 
 ### `lynkeus report flakes [--project <name>] [--runs <n>]`
 

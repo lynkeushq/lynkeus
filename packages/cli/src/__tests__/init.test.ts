@@ -42,7 +42,7 @@ test('init --auto adds the mount after the imports, once', () => {
   assert.ok(index.indexOf("import App from './app/App'") < index.indexOf('lynkeus-agent/auto'));
 });
 
-test('the error catalogue names the module behind a TurboModule crash', () => {
+test('the error catalog names the module behind a TurboModule crash', () => {
   const [e] = explainError(
     "Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNCWebView' could not be found. Verify that a module by this name is registered",
   );
