@@ -36,5 +36,6 @@ jobs:
 
       - name: Publish
         # The npm that ships with the pinned Node does trusted publishing (11.5.1 or newer); npm@latest
-        # asks for a newer Node than the pin and fails to install.
-        run: for f in dist/*.tgz; do npm publish "$f" --access public --provenance; done
+        # asks for a newer Node than the pin and fails to install. The ./ matters: npm reads a bare
+        # dist/name.tgz as a GitHub user/repo.
+        run: for f in ./dist/*.tgz; do npm publish "$f" --access public --provenance; done
