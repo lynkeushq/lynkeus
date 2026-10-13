@@ -2,8 +2,13 @@ import type { Target } from 'lynkeus-protocol';
 
 export const TARGET_HELP = '#testId | "text" | 12 (index) | 100,200';
 
-/** `#testId`, `12` (an index), `100,200` (a point), anything else a text; `#testId[2]` or `text[2]` is the third match. */
+/**
+ * `#testId`, `12` (an index), `100,200` (a point), anything else a text; `#testId[2]` or `text[2]` is the third match.
+ * A text in quotes is that text and nothing else: `"12"` is not an index, and `"Next"` is not a route.
+ */
 export const parseTarget = (raw: string): Target => {
+  const quoted = /^(["'])((?:(?!\1).)*)\1$/s.exec(raw);
+  if (quoted) return { text: quoted[2]! };
   const nth = /^(.+)\[(\d+)\]$/.exec(raw);
   if (nth && !/^\d+$/.test(nth[1]!)) {
     const base = parseTarget(nth[1]!);

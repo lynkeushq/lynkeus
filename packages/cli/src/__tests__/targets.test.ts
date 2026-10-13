@@ -19,6 +19,15 @@ test('a bare integer is an index', () => {
 test('anything else is text', () => {
   assert.deepEqual(parseTarget('Some label'), { text: 'Some label' });
 });
+test('a text in quotes is that text, whatever it looks like', () => {
+  assert.deepEqual(parseTarget('"Next"'), { text: 'Next' });
+  assert.deepEqual(parseTarget("'12'"), { text: '12' });
+  assert.deepEqual(parseTarget('"#tag"[1]'), { text: '#tag', nth: 1 });
+  assert.equal(isRoute('"Next"'), false);
+});
+test('quotes that do not wrap the whole text stay in it', () => {
+  assert.deepEqual(parseTarget('"Yes" or "No"'), { text: '"Yes" or "No"' });
+});
 test('a testId that contains a comma is still a testId, not a point', () => {
   assert.deepEqual(parseTarget('#a,b'), { testId: 'a,b' });
 });
