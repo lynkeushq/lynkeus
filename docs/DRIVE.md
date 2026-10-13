@@ -280,9 +280,6 @@ and a histogram of where it died and with what.
   Expo Router names a route after its file (`index`, `explore`), and to `wait`
   and `see` a lowercase word is a text to look for. Say it is a route:
   `lynkeus wait route:index`, or `app.wait: "route:index"` in a case.
-- **Headless**: Node 20+, the app's own jest config and babel transform.
-- **Expo**: works in a development build (not Expo Go). Add the package and
-  run `expo prebuild`.
 - **Headless**: Node 22 or newer, the app's own jest config and babel
   transform. `headless init` looks for the app's root component (`App.tsx`
   and the like, or `--component <path>`); an Expo Router app has none, so it

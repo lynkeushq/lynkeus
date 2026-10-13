@@ -198,22 +198,6 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
     return texts.toString()
   }
 
-  // The deepest visible view containing the point, in window coordinates.
-  private fun hitView(view: View, x: Float, y: Float): View? {
-    if (view.visibility != View.VISIBLE) return null
-    val location = IntArray(2)
-    view.getLocationInWindow(location)
-    val inside = x >= location[0] && x < location[0] + view.width && y >= location[1] && y < location[1] + view.height
-    if (!inside) return null
-    if (view is ViewGroup) {
-      for (i in view.childCount - 1 downTo 0) {
-        val hit = hitView(view.getChildAt(i), x, y)
-        if (hit != null) return hit
-      }
-    }
-    return view
-  }
-
   companion object {
     const val NAME = NativeLynkeusSpec.NAME
   }
