@@ -190,7 +190,11 @@ registered. Two names are conventions every driver looks for:
 
 `qa.observe(name, store)` puts a store's changes in the trace, so a failure
 report says what the app believed at that moment, not just what it painted,
-and `lynkeus call stores '{"name":"session"}'` reads its state.
+and `lynkeus call stores '{"name":"session"}'` reads its state. A store is
+anything with `getState` and `subscribe`: a Zustand store, a Redux store. The
+trace says which top-level keys changed and keeps their values short: an
+object as its size, a long string as its first 80 characters, and a key whose
+name reads like a secret (`token`, `password`, `session`…) as `…`.
 
 `qa.event(name, props)`, called from wherever the app reports to its
 analytics, records the event in the trace and in a buffer that
