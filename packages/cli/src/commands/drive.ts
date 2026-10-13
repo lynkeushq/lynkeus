@@ -359,7 +359,7 @@ export const driveCommands = [
       const baselineFile = (ctx.flags.baseline as string | undefined) ?? lintBaseline;
       if (save) {
         const baseline = fs.existsSync(save) ? readJson<LintBaseline>(save) : {};
-        baseline[route] = withIds.map((f) => ({ rule: f.finding.rule, testId: f.testId, message: f.finding.message }));
+        baseline[route] = withIds.map((f) => ({ rule: f.finding.rule, testId: f.testId, subject: f.finding.subject, message: f.finding.message }));
         writeJson(save, baseline);
         lines.push(`saved ${findings.length} finding(s) for ${route} → ${save}`);
       } else if (baselineFile && fs.existsSync(baselineFile)) {
