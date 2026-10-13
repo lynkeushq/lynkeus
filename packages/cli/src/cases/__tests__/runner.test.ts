@@ -231,6 +231,7 @@ test('a step becomes the argv of the command it names', () => {
   assert.throws(() => argvFor(find('press')!, { target: '#x', sideways: true }), /press has no sideways/);
   assert.deepEqual(argvFor(find('press')!, { testId: 'like', within: 'hi from Ana' }), ['press', '#like', '--in', 'hi from Ana']);
   assert.deepEqual(argvFor(find('type')!, { text: 'ana', testId: 'search' }), ['type', 'ana', '#search']);
+  assert.deepEqual(argvFor(find('wait')!, { testId: 'row-25', timeoutMs: 9000 }), ['wait', '#row-25', '--timeout', '9000']);
 });
 
 test('what a buffer gained is found whichever end it grows from', () => {
