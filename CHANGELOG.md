@@ -3,6 +3,7 @@
 ## 0.2.0 (unreleased)
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 - `lynkeus-agent`: a token that the app passes and that arrives empty keeps the agent off, with a line in the app's log saying why. It used to mean "no token", and the agent served any driver that connected. In a React Native app that was every app that followed the README, because `process.env.LYNKEUS_TOKEN` is undefined inside a bundle. **An app that passes `token` now needs the value to reach it**: `lynkeus-agent/babel`, a Babel plugin, writes `LYNKEUS_TOKEN` into a development bundle (never a release one), and `lynkeus init` adds it to `babel.config.js`. `auto()` with no `token` at all still serves without one.
 - An app that says it runs on Android has its device found through `adb devices`. With an iOS simulator booted beside the emulator, the CLI took the simulator's id for it, and a screenshot, a launch or an `os` command went to `adb` with an id it did not know.
 - `wait` and `see` take `route:<name>` for a route that does not start with a capital, as Expo Router's do (`route:index`): a lowercase word alone is still a text to look for.
@@ -12,6 +13,10 @@
 =======
 - `lynkeus lint --baseline` knows a finding again by its rule, its testId and what it is about, not by its message. The message carries what was measured, so a target that went from 32 to 30 points came back as new. A baseline saved before this still matches on the message it kept; save it again to get the new behavior.
 >>>>>>> origin/dev/lint-baseline-identity
+=======
+- `qa.observe` works with a Redux store. It read the new state from the listener's argument, which Zustand passes and Redux does not, so every key of a Redux store was traced as changing to nothing. It now reads the state from the store.
+- The store changes in the trace no longer carry a secret or a payload: a key named like one (`token`, `password`, `session`…) is traced as `…`, and a string longer than 80 characters is cut. A trace is part of what a report uploads.
+>>>>>>> origin/dev/observe-redux
 - `lynkeus-agent` on Android: an element is where its view stands, not where the shadow tree puts it. In an app that draws under the status bar the two were a status bar apart, so a press landed above its target. The native module answers `frames(tags)`; an app has to be rebuilt to get it, and until then the agent behaves as before.
 - Cases: `on:` takes `has:<command>` (the app registered that command, as a hosted build often does and a store build does not) and `!` in front of any condition, so one case or macro carries the way each host does a thing. `app.press` waits half a second for a target that is not listed and then scrolls to it, instead of spending its whole deadline first, and waits for a disabled control through the app rather than by sleeping, which lets a host with its own clock move on.
 - `case run` on a device, or a host that lists only its window: `app.see` and `app.press` scroll to what they look for, and `app.see` gives a missing target a short wait, a scroll and a long wait before its deadline counts. A case no longer needs a swipe written before each element below the fold.
