@@ -35,6 +35,6 @@ jobs:
         run: yarn workspaces foreach -A --no-private pack --out "$PWD/dist/%s-%v.tgz"
 
       - name: Publish
-        run: |
-          npm install -g npm@latest
-          for f in dist/*.tgz; do npm publish "$f" --access public --provenance; done
+        # The npm that ships with the pinned Node does trusted publishing (11.5.1 or newer); npm@latest
+        # asks for a newer Node than the pin and fails to install.
+        run: for f in dist/*.tgz; do npm publish "$f" --access public --provenance; done
