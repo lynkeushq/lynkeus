@@ -91,7 +91,7 @@ export type CaseReport = {
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
-export type Evidence = { dir: string; screenshots?: boolean; video?: { fps: number } };
+export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; video?: { fps: number } };
 
 export type RunOptions = {
   base: Base;
@@ -796,9 +796,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (evidence?.screenshots) {
       // A step may end mid-transition (a screen fading in, the splash fading out): the frame is of where the
       // step left the app, so two runs' frames of the same step show the same screen.
-      // Long enough for what arrives after a short delay; a screen that never settles (an animation that
-      // keeps going) is noted as such, and its frame is of a moment, not of a state.
-      const settled = await d.idle({ quietMs: 700, timeoutMs: 3000 }).then(
+      // A screen that never settles (an animation that keeps going) is noted as such, and its frame is of a
+      // moment, not of a state. The wait is paid on every step: short for a report, and long enough for what
+      // arrives after a short delay (700 ms) where two runs' frames are compared pixel by pixel.
+      const quietMs = evidence.settleMs ?? 150;
+      const settled = await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
         (r) => r.idle,
         () => false,
       );

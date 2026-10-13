@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `case run --screenshots` waits 150 ms of a still screen before each frame, where it waited 700 ms: the wait is paid on every step and was half the time of a filmed run (three cases at once took 133 s, and 68 s without it). `--settle <ms>` sets it; `--settle 700` gives the frames two runs can be compared by, pixel for pixel.
+
 ## 0.3.0
 
 - `lynkeus-agent`: a token that the app passes and that arrives empty keeps the agent off, with a line in the app's log saying why. It used to mean "no token", and the agent served any driver that connected. In a React Native app that was every app that followed the README, because `process.env.LYNKEUS_TOKEN` is undefined inside a bundle. **An app that passes `token` now needs the value to reach it**: `lynkeus-agent/babel`, a Babel plugin, writes `LYNKEUS_TOKEN` into a development bundle (never a release one), and `lynkeus init` adds it to `babel.config.js`. `auto()` with no `token` at all still serves without one.

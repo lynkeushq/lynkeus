@@ -600,7 +600,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--settle <ms>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -620,6 +620,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--events <dir>` | keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl |
 | `--out <dir>` | write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt |
 | `--screenshots` | with --out: a frame of the screen after every step of the app |
+| `--settle <ms>` | with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by (default `150`) |
 | `--video` | with --out: film each case, where the host films (the step says at what second it began) |
 | `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
 | `--traces-port <port>` | where --traces listens (default `4318`) |
