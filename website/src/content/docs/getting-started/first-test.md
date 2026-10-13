@@ -117,7 +117,7 @@ on screen: #details
 :::note
 `wait` and `see` accept either a route or a target in the same position. They read the argument as a route when it starts with a capital letter and contains only letters, digits, underscores and dots (`Details`, `Settings.Main`). So `npx lynkeus wait Next` waits for a *route* called `Next`, not for a button labeled "Next". To wait for an element, use its `testID`.
 
-A lowercase word alone is read as a text. A router that names routes in lowercase, as expo-router does (`index`, `explore`), needs the `route:` prefix to say that a route is meant: `npx lynkeus wait route:index`, or `app.wait: "route:index"` in a case. The prefix is new and not yet released.
+A lowercase word alone is read as a text. A router that names routes in lowercase, as expo-router does (`index`, `explore`), needs the `route:` prefix to say that a route is meant: `npx lynkeus wait route:index`, or `app.wait: "route:index"` in a case. The prefix is available since 0.3.0.
 :::
 
 ### 5. Go back to where you started

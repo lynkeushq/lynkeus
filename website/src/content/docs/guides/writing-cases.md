@@ -129,7 +129,7 @@ Three other sources are always available:
 A value that is one reference keeps its type, so `{{u.points}}` stays a number. Inside a longer string it becomes text. A reference that resolves to nothing fails the step with `{{u.email}} is empty`, and an unknown alias fails with ``no alias 'u' (add `as: u` to the step that creates it)``.
 
 :::tip
-Set `LYNKEUS_SEED` to any value and each case draws the same random values on every run, and different ones from the case beside it. Use it when you compare the screenshots of two runs.
+Since 0.3.0, set `LYNKEUS_SEED` to any value and each case draws the same random values on every run, and different ones from the case beside it. Use it when you compare the screenshots of two runs.
 :::
 
 ## Run a case over several inputs

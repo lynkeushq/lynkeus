@@ -482,8 +482,8 @@ Three rules apply:
 
 `{{random.letters}}` and `{{random.digits}}` are new on every run. With the environment variable `LYNKEUS_SEED` set to anything, each case draws the same values every time, and different ones from the case beside it. That is what comparing two runs' screens needs.
 
-:::note
-`LYNKEUS_SEED` is new and not yet in a published release.
+:::note[Since 0.3.0]
+`LYNKEUS_SEED` arrived in version 0.3.0.
 :::
 
 ## Matrix

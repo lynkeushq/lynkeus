@@ -87,7 +87,7 @@ Una **ruta** es el nombre de una pantalla tal como lo informa la navegación de 
 
 Las rutas no las inventa lynkeus. Vienen de un **adaptador de navegación**, la pieza que traduce entre el agente y el enrutador de tu app. El paquete incluye uno para React Navigation, y `auto()` lo conecta solo. Sin adaptador, lynkeus sigue viendo elementos pero no rutas, y `wait Settings.Main` no tiene qué esperar.
 
-`wait` y `see` reconocen una ruta por su mayúscula inicial. Una ruta en minúscula, como las de expo-router, se escribe con el prefijo `route:`, por ejemplo `route:index` (todavía no publicado).
+`wait` y `see` reconocen una ruta por su mayúscula inicial. Una ruta en minúscula, como las de expo-router, se escribe con el prefijo `route:`, por ejemplo `route:index` (desde la versión 0.3.0).
 
 ## Lo que escribes y ejecutas
 

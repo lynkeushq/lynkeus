@@ -130,8 +130,8 @@ lynkeus never reads your copy. It passes these values on, and three things use t
 
 The defaults for contrast are the figures of WCAG 2 level AA.
 
-:::note
-`lint.contrast` is new and not yet in a published release.
+:::note[Since 0.3.0]
+`lint.contrast` arrived in version 0.3.0.
 :::
 
 ## Smoke and crawl

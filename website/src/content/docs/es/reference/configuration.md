@@ -139,6 +139,10 @@ Se usan en tres lugares: `lynkeus os language` toma este idioma cuando no le das
 | `lint.contrast.large` | número | `3` | La relación mínima para texto grande: 18 puntos, o 14 en negrita. |
 | `lint.contrast.ignore` | lista de textos | ninguno | Expresiones regulares de `testID` que la comprobación de contraste deja fuera. |
 
+:::note[Desde 0.3.0]
+`lint.contrast` existe desde la versión 0.3.0.
+:::
+
 Por defecto, `i18nKeyPatterns` reconoce dos formas: tres o más segmentos separados por puntos (`home.header.title`) y tres o más segmentos separados por guiones bajos (`home_header_title`). Si las claves de tu app tienen otra forma, o si tu app muestra textos legítimos con esa forma, cámbialo aquí.
 
 Los valores por defecto del contraste son los de WCAG 2. La guía [Lint y contraste](/es/guides/lint-and-contrast/) explica cada regla.

@@ -99,6 +99,10 @@ npx lynkeus os appearance dark  && npx lynkeus lint
 
 ### Skip or tune contrast
 
+:::note[Since 0.3.0]
+The contrast check arrived in version 0.3.0.
+:::
+
 `--no-contrast` skips the measurement for one run. It is also the faster run, since contrast takes a screenshot.
 
 ```bash
@@ -188,7 +192,7 @@ For contrast, `lint` takes one screenshot and looks at the rectangle of each tex
 
 **A finding you saved comes back as new.** A finding matches the baseline when its rule, its testID and its message are all the same. The message carries the measurement, so a target that went from 32 to 30 points, or a contrast ratio that moved from 2.9 to 2.8, is a new finding. So is an element whose testID changed.
 
-**The contrast check is not available.** It is new and may not be in the version you have installed. Run `npx lynkeus help lint`: if `--no-contrast` is not listed, your version predates it.
+**The contrast check is not available.** It arrived in version 0.3.0. Run `npx lynkeus help lint`: if `--no-contrast` is not listed, your version predates it.
 
 ## Next steps
 

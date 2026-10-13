@@ -60,7 +60,7 @@ Aun así, el `testID` es la forma más estable: no cambia con el idioma ni con l
 
 ### ¿Tengo que modificar mis pantallas?
 
-No. El agente se monta con una llamada a `auto()` en el punto de entrada de la app, y ninguna pantalla renderiza nada adicional. El comando `lynkeus init` agrega esa llamada por ti (todavía no publicado).
+No. El agente se monta con una llamada a `auto()` en el punto de entrada de la app, y ninguna pantalla renderiza nada adicional. El comando `lynkeus init` agrega esa llamada por ti (desde la versión 0.3.0).
 
 ### ¿Con qué librerías de navegación funciona?
 

@@ -307,7 +307,7 @@ Revisa la pantalla actual y avisa de controles sin etiqueta, objetivos táctiles
 | Opción | Qué hace |
 |---|---|
 | `--strict` | Termina con código `1` ante cualquier advertencia. |
-| `--no-contrast` | Omite la medición del contraste del texto contra su fondo, que requiere tomar una captura de pantalla. |
+| `--no-contrast` | Desde 0.3.0. Omite la medición del contraste del texto contra su fondo, que requiere tomar una captura de pantalla. |
 | `--save <file>` | Guarda los hallazgos de esta pantalla en un archivo de referencia. |
 | `--baseline <file>` | Imprime solo lo que es nuevo respecto de un archivo de referencia. Si no la das, se usa `lintBaseline` de la configuración. |
 

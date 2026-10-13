@@ -11,3 +11,10 @@ npm run build    # the static site, into dist/
 ```
 
 Needs Node 22 or newer.
+
+## Versions
+
+The header shows the version in `packages/cli/package.json`, and the site is built for publishing when a
+release is tagged, so what is online describes what `npm install` gives. A feature added after the first
+release says so where it is documented (`Since 0.3.0`, `Desde 0.3.0`). `npm run check-versions` fails when a
+page names a version later than the one being released; the release build runs it.

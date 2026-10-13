@@ -120,6 +120,10 @@ Las claves de primer nivel del segundo archivo reemplazan enteras a las del prim
 
 ### `LYNKEUS_SEED`
 
+:::note[Desde 0.3.0]
+`LYNKEUS_SEED` existe desde la versión 0.3.0.
+:::
+
 Hace que las referencias `{{random.letters}}` y `{{random.digits}}` de un caso den los mismos valores en cada ejecución.
 
 Sin la variable, esos valores son nuevos cada vez. Con ella definida con cualquier valor, cada caso obtiene siempre los mismos, y distintos de los del caso de al lado. Es lo que hace falta para comparar las pantallas de dos ejecuciones: si el nombre del usuario cambia cada vez, todas las capturas difieren.

@@ -446,7 +446,7 @@ Dos errores frecuentes:
 
 `{{random.letters}}` y `{{random.digits}}` son distintos en cada ejecución. Eso evita choques entre ejecuciones, pero impide comparar las pantallas de dos ejecuciones, porque los nombres cambian.
 
-Con la variable de entorno `LYNKEUS_SEED` definida con cualquier valor, cada caso obtiene los mismos valores todas las veces, y valores distintos de los del caso de al lado.
+Desde la versión 0.3.0, con la variable de entorno `LYNKEUS_SEED` definida con cualquier valor, cada caso obtiene los mismos valores todas las veces, y valores distintos de los del caso de al lado.
 
 ```bash
 LYNKEUS_SEED=1 npx lynkeus case run --out run --screenshots

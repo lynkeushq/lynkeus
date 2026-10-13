@@ -14,10 +14,10 @@ The facts here were verified on a new Expo SDK 57 project, with React Native 0.8
 | Expo Go | Not supported. |
 | Development build | Required. |
 | Config plugin | None needed. The native module is autolinked. |
-| Mounting the agent | `npx lynkeus init` (not yet released). In an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
+| Mounting the agent | `npx lynkeus init` (since 0.3.0). In an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
 | Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN` |
 | Token in the CLI | `LYNKEUS_TOKEN` |
-| Routes | Recognized, with expo-router's names (`index`, not `Home`). In `wait` and `see`, written `route:index` (not yet released). |
+| Routes | Recognized, with expo-router's names (`index`, not `Home`). In `wait` and `see`, written `route:index` (since 0.3.0). |
 | Native tab bar | Not listed as elements. Navigate with `lynkeus nav`. |
 
 ## Requirements
@@ -65,8 +65,8 @@ Keep the order: the `auto()` call first, the router import after it.
 
 `npx lynkeus init` makes both changes. It recognizes an Expo project by the `expo` dependency in `package.json`, and an expo-router project by `"main": "expo-router/entry"` with no entry file present. In an Expo project that already has an `index.js`, `index.tsx` or `index.ts`, it adds the `auto()` call to that file, after the last import. In every Expo project it reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, and it prints two reminders: that the agent needs a development build, and that the development server must be started with that variable set.
 
-:::note
-`lynkeus init` is new and not yet released. Until your version of the CLI has it, create the file and change `"main"` by hand; the result is the same.
+:::note[Since 0.3.0]
+`lynkeus init` arrived in version 0.3.0. On an earlier version, create the file and change `"main"` by hand; the result is the same.
 :::
 
 ## The token
@@ -124,8 +124,8 @@ Without the prefix nothing changes: `npx lynkeus wait index` still looks for the
 
 `lynkeus nav` needs no prefix. Its argument is always a route.
 
-:::note
-The `route:` prefix is new and not yet released.
+:::note[Since 0.3.0]
+The `route:` prefix arrived in version 0.3.0.
 :::
 
 ## Native tabs

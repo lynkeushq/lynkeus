@@ -43,8 +43,8 @@ La solución es darle a la app un archivo de entrada propio, que monte el agente
 npx lynkeus init
 ```
 
-:::note
-`lynkeus init` todavía no está publicado. Hasta entonces, crea los dos cambios a mano.
+:::note[Desde 0.3.0]
+`lynkeus init` existe desde la versión 0.3.0. Con una versión anterior, haz los dos cambios a mano.
 :::
 
 El archivo que escribe es este:
@@ -115,8 +115,8 @@ steps:
   - app.wait: "route:index"
 ```
 
-:::note
-El prefijo `route:` todavía no está publicado.
+:::note[Desde 0.3.0]
+El prefijo `route:` existe desde la versión 0.3.0.
 :::
 
 `lynkeus nav` no necesita el prefijo: su argumento siempre es una ruta.

@@ -60,8 +60,8 @@ added auto() to index.js
 
 `init` looks for `index.js`, `index.tsx` or `index.ts` and inserts the import and the `auto()` call after the file's last import, so that your own polyfills still run first. Run it again and it answers `index.js already mounts the agent` and changes nothing.
 
-:::note
-`lynkeus init` is new and not yet released. If your version of the CLI answers that the command is unknown, add the call by hand as shown below.
+:::note[Since 0.3.0]
+`lynkeus init` arrived in version 0.3.0. On an earlier version, add the call by hand as shown below.
 :::
 
 #### What it does, and doing it by hand

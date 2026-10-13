@@ -136,7 +136,7 @@ De ahí salen dos consecuencias que conviene conocer:
 - **Sobre un fondo que no es un color plano, el hallazgo es información y no advertencia.** El mensaje agrega `over a varied background`. En ese caso el fondo es una estimación, y la decisión queda en manos de una persona.
 - **Una cifra baja es un hallazgo; una cifra alta no es un certificado.** Cualquier otra cosa dentro del rectángulo, como un ícono junto a la etiqueta, solo puede subir la cifra. Un texto que pasa aquí puede merecer igual una mirada.
 
-Medir contraste implica tomar una captura. Para omitirlo en una ejecución:
+La medición de contraste existe desde la versión 0.3.0. Implica tomar una captura. Para omitirlo en una ejecución:
 
 ```bash
 npx lynkeus lint --no-contrast

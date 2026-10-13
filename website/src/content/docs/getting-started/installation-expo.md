@@ -54,8 +54,8 @@ The first line is what it changed. The two lines that start with `Expo:` are rem
 
 In an Expo project that already has an entry file (`index.js`, `index.tsx` or `index.ts`), `init` adds the `auto()` call to that file instead, after its last import, and reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN` there too.
 
-:::note
-`lynkeus init` is new and not yet released. If your version of the CLI answers that the command is unknown, make the two changes by hand as shown below.
+:::note[Since 0.3.0]
+`lynkeus init` arrived in version 0.3.0. On an earlier version, make the two changes by hand as shown below.
 :::
 
 #### What it does, and doing it by hand
@@ -157,7 +157,7 @@ From there everything is the same as in a React Native CLI app: the agent dials 
 
 Two things behave differently from what the rest of the documentation shows. Both are covered in more detail in [Expo](/platforms/expo/).
 
-**Route names are file names, in lowercase.** The examples elsewhere use React Navigation names such as `Settings.Main`. expo-router names a route after its file: `index`, `explore`. `lynkeus nav index` works with any name. `lynkeus wait` and `lynkeus see`, however, take either a route or a target in the same position, and read a lowercase word as a text to look for. Say that it is a route with the `route:` prefix: `npx lynkeus wait route:index`, or `app.wait: "route:index"` in a case. The prefix is new and not yet released.
+**Route names are file names, in lowercase.** The examples elsewhere use React Navigation names such as `Settings.Main`. expo-router names a route after its file: `index`, `explore`. `lynkeus nav index` works with any name. `lynkeus wait` and `lynkeus see`, however, take either a route or a target in the same position, and read a lowercase word as a text to look for. Say that it is a route with the `route:` prefix: `npx lynkeus wait route:index`, or `app.wait: "route:index"` in a case. The prefix is available since 0.3.0.
 
 **Native tabs are not elements.** The tab bar of the newest Expo template is drawn by the system, not by React Native. Its tabs are not listed by `lynkeus screen` and cannot be pressed by name. Move between tabs with `lynkeus nav <route>`.
 

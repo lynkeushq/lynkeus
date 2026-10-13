@@ -229,7 +229,7 @@ npx lynkeus wait route:index
   - app.wait: "route:index"
 ```
 
-El prefijo `route:` todavía no está publicado.
+El prefijo `route:` existe desde la versión 0.3.0.
 
 ### Un texto no coincide
 

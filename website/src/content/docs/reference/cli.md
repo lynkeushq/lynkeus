@@ -353,8 +353,8 @@ Reads the current screen and reports controls with no label, small touch targets
 | `--save <file>` | Keep this screen's findings in a baseline file. |
 | `--baseline <file>` | Print only what is new against a baseline file. Without it, `lintBaseline` in `lynkeus.config.json`. |
 
-:::note
-The contrast check and `--no-contrast` are new and not yet in a published release.
+:::note[Since 0.3.0]
+The contrast check and `--no-contrast` arrived in version 0.3.0.
 :::
 
 ```bash

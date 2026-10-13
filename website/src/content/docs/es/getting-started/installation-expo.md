@@ -49,8 +49,8 @@ Desde la carpeta del proyecto, ejecuta:
 npx lynkeus init
 ```
 
-:::note
-`lynkeus init` todavía no está publicado. Mientras tanto, haz lo mismo a mano como explica [Montar el agente a mano](#montar-el-agente-a-mano).
+:::note[Desde 0.3.0]
+`lynkeus init` existe desde la versión 0.3.0. Con una versión anterior, haz lo mismo a mano como explica [Montar el agente a mano](#montar-el-agente-a-mano).
 :::
 
 En un proyecto con expo-router, el comando hace dos cosas: escribe un `index.js` que monta el agente y después carga el enrutador, y apunta la clave `main` de `package.json` a ese archivo. Deberías ver:

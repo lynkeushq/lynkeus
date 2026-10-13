@@ -54,8 +54,8 @@ Desde la carpeta de la app, ejecuta:
 npx lynkeus init
 ```
 
-:::note
-`lynkeus init` todavía no está publicado. Mientras tanto, agrega las líneas a mano como se muestra más abajo.
+:::note[Desde 0.3.0]
+`lynkeus init` existe desde la versión 0.3.0. Con una versión anterior, agrega las líneas a mano como se muestra más abajo.
 :::
 
 El comando abre el punto de entrada de la app (`index.js`, `index.tsx` o `index.ts`) y agrega la llamada a `auto()` después del último `import`. Deberías ver:

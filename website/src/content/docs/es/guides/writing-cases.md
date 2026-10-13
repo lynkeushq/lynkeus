@@ -147,7 +147,7 @@ steps:
 | `{{env.NOMBRE}}` | Una variable de entorno. |
 | `{{matrix.clave}}` | El valor de esta combinación de la matriz (más abajo). |
 
-Con la variable `LYNKEUS_SEED` definida, cada caso saca siempre los mismos valores aleatorios, distintos de los del caso de al lado. Es lo que hace falta para comparar las pantallas de dos ejecuciones.
+Desde la versión 0.3.0, con la variable `LYNKEUS_SEED` definida, cada caso saca siempre los mismos valores aleatorios, distintos de los del caso de al lado. Es lo que hace falta para comparar las pantallas de dos ejecuciones.
 
 Si usas un alias que nadie creó, el caso falla con `` no alias 'u' (add `as: u` to the step that creates it) ``.
 

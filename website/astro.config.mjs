@@ -18,6 +18,7 @@ export default defineConfig({
       editLink: { baseUrl: 'https://github.com/lynkeushq/lynkeus/edit/main/website/' },
       lastUpdated: true,
       customCss: ['./src/styles/custom.css'],
+      components: { SiteTitle: './src/components/SiteTitle.astro' },
       sidebar: [
         { label: 'Introduction', translations: { es: 'Introducción' }, slug: '' },
         {

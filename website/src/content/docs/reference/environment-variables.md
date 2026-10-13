@@ -104,8 +104,8 @@ Use it when you compare the screens of two runs: the names and numbers on them a
 LYNKEUS_SEED=1 lynkeus case run --out run --screenshots
 ```
 
-:::note
-`LYNKEUS_SEED` is new and not yet in a published release.
+:::note[Since 0.3.0]
+`LYNKEUS_SEED` arrived in version 0.3.0.
 :::
 
 ### `LYNKEUS_RECORD_SCREENS`
