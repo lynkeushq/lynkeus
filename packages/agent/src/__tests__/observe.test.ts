@@ -14,18 +14,19 @@ const handlers = createHandlers(noNavigation, {
   window: () => ({ w: 1, h: 1 }),
 } as unknown as Backend);
 
+// As Redux notifies: the listener is called with nothing and reads the state itself.
 const storeOf = <T>(initial: T) => {
   let state = initial;
-  const listeners = new Set<(s: unknown) => void>();
+  const listeners = new Set<() => void>();
   return {
     getState: () => state,
-    subscribe: (l: (s: unknown) => void) => {
+    subscribe: (l: () => void) => {
       listeners.add(l);
       return () => listeners.delete(l);
     },
     set: (next: T) => {
       state = next;
-      for (const l of listeners) l(state);
+      for (const l of listeners) l();
     },
   };
 };
@@ -50,6 +51,19 @@ describe('what every app exposes without writing a command', () => {
     expect(await dispatch(handlers, 'stores', { name: 'session' })).toEqual({ user: { plan: 'pro' } });
     await expect(dispatch(handlers, 'stores', { name: 'nope' })).rejects.toThrow(/No store observed as "nope"/);
     stop();
+  });
+
+  it('the trace says which keys of a store changed, without secrets or payloads', () => {
+    const store = storeOf<Record<string, unknown>>({ status: 'idle', accessToken: 'abc', user: { id: 1 }, note: '' });
+    const stop = qa.observe('auth', store);
+    const mark = traceSince().at(-1)?.seq ?? 0;
+    store.set({ status: 'ready', accessToken: 'def', user: { id: 1, name: 'Ana' }, note: 'x'.repeat(200) });
+    stop();
+    const change = traceSince(mark).find((e) => e.kind === 'store' && e.store === 'auth') as { changed: Record<string, { from: unknown; to: unknown }> };
+    expect(change.changed.status).toEqual({ from: 'idle', to: 'ready' });
+    expect(change.changed.accessToken).toEqual({ from: '…', to: '…' });
+    expect(change.changed.user).toEqual({ from: '{1}', to: '{2}' });
+    expect(change.changed.note?.to).toBe(`${'x'.repeat(80)}…`);
   });
 
   it('an app that keeps its own events can still register over the default', async () => {

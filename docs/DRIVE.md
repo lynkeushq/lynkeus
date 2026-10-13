@@ -17,7 +17,24 @@ auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ && config.ENV !== 'pro
 
 `auto()` wraps the root through `AppRegistry` and finds your React Navigation
 container by itself (it looks for the container's context value, so no ref
-has to be passed around). `npx lynkeus headless init --auto` writes it for you.
+has to be passed around). `npx lynkeus init` writes it for you.
+
+React Native gives the app no environment: `process.env.LYNKEUS_TOKEN` is
+undefined there unless something writes it into the bundle. The agent ships
+the Babel plugin that does, and `lynkeus init` adds it:
+
+```js
+// babel.config.js
+module.exports = {
+  presets: ['module:@react-native/babel-preset'],
+  plugins: ['lynkeus-agent/babel'],
+};
+```
+
+Start Metro with `LYNKEUS_TOKEN` set to the value the CLI reads. Metro keeps
+what it has transformed, so after changing the token start it once with
+`--reset-cache`. A release bundle is left alone: the token is never written
+into one. An Expo app does not need the plugin: it reads `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 Prefer the explicit component when you want to hand it an adapter for another
 router:
 
@@ -55,7 +72,7 @@ socket and the second stays quiet.
 | `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` / `10.0.2.2`, `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
-| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. |
+| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
 | `app` | — | Free-form, sent in `hello` (name, version, environment). |
 
 ## Drive it
@@ -95,7 +112,7 @@ npx lynkeus map plan --from Settings.Main --to Settings.Profile   # which button
 npx lynkeus run flows/login.json --var phone=1124888418 --diff --screenshots
 npx lynkeus smoke                        # open every parameter-free route, record what renders
 npx lynkeus crawl Settings.Main --depth 2    # press every safe button, learn where it leads
-npx lynkeus lint                         # unlabeled controls, small targets, untranslated keys, covered/clipped
+npx lynkeus lint                         # unlabeled controls, small targets, low contrast, untranslated keys, covered/clipped
 npx lynkeus perf                         # per screen: requests on arrival, time to quiet, errors, stalls, the slowest call
 npx lynkeus mcp                          # the core of it as MCP tools for an AI harness (--full: all)
 ```
@@ -190,7 +207,11 @@ registered. Two names are conventions every driver looks for:
 
 `qa.observe(name, store)` puts a store's changes in the trace, so a failure
 report says what the app believed at that moment, not just what it painted,
-and `lynkeus call stores '{"name":"session"}'` reads its state.
+and `lynkeus call stores '{"name":"session"}'` reads its state. A store is
+anything with `getState` and `subscribe`: a Zustand store, a Redux store. The
+trace says which top-level keys changed and keeps their values short: an
+object as its size, a long string as its first 80 characters, and a key whose
+name reads like a secret (`token`, `password`, `session`…) as `…`.
 
 `qa.event(name, props)`, called from wherever the app reports to its
 analytics, records the event in the trace and in a buffer that
@@ -236,9 +257,40 @@ and a histogram of where it died and with what.
 - **Android**: `MotionEvent`s dispatched to the activity window; keys through
   the focused `EditText`. Refuses to run unless the app is debuggable
   (`FLAG_DEBUGGABLE`).
-- **Expo**: works in a development build (not Expo Go). Add the package and
-  run `expo prebuild`.
-- **Headless**: Node 20+, the app's own jest config and babel transform.
+- **Expo**: works in a development build, not in Expo Go: the agent has native
+  code, and Expo Go cannot load a native module it was not built with. No
+  config plugin is needed; the module is autolinked.
+
+  ```bash
+  npx expo install lynkeus-agent
+  npx lynkeus init          # mounts the agent; an Expo Router app gets an index.js of its own
+  npx expo run:ios          # or run:android: a development build with the agent in it
+  ```
+
+  An Expo Router app has no entry file (`"main": "expo-router/entry"`), so
+  `lynkeus init` writes an `index.js` that mounts the agent and then loads the
+  router, and points `main` at it. Expo passes the app only the environment
+  variables that start with `EXPO_PUBLIC_`, so the app reads its token from
+  `EXPO_PUBLIC_LYNKEUS_TOKEN`; start the dev server with it set to the same
+  value the CLI has in `LYNKEUS_TOKEN`. Routes come from Expo Router as they do
+  from React Navigation. A tab bar the system draws (the native tabs of recent
+  templates) is not made of React Native views, so its tabs are not elements:
+  go to a tab with `lynkeus nav <route>`.
+
+  Expo Router names a route after its file (`index`, `explore`), and to `wait`
+  and `see` a lowercase word is a text to look for. Say it is a route:
+  `lynkeus wait route:index`, or `app.wait: "route:index"` in a case.
+- **Headless**: Node 22 or newer, the app's own jest config and babel
+  transform. `headless init` looks for the app's root component (`App.tsx`
+  and the like, or `--component <path>`); an Expo Router app has none, so it
+  runs on a simulator or an emulator and not on the headless host.
+- **Physical devices**: not supported. The CLI looks for a booted simulator
+  or emulator, and launching, screenshots and the `os` commands go through
+  `simctl` and `adb` on one.
+- **Film**: `case run --video` films a case where the host offers a `record`
+  command, which it names in `hello`. The built-in headless host draws
+  nothing and a simulator or emulator session offers none, so there a run
+  keeps its screenshots and no film.
 
 ### Security posture
 

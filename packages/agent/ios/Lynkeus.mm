@@ -83,6 +83,16 @@ static id<UIKeyInput> QaKeyInput(void) {
   return [responder conformsToProtocol:@protocol(UIKeyInput)] ? (id<UIKeyInput>)responder : nil;
 }
 
+static NSString *QaFieldText(UIView *view) {
+  if ([view isKindOfClass:UITextField.class]) return ((UITextField *)view).text ?: @"";
+  if ([view isKindOfClass:UITextView.class]) return ((UITextView *)view).text ?: @"";
+  for (UIView *child in view.subviews) {
+    NSString *found = QaFieldText(child);
+    if (found) return found;
+  }
+  return nil;
+}
+
 #endif
 
 @implementation Lynkeus
@@ -254,6 +264,29 @@ static id<UIKeyInput> QaKeyInput(void) {
 - (NSString *)frames:(NSArray *)tags
 {
   return @"[]";
+}
+
+// Synchronous, like hitTest: asked on the JS thread, read on the main one.
+- (NSString *)texts:(NSArray *)tags
+{
+#if DEBUG
+  __block NSString *result = @"[]";
+  void (^work)(void) = ^{
+    UIWindow *window = QaKeyWindow();
+    if (!window) return;
+    NSMutableArray *texts = [NSMutableArray arrayWithCapacity:tags.count];
+    for (NSNumber *tag in tags) {
+      UIView *view = [window viewWithTag:tag.integerValue];
+      [texts addObject:(view ? QaFieldText(view) : nil) ?: [NSNull null]];
+    }
+    NSData *json = [NSJSONSerialization dataWithJSONObject:texts options:0 error:nil];
+    result = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+  };
+  if (NSThread.isMainThread) work(); else dispatch_sync(dispatch_get_main_queue(), work);
+  return result;
+#else
+  return @"[]";
+#endif
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:

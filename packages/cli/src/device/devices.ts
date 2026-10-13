@@ -29,6 +29,34 @@ export const bootedSimulators = async (): Promise<DeviceInfo[]> => {
     .map((d) => ({ id: d.udid, name: d.name, platform: 'ios', type: 'simulator', connected: true }));
 };
 
+/** The serials `adb devices` lists as ready, in its order; none when there is no adb to ask. */
+export const parseAdbDevices = (stdout: string): DeviceInfo[] =>
+  stdout
+    .split('\n')
+    .slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([serial, state]) => serial && state === 'device')
+    .map(([serial]) => ({ id: serial!, name: serial!, platform: 'android', type: serial!.startsWith('emulator-') ? 'emulator' : 'physical', connected: true }));
+
+export const androidDevices = async (): Promise<DeviceInfo[]> => {
+  try {
+    return parseAdbDevices((await run('adb', ['devices'])).stdout);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
+  }
+};
+
+/** The Android device an app that said it runs on Android is on: the one asked for, or the first that is up. */
+export const pickAndroidDevice = async (wanted?: string): Promise<DeviceInfo> => {
+  const devices = await androidDevices();
+  const id = wanted ?? process.env.LYNKEUS_DEVICE;
+  // A name meant for a simulator (the config's `device` when both platforms are driven) is not a reason to fail here.
+  const device = (id ? devices.find((d) => d.id === id) : undefined) ?? devices[0];
+  if (!device) throw new Error('No Android device or emulator is up (adb devices lists none).');
+  return device;
+};
+
 export const HEADLESS_HOST: DeviceInfo = { id: 'headless', name: 'headless host', platform: 'ios', type: 'simulator', connected: true };
 
 export const pickAgentDevice = async (wanted?: string): Promise<DeviceInfo> => {

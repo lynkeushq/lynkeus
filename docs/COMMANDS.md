@@ -90,7 +90,7 @@ Until a route or element appears (or leaves), or a number of ms
 
 | Argument | |
 |---|---|
-| `what` | Route | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
 
 | Flag | |
 |---|---|
@@ -116,7 +116,7 @@ Assert a route or element is on screen now (exit 1 if not)
 
 | Argument | |
 |---|---|
-| `what` | Route | #testId | "text" | 12 (index) | 100,200 |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 |
 
 | Flag | |
 |---|---|
@@ -191,13 +191,14 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 |---|---|
 | `--route <Route>` | the route that was expected |
 
-### `lynkeus lint [--strict] [--save <file>] [--baseline <file>]`
+### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 
-Unlabeled controls, small targets, untranslated keys, covered or clipped elements
+Unlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements
 
 | Flag | |
 |---|---|
 | `--strict` | exit 1 on any warning |
+| `--no-contrast` | skip the contrast of text against its background (it takes a screenshot) |
 | `--save <file>` | keep this screen's findings in a baseline file |
 | `--baseline <file>` | print only what is new against a baseline file |
 
@@ -219,6 +220,10 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 | Argument | |
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
+
+### `lynkeus init`
+
+Mount the agent from the app's entry: React Native or Expo (Expo Router gets an entry of its own)
 
 ## os
 
@@ -660,7 +665,7 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Upload a run to the reports service and print the report’s address
 
-Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organisation’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organisation’s plan does not keep is left out and said so.
+Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organization’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organization’s plan does not keep is left out and said so.
 
 | Argument | |
 |---|---|
@@ -672,7 +677,7 @@ Uploads what `case run --out <dir>` wrote: the run, its cases, and every frame a
 
 ### `lynkeus report list [--limit <n>]`
 
-List the organisation’s reports, newest first
+List the organization’s reports, newest first
 
 Each line is when the run started, its project and platform, how many cases passed, and the report’s address.
 
@@ -682,14 +687,14 @@ Each line is when the run started, its project and platform, how many cases pass
 
 ### `lynkeus report plan [--upgrade] [--manage]`
 
-Show the organisation’s plan, or open the page that changes it
+Show the organization’s plan, or open the page that changes it
 
 Free keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.
 
 | Flag | |
 |---|---|
 | `--upgrade` | print the Stripe checkout address for the Team plan |
-| `--manage` | print the Stripe portal address for a paying organisation |
+| `--manage` | print the Stripe portal address for a paying organization |
 
 ### `lynkeus report flakes [--project <name>] [--runs <n>]`
 

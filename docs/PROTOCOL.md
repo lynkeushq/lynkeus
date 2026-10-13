@@ -2,30 +2,42 @@
 
 Version 1. JSON messages over a WebSocket. The **app** is the client: in
 development it dials the **driver** (`ws://localhost:8123` on iOS, `ws://10.0.2.2:8123`
-on the Android emulator) and retries every 1.5 s until something answers.
+on the Android emulator). While nothing answers it dials again every 100 ms
+for the first 3 s after the app starts or a link drops, then waits twice as
+long each time, up to 1.5 s (`reconnectMs`).
 The driver is any process that can hold a socket: a Node test runner, a CLI,
 an MCP server, an LLM harness.
 
 ## Handshake
 
-App → driver, on connect (or after `auth`, when a token is configured):
+Driver → app, always the first message on a new socket:
 
 ```json
-{ "event": "hello", "protocolVersion": 1, "platform": "ios", "native": true,
+{ "event": "auth", "session": "b7e1…", "token": "…" }
+```
+
+- `session`: random per driver process. A driver that reconnects resends the
+  requests it had in flight; the app answers one it already ran from the
+  reply it kept (the last 64), so a press is not done twice. A new `session`
+  means a new driver whose request ids start over, and the kept replies are
+  dropped.
+- `token`: present when the driver has one. An app configured with a `token`
+  answers every request with `{"error": {"code": "unauthenticated"}}` until an
+  `auth` carrying the same value arrives.
+
+App → driver, in answer to an `auth` it accepts:
+
+```json
+{ "event": "hello", "protocolVersion": 1, "agentVersion": "0.3.0", "platform": "ios", "native": true,
   "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" } }
 ```
+
+- `agentVersion`: the `lynkeus-agent` release in the app; agents older than
+  the field do not send it.
 
 - `native`: whether touch synthesis is compiled in (debug builds only).
 - `commands`: the names the app registered with `qa.register`. The driver
   may call them like any method.
-
-Driver → app, first message when the app was configured with a `token`:
-
-```json
-{ "event": "auth", "token": "…" }
-```
-
-Until it arrives, every request is answered with `{"error": {"code": "unauthenticated"}}`.
 
 App → driver, whenever the focused route may have changed:
 
@@ -83,6 +95,7 @@ Ties go to the later element: it draws on top.
 | `idle` | `{ quietMs?, timeoutMs? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
 | `requests` | `{ since? }` | `{ inFlight, requests: RequestRecord[] }` |
+| `trace` | `{ since? }` | `{ last, events: TraceEvent[] }` — what the app did, in order: routes, requests, store changes, events, commands |
 | `dismissKeyboard` | — | `true` |
 | `batch` | `{ calls: [{ method, params? }] }` | `{ results }` — in order, stops at the first error |
 | `debug` | — | what the tree walker can see |

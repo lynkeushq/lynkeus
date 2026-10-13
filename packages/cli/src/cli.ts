@@ -15,7 +15,7 @@ import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv } from './config.js';
 import { agentMismatch } from './device/agentVersion.js';
-import { HEADLESS_HOST, pickAgentDevice } from './device/devices.js';
+import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
@@ -65,7 +65,8 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     });
     // A host started for the case is the device: looking for the configured simulator would only replace a
     // late app's error with one about a simulator nobody asked for.
-    const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice((g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device);
+    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device;
+    const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice(wantedDevice);
     if (g.launch && appId) {
       const d = new Device(await picking, { appId, server });
       await d.launchApp(appId, { fresh: true });
@@ -88,7 +89,9 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),
       platform: hello.platform === 'android' ? ('android' as const) : ('ios' as const),
     };
-    const d = new Device(info, { appId: appId ?? null, server, resolving: headless || ownHost ? undefined : picking });
+    // The app says which platform it runs on; only then is it known whether simctl or adb names its device.
+    const resolving = headless || ownHost ? undefined : info.platform === 'android' ? pickAndroidDevice(wantedDevice) : picking;
+    const d = new Device(info, { appId: appId ?? null, server, resolving });
     attachedIn(d);
     return d;
   };

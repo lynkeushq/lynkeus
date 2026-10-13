@@ -2,8 +2,13 @@ import type { Target } from 'lynkeus-protocol';
 
 export const TARGET_HELP = '#testId | "text" | 12 (index) | 100,200';
 
-/** `#testId`, `12` (an index), `100,200` (a point), anything else a text; `#testId[2]` or `text[2]` is the third match. */
+/**
+ * `#testId`, `12` (an index), `100,200` (a point), anything else a text; `#testId[2]` or `text[2]` is the third match.
+ * A text in quotes is that text and nothing else: `"12"` is not an index, and `"Next"` is not a route.
+ */
 export const parseTarget = (raw: string): Target => {
+  const quoted = /^(["'])((?:(?!\1).)*)\1$/s.exec(raw);
+  if (quoted) return { text: quoted[2]! };
   const nth = /^(.+)\[(\d+)\]$/.exec(raw);
   if (nth && !/^\d+$/.test(nth[1]!)) {
     const base = parseTarget(nth[1]!);
@@ -31,14 +36,23 @@ export const scopedTarget = (raw: string, flags: { in?: unknown; nth?: unknown }
   };
 };
 
-export const isRoute = (raw: string) => /^[A-Z]\w*(\.[A-Z]\w*)*$/.test(raw);
+const ROUTE_PREFIX = 'route:';
+
+/**
+ * A word that starts with a capital is a route (`Home.Main`), as React Navigation names them. A router
+ * that names routes after files (Expo Router's `index`, `(tabs)/settings`) says so: `route:index`.
+ */
+export const isRoute = (raw: string) => raw.startsWith(ROUTE_PREFIX) || /^[A-Z]\w*(\.[A-Z]\w*)*$/.test(raw);
+
+/** The route a target names, without the prefix that marked it as one. */
+export const routeOf = (raw: string) => (raw.startsWith(ROUTE_PREFIX) ? raw.slice(ROUTE_PREFIX.length) : raw);
 
 export type Expected = { testId?: string; text?: string; route?: string };
 
 /** What a command was looking for, as `why` reads it. */
 export const expectedOf = (raw: string | undefined): Expected | undefined => {
   if (!raw) return undefined;
-  if (isRoute(raw)) return { route: raw };
+  if (isRoute(raw)) return { route: routeOf(raw) };
   const t = parseTarget(raw);
   return 'testId' in t ? { testId: t.testId } : 'text' in t ? { text: t.text } : undefined;
 };

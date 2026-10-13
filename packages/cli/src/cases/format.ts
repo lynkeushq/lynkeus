@@ -106,21 +106,46 @@ export const dig = (json: unknown, dotted: string): unknown => {
   return current;
 };
 
-const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
-const random = (kind: string): string | undefined => {
-  if (kind === 'letters') return Array.from({ length: 6 }, () => LETTERS[Math.floor(Math.random() * 26)]).join('');
-  if (kind === 'digits') return Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join('');
-  return undefined;
+export type Scope = Record<string, unknown>;
+
+/** Where a seeded case keeps how far its random values have gone; no alias can be named this. */
+const SEED = '~seed';
+
+/**
+ * With LYNKEUS_SEED set, a case's `{{random.*}}` values are the same on every run: two runs of it then show
+ * the same names, which comparing their screens needs. Each case draws its own, so cases side by side differ.
+ */
+export const seeded = (scope: Scope, id: string): void => {
+  const seed = process.env.LYNKEUS_SEED;
+  if (!seed || scope[SEED] !== undefined) return;
+  let hash = 2166136261;
+  for (const char of `${seed}\n${id}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  scope[SEED] = hash >>> 0;
 };
 
-export type Scope = Record<string, unknown>;
+const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+const random = (kind: string, scope: Scope): string | undefined => {
+  const next = (): number => {
+    if (typeof scope[SEED] !== 'number') return Math.random();
+    // mulberry32
+    const state = (scope[SEED] + 0x6d2b79f5) >>> 0;
+    scope[SEED] = state;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  if (kind === 'letters') return Array.from({ length: 6 }, () => LETTERS[Math.floor(next() * 26)]).join('');
+  if (kind === 'digits') return Array.from({ length: 6 }, () => Math.floor(next() * 10)).join('');
+  return undefined;
+};
 
 /** `{{alias.path}}` from what earlier steps answered, `{{random.letters}}`, `{{env.NAME}}`. */
 export const interpolate = <T>(value: T, scope: Scope): T => {
   if (typeof value === 'string') {
     const whole = /^\{\{\s*([\w-]+)\.([\w.*-]+)\s*\}\}$/.exec(value);
     const lookup = (name: string, path: string): unknown => {
-      if (name === 'random') return random(path);
+      if (name === 'random') return random(path, scope);
       if (name === 'env') return process.env[path];
       if (!(name in scope)) throw new Error(`no alias '${name}' (add \`as: ${name}\` to the step that creates it)`);
       return dig(scope[name], path);

@@ -107,6 +107,19 @@ steps:
   assert.equal(calls.filter((x) => x.method === 'press').length, 1);
 });
 
+test('a press names its control by testId, and a type takes a deadline for its field', async () => {
+  const c = parseCase('---\nid: named\n---\nsteps:\n  - app.press: { testId: refresh }\n  - app.type: { text: "x", timeoutMs: 200 }\n', 'named.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { type: () => Promise<unknown> }).type = async () => ({});
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => [s.status, s.error]),
+    Array(2).fill(['passed', undefined]),
+  );
+  assert.equal(calls.filter((x) => x.method === 'press' && (x.params as { testId?: string }).testId === 'refresh').length, 1);
+});
+
 test('the first step that fails stops the case and leaves the evidence', async () => {
   const c = parseCase('---\nid: red\n---\nsteps:\n  - app.see: { text: "Goodbye", timeoutMs: 200 }\n  - app.press: "#refresh"\n', 'red.md');
   const { base, calls } = fakeApp();
@@ -216,6 +229,9 @@ test('a step becomes the argv of the command it names', () => {
   ]);
   assert.deepEqual(argvFor(find('mock')!, 'clear'), ['mock', '--clear']);
   assert.throws(() => argvFor(find('press')!, { target: '#x', sideways: true }), /press has no sideways/);
+  assert.deepEqual(argvFor(find('press')!, { testId: 'like', within: 'hi from Ana' }), ['press', '#like', '--in', 'hi from Ana']);
+  assert.deepEqual(argvFor(find('type')!, { text: 'ana', testId: 'search' }), ['type', 'ana', '#search']);
+  assert.deepEqual(argvFor(find('wait')!, { testId: 'row-25', timeoutMs: 9000 }), ['wait', '#row-25', '--timeout', '9000']);
 });
 
 test('what a buffer gained is found whichever end it grows from', () => {

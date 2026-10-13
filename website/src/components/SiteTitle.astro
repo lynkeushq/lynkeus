@@ -1,0 +1,30 @@
+---
+import Default from '@astrojs/starlight/components/SiteTitle.astro';
+import cli from '../../../packages/cli/package.json';
+---
+
+<div class="titled sl-flex">
+  <Default />
+  <a class="version" href="https://github.com/lynkeushq/lynkeus/blob/main/CHANGELOG.md">v{cli.version}</a>
+</div>
+
+<style>
+  .titled {
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+  }
+  .version {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 999px;
+    font-size: var(--sl-text-xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+  }
+  .version:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-text-accent);
+  }
+</style>

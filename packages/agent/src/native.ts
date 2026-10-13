@@ -27,12 +27,21 @@ export const touch = {
     const frames = JSON.parse(ready().frames(tags)) as (number[] | null)[];
     return frames.length === tags.length ? frames : null;
   },
+  /** What each tag's native field holds, null for a tag that is not one; null when the native side does not say. */
+  texts: (tags: number[]): (string | null)[] | null => {
+    // A build made before the native side learned this has no such method.
+    if (!available() || tags.length === 0 || typeof ready().texts !== 'function') return null;
+    const texts = JSON.parse(ready().texts(tags)) as (string | null)[];
+    return texts.length === tags.length ? texts : null;
+  },
   hitTest: (points: { x: number; y: number }[]): number[][] | null => {
     if (!available()) return null;
     const json = ready().hitTest(
       points.map((p) => p.x),
       points.map((p) => p.y),
     );
-    return JSON.parse(json) as number[][];
+    const chains = JSON.parse(json) as number[][];
+    // An answer that is short of a chain per point is no answer: nothing is called covered on it.
+    return chains.length === points.length ? chains : null;
   },
 };

@@ -18,7 +18,7 @@ import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
-import { type Case, dig, interpolate, matcherOf, matches, type Scope, type Step, stepOf, type StepValue } from './format.js';
+import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
   result?: unknown;
@@ -173,6 +173,11 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
   if (typeof value !== 'object' || Array.isArray(value)) return [...argv, ...(Array.isArray(value) ? value.map(String) : [String(value)])];
   const given = { ...(value as Record<string, unknown>) };
   const positionals = command.positionals ?? [];
+  // A case names a control by `testId` wherever a command takes a target (`wait` calls its own `what`).
+  if ('testId' in given && !('target' in given) && !('testId' in (command.flags ?? {})) && positionals.some((p) => p.name === 'target' || p.name === 'what')) {
+    given.target = `#${String(given.testId)}`;
+    delete given.testId;
+  }
   // A case says `target` or `request` where a command may call its first argument something else.
   const first = positionals[0]?.name;
   for (const alias of ['target', 'request', 'route', 'url', 'state', 'text']) {
@@ -257,6 +262,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
   const scope: Scope = structuredClone(options.prepared?.scope ?? {});
+  seeded(scope, c.id);
   const ran = new Set<string>(options.prepared?.ran ?? []);
   const latest: Record<string, unknown> = structuredClone(options.prepared?.latest ?? {});
   const started = Date.now();
@@ -473,7 +479,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const press = async (value: StepValue): Promise<'skipped' | undefined> => {
-    const params = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    const given = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    const { text, ...named } = given;
+    const params: Record<string, unknown> = 'target' in given || 'testId' in given || typeof text !== 'string' ? given : { ...named, target: text };
     const target = targetIn(params);
     if (!target) throw new Error('app.press needs a target');
     const d = await device();
@@ -599,7 +607,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
           await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
         }
-        await cli(argvFor(find(name)!, value));
+        const { timeoutMs: _timeout, ...typed } = params ?? {};
+        await cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
         if (name === 'swipe' && onWallClock(d)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         return undefined;

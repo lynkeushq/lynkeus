@@ -1,0 +1,11 @@
+/* The site's own indigo, in both themes. */
+:root {
+  --sl-color-accent-low: #1c2040;
+  --sl-color-accent: #6b7cf0;
+  --sl-color-accent-high: #c5ccff;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e6e8fb;
+  --sl-color-accent: #3a4fd8;
+  --sl-color-accent-high: #1f2a80;
+}

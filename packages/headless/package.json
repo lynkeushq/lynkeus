@@ -1,6 +1,6 @@
 {
   "name": "lynkeus-headless",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Run a React Native app under jest and React Native Testing Library as a host for lynkeus-agent: same protocol, no simulator.",
   "type": "module",
   "main": "./lib/index.js",
@@ -31,6 +31,9 @@
     "directory": "packages/headless"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
     "ws": "^8.18.0",
     "yoga-layout": "3.2.1"

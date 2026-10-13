@@ -1,6 +1,6 @@
 import { record } from './trace';
 
-type Store = { getState(): unknown; subscribe(listener: (state: unknown) => void): () => void };
+type Store = { getState(): unknown; subscribe(listener: () => void): () => void };
 type AppEvent = { t: number; name: string; props?: Record<string, unknown>; route?: string };
 
 const KEEP = 500;
@@ -23,9 +23,16 @@ const plain = (value: unknown, depth = 0): unknown => {
   return out;
 };
 
-// Objects are reduced to their size so secrets and payloads never land in the trace.
-const summarise = (value: unknown): unknown => {
-  if (value === null || typeof value !== 'object') return value;
+const SENSITIVE = /token|key|secret|code|otp|password|pin|session|auth/i;
+const LONGEST = 80;
+
+// The trace leaves the machine with a report, so it says that a value changed without carrying secrets or
+// payloads: objects are reduced to their size, a long string to its start, and a key named like a secret to nothing.
+const summarize = (key: string, value: unknown): unknown => {
+  if (value === null || value === undefined) return value;
+  if (SENSITIVE.test(key)) return '…';
+  if (typeof value === 'string') return value.length > LONGEST ? `${value.slice(0, LONGEST)}…` : value;
+  if (typeof value !== 'object') return value;
   return Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`;
 };
 
@@ -40,11 +47,12 @@ const summarise = (value: unknown): unknown => {
 export const observe = (name: string, store: Store): (() => void) => {
   stores.set(name, store);
   let previous = store.getState() as Record<string, unknown> | undefined;
-  const unsubscribe = store.subscribe((next) => {
-    const current = next as Record<string, unknown> | undefined;
+  // The state is read from the store: Zustand hands it to the listener, Redux calls the listener with nothing.
+  const unsubscribe = store.subscribe(() => {
+    const current = store.getState() as Record<string, unknown> | undefined;
     const changed: Record<string, { from: unknown; to: unknown }> = {};
     for (const key of new Set([...Object.keys(previous ?? {}), ...Object.keys(current ?? {})])) {
-      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarise(previous?.[key]), to: summarise(current?.[key]) };
+      if (previous?.[key] !== current?.[key]) changed[key] = { from: summarize(key, previous?.[key]), to: summarize(key, current?.[key]) };
     }
     previous = current;
     if (Object.keys(changed).length > 0) record({ kind: 'store', store: name, changed });

@@ -1,6 +1,6 @@
 {
   "name": "lynkeus-agent",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "In-app QA agent for React Native: read the screen, drive the app and assert, in milliseconds, from any test runner.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -21,6 +21,7 @@
       "types": "./lib/typescript/src/presentation.d.ts",
       "default": "./lib/module/presentation.js"
     },
+    "./babel": "./babel.js",
     "./hosts": {
       "lynkeus-agent-source": "./src/hosts.ts",
       "types": "./lib/typescript/src/hosts.d.ts",
@@ -35,6 +36,7 @@
     "cpp",
     "*.podspec",
     "react-native.config.js",
+    "babel.js",
     "!ios/build",
     "!android/build",
     "!android/gradle",

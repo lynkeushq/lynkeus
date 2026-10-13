@@ -21,8 +21,8 @@ report carries the screen, the requests and the reason.
 
 | Step | Value | |
 |---|---|---|
-| `app.press` | target, or `{ target, within?, nth?, optional?, hold? }` | Waits for the control to be there and enabled. `optional` presses only if it is on screen. |
-| `app.type` | `{ text, target?, submit?, clear? }` | `target` is tapped first; `submit` ends with the return key. |
+| `app.press` | target, or `{ target, within?, nth?, optional?, hold?, timeoutMs? }` | Waits for the control to be there and enabled. `optional` presses only if it is on screen. |
+| `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | `target` is tapped first, once it is there (`timeoutMs` is how long that may take); `submit` ends with the return key. |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` | |
 | `app.wait` | route, target, ms, `{ target, scroll? }` or `{ request, status? }` | `scroll` swipes until the target is in the window. A `request` is `METHOD /path`. |
 | `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. |
@@ -34,7 +34,7 @@ report carries the screen, the requests and the reason.
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
 
-A target is `#testId`, `"text"`, an index or `x,y`.
+A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
 
 One case runs on a host and on a device. What only one of them needs — closing a
 native screen the host never shows — is kept to it; everywhere else it is
@@ -119,6 +119,10 @@ own words match `unless` is about it, and is left alone.
 Cases and fixtures often live in a repository of their own: `LYNKEUS_CONFIG`
 names a second configuration file, read over the app's, and the paths under
 its `cases` are relative to it.
+
+`{{random.letters}}` and `{{random.digits}}` are new on every run. With
+`LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
+different ones from the case beside it: what comparing two runs' screens needs.
 
 ## Configuration
 

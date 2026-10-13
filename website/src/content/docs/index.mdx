@@ -1,0 +1,94 @@
+---
+title: Introduction
+description: What lynkeus is, what each person on a team gets from it, how its pieces fit together, and where to start.
+---
+
+lynkeus runs automated tests on React Native apps and produces a report of every run. It is open source (MIT).
+
+Most end-to-end tools drive an app from the outside: they ask the operating system what is on screen, or take a screenshot and interpret it. lynkeus works from the inside. A small **agent** is mounted in a development build of your app. It reads the tree React rendered, so what it reports is what React knows: the current route, every `testID`, the value of each input, which element a touch would reach and which ones a sheet is covering. Touches and keystrokes are synthesized inside the app's process, and a wait ends on the render that satisfies it.
+
+That design has two consequences worth knowing before you read further. Steps take milliseconds instead of seconds, because nothing leaves the process to decide what to do next. And lynkeus needs a debug build of your app with the agent in it: it cannot test a binary you downloaded from a store.
+
+```text
+screen     2–9 ms      what is on screen: testIDs, labels, values, and what is covered
+press      ~60 ms      a real touch: gesture recognizers, Pressable and sheets all see it
+type       25 ms/key   through the keyboard path, so masks and onChange behave
+wait       exact       returns the moment a route or element appears (or disappears)
+```
+
+## What a test looks like
+
+A test is a readable file of steps, called a **case**. The same case runs on a simulator, on an emulator, and in Node with no simulator at all.
+
+```yaml title="cases/settings-dark-mode.md"
+---
+id: settings-dark-mode
+title: "Settings: switching to dark mode"
+---
+steps:
+  - app.press: "#settings-button"
+  - app.wait: Settings.Main
+  - app.press: "Dark"
+  - app.see: { testId: theme-dark-selected }
+```
+
+`#settings-button` is an element's `testID`. `Settings.Main` is a route name, as your navigation library reports it. `"Dark"` is the text of a control. Every step waits for what it needs, so the file contains no sleeps.
+
+## What each role gets
+
+**A developer installing it** adds one package to the app and one line to its entry file. Nothing ships in a release build: the native module compiles to no-ops outside debug builds, and the agent's JavaScript is never evaluated when it is disabled. Start with [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
+
+**A QA engineer writing and running tests** gets a terminal command for every action (`lynkeus screen`, `lynkeus press`, `lynkeus wait`), a case format a person can read, and, when a step fails, the evidence: the screen as it was, the requests the app had made, and the reason (the target is covered, disabled, hidden behind a sheet, or a wording away). Start with [Your first test](/getting-started/first-test/).
+
+**A lead deciding whether to adopt it** should weigh three things. It covers the same ground as Detox, Maestro or Appium (driving a real build end to end) and is faster because it runs inside the app. It requires a development build on React Native 0.76 or newer with the New Architecture. And it knows nothing about your product: preparing backend data, logging in and naming screens stay in your project, declared in a configuration file. The [FAQ](/faq/) answers the questions that usually come first.
+
+## How the pieces fit
+
+```text
+  your app (debug build)                 your machine or CI
+ ┌──────────────────────┐            ┌────────────────────────┐
+ │  lynkeus-agent       │  dials out │  lynkeus (the CLI)     │
+ │  reads React's tree, │ ─────────▶ │  the driver: screen,   │
+ │  touches, types      │  WebSocket │  press, case run, mcp  │
+ └──────────────────────┘  loopback  └───────────┬────────────┘
+   runs on a host:                               │ case run --out
+   simulator, emulator,                          ▼
+   or Node (headless)                  run directory ──▶ hosted report
+```
+
+- **The agent** (`lynkeus-agent`) is the code inside your app. In a debug build it opens a WebSocket to your machine and answers requests: what is on screen, press this, type that, wait for a route. Nothing listens inside the app; the app dials out.
+- **The CLI** (`lynkeus`) is the driver: the program at the other end of that socket. It drives the app one command at a time, runs cases, and can serve the same commands to an AI agent over MCP.
+- **The host** is where the app runs during a test. That can be an iOS simulator, an Android emulator, or the **headless host**: `lynkeus headless start` renders your app in Node under Jest and React Native Testing Library, and the agent inside it dials out exactly as it does on a device. See [iOS](/platforms/ios/), [Android](/platforms/android/), [Expo](/platforms/expo/) and [Headless](/platforms/headless/).
+- **The report** is what a run leaves behind. `lynkeus case run --out` writes the run as a directory of plain files. `--push` uploads it to the hosted reports service at [lynkeus.io](https://lynkeus.io), a paid service with a free plan, which shows each case step by step with its screenshots, video and failure reasons. The hosted service is optional; the run directory is yours either way. See [Reports](/guides/reports/).
+
+The npm packages are:
+
+| Package | What it is |
+|---|---|
+| `lynkeus-agent` | Mounted in the app. Reads the screen, synthesizes touches and keys, records requests. |
+| `lynkeus` | The CLI: drives the app, runs cases, serves MCP. |
+| `lynkeus-headless` | Hosts the app in Node under Jest, with no simulator. |
+| `lynkeus-client` | The Node driver the CLI is built on, for runners of your own. |
+| `lynkeus-protocol` | The wire contract, as TypeScript types. |
+
+## Requirements
+
+- React Native 0.76 or newer, with the New Architecture.
+- A debug build of the app, for iOS, Android, or both, running on a simulator or an emulator. Expo apps need a development build; Expo Go does not work.
+- Node 22 or newer for the CLI and the headless host.
+
+## What lynkeus does not do
+
+It does not know your product. It has no list of your screens, no idea what your buttons do, and no notion of a user or a session. Everything it reports was read from the running app or from your source code. Where a test needs product knowledge (which user exists, how to log in, what the backend holds), you supply it, through [fixtures](/guides/fixtures/) and [configuration](/reference/configuration/).
+
+It does not run on release builds. See [Security](/security/) for what the agent exposes and why it is limited to debug builds.
+
+It does not run on physical devices. The app runs on an iOS simulator, an Android emulator or the headless host.
+
+## Where to go next
+
+1. Install the agent: [React Native](/getting-started/installation-react-native/) or [Expo](/getting-started/installation-expo/).
+2. Write and run [your first test](/getting-started/first-test/).
+3. Read [Concepts](/getting-started/concepts/) for the vocabulary the rest of the documentation uses.
+
+After that, the guides cover one topic each: [driving the app](/guides/driving-the-app/), [writing cases](/guides/writing-cases/), [running on CI](/guides/ci/), and [letting an AI agent drive the app](/guides/ai-agents/). The [CLI reference](/reference/cli/) lists every command and flag.

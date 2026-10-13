@@ -1,4 +1,4 @@
-import { Dimensions, Platform, TextInput } from 'react-native';
+import { Dimensions, Platform, StyleSheet, TextInput } from 'react-native';
 
 import { centre, type Snapshot } from './backend';
 import { kindOf, SCREEN_CONTAINERS } from './hosts';
@@ -99,6 +99,32 @@ const textOf = (fiber: Fiber): string | undefined => {
   return text.length > 0 ? text.slice(0, 200) : undefined;
 };
 
+// React Native's own default when a style names no size.
+const DEFAULT_FONT_SIZE = 14;
+
+/** The size and weight of an element's text: its own style when it is text, or its first text's when it is a control. */
+const fontOf = (fiber: Fiber): Element['font'] => {
+  const visit = (node: Fiber | null, own: boolean): Element['font'] => {
+    for (let at = node; at; at = own ? null : at.sibling) {
+      if (at.tag === HOST_COMPONENT) {
+        const p = props(at);
+        const kind = kindOf(String(at.type), p);
+        if (kind === 'text' || kind === 'input') {
+          const style = (StyleSheet.flatten(p.style as never) ?? {}) as { fontSize?: unknown; fontWeight?: unknown };
+          const size = typeof style.fontSize === 'number' ? style.fontSize : DEFAULT_FONT_SIZE;
+          const weight = style.fontWeight;
+          const bold = weight === 'bold' || Number(weight) >= 700;
+          return bold ? { size, bold } : { size };
+        }
+      }
+      const below = visit(at.child, false);
+      if (below) return below;
+    }
+    return undefined;
+  };
+  return visit(fiber, true);
+};
+
 const firstHost = (fiber: Fiber | null): Fiber | null => {
   let node = fiber;
   while (node && node.tag !== HOST_COMPONENT && node.tag !== HOST_TEXT) {
@@ -171,6 +197,21 @@ const placeAsViews = (elements: Element[]): void => {
   moveToViews(elements, (tag) => byTag.get(tag));
 };
 
+type Field = { element: Element; secure: boolean };
+
+// A field the app does not control keeps what was typed in its view, and one with a defaultValue goes on
+// saying that in its props. So the view is asked, and the props stand wherever it does not answer.
+const readFields = (fields: Field[]): void => {
+  const asked = fields.filter((f) => f.element.tag !== undefined);
+  const texts = touch.texts(asked.map((f) => f.element.tag as number));
+  if (!texts) return;
+  asked.forEach(({ element, secure }, index) => {
+    const text = texts[index];
+    if (typeof text !== 'string') return;
+    element.value = text.length === 0 ? undefined : secure ? '•'.repeat(text.length) : text;
+  });
+};
+
 type Walk = {
   depth: number;
   inButton: boolean;
@@ -185,6 +226,7 @@ export const snapshotElements = (): Snapshot => {
   const window = { w: width, h: height };
   const focusedInput = TextInput.State.currentlyFocusedInput();
   const elements: Element[] = [];
+  const fields: Field[] = [];
   const layers: Layer[] = [];
 
   const walkChildren = (parent: Fiber, at: Walk) => {
@@ -255,11 +297,13 @@ export const snapshotElements = (): Snapshot => {
       if (typeof value === 'string' && value.length > 0) {
         element.value = p.secureTextEntry ? '•'.repeat(value.length) : value;
       }
+      fields.push({ element, secure: !!p.secureTextEntry });
       if (typeof p.placeholder === 'string') element.placeholder = p.placeholder;
       if (focusedInput && instanceOf(node)?.canonical?.publicInstance === focusedInput) element.focused = true;
     } else if (kind !== 'view') {
       element.text = textOf(node);
     }
+    if (kind !== 'view' && (element.text !== undefined || element.value !== undefined || element.placeholder !== undefined)) element.font = fontOf(node);
     elements.push(element);
     if (layer) layers.push({ i: element.i, kind: layer, testId });
 
@@ -279,6 +323,7 @@ export const snapshotElements = (): Snapshot => {
     walkChildren(root, { depth: 0, inButton: false, rootAttached: true });
   }
   placeAsViews(elements);
+  readFields(fields);
   const presenting = resolvePresentation(elements, layers);
   markCovered(elements);
   return { elements, presenting };

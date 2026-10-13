@@ -1,16 +1,20 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+
+import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
 import { describeScreen, describeTrace } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
+import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
 import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { define } from '../registry.js';
 import { whyFor } from '../runtime.js';
-import { expectedOf, isRoute, parseTarget, scopedTarget, TARGET_HELP } from '../targets.js';
+import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
 const SCOPE_FLAGS = {
@@ -165,7 +169,7 @@ export const driveCommands = [
     mcpOmit: ['nth'],
     group: 'drive',
     summary: 'Until a route or element appears (or leaves), or a number of ms',
-    positionals: [{ name: 'what', help: `Route | ${TARGET_HELP} | 800 (ms)`, required: true }],
+    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP} | 800 (ms)`, required: true }],
     flags: {
       ...SCOPE_FLAGS,
       gone: { type: 'boolean', help: 'until it leaves the screen' },
@@ -181,7 +185,7 @@ export const driveCommands = [
       }
       return {
         json: await (await ctx.device()).waitFor({
-          ...(isRoute(raw) ? { route: raw } : { target: scopedTarget(raw, ctx.flags) }),
+          ...(isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }),
           gone: ctx.flags.gone ? true : undefined,
           scroll: ctx.flags.scroll ? true : undefined,
           timeoutMs: ctx.flags.timeout as number,
@@ -206,7 +210,7 @@ export const driveCommands = [
     name: 'see',
     group: 'drive',
     summary: 'Assert a route or element is on screen now (exit 1 if not)',
-    positionals: [{ name: 'what', help: `Route | ${TARGET_HELP}`, required: true }],
+    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP}`, required: true }],
     flags: {
       absent: { type: 'boolean', help: 'assert it is not there' },
       within: { type: 'number', help: 'allow it this long to appear', default: 0, value: 'ms' },
@@ -217,7 +221,7 @@ export const driveCommands = [
       const device = await ctx.device();
       try {
         const result = await device.waitFor({
-          ...(isRoute(raw) ? { route: raw } : { target: parseTarget(raw) }),
+          ...(isRoute(raw) ? { route: routeOf(raw) } : { target: parseTarget(raw) }),
           gone: ctx.flags.absent ? true : undefined,
           timeoutMs: Math.max(1, ctx.flags.within as number),
         });
@@ -341,9 +345,10 @@ export const driveCommands = [
   define({
     name: 'lint',
     group: 'drive',
-    summary: 'Unlabeled controls, small targets, untranslated keys, covered or clipped elements',
+    summary: 'Unlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements',
     flags: {
       strict: { type: 'boolean', help: 'exit 1 on any warning' },
+      'no-contrast': { type: 'boolean', help: 'skip the contrast of text against its background (it takes a screenshot)' },
       save: { type: 'string', help: "keep this screen's findings in a baseline file", value: 'file' },
       baseline: { type: 'string', help: 'print only what is new against a baseline file', value: 'file' },
     },
@@ -353,20 +358,38 @@ export const driveCommands = [
       const { lint, lintBaseline } = ctx.config;
       let findings = lintScreen(screen, { i18nKeyPatterns: lint?.i18nKeyPatterns?.map((p) => new RegExp(p, 'i')), minTouchTarget: lint?.minTouchTarget });
       const route = screen.route ?? '?';
+      const notes: string[] = [];
+      if (lint?.contrast !== false && !ctx.flags['no-contrast']) {
+        // Contrast is read off the pixels, so it needs a host that can take a picture of the screen.
+        const file = path.join(os.tmpdir(), `lynkeus-lint-${process.pid}-${Date.now()}.png`);
+        try {
+          await (await ctx.device()).screenshot(file);
+          const picture = PNG.sync.read(fs.readFileSync(file));
+          const contrast = lint?.contrast;
+          findings = [
+            ...findings,
+            ...lintContrast(screen, picture, { normal: contrast?.normal, large: contrast?.large, ignore: contrast?.ignore?.map((p) => new RegExp(p)) }),
+          ];
+        } catch {
+          notes.push('contrast not measured: this host takes no screenshots');
+        } finally {
+          fs.rmSync(file, { force: true });
+        }
+      }
       const withIds = findings.map((finding) => ({ finding, testId: screen.elements[finding.element]?.testId }));
       const lines: string[] = [];
       const save = ctx.flags.save as string | undefined;
       const baselineFile = (ctx.flags.baseline as string | undefined) ?? lintBaseline;
       if (save) {
         const baseline = fs.existsSync(save) ? readJson<LintBaseline>(save) : {};
-        baseline[route] = withIds.map((f) => ({ rule: f.finding.rule, testId: f.testId, message: f.finding.message }));
+        baseline[route] = withIds.map((f) => ({ rule: f.finding.rule, testId: f.testId, subject: f.finding.subject, message: f.finding.message }));
         writeJson(save, baseline);
         lines.push(`saved ${findings.length} finding(s) for ${route} → ${save}`);
       } else if (baselineFile && fs.existsSync(baselineFile)) {
         findings = newFindings(readJson<LintBaseline>(baselineFile), route, withIds).map((f) => f.finding);
         lines.push(findings.length ? `${findings.length} new against ${baselineFile}:` : `nothing new on ${route} against ${baselineFile}`);
       }
-      lines.push(describeFindings(findings, screen.route));
+      lines.push(describeFindings(findings, screen.route), ...notes);
       return { text: lines.join('\n'), json: findings, code: ctx.flags.strict && findings.some((f) => f.severity === 'warn') ? 1 : 0 };
     },
   }),

@@ -66,7 +66,7 @@ export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => 
     resetToRoot: () => {
       if (!ref.isReady() || !ref.resetRoot) return;
       rememberInitial();
-      // Nested navigators re-initialise to their initial screens. resetRoot() without a state throws.
+      // Nested navigators re-initialize to their initial screens. resetRoot() without a state throws.
       const first = initialRoute ?? ref.getRootState()?.routes?.[0]?.name;
       if (first) (ref.resetRoot as unknown as (state: { index: number; routes: { name: string }[] }) => void)({ index: 0, routes: [{ name: first }] });
     },

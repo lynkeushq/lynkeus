@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { init } from '../commands/init.js';
+import { init, mountAgent } from '../commands/init.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -42,11 +42,64 @@ test('init --auto adds the mount after the imports, once', () => {
   assert.ok(index.indexOf("import App from './app/App'") < index.indexOf('lynkeus-agent/auto'));
 });
 
-test('the error catalogue names the module behind a TurboModule crash', () => {
+test('the error catalog names the module behind a TurboModule crash', () => {
   const [e] = explainError(
     "Invariant Violation: TurboModuleRegistry.getEnforcing(...): 'RNCWebView' could not be found. Verify that a module by this name is registered",
   );
   assert.ok(e);
   assert.match(e.cause, /RNCWebView/);
   assert.equal(explainError('all good').length, 0);
+});
+
+test('an Expo Router app gets an entry that mounts the agent, then the router, and reads the token Expo lets through', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-expo-'));
+  fs.writeFileSync(
+    path.join(root, 'package.json'),
+    JSON.stringify({ name: 'demo', main: 'expo-router/entry', dependencies: { expo: '~57.0.0', 'expo-router': '~57.0.0' } }),
+  );
+  const notes = mountAgent(root);
+  const index = fs.readFileSync(path.join(root, 'index.js'), 'utf8');
+  assert.match(index, /auto\(\{ token: process\.env\.EXPO_PUBLIC_LYNKEUS_TOKEN \}\)/);
+  assert.ok(index.indexOf('lynkeus-agent/auto') < index.indexOf("import 'expo-router/entry'"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  assert.equal(manifest.main, 'index.js');
+  assert.equal(manifest.dependencies.expo, '~57.0.0');
+  assert.ok(notes.some((n) => n.includes('not in Expo Go')));
+  assert.ok(notes.some((n) => n.includes('EXPO_PUBLIC_LYNKEUS_TOKEN')));
+  // A second run changes nothing.
+  assert.ok(mountAgent(root).some((n) => n.includes('already mounts the agent')));
+  assert.equal(fs.readFileSync(path.join(root, 'index.js'), 'utf8'), index);
+});
+
+test('an Expo app with its own entry keeps it, and a bare React Native app reads LYNKEUS_TOKEN', () => {
+  const expo = tmpApp();
+  fs.writeFileSync(path.join(expo, 'package.json'), JSON.stringify({ name: 'demo', dependencies: { expo: '~57.0.0' } }));
+  mountAgent(expo);
+  assert.match(fs.readFileSync(path.join(expo, 'index.js'), 'utf8'), /EXPO_PUBLIC_LYNKEUS_TOKEN/);
+  const bare = tmpApp();
+  const notes = mountAgent(bare);
+  assert.match(fs.readFileSync(path.join(bare, 'index.js'), 'utf8'), /auto\(\{ token: process\.env\.LYNKEUS_TOKEN \}\)/);
+  assert.ok(!notes.some((n) => n.includes('Expo')));
+  assert.ok(notes.some((n) => n.includes("add 'lynkeus-agent/babel' to the plugins")));
+});
+
+test('a bare React Native app gets the plugin that carries the token into the bundle', () => {
+  const withPlugins = tmpApp();
+  fs.writeFileSync(
+    path.join(withPlugins, 'babel.config.js'),
+    "module.exports = {\n  presets: ['module:@react-native/babel-preset'],\n  plugins: ['react-native-worklets/plugin'],\n};\n",
+  );
+  const notes = mountAgent(withPlugins);
+  assert.match(fs.readFileSync(path.join(withPlugins, 'babel.config.js'), 'utf8'), /plugins: \['lynkeus-agent\/babel', 'react-native-worklets\/plugin'\]/);
+  assert.ok(notes.some((n) => n.includes('added lynkeus-agent/babel to babel.config.js')));
+  assert.ok(notes.some((n) => n.includes('--reset-cache')));
+
+  const presetsOnly = tmpApp();
+  fs.writeFileSync(path.join(presetsOnly, 'babel.config.js'), "module.exports = {\n  presets: ['module:@react-native/babel-preset'],\n};\n");
+  mountAgent(presetsOnly);
+  const config = fs.readFileSync(path.join(presetsOnly, 'babel.config.js'), 'utf8');
+  assert.match(config, /^ {2}plugins: \['lynkeus-agent\/babel'\],\n {2}presets:/m);
+  // A second run changes nothing.
+  assert.ok(mountAgent(presetsOnly).some((n) => n.includes('already has lynkeus-agent/babel')));
+  assert.equal(fs.readFileSync(path.join(presetsOnly, 'babel.config.js'), 'utf8'), config);
 });

@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { Screen } from 'lynkeus-protocol';
+
 import { diffGraphs, newFindings } from '../commands/check.js';
 import { mapCheckWorkflow } from '../commands/map.js';
 import { summarizeRuns } from '../commands/flake.js';
 import type { FlowReport } from '../flow/types.js';
+import { lintScreen } from '../knowledge/lint.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 
 const graph = (screens: Record<string, string | null>, files: Record<string, { selectors?: string[]; navigates?: string[] }>): ScreenGraph =>
@@ -43,7 +46,26 @@ test('lint findings already in the baseline are not new', () => {
   assert.deepEqual(fresh, [f2]);
 });
 
-test('flake runs are summarised by the step and error they died on', () => {
+test('a known finding whose measurement moved is still known', () => {
+  const screen = (side: number): Screen => ({
+    route: 'A',
+    path: ['A'],
+    commit: 1,
+    busy: false,
+    window: { w: 390, h: 844 },
+    costMs: 1,
+    elements: [{ i: 0, kind: 'button', testId: 'close', enabled: true, depth: 0, frame: { x: 0, y: 0, w: side, h: side } }],
+  });
+  const linted = (side: number) => lintScreen(screen(side)).map((finding) => ({ finding, testId: 'close' }));
+  const saved = { A: linted(32).map((f) => ({ rule: f.finding.rule, testId: f.testId, subject: f.finding.subject, message: f.finding.message })) };
+  assert.notEqual(linted(30)[0]!.finding.message, linted(32)[0]!.finding.message);
+  assert.deepEqual(newFindings(saved, 'A', linted(30)), []);
+  // A baseline from before findings named their subject matches on the message it kept.
+  const older = { A: linted(32).map((f) => ({ rule: f.finding.rule, testId: f.testId, message: f.finding.message })) };
+  assert.deepEqual(newFindings(older, 'A', linted(32)), []);
+});
+
+test('flake runs are summarized by the step and error they died on', () => {
   const ok = (ms: number): FlowReport => ({ name: 'f', ok: true, totalMs: ms, vars: {}, steps: [{ step: { press: { testId: 'a' } }, ok: true, ms: 1 }] });
   const bad = (err: string): FlowReport => ({
     name: 'f',

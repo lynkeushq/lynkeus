@@ -3,8 +3,9 @@ import { test } from 'node:test';
 
 import type { Screen } from 'lynkeus-protocol';
 
+import { parseAdbDevices } from '../device/devices.js';
 import { describeScreen } from '../device/driver.js';
-import { parseTarget, scopedTarget } from '../targets.js';
+import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 
 test('a #-prefixed string is a testId', () => {
   assert.deepEqual(parseTarget('#next-button'), { testId: 'next-button' });
@@ -17,6 +18,15 @@ test('a bare integer is an index', () => {
 });
 test('anything else is text', () => {
   assert.deepEqual(parseTarget('Some label'), { text: 'Some label' });
+});
+test('a text in quotes is that text, whatever it looks like', () => {
+  assert.deepEqual(parseTarget('"Next"'), { text: 'Next' });
+  assert.deepEqual(parseTarget("'12'"), { text: '12' });
+  assert.deepEqual(parseTarget('"#tag"[1]'), { text: '#tag', nth: 1 });
+  assert.equal(isRoute('"Next"'), false);
+});
+test('quotes that do not wrap the whole text stay in it', () => {
+  assert.deepEqual(parseTarget('"Yes" or "No"'), { text: '"Yes" or "No"' });
 });
 test('a testId that contains a comma is still a testId, not a point', () => {
   assert.deepEqual(parseTarget('#a,b'), { testId: 'a,b' });
@@ -129,4 +139,26 @@ test('--in and --nth narrow a target', () => {
   assert.deepEqual(scopedTarget('#like-message-button', { in: 'hi from Ana' }), { testId: 'like-message-button', within: { text: 'hi from Ana' } });
   assert.deepEqual(scopedTarget('#like-message-button', { in: '#feed', nth: 2 }), { testId: 'like-message-button', within: { testId: 'feed' }, nth: 2 });
   assert.deepEqual(scopedTarget('100,200', { in: '#feed' }), { x: 100, y: 200 });
+});
+
+test('a capitalised word is a route, and route: marks one a router names after a file', () => {
+  assert.equal(isRoute('Home.Main'), true);
+  assert.equal(isRoute('index'), false);
+  assert.equal(isRoute('route:index'), true);
+  assert.equal(routeOf('route:(tabs)/settings'), '(tabs)/settings');
+  assert.equal(routeOf('Home.Main'), 'Home.Main');
+  assert.deepEqual(expectedOf('route:index'), { route: 'index' });
+  assert.deepEqual(expectedOf('index'), { text: 'index' });
+});
+
+test('adb devices: only what is ready counts, an emulator by its serial', () => {
+  const listed = parseAdbDevices('List of devices attached\nemulator-5554\tdevice\nR58M12ABCDE\tunauthorized\n0A1B2C3D\tdevice\n\n');
+  assert.deepEqual(
+    listed.map((d) => [d.id, d.type, d.platform]),
+    [
+      ['emulator-5554', 'emulator', 'android'],
+      ['0A1B2C3D', 'physical', 'android'],
+    ],
+  );
+  assert.deepEqual(parseAdbDevices('List of devices attached\n\n'), []);
 });

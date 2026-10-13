@@ -118,6 +118,10 @@ does with the messages back), native crashes, and pixels (`lynkeus snapshot
 those, the same cases run on a simulator; only the way the host starts
 differs.
 
+An Expo Router app has no root component to export: its screens are files the
+router loads. `headless init` stops with `no App component found`, and such an
+app runs on a simulator or an emulator.
+
 ## Security posture
 
 - `headless start` refuses to run without `LYNKEUS_TOKEN`. The token is the
@@ -140,7 +144,7 @@ not know: run `lynkeus headless doctor`, then mock it in your entry (`--fix`
 writes stubs). Node resolving `localhost` to IPv6 while your backend listens
 on IPv4 is the other half of that bug; use `127.0.0.1`.
 
-**The host crashed with a jest error you do not recognise.** Paste its first
+**The host crashed with a jest error you do not recognize.** Paste its first
 line to `lynkeus headless doctor --explain "<line>"`; it maps the usual errors
 to their cause and fix.
 
