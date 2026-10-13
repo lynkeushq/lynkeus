@@ -4,16 +4,13 @@
 
 <<<<<<< HEAD
 <<<<<<< HEAD
-<<<<<<< HEAD
 - `lynkeus-agent`: a token that the app passes and that arrives empty keeps the agent off, with a line in the app's log saying why. It used to mean "no token", and the agent served any driver that connected. In a React Native app that was every app that followed the README, because `process.env.LYNKEUS_TOKEN` is undefined inside a bundle. **An app that passes `token` now needs the value to reach it**: `lynkeus-agent/babel`, a Babel plugin, writes `LYNKEUS_TOKEN` into a development bundle (never a release one), and `lynkeus init` adds it to `babel.config.js`. `auto()` with no `token` at all still serves without one.
 - An app that says it runs on Android has its device found through `adb devices`. With an iOS simulator booted beside the emulator, the CLI took the simulator's id for it, and a screenshot, a launch or an `os` command went to `adb` with an id it did not know.
 - `wait` and `see` take `route:<name>` for a route that does not start with a capital, as Expo Router's do (`route:index`): a lowercase word alone is still a text to look for.
 - `lynkeus init` mounts the agent from the app's entry. In an Expo app it reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, the only kind of variable Expo passes to the app, and an Expo Router app, which has no entry of its own, gets an `index.js` that mounts the agent and then loads the router. Tried on a new Expo SDK 57 project: a development build attaches, lists the screen and names Expo Router's routes; no config plugin is needed.
 - A target in quotes is the text inside them: `press '"Next"'` used to look for a label with the quotes in it and find nothing. Quoted, a word is never a route, an index or a testID, so `wait '"Next"'` waits for the button and not for a route called `Next`.
 - Cases: `app.press` and any step that takes a `target` take `testId` in its place, `app.press` takes `{ text }`, and `app.type` takes `timeoutMs` for how long its field may take to arrive. Each was refused with `press has no testId`, `app.press needs a target` or `type has no timeoutMs`.
-=======
 - `lynkeus lint --baseline` knows a finding again by its rule, its testId and what it is about, not by its message. The message carries what was measured, so a target that went from 32 to 30 points came back as new. A baseline saved before this still matches on the message it kept; save it again to get the new behavior.
->>>>>>> origin/dev/lint-baseline-identity
 =======
 - `qa.observe` works with a Redux store. It read the new state from the listener's argument, which Zustand passes and Redux does not, so every key of a Redux store was traced as changing to nothing. It now reads the state from the store.
 - The store changes in the trace no longer carry a secret or a payload: a key named like one (`token`, `password`, `session`…) is traced as `…`, and a string longer than 80 characters is cut. A trace is part of what a report uploads.
