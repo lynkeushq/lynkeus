@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 
 import { Dimensions } from 'react-native';
 
+import { touch } from '../native';
 import type { Element } from '../protocol';
 import { moveToViews, snapshotElements } from '../tree';
 
@@ -103,6 +104,26 @@ describe('snapshotElements', () => {
     expect(button?.frame).toEqual({ x: 10, y: 10, w: 100, h: 40 });
     expect(typeof button?.tag).toBe('number');
     expect(input?.value).toBe('••••');
+  });
+
+  it('reads what a field holds from its view, where React only knows what it was given', () => {
+    install(
+      composite([
+        host('RCTSinglelineTextInputView', { testID: 'free' }, [10, 10, 100, 40]),
+        host('RCTSinglelineTextInputView', { testID: 'edited', text: 'first' }, [10, 60, 100, 40]),
+        host('RCTSinglelineTextInputView', { testID: 'pin', secureTextEntry: true }, [10, 110, 100, 40]),
+        host('RCTSinglelineTextInputView', { testID: 'cleared', text: 'gone' }, [10, 160, 100, 40]),
+      ]),
+    );
+    const asked = jest.spyOn(touch, 'texts').mockReturnValue(['ana', 'second', '1234', '']);
+    const { elements } = snapshotElements();
+    expect(asked).toHaveBeenCalledWith(elements.map((e) => e.tag));
+    expect(elements.map((e) => [e.testId, e.value])).toEqual([
+      ['free', 'ana'],
+      ['edited', 'second'],
+      ['pin', '••••'],
+      ['cleared', undefined],
+    ]);
   });
 
   const fill = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 };
