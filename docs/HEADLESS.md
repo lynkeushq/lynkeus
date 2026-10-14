@@ -49,7 +49,8 @@ export { App };
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
 Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view, video, fast-image, biometrics, in-app-review. Reanimated
+worklets, pager-view, video, fast-image, biometrics, in-app-review, webview,
+vision-camera, image-picker, and vector-icons' native module. Reanimated
 and gesture-handler are deliberately left alone (their jest story is a babel
 plugin, not `jest.mock`); pass `overrides` if your app wants them mocked.
 Options: `skip`, `overrides`, `network`, `networkHosts`, `websocket`,

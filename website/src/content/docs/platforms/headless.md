@@ -176,7 +176,7 @@ The host renders without `React.StrictMode`. Production has none, and its double
 
 ## The entry in detail
 
-`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometrics and in-app-review. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
+`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometrics, in-app-review, webview, vision-camera, image-picker, and the native half of vector-icons (an icon rendered to an image gets a file path back). Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
 
 Its options:
 

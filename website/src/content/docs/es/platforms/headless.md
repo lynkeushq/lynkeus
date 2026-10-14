@@ -120,7 +120,7 @@ const { default: App } = require('../app/App');
 export { App };
 ```
 
-`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometría e in-app-review.
+`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometría, in-app-review, webview, vision-camera, image-picker y la parte nativa de vector-icons (un ícono convertido en imagen recibe la ruta de un archivo).
 
 Reanimated y gesture-handler quedan intactos a propósito: su soporte para Jest es un plugin de Babel, no un `jest.mock`. Si tu app los quiere simulados, pásalos en `overrides`.
 
