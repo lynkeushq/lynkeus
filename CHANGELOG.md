@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - `lynkeus headless init` installs what the Node host runs on (jest, `@testing-library/react-native`, `lynkeus-headless`) when the app lacks it, and is served over MCP. `headless start` says what is missing instead of failing inside `npx jest`, and when the app's jest configuration does not set them it passes the React Native preset and the `transformIgnorePatterns` that let React Native, React Navigation, Expo and the like through, so an app with no jest setup of its own runs headless as it is. `status` says whether the app can run headless. A package manager is found by the lockfile above the app too, as in a monorepo.
 - `lynkeus mcp` can set a project up and test it, not only drive an app that is already attached. It serves `init` (which now also installs `lynkeus-agent`, with Expo's installer or the project's package manager), `status` (new: what the project has and, for each thing missing, what fixes it), `case init` and `case run`, and tells the model that connects the order to do things in. `LYNKEUS_REPORTS_URL` defaults to `https://lynkeus.io`, so pushing a run needs `LYNKEUS_REPORTS_KEY` alone. `init` adds the Babel plugin to a config written on one line.

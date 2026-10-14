@@ -70,7 +70,7 @@ You should see the platform reported as `android` and the native module as avail
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.3.0",
+  "agentVersion": "0.4.0",
   "platform": "android",
   "native": true,
   ...
