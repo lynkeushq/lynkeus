@@ -88,6 +88,10 @@ If your project already has an `index.js` (it does not use expo-router, or you a
 
 ### 3. Set the token under both names
 
+:::note[Since 0.4.0]
+`lynkeus init` makes the project's token in `.lynkeus/token` and writes it to `.env.local` as `EXPO_PUBLIC_LYNKEUS_TOKEN`, which Expo reads and its template keeps out of git; the CLI reads the same file. Restart the dev server and skip this step. Setting the variables still works, and the environment wins over the files.
+:::
+
 The token is a shared secret: the app is built with a value, the CLI presents the same value, and the agent ignores a driver that presents anything else.
 
 Two programs read it, under two names:

@@ -12,6 +12,7 @@ import {
   mmkv,
   pagerView,
   safeAreaContext,
+  vectorIconsNative,
   video,
   visionCamera,
   webView,
@@ -320,6 +321,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     'react-native-webview': webView,
     'react-native-vision-camera': visionCamera,
     'react-native-image-picker': imagePicker,
+    'react-native-vector-icons/lib/NativeRNVectorIcons': vectorIconsNative,
   };
 
   const installed: string[] = [];

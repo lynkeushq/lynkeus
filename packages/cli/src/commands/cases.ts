@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
@@ -29,6 +30,18 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
   });
   let output = '';
   const tail = (n: number) => output.trim().split('\n').slice(-n).join(' · ');
+  // `headless start` ends a crash with what it usually means; without that, the error line jest printed.
+  const why = () => {
+    const plain = stripVTControlCharacters(output);
+    const explained = plain.split('lynkeus: what this looks like')[1];
+    if (explained)
+      return explained
+        .trim()
+        .split('\n')
+        .map((line) => line.trim())
+        .join(' · ');
+    return plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
+  };
   await new Promise<void>((resolve, reject) => {
     const settle = (error?: Error) => {
       clearTimeout(timer);
@@ -39,11 +52,11 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     const read = (chunk: Buffer) => {
       output = (output + chunk.toString()).slice(-4000);
       if (/waiting for a driver/.test(output)) settle();
-      else if (/Test suite failed/.test(output)) settle(new Error(`the host failed to start: ${tail(5)}`));
     };
     host.stdout?.on('data', read);
     host.stderr?.on('data', read);
-    host.once('exit', (code) => settle(new Error(`the host exited (${code}): ${tail(3)}`)));
+    // A suite that fails to load exits right after printing why, so its explanation is read in full here.
+    host.once('exit', (code) => settle(new Error(`${/Test suite failed/.test(output) ? 'the host failed to start' : `the host exited (${code})`}: ${why()}`)));
   });
   err('host: up');
   return host;
@@ -227,7 +240,30 @@ export const caseCommands = [
     },
     needs: 'nothing',
     session: false,
-    mcp: false,
+    mcp: 'core',
+    mcpOmit: [
+      'seen',
+      'report',
+      'events',
+      'settle',
+      'traces',
+      'traces-port',
+      'video-fps',
+      'video-scale',
+      'flakes',
+      'prepared',
+      'jobs',
+      'ports',
+      'host-command',
+      'in-order',
+      'ahead',
+      'idle',
+      'continue',
+      'video',
+      'project',
+    ],
+    mcpDetails:
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;
@@ -424,7 +460,10 @@ export const caseCommands = [
       const unsupported = count('unsupported');
       const summary = [
         ...reports.map(
-          (r) => `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}`,
+          (r) =>
+            `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}` +
+            // In a session or over MCP the caller reads this answer and nothing else: a case that did not pass brings its steps.
+            (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
@@ -491,7 +530,7 @@ export const caseCommands = [
     flags: { force: { type: 'boolean', help: 'overwrite what is there' } },
     needs: 'nothing',
     session: false,
-    mcp: false,
+    mcp: 'core',
     run: async (ctx) => {
       const dir = path.resolve(ctx.root, ctx.config.cases?.dir ?? 'cases');
       fs.mkdirSync(dir, { recursive: true });

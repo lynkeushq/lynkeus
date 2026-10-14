@@ -16,7 +16,7 @@ The facts here were verified on a new Expo SDK 57 project, with React Native 0.8
 | Config plugin | None needed. The native module is autolinked. |
 | Mounting the agent | `npx lynkeus init` (since 0.3.0). In an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
 | Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN`. The `lynkeus-agent/babel` plugin of React Native CLI apps is not needed. |
-| Headless host | Not available for an expo-router app. |
+| Headless host | Since 0.4.0, an expo-router app runs on it: `lynkeus headless init` writes an entry that renders the router. See [Headless](/platforms/headless/#an-expo-router-app). |
 | Token in the CLI | `LYNKEUS_TOKEN` |
 | Routes | Recognized, with expo-router's names (`index`, not `Home`). In `wait` and `see`, written `route:index` (since 0.3.0). |
 | Native tab bar | Not listed as elements. Navigate with `lynkeus nav`. |
@@ -177,7 +177,7 @@ steps:
 - **Expo Go** is not supported and cannot be, for the reason given above.
 - **Native tab bars** cannot be inspected or pressed.
 - **Lowercase route names** need the `route:` prefix in `lynkeus wait` and `lynkeus see`.
-- **The headless host** cannot run an expo-router app. The host renders the app's root component, and `lynkeus headless init` looks for it in `App.tsx` and the like, or at the path given with `--component`. An expo-router app has none: its screens are files the router loads. `headless init` stops with `no App component found`. Run such an app on a simulator or an emulator.
+- **The headless host** runs an expo-router app since 0.4.0, through the router itself; before, it could not. See [Headless](/platforms/headless/#an-expo-router-app).
 - **Physical devices** are not supported, as in any React Native app.
 - **Versions tested**: Expo SDK 57, React Native 0.86, expo-router, on the iOS simulator and the Android emulator. Other SDK versions need React Native 0.76 or newer with the New Architecture.
 

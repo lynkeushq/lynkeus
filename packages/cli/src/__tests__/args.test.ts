@@ -72,7 +72,21 @@ test('every command is named once, documented, and its aliases are unique', () =
 test('MCP serves a small core by default and everything else on request', () => {
   const all = [...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...headlessCommands];
   const core = all.filter((c) => c.mcp === 'core').map((c) => c.name);
-  assert.deepEqual(core.sort(), ['call', 'map plan', 'map show', 'os deeplink', 'press', 'screen', 'type', 'wait', 'why']);
+  assert.deepEqual(core.sort(), [
+    'call',
+    'headless doctor',
+    'headless init',
+    'init',
+    'map plan',
+    'map show',
+    'os deeplink',
+    'press',
+    'screen',
+    'status',
+    'type',
+    'wait',
+    'why',
+  ]);
 });
 
 test('what MCP leaves out of a tool is still a flag of the command', () => {

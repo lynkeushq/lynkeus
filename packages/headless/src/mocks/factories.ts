@@ -415,6 +415,21 @@ export const imagePicker: MockFactory = () => {
   return { __esModule: true, launchImageLibrary: launch, launchCamera: launch };
 };
 
+// The font glyphs draw as text with no native help; only an icon rendered to an image (`getImageSource`) asks
+// the native module, which a headless host does not have. A file path it would hand back is all a screen sees.
+export const vectorIconsNative: MockFactory = () => {
+  const file = (fontName: string, glyph: string, fontSize: number, color: number) =>
+    `file:///lynkeus-headless/vector-icons/${encodeURIComponent(fontName)}-${glyph.codePointAt(0)}-${fontSize}-${color}.png`;
+  return {
+    __esModule: true,
+    default: {
+      getImageForFont: (fontName: string, glyph: string, fontSize: number, color: number) => Promise.resolve(file(fontName, glyph, fontSize, color)),
+      getImageForFontSync: file,
+      loadFontWithFileName: () => Promise.resolve(),
+    },
+  };
+};
+
 export const inAppReview: MockFactory = () => ({
   __esModule: true,
   default: { isAvailable: () => false, RequestInAppReview: () => Promise.resolve(false) },
