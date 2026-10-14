@@ -259,6 +259,21 @@ test('a run that asks for events keeps each with the step that caused it', async
   assert.deepEqual(report.events, [{ name: 'refreshed', props: { by: 'button' }, step: 2, route: 'Profile.Main' }]);
 });
 
+test('a host that records SDK calls is not asked for the app\'s own event list', async () => {
+  const c = parseCase('---\nid: ev\n---\nsteps:\n  - app.press: "#refresh"\n', 'ev.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['analytics'] };
+  const asked: string[] = [];
+  (device as unknown as { command: (n: string) => Promise<unknown> }).command = async (n) => {
+    asked.push(n);
+    return n === 'analytics' ? [{ sdk: 'mixpanel', name: 'Refreshed' }] : [];
+  };
+  const report = await runCase(c, { base, config, fixtures, events: true });
+  assert.equal(asked.includes('events'), false);
+  assert.deepEqual(report.steps.at(-1)?.sent, [{ provider: 'mixpanel', name: 'Refreshed', via: 'sdk' }]);
+});
+
 test('what the app puts in the way of a step is dealt with before it, unless the step is about it', async () => {
   const { base, calls } = fakeApp();
   const interruptions = [{ see: '#refresh', unless: 'refresh', do: [{ 'app.press': '#refresh' }] }];
