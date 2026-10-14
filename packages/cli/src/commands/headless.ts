@@ -35,7 +35,7 @@ const JEST_CONFIGS = ['jest.config.js', 'jest.config.cjs', 'jest.config.mjs', 'j
 
 // React Native and most of what an app adds to it ship untranspiled ES modules, which jest leaves alone unless told.
 const TRANSFORM_PACKAGES =
-  '((jest-)?react-native|@react-native(-community)?|react-native-.*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|@testing-library)';
+  '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library)';
 
 /**
  * What jest is told when the app has not said it itself, so an app with no jest set up runs headless as it is:

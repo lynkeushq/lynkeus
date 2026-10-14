@@ -183,7 +183,9 @@ export const init = (root: string, opts: InitOptions): string[] => {
     notes.push(`wrote ${opts.entry} (app: ${app})`);
   }
   if (opts.auto) notes.push(...mountAgent(root));
-  notes.push("jest: make sure transformIgnorePatterns lets 'lynkeus-[^/]+' through, next to react-native (lynkeus headless doctor checks it)");
+  notes.push(
+    "jest: when the app's jest configuration sets no preset or transformIgnorePatterns, `headless start` passes React Native's; an app that sets its own lets 'lynkeus-[^/]+' through, next to react-native",
+  );
   notes.push(`next: ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start  (the token is the project's, in .lynkeus/token)`);
   notes.push('      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)');
   return notes;
