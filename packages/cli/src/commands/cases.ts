@@ -245,9 +245,12 @@ export const caseCommands = [
       'in-order',
       'ahead',
       'idle',
+      'continue',
+      'video',
+      'project',
     ],
     mcpDetails:
-      'A case is a markdown file with `setup`, `steps` and `expected`; `case init` writes an example and the reference of the format beside it (read cases/README.md before writing one). Without files, every case in `cases.dir`. Runs against the attached app, or pass `host` to host the app in Node for the run. A failed step comes back with the screen it failed on. With `out`, `screenshots` and `push`, the run is uploaded and its report’s address printed.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;

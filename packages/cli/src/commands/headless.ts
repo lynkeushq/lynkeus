@@ -191,8 +191,9 @@ export const headlessCommands = [
     },
     needs: 'nothing',
     mcp: 'core',
+    mcpOmit: ['entry', 'component', 'auto', 'force'],
     mcpDetails:
-      'Prepares the app to run in Node with no simulator: installs jest, @testing-library/react-native and lynkeus-headless when missing, and writes the headless entry (the App with the common native modules mocked). Then `case run` with `host` runs cases there. The entry refuses a backend that is not local.',
+      'Prepares the app to run in Node, no simulator: installs jest, Testing Library and lynkeus-headless, writes the entry. Then `case_run` with `host`.',
     run: async (ctx) => {
       const lines = init(ctx.root, {
         entry: entryOf(ctx),
