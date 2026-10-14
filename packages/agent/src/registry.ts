@@ -1,7 +1,7 @@
 import type { NavigationAdapter } from './navigation';
 import { event, observe, readEvents, readStores } from './observe';
 import { readProfile } from './profile';
-import { setTraceContext } from './requests';
+import { setNetworkBodies, setTraceContext } from './requests';
 
 type Handler = (params: unknown) => unknown | Promise<unknown>;
 
@@ -12,6 +12,7 @@ const defaults = new Map<string, Handler>([
   ['stores', readStores],
   ['profile', readProfile],
   ['traceContext', setTraceContext],
+  ['networkBodies', setNetworkBodies],
 ]);
 
 const register = (name: string, handler: Handler): (() => void) => {

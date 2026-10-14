@@ -69,6 +69,8 @@ export type StepReport = {
   sent?: SentEvent[];
   /** What the backend did for it, from the traces it exported to the run. */
   backend?: BackendSpan[];
+  /** The requests the app sent while it ran, with headers and bodies (secrets hidden), when the run keeps evidence. */
+  requests?: RequestRecord[];
 };
 export type CaseReport = {
   id: string;
@@ -782,6 +784,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
+  // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
+  let requestsSeen: number | undefined;
+  if (evidence && (await offers('networkBodies'))) {
+    const d = await device();
+    await d.command('networkBodies', { on: true }).catch(() => undefined);
+    requestsSeen = await d.requests().then(
+      (r) => r.requests.at(-1)?.id ?? 0,
+      () => undefined,
+    );
+  }
   const frameAt = async (): Promise<number | undefined> => {
     if (!filming || !evidence?.video) return undefined;
     const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
@@ -798,6 +810,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}) }] : [],
       );
       if (sent.length > 0) report.sent = sent;
+    }
+    if (requestsSeen !== undefined) {
+      const made = await d.requests(requestsSeen).then(
+        (r) => r.requests,
+        () => [],
+      );
+      if (made.length > 0) {
+        report.requests = made;
+        requestsSeen = made.at(-1)!.id;
+      }
     }
     if (evidence?.screenshots) {
       // A step may end mid-transition (a screen fading in, the splash fading out): the frame is of where the
@@ -926,6 +948,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
+  if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
   if (tracing && options.traces) {
     await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
     // A backend exports in batches, a moment after the requests it served.
