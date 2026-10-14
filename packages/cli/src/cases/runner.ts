@@ -51,11 +51,17 @@ export type CasesConfig = {
   macros?: Record<string, unknown[]>;
   /** What the app may put in the way of a step and the steps that get past it; a step whose own words match `unless` is about it, and is left alone. */
   interruptions?: { see: string; do: unknown[]; unless?: string }[];
+  /**
+   * What the backend told its own analytics while a step ran, for a report: after each app step the fixture is
+   * asked with `{ since }` (the step's start, ISO) and answers `{ events: [{ name | event, props | payload,
+   * provider? }] }`. `provider` names the service when the fixture does not (an Olympus that sends to Mixpanel).
+   */
+  serverEvents?: { fixture: string; provider?: string };
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
-/** `via`: the SDK's native module (a host that stands in for it) or the request it sent. */
-export type SentEvent = { provider: string; name: string; props?: Record<string, unknown>; via?: 'sdk' | 'network' };
+/** `via`: the SDK's native module (a host that stands in for it), the request it sent, or the backend's own analytics. */
+export type SentEvent = { provider: string; name: string; props?: Record<string, unknown>; via?: 'sdk' | 'network' | 'server' };
 
 /** `unsupported`: the host the case ran on has no such thing to do (a real device has no mocked responses), which says nothing about the app. */
 export type StepReport = {
@@ -832,8 +838,28 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return typeof answer?.frames === 'number' ? Math.round((answer.frames / evidence.video.fps) * 100) / 100 : undefined;
   };
   // What a step leaves for a report: the frame after it and what it sent. Nothing here may fail the case.
-  const record = async (report: StepReport, index: number, startedAt: number | undefined) => {
+  const record = async (report: StepReport, index: number, startedAt: number | undefined, begunMs: number) => {
     if (startedAt !== undefined) report.videoS = startedAt;
+    if (config.serverEvents && options.fixtures) {
+      const { fixture: name, provider } = config.serverEvents;
+      const answer = await options.fixtures.call(name, { since: new Date(begunMs).toISOString() }).catch(() => undefined);
+      const list = Array.isArray(answer?.events) ? (answer.events as Record<string, unknown>[]) : [];
+      const server = list.flatMap((e) => {
+        const named = typeof e?.name === 'string' ? e.name : typeof e?.event === 'string' ? e.event : undefined;
+        const props = (e?.props ?? e?.payload) as Record<string, unknown> | undefined;
+        return named
+          ? [
+              {
+                provider: String(e.provider ?? provider ?? 'backend'),
+                name: named,
+                ...(props && typeof props === 'object' ? { props } : {}),
+                via: 'server' as const,
+              },
+            ]
+          : [];
+      });
+      if (server.length > 0) report.sent = [...(report.sent ?? []), ...server];
+    }
     const d = await device().catch(() => undefined);
     if (!d?.server.connected) return;
     if (capturing) {
@@ -987,7 +1013,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb]))
-        await record(done, steps.length, at);
+        await record(done, steps.length, at, t0);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const missing = lacking(message);
@@ -1003,7 +1029,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
       steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
-      if (evidence || capturing) await record(broke, steps.length, at);
+      if (evidence || capturing) await record(broke, steps.length, at, t0);
     }
   }
 

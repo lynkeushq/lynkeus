@@ -172,6 +172,23 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | `cases.macros` | object | none | Steps of your own: a name, and the list of steps it stands for. |
 | `cases.interruptions` | array | none | What the app may put in the way of any step, and the steps that get past it. |
 | `cases.nativeMocks` | object | none | What native SDKs answer on a host that cannot run them. |
+| `cases.serverEvents` | object | none | A fixture that says what the backend told its own analytics during each step, for reports. |
+
+### `cases.serverEvents`
+
+What the backend sent to its analytics while a step ran, shown under the step in a report next to what the app sent.
+After each app step of a run that keeps evidence, lynkeus calls the fixture with `{ "since": "<the step's start, ISO>" }`.
+The fixture answers `{ "events": [{ "name": "…", "props": { … }, "provider": "…" }] }`; `event` and `payload` are
+read as `name` and `props`.
+
+```json
+"serverEvents": { "fixture": "olympus_events", "provider": "mixpanel" }
+```
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `fixture` | string | The fixture command to ask. |
+| `provider` | string | The service, when the fixture's events do not name one. Default `backend`. |
 
 ### `cases.refs`
 
