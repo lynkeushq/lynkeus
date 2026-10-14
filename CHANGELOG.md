@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A report shows what each request sent and got. While a run keeps evidence (`--out`), the agent keeps each request's headers and body and its response's, with secrets replaced by `…` (passwords, codes, PINs, tokens, card numbers, `Authorization`, cookies) and bodies cut at 16 KB, and the runner files them under the step that sent them. It comes from the app, so it works on fastsim, a simulator, an emulator and headless, with or without backend traces. Outside a run the agent still keeps only method, address, status and time.
+- Each analytics event says which service it went to. `lynkeus-headless` stands in for the native modules of Mixpanel, AppsFlyer, Intercom, Sentry, Datadog, Firebase Analytics and Crashlytics, Amplitude, Braze, Branch, Adjust, Bugsnag, CleverTap and OneSignal and records their calls per SDK, as fastsim does; and on any host, requests to Segment, Amplitude, PostHog, Mixpanel, Sentry, Datadog, Firebase, AppsFlyer, Branch, Braze, OneSignal, Intercom, Bugsnag, Adjust, CleverTap, Heap, Statsig and LaunchDarkly become the events their bodies carry.
+- A case can say why it matters (`why`), what is true when it starts (`given`) and the ticket it covers (`ticket`); the report shows them, with `description` and `expected`, above the steps.
+
 ## 0.4.0
 
 - `lynkeus headless init` installs what the Node host runs on (jest, `@testing-library/react-native`, `lynkeus-headless`) when the app lacks it, and is served over MCP. `headless start` says what is missing instead of failing inside `npx jest`, and when the app's jest configuration does not set them it passes the React Native preset and the `transformIgnorePatterns` that let React Native, React Navigation, Expo and the like through, so an app with no jest setup of its own runs headless as it is. `status` says whether the app can run headless. A package manager is found by the lockfile above the app too, as in a monorepo.

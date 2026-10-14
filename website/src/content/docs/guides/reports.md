@@ -129,7 +129,9 @@ npx lynkeus report push run --project myapp
 
 - Each case, with its steps and how each one ended.
 - The screenshot after each step, and the video in step with the steps where one was recorded.
-- The analytics events each step sent. See [Analytics events](/guides/analytics-events/).
+- What the case is about: its `description`, `why`, `given`, `ticket` and `expected`.
+- The analytics events each step sent, with the service they went to (Mixpanel, Amplitude, Segment, Sentry, Datadog and others). See [Analytics events](/guides/analytics-events/).
+- The requests each step sent, with their headers and bodies, and what came back. Secrets in them (passwords, codes, tokens, card numbers, `Authorization` and cookies) are replaced by `…`, and a body is cut at 16 KB. Since 0.5.0, for any run made with `--out`.
 - Why a failed case failed.
 - What the backend did for each step, when the run used `--traces`. See [Backend traces](/guides/backend-traces/).
 - The branch and commit the run was made from.

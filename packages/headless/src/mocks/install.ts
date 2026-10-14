@@ -1,4 +1,5 @@
 import { installRuntime, log, resolvable } from '../runtime.js';
+import { installAnalytics } from './analytics.js';
 import { connectivityControls, installControls, netControls, pathOf } from './controls.js';
 import {
   asyncStorage,
@@ -335,10 +336,12 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
 
   if (options.network === 'real') installRealNetwork(hosts);
   installControls(options.initialUrl ?? null);
+  const recorders = installAnalytics();
   if ((options.animations ?? 'deferred') === 'deferred') deferAnimationCompletions();
   installNetInfo();
   installWebSocket(options.websocket ?? 'stub', hosts);
 
   log(`mocked: ${installed.sort().join(', ') || '(none detected)'}`);
+  if (recorders.length) log(`analytics: recorded per SDK (${recorders.length} native modules)`);
   return installed;
 };

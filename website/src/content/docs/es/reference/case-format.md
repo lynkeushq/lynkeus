@@ -40,7 +40,10 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 |---|---|---|---|
 | `id` | texto | el nombre del archivo sin `.md` | El identificador del caso. Es el que aparece en los reportes y el que recibe `lynkeus report history`. |
 | `title` | texto | ninguno | Una frase que dice qué demuestra el caso. |
-| `description` | texto | ninguno | Una explicación más larga. Llega al reporte. |
+| `description` | texto | ninguno | Qué prueba el caso, en un párrafo. Aparece arriba de los pasos en el reporte. |
+| `why` | texto | ninguno | Qué se rompe para la gente si falla. Aparece en el reporte. Desde 0.5.0. |
+| `given` | texto | ninguno | Qué es cierto cuando empieza: quién es el usuario, qué está instalado. Aparece en el reporte. Desde 0.5.0. |
+| `ticket` | texto | ninguno | El ticket que cubre. Aparece en el reporte. Desde 0.5.0. |
 | `matrix` | objeto | ninguno | Ejecuta el caso una vez por cada combinación de valores. Ver [Matrices](#matrices). |
 
 ### Las secciones

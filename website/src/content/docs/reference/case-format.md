@@ -44,7 +44,10 @@ The file must start with `---` on its first line. A file without frontmatter is 
 |---|---|---|---|
 | `id` | string | the file name without `.md` | The case's name in output, reports and file names. |
 | `title` | string | none | One line saying what the case proves. Printed when the case starts and shown in reports. |
-| `description` | string | none | A longer explanation. Kept in the run file for reports. |
+| `description` | string | none | What the case proves, in a paragraph. Shown above the steps in a report. |
+| `why` | string | none | What breaks for people if it fails. Shown in a report. Since 0.5.0. |
+| `given` | string | none | What is true when it starts: who the user is, what is installed. Shown in a report. Since 0.5.0. |
+| `ticket` | string | none | The ticket the case covers. Shown in a report. Since 0.5.0. |
 | `matrix` | object of lists | none | Inputs to run the case over. See [Matrix](#matrix). |
 
 Other keys are allowed and ignored by the runner.

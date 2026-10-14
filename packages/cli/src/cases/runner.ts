@@ -12,6 +12,7 @@ import { promisify } from 'node:util';
 import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
+import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
@@ -53,7 +54,8 @@ export type CasesConfig = {
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
-export type SentEvent = { provider: string; name: string; props?: Record<string, unknown> };
+/** `via`: the SDK's native module (a host that stands in for it) or the request it sent. */
+export type SentEvent = { provider: string; name: string; props?: Record<string, unknown>; via?: 'sdk' | 'network' };
 
 /** `unsupported`: the host the case ran on has no such thing to do (a real device has no mocked responses), which says nothing about the app. */
 export type StepReport = {
@@ -80,6 +82,11 @@ export type CaseReport = {
   result: 'passed' | 'failed' | 'unsupported';
   ms: number;
   steps: StepReport[];
+  /**
+   * What a reader needs before the steps: what the case proves (`description`), why it matters (`why`), what
+   * has to be true when it starts (`given`), the ticket it covers and the outcome it expects. From its frontmatter.
+   */
+  about?: { description?: string; why?: string; given?: string; ticket?: string; expected?: string };
   /** When a step failed: the screen, the requests since the mark, and why. */
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** What the app told its analytics, each with the step that caused it, when the run asked for it. */
@@ -224,6 +231,20 @@ const requestMatches = (event: RequestRecord, wanted: string, status?: number): 
   if (method !== '*' && event.method.toUpperCase() !== method!.toUpperCase()) return false;
   if (!pathname.endsWith(route!)) return false;
   return status === undefined ? true : event.status === status;
+};
+
+const aboutOf = (c: Case): { about?: CaseReport['about'] } => {
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const about = Object.fromEntries(
+    Object.entries({
+      description: text(c.meta.description),
+      why: text(c.meta.why),
+      given: text(c.meta.given),
+      ticket: text(c.meta.ticket),
+      expected: c.expected,
+    }).filter(([, v]) => v !== undefined),
+  );
+  return Object.keys(about).length ? { about } : {};
 };
 
 // Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
@@ -807,7 +828,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (capturing) {
       const raw = (await d.command('analytics', { take: true }).catch(() => [])) as { sdk?: string; name?: string; properties?: Record<string, unknown> }[];
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
-        e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}) }] : [],
+        e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}), via: 'sdk' as const }] : [],
       );
       if (sent.length > 0) report.sent = sent;
     }
@@ -819,6 +840,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (made.length > 0) {
         report.requests = made;
         requestsSeen = made.at(-1)!.id;
+        // A JS SDK (Segment, PostHog…) never reaches a native module: what it sent is in its requests.
+        const traffic = trafficEvents(made).map((e) => ({ ...e, via: 'network' as const }));
+        if (traffic.length > 0) report.sent = [...(report.sent ?? []), ...traffic];
       }
     }
     if (evidence?.screenshots) {
@@ -964,6 +988,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const report: CaseReport = {
     id: c.id,
     title: c.title,
+    ...aboutOf(c),
     file: c.file,
     result: failed ? 'failed' : unsupported ? 'unsupported' : 'passed',
     ms: Date.now() - started,
