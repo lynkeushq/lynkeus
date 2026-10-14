@@ -173,6 +173,8 @@ This is a separate server from `lynkeus mcp`. The hosted service at lynkeus.io h
 | Claude Code | `claude mcp add --transport http lynkeus https://lynkeus.io/mcp` |
 | Cursor | `"mcpServers": { "lynkeus": { "url": "https://lynkeus.io/mcp" } }` |
 
+Its tools are `list_runs`, `get_run`, `get_case`, `get_frame`, `case_history` and `flaky_cases`. `get_frame` returns the screen a step left as an image, by default the step that failed, so the client can see what the app showed. A run keeps frames when it was made with `--screenshots`.
+
 The first time, the client opens lynkeus to ask for your approval and which organization it may read. You can disconnect it at any time under **Members**. See [Reports](/guides/reports/).
 
 ## How it works

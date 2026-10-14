@@ -158,7 +158,7 @@ Cada paso cuesta unos 50 ms, contra cerca de 1,5 s de un comando suelto. Cuando 
 
 ## Leer los reportes desde un agente
 
-Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Está descrito en [reportes](/es/guides/reports/).
+Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Sus herramientas son `list_runs`, `get_run`, `get_case`, `get_frame`, `case_history` y `flaky_cases`. `get_frame` devuelve como imagen la pantalla que dejó un paso, por defecto el que falló, para que el cliente vea qué mostraba la app. Una ejecución guarda capturas cuando se hizo con `--screenshots`. Está descrito en [reportes](/es/guides/reports/).
 
 ## Límites y cuidados
 
