@@ -811,6 +811,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
   let requestsSeen: number | undefined;
+  // Frames the host is still encoding: the case waits for them before it says it is done.
+  const encoding: string[] = [];
   if (evidence && (await offers('networkBodies'))) {
     const d = await device();
     await d.command('networkBodies', { on: true }).catch(() => undefined);
@@ -886,14 +888,27 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (await offers('screenshot')) {
         const avif = evidence.frames !== 'png' && !avifRefused;
         file = `${stem}.${avif ? 'avif' : 'png'}`;
-        taken = await hostShot(file);
+        // A host on this machine encodes an AVIF frame after it answers, so the step does not wait for it;
+        // the case waits for all its frames once, at its end.
+        const later = avif
+          ? await d.command('screenshot', { path: file, background: true }).then(
+              (answer) => {
+                const { background, moving: animating } = (answer ?? {}) as { background?: unknown; moving?: unknown };
+                if (Array.isArray(animating)) moving = animating;
+                return background === true;
+              },
+              () => false,
+            )
+          : false;
+        if (later) encoding.push(file);
+        taken = later || (await hostShot(file));
         if (!taken && avif) {
           avifRefused = true;
           file = `${stem}.png`;
           taken = await hostShot(file);
         }
       } else taken = (await execute(['screenshot', file], base)).code === 0;
-      if (taken && fs.existsSync(file)) {
+      if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
@@ -988,6 +1003,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
 
   if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
+  if (encoding.length > 0) {
+    const until = Date.now() + 15_000;
+    while (encoding.some((f) => !fs.existsSync(f)) && Date.now() < until) await sleep(25);
+    // A frame that never arrived is not offered to a report.
+    for (const s of steps) if (s.screenshot && encoding.includes(s.screenshot) && !fs.existsSync(s.screenshot)) delete s.screenshot;
+  }
   if (tracing && options.traces) {
     await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
     // A backend exports in batches, a moment after the requests it served.
