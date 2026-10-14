@@ -173,6 +173,12 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | `cases.interruptions` | array | none | What the app may put in the way of any step, and the steps that get past it. |
 | `cases.nativeMocks` | object | none | What native SDKs answer on a host that cannot run them. |
 | `cases.serverEvents` | object | none | A fixture that says what the backend told its own analytics during each step, for reports. |
+| `cases.appEvents` | object | none | The service the app's own event list feeds, so a report names it instead of "App". |
+
+### `cases.appEvents`
+
+The app's own event list (its `events` command) does not say which service each event went to, and a report shows
+those events as "App". When the app hands every event to one service, name it: `{ "provider": "mixpanel" }`.
 
 ### `cases.serverEvents`
 
