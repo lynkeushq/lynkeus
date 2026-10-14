@@ -6,7 +6,8 @@ import type { RequestRecord } from 'lynkeus-protocol';
 export type TrafficEvent = { provider: string; name: string; props?: Record<string, unknown> };
 
 type Plain = Record<string, unknown>;
-type Reader = (body: unknown, path: string) => TrafficEvent[] | undefined;
+// `provider` is the service the request went to: a reader of one shape serves every service that copies it.
+type Reader = (body: unknown, path: string, provider: string) => TrafficEvent[] | undefined;
 
 const isPlain = (v: unknown): v is Plain => !!v && typeof v === 'object' && !Array.isArray(v);
 const plain = (v: unknown): Plain | undefined => (isPlain(v) ? v : undefined);
@@ -20,10 +21,10 @@ const named = (provider: string, items: unknown[], name: (item: Plain) => unknow
     return [{ provider, name: n, ...(p ? { props: p } : {}) }];
   });
 
-const segment: Reader = (body) => {
+const segment: Reader = (body, _path, provider) => {
   const b = plain(body);
   return named(
-    'segment',
+    provider,
     list(b?.batch ?? b),
     (i) => i.event ?? (i.type === 'screen' || i.type === 'page' ? `${i.type}: ${i.name}` : i.type),
     (i) => i.properties ?? i.traits,
@@ -73,6 +74,29 @@ const SERVICES: { host: RegExp; provider: string; read?: Reader }[] = [
   { host: /(^|\.)heapanalytics\.com$/, provider: 'heap' },
   { host: /(^|\.)statsig(api)?\.(com|net)$/, provider: 'statsig' },
   { host: /(^|\.)launchdarkly\.com$/, provider: 'launchdarkly' },
+  // Segment-compatible: the same batch shape.
+  { host: /(^|\.)rudderstack\.com$|(^|\.)rudderlabs\.com$/, provider: 'rudderstack', read: segment },
+  { host: /^(track|cdp|track-eu|cdp-eu)\.customer\.io$/, provider: 'customerio', read: segment },
+  { host: /(^|\.)google-analytics\.com$|(^|\.)analytics\.google\.com$/, provider: 'googleanalytics' },
+  { host: /(^|\.)googletagmanager\.com$/, provider: 'googletagmanager' },
+  { host: /^graph\.facebook\.com$/, provider: 'meta' },
+  { host: /(^|\.)tiktok(v)?\.com$|(^|\.)tiktokapis\.com$/, provider: 'tiktok' },
+  { host: /(^|\.)iterable\.com$/, provider: 'iterable' },
+  { host: /(^|\.)moengage\.com$/, provider: 'moengage' },
+  { host: /(^|\.)kochava\.com$/, provider: 'kochava' },
+  { host: /(^|\.)singular\.net$/, provider: 'singular' },
+  { host: /(^|\.)emb-api\.com$|(^|\.)embrace\.io$/, provider: 'embrace' },
+  { host: /(^|\.)instabug\.com$|(^|\.)luciq\.ai$/, provider: 'instabug' },
+  { host: /(^|\.)smartlook\.(cloud|com)$/, provider: 'smartlook' },
+  { host: /(^|\.)urbanairship\.com$|(^|\.)airship\.(com|eu)$|(^|\.)asnapieu\.com$/, provider: 'airship' },
+  { host: /(^|\.)snplow\.net$|(^|\.)snowplowanalytics\.com$/, provider: 'snowplow' },
+  { host: /(^|\.)fullstory\.com$/, provider: 'fullstory' },
+  { host: /(^|\.)mparticle\.com$/, provider: 'mparticle' },
+  { host: /(^|\.)pendo\.io$/, provider: 'pendo' },
+  { host: /(^|\.)lr-ingest\.(io|com)$|(^|\.)logrocket\.(io|com)$/, provider: 'logrocket' },
+  { host: /(^|\.)newrelic\.com$|(^|\.)nr-data\.net$/, provider: 'newrelic' },
+  { host: /(^|\.)hotjar\.(com|io)$/, provider: 'hotjar' },
+  { host: /(^|\.)count\.ly$/, provider: 'countly' },
 ];
 
 const parse = (text: string | undefined): unknown => {
@@ -113,6 +137,6 @@ export const trafficEvents = (requests: RequestRecord[]): TrafficEvent[] =>
     }
     const service = SERVICES.find((s) => s.host.test(url.hostname.toLowerCase()));
     if (!service) return [];
-    const events = service.read?.(parse(r.request?.body), url.pathname);
+    const events = service.read?.(parse(r.request?.body), url.pathname, service.provider);
     return events?.length ? events : [{ provider: service.provider, name: `${r.method} ${url.pathname}` }];
   });

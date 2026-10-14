@@ -79,6 +79,23 @@ export const ANALYTICS_MODULES: Record<string, () => Calls> = {
   CleverTapReact: () => recorded('clevertap'),
   OneSignal: () => recorded('onesignal'),
   RNOneSignal: () => recorded('onesignal'),
+  // The names these SDKs' React Native packages register their native modules under.
+  FBAppEventsLogger: () => recorded('meta'),
+  RNIterableAPI: () => recorded('iterable'),
+  MoEReactBridge: () => recorded('moengage'),
+  RNKochavaTracker: () => recorded('kochava'),
+  SingularBridge: () => recorded('singular'),
+  EmbraceManager: () => recorded('embrace'),
+  Instabug: () => recorded('instabug'),
+  RTNAirship: () => recorded('airship'),
+  RNSnowplowTracker: () => recorded('snowplow'),
+  FullStory: () => recorded('fullstory'),
+  MParticle: () => recorded('mparticle'),
+  RNPendoSDK: () => recorded('pendo'),
+  NRMModularAgent: () => recorded('newrelic'),
+  CountlyReactNative: () => recorded('countly'),
+  RNHeap: () => recorded('heap'),
+  PosthogReactNative: () => recorded('posthog'),
 };
 
 export const installAnalytics = (): string[] => {

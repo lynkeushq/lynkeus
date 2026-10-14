@@ -15,6 +15,13 @@ test('known analytics services are read from what the app sent them', () => {
   assert.equal(serviceOf('https://api.segment.io/v1/batch'), 'segment');
   assert.equal(serviceOf('https://o123.ingest.sentry.io/api/4/envelope/'), 'sentry');
   assert.equal(serviceOf('https://api.example.com/v1/me'), undefined);
+  assert.equal(serviceOf('https://hosted.rudderlabs.com/v1/batch'), 'rudderstack');
+  assert.equal(serviceOf('https://graph.facebook.com/v19.0/123/activities'), 'meta');
+  assert.equal(serviceOf('https://mobile-collector.newrelic.com/mobile/v3/data'), 'newrelic');
+  assert.deepEqual(
+    trafficEvents([req('https://hosted.rudderlabs.com/v1/batch', { batch: [{ type: 'track', event: 'Order Completed' }] })]).map((e) => [e.provider, e.name]),
+    [['rudderstack', 'Order Completed']],
+  );
   const events = trafficEvents([
     req('https://api.segment.io/v1/batch', {
       batch: [
