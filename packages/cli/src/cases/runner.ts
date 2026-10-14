@@ -501,8 +501,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         await sleep(150);
         continue;
       }
-      if (Date.now() > deadline)
-        throw new Error(absent ? `still there: ${label({ verb: '', value: { ...params, absent: undefined } as StepValue }).trim()}` : missing!);
+      if (Date.now() > deadline) {
+        if (!absent) throw new Error(missing!);
+        const { absent: _, ...what } = params;
+        throw new Error(`still on screen: ${label({ verb: '', value: what as StepValue }).trim()}`);
+      }
       await sleep(150);
     }
   };
