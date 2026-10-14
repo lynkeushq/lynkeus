@@ -248,6 +248,10 @@ export const headlessCommands = [
       explain: { type: 'string', help: 'turn a jest error into its usual cause and fix', value: 'text' },
     },
     needs: 'nothing',
+    mcp: 'core',
+    mcpOmit: ['entry'],
+    mcpDetails:
+      'Which native modules the app uses that nothing mocks yet, so the headless host would fail on them; `fix` writes stubs for them into the entry. `explain` turns the first line of a jest error into its cause.',
     run: async (ctx) => {
       if (ctx.flags.explain) {
         const found = explainError(ctx.flags.explain as string);

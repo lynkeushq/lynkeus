@@ -70,6 +70,8 @@ To set lynkeus up: call init (it installs lynkeus-agent, mounts it from the app'
 
 To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there; prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
 
+To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.
+
 To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {

@@ -46,7 +46,7 @@ Al conectarse, el servidor le explica al modelo el orden a seguir. El agente lla
 
 El agente de lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
 
-Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, y los casos corren en Node con `case_run` y `host`.
+Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
 
 ## 3. Pídele un test
 
@@ -62,7 +62,7 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 14 | 1500 tokens |
+| `lynkeus mcp` | 15 | 1750 tokens |
 | `lynkeus mcp --full` | las 48 | 5400 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
@@ -73,7 +73,8 @@ Las herramientas básicas son:
 |---|---|
 | `status` | Qué tiene el proyecto de lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
 | `init` | Instala el agente de lynkeus, lo monta y crea el token del proyecto. |
-| `headless_init` | Prepara la app para correr en Node, sin simulador. |
+| `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
+| `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
 | `case_run` | Corre casos; uno que falla vuelve con su pantalla y su motivo. |
 | `screen` | Lee la pantalla: ruta y elementos. |

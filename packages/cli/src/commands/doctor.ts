@@ -78,6 +78,13 @@ const PATTERNS: { re: RegExp; how: string }[] = [
   { re: /codegenNativeComponent\s*<[^>]*>\(\s*['"]([^'"]+)['"]/g, how: 'codegenNativeComponent' },
 ];
 
+/**
+ * The text with its comments blanked, lines kept where they were: a mock or a native module named in a comment
+ * (the generated entry shows `jest.mock('some-native-package', …)` as an example) is neither. Only comments that
+ * own their line are taken, so a `//` inside a string (a URL) stays.
+ */
+const withoutComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' ')).replace(/^[ \t]*\/\/.*$/gm, '');
+
 const scanNativeRefs = (root: string): NativeRef[] => {
   const files: string[] = [];
   for (const d of SCAN_DIRS) walk(path.join(root, d), files);
@@ -85,7 +92,7 @@ const scanNativeRefs = (root: string): NativeRef[] => {
   for (const file of files) {
     let text: string;
     try {
-      text = fs.readFileSync(file, 'utf8');
+      text = withoutComments(fs.readFileSync(file, 'utf8'));
     } catch {
       continue;
     }
@@ -107,7 +114,7 @@ const entryMocks = (root: string, entry: string): { specs: Set<string>; files: S
   const entryPath = path.join(root, entry);
   let text = '';
   try {
-    text = fs.readFileSync(entryPath, 'utf8');
+    text = withoutComments(fs.readFileSync(entryPath, 'utf8'));
   } catch {
     return { specs, files };
   }
