@@ -4,6 +4,8 @@
 
 - A report shows what each request sent and got. While a run keeps evidence (`--out`), the agent keeps each request's headers and body and its response's, with secrets replaced by `…` (passwords, codes, PINs, tokens, card numbers, `Authorization`, cookies) and bodies cut at 16 KB, and the runner files them under the step that sent them. It comes from the app, so it works on fastsim, a simulator, an emulator and headless, with or without backend traces. Outside a run the agent still keeps only method, address, status and time.
 - Each analytics event says which service it went to. `lynkeus-headless` stands in for the native modules of Mixpanel, AppsFlyer, Intercom, Sentry, Datadog, Firebase Analytics and Crashlytics, Amplitude, Braze, Branch, Adjust, Bugsnag, CleverTap and OneSignal and records their calls per SDK, as fastsim does; and on any host, requests to Segment, Amplitude, PostHog, Mixpanel, Sentry, Datadog, Firebase, AppsFlyer, Branch, Braze, OneSignal, Intercom, Bugsnag, Adjust, CleverTap, Heap, Statsig and LaunchDarkly become the events their bodies carry.
+- Report frames are AVIF where the host writes it (fastsim on a Mac does): about a fifth of a PNG's bytes, in the same time. A host that cannot falls back to PNG. `--frames png` keeps them exact, for frames two runs are compared by.
+- Analytics events are kept with every run that keeps a report (`--out`), not only with `--events`.
 - A case can say why it matters (`why`), what is true when it starts (`given`) and the ticket it covers (`ticket`); the report shows them, with `description` and `expected`, above the steps.
 
 ## 0.4.0

@@ -100,7 +100,11 @@ export type CaseReport = {
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
-export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; video?: { fps: number; scale?: number } };
+/** `frames`: AVIF where the host writes it (a fifth of a PNG's bytes, lossy), or PNG, exact, for frames two runs are compared by. */
+export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; frames?: 'avif' | 'png'; video?: { fps: number; scale?: number } };
+
+// A host that could not write AVIF once (an older one) is asked for PNG from then on.
+let avifRefused = false;
 
 export type RunOptions = {
   base: Base;
@@ -791,8 +795,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const evidence = options.dry ? undefined : options.evidence;
   const offers = async (command: string) => !!(await base.device().catch(() => undefined))?.server.hello?.commands?.includes(command);
   const film = evidence?.video && (await offers('record')) ? path.join(evidence.dir, 'video.mp4') : undefined;
-  // Asked only when the run keeps events: it is a call per step.
-  const capturing = !options.dry && !!options.events && (await offers('analytics'));
+  // Asked when the run keeps events or a report: it is a call per step.
+  const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
   let filming = false;
   if (film && evidence?.video) {
@@ -856,34 +860,45 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         (r) => r.idle,
         () => false,
       );
-      const file = path.join(
+      const stem = path.join(
         evidence.dir,
         `${String(index).padStart(2, '0')}-${report.step
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .slice(0, 48)
-          .replace(/^-|-$/g, '')}.png`,
+          .replace(/^-|-$/g, '')}`,
       );
       // A host on another machine writes the file there; `inline` asks it for the picture as well.
       // A host that knows what was still animating says so, as frames in points.
       let moving: unknown;
-      const taken = (await offers('screenshot'))
-        ? await d.command('screenshot', { path: file, inline: true }).then(
-            (answer) => {
-              const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
-              if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
-              if (Array.isArray(animating)) moving = animating;
-              return true;
-            },
-            () => false,
-          )
-        : (await execute(['screenshot', file], base)).code === 0;
+      const hostShot = async (file: string) =>
+        d.command('screenshot', { path: file, inline: true }).then(
+          (answer) => {
+            const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
+            if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
+            if (Array.isArray(animating)) moving = animating;
+            return fs.existsSync(file);
+          },
+          () => false,
+        );
+      let file = `${stem}.png`;
+      let taken: boolean;
+      if (await offers('screenshot')) {
+        const avif = evidence.frames !== 'png' && !avifRefused;
+        file = `${stem}.${avif ? 'avif' : 'png'}`;
+        taken = await hostShot(file);
+        if (!taken && avif) {
+          avifRefused = true;
+          file = `${stem}.png`;
+          taken = await hostShot(file);
+        }
+      } else taken = (await execute(['screenshot', file], base)).code === 0;
       if (taken && fs.existsSync(file)) {
         report.screenshot = file;
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
-        if (screen) fs.writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
+        if (screen) fs.writeFileSync(file.replace(/\.(png|avif)$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
       }
     }
   };
