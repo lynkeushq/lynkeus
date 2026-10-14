@@ -114,6 +114,20 @@ test('files each span under the step whose request set it off, and leaves out th
                   startTimeUnixNano: ns(10),
                   endTimeUnixNano: ns(12),
                 },
+                // A query: it names the backend's tables, and never leaves the machine.
+                {
+                  traceId: trace,
+                  spanId: '5555555555555555',
+                  parentSpanId: '1111111111111111',
+                  name: 'SELECT users',
+                  kind: 3,
+                  startTimeUnixNano: ns(13),
+                  endTimeUnixNano: ns(14),
+                  attributes: [
+                    { key: 'db.system', value: { stringValue: 'postgresql' } },
+                    { key: 'db.statement', value: { stringValue: 'SELECT * FROM users' } },
+                  ],
+                },
                 // Polling the app did not cause: another trace, and a root span of this one.
                 { traceId: newTraceId(), spanId: '3333333333333333', name: 'SELECT', kind: 3, startTimeUnixNano: ns(1), endTimeUnixNano: ns(2) },
                 { traceId: trace, spanId: '4444444444444444', name: 'cron', kind: 1, startTimeUnixNano: ns(1), endTimeUnixNano: ns(2) },
