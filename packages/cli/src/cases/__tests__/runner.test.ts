@@ -259,7 +259,7 @@ test('a run that asks for events keeps each with the step that caused it', async
   assert.deepEqual(report.events, [{ name: 'refreshed', props: { by: 'button' }, step: 2, route: 'Profile.Main' }]);
 });
 
-test('a host that records SDK calls is not asked for the app\'s own event list', async () => {
+test("a host that records SDK calls is not asked for the app's own event list", async () => {
   const c = parseCase('---\nid: ev\n---\nsteps:\n  - app.press: "#refresh"\n', 'ev.md');
   const { base } = fakeApp();
   const device = await base.device();
