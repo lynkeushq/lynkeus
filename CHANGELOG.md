@@ -12,6 +12,7 @@
 - `headless doctor` is served over MCP (`headless_doctor`), so an agent setting up headless sees which native modules still need a mock, and the server's instructions give the headless order of things. It no longer counts a mock or a native module named only in a comment: the generated entry's example `jest.mock('some-native-package', …)` was listed as mocked.
 - `lynkeus mcp` exits when its client closes the connection. It used to stay, holding the driver's port, and the next server or `case run` could not bind it.
 - `lynkeus-headless` mocks `react-native-vector-icons`' native module, so a screen that renders an icon to an image (`getImageSourceSync`) loads in the Node host instead of failing to render.
+- A failed `app.see` with its own `timeoutMs` takes about that long. On an app that says it is native, a text that was not on screen got a last look of 20 s whatever the step asked, so a step of 1.5 s failed after 22 s; the 20 s stay for a step that names no timeout.
 
 ## 0.3.0
 

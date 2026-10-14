@@ -449,7 +449,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (looks === 1) await d.waitFor({ target: what, timeoutMs: 1500 }).catch(() => undefined);
         else if (looks === 2) {
           if (await scrollTo(async () => (await seen(params)) === undefined)) return;
-        } else await d.waitFor({ target: what, timeoutMs: 20_000 }).catch(() => undefined);
+        } else {
+          // A step that names its own timeout gets no more than what is left of it; one that does not may
+          // wait for a carousel to come round.
+          const long = typeof params.timeoutMs === 'number' ? Math.max(0, deadline - Date.now()) : 20_000;
+          await d.waitFor({ target: what, timeoutMs: long }).catch(() => undefined);
+        }
         continue;
       }
       if (Date.now() > deadline && Date.now() < hard && (await (await device()).screen()).busy) {
