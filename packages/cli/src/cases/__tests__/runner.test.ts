@@ -527,3 +527,19 @@ test('a mark made by hand holds across the actions after it until a step has loo
     ['passed', 'passed', 'passed', 'passed', 'passed', 'failed'],
   );
 });
+
+test('a report carries what the case says about itself', async () => {
+  const c = parseCase(
+    '---\nid: about\ntitle: Returning user\ndescription: >\n  The intro remembers the provider.\nwhy: A second account loses the balance.\ngiven: Google linked, fresh install.\nticket: LOG-12\n---\nsteps:\n  - app.see: { text: "Hello" }\nexpected: The intro says "last used".\n',
+    'about.md',
+  );
+  const { base } = fakeApp();
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(report.about, {
+    description: 'The intro remembers the provider.',
+    why: 'A second account loses the balance.',
+    given: 'Google linked, fresh install.',
+    ticket: 'LOG-12',
+    expected: 'The intro says "last used".',
+  });
+});

@@ -36,6 +36,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
       ...(screenshot ? { screenshot } : {}),
       ...(s.videoS !== undefined ? { videoS: s.videoS } : {}),
       ...(s.backend?.length ? { backend: s.backend } : {}),
+      ...(s.requests?.length ? { requests: s.requests } : {}),
     };
   });
   const description = typeof c.meta.description === 'string' ? c.meta.description : undefined;
@@ -44,6 +45,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
     id: report.id,
     ...(report.title ? { title: report.title } : {}),
     ...(description ? { description } : {}),
+    ...(report.about ? { about: report.about } : {}),
     file: path.relative(root, path.resolve(root, report.file)),
     attempt,
     result: report.result,

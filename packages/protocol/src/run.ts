@@ -1,3 +1,4 @@
+import type { RequestRecord } from './index.js';
 /**
  * What a run of cases leaves behind: a directory anything can read without
  * knowing how the run was made.
@@ -67,12 +68,16 @@ export type RunStep = {
   videoS?: number;
   /** What the backend did for it, when the backend exports traces to the run. */
   backend?: RunBackendSpan[];
+  /** The requests the app sent while it ran, with headers and bodies whose secrets are hidden. */
+  requests?: RequestRecord[];
 };
 
 export type RunCase = {
   id: string;
   title?: string;
   description?: string;
+  /** What the case says about itself: why it matters, what is true when it starts, its ticket and expected outcome. */
+  about?: { description?: string; why?: string; given?: string; ticket?: string; expected?: string };
   /** The case file, relative to where the run was started. */
   file: string;
   /** 1 for the first try; a case that failed and ran again has a line for each. */

@@ -114,6 +114,9 @@ export type TraceEvent = { seq: number; t: number } & (
   | { kind: 'crash'; message: string; stack?: string; route?: string }
 );
 
+/** One side of a request: its headers and body, sensitive values replaced by `…`, a long body cut. */
+export type Exchange = { headers?: Record<string, string>; body?: string; truncated?: boolean };
+
 export type RequestRecord = {
   id: number;
   method: string;
@@ -122,6 +125,9 @@ export type RequestRecord = {
   startedAt: number;
   ms?: number;
   error?: string;
+  /** Only while a driver asked for bodies (`networkBodies`). */
+  request?: Exchange;
+  response?: Exchange;
 };
 
 /** Every method the core answers. Apps add their own through `qa.register`. */

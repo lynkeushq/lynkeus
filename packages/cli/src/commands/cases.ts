@@ -214,6 +214,12 @@ export const caseCommands = [
         default: 150,
         value: 'ms',
       },
+      frames: {
+        type: 'string',
+        help: 'with --screenshots: avif (where the host writes it, a fifth of the bytes) or png, exact, for frames two runs are compared by',
+        default: 'avif',
+        value: 'avif|png',
+      },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
       traces: {
         type: 'boolean',
@@ -246,6 +252,7 @@ export const caseCommands = [
       'report',
       'events',
       'settle',
+      'frames',
       'traces',
       'traces-port',
       'video-fps',
@@ -285,6 +292,7 @@ export const caseCommands = [
               dir: out.evidenceDir(id, attempt),
               screenshots: !!ctx.flags.screenshots,
               settleMs: Number(ctx.flags.settle ?? 150),
+              frames: ctx.flags.frames === 'png' ? ('png' as const) : ('avif' as const),
               ...(ctx.flags.video
                 ? { video: { fps: Number(ctx.flags['video-fps'] ?? 30), ...(ctx.flags['video-scale'] ? { scale: Number(ctx.flags['video-scale']) } : {}) } }
                 : {}),

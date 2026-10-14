@@ -7,8 +7,13 @@ export const EXAMPLE_CASE = `---
 id: example
 title: "A user who was given points sees them on the first screen"
 description: >
-  What this proves and why it matters, in a sentence or two. A case reads top
-  to bottom: what has to exist, what the person does, what must be true after.
+  What this proves, in a sentence or two. A case reads top to bottom: what has
+  to exist, what the person does, what must be true after.
+why: >
+  Optional: what breaks for people if this fails. The report shows it above the steps.
+given: >
+  Optional: what is true when it starts (who the user is, what is installed).
+ticket: "[TICKET-ID]"
 ---
 setup:
   # Anything that is not an app step is a fixture: fixtures.mjs answers it.
@@ -31,6 +36,19 @@ A case is a markdown file: frontmatter that names it, then \`setup\`, \`steps\`
 and \`expected\`. \`lynkeus case run cases/example.md\` runs one; without files
 it runs every case in this folder. A step that fails stops the case, and the
 report carries the screen, the requests and the reason.
+
+## Frontmatter
+
+| Key | | |
+|---|---|---|
+| \`id\`, \`title\` | required, a line | how runs and reports name the case |
+| \`description\` | a paragraph | what the case proves |
+| \`why\` | optional | what breaks for people if it fails |
+| \`given\` | optional | what is true when it starts |
+| \`ticket\` | optional | the ticket it covers |
+
+A report shows \`description\`, \`why\`, \`given\`, \`ticket\` and \`expected\` above the steps, so a reader
+who never opened the file knows what they are looking at.
 
 ## Steps that drive the app
 

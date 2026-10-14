@@ -12,6 +12,7 @@ import { promisify } from 'node:util';
 import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
+import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
@@ -53,7 +54,8 @@ export type CasesConfig = {
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
-export type SentEvent = { provider: string; name: string; props?: Record<string, unknown> };
+/** `via`: the SDK's native module (a host that stands in for it) or the request it sent. */
+export type SentEvent = { provider: string; name: string; props?: Record<string, unknown>; via?: 'sdk' | 'network' };
 
 /** `unsupported`: the host the case ran on has no such thing to do (a real device has no mocked responses), which says nothing about the app. */
 export type StepReport = {
@@ -69,6 +71,8 @@ export type StepReport = {
   sent?: SentEvent[];
   /** What the backend did for it, from the traces it exported to the run. */
   backend?: BackendSpan[];
+  /** The requests the app sent while it ran, with headers and bodies (secrets hidden), when the run keeps evidence. */
+  requests?: RequestRecord[];
 };
 export type CaseReport = {
   id: string;
@@ -78,6 +82,11 @@ export type CaseReport = {
   result: 'passed' | 'failed' | 'unsupported';
   ms: number;
   steps: StepReport[];
+  /**
+   * What a reader needs before the steps: what the case proves (`description`), why it matters (`why`), what
+   * has to be true when it starts (`given`), the ticket it covers and the outcome it expects. From its frontmatter.
+   */
+  about?: { description?: string; why?: string; given?: string; ticket?: string; expected?: string };
   /** When a step failed: the screen, the requests since the mark, and why. */
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** What the app told its analytics, each with the step that caused it, when the run asked for it. */
@@ -91,7 +100,11 @@ export type CaseReport = {
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
-export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; video?: { fps: number; scale?: number } };
+/** `frames`: AVIF where the host writes it (a fifth of a PNG's bytes, lossy), or PNG, exact, for frames two runs are compared by. */
+export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; frames?: 'avif' | 'png'; video?: { fps: number; scale?: number } };
+
+// A host that could not write AVIF once (an older one) is asked for PNG from then on.
+let avifRefused = false;
 
 export type RunOptions = {
   base: Base;
@@ -222,6 +235,20 @@ const requestMatches = (event: RequestRecord, wanted: string, status?: number): 
   if (method !== '*' && event.method.toUpperCase() !== method!.toUpperCase()) return false;
   if (!pathname.endsWith(route!)) return false;
   return status === undefined ? true : event.status === status;
+};
+
+const aboutOf = (c: Case): { about?: CaseReport['about'] } => {
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
+  const about = Object.fromEntries(
+    Object.entries({
+      description: text(c.meta.description),
+      why: text(c.meta.why),
+      given: text(c.meta.given),
+      ticket: text(c.meta.ticket),
+      expected: c.expected,
+    }).filter(([, v]) => v !== undefined),
+  );
+  return Object.keys(about).length ? { about } : {};
 };
 
 // Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
@@ -768,8 +795,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const evidence = options.dry ? undefined : options.evidence;
   const offers = async (command: string) => !!(await base.device().catch(() => undefined))?.server.hello?.commands?.includes(command);
   const film = evidence?.video && (await offers('record')) ? path.join(evidence.dir, 'video.mp4') : undefined;
-  // Asked only when the run keeps events: it is a call per step.
-  const capturing = !options.dry && !!options.events && (await offers('analytics'));
+  // Asked when the run keeps events or a report: it is a call per step.
+  const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
   let filming = false;
   if (film && evidence?.video) {
@@ -782,6 +809,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
+  // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
+  let requestsSeen: number | undefined;
+  if (evidence && (await offers('networkBodies'))) {
+    const d = await device();
+    await d.command('networkBodies', { on: true }).catch(() => undefined);
+    requestsSeen = await d.requests().then(
+      (r) => r.requests.at(-1)?.id ?? 0,
+      () => undefined,
+    );
+  }
   const frameAt = async (): Promise<number | undefined> => {
     if (!filming || !evidence?.video) return undefined;
     const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
@@ -795,9 +832,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (capturing) {
       const raw = (await d.command('analytics', { take: true }).catch(() => [])) as { sdk?: string; name?: string; properties?: Record<string, unknown> }[];
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
-        e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}) }] : [],
+        e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}), via: 'sdk' as const }] : [],
       );
       if (sent.length > 0) report.sent = sent;
+    }
+    if (requestsSeen !== undefined) {
+      const made = await d.requests(requestsSeen).then(
+        (r) => r.requests,
+        () => [],
+      );
+      if (made.length > 0) {
+        report.requests = made;
+        requestsSeen = made.at(-1)!.id;
+        // A JS SDK (Segment, PostHog…) never reaches a native module: what it sent is in its requests.
+        const traffic = trafficEvents(made).map((e) => ({ ...e, via: 'network' as const }));
+        if (traffic.length > 0) report.sent = [...(report.sent ?? []), ...traffic];
+      }
     }
     if (evidence?.screenshots) {
       // A step may end mid-transition (a screen fading in, the splash fading out): the frame is of where the
@@ -810,34 +860,45 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         (r) => r.idle,
         () => false,
       );
-      const file = path.join(
+      const stem = path.join(
         evidence.dir,
         `${String(index).padStart(2, '0')}-${report.step
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .slice(0, 48)
-          .replace(/^-|-$/g, '')}.png`,
+          .replace(/^-|-$/g, '')}`,
       );
       // A host on another machine writes the file there; `inline` asks it for the picture as well.
       // A host that knows what was still animating says so, as frames in points.
       let moving: unknown;
-      const taken = (await offers('screenshot'))
-        ? await d.command('screenshot', { path: file, inline: true }).then(
-            (answer) => {
-              const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
-              if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
-              if (Array.isArray(animating)) moving = animating;
-              return true;
-            },
-            () => false,
-          )
-        : (await execute(['screenshot', file], base)).code === 0;
+      const hostShot = async (file: string) =>
+        d.command('screenshot', { path: file, inline: true }).then(
+          (answer) => {
+            const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
+            if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
+            if (Array.isArray(animating)) moving = animating;
+            return fs.existsSync(file);
+          },
+          () => false,
+        );
+      let file = `${stem}.png`;
+      let taken: boolean;
+      if (await offers('screenshot')) {
+        const avif = evidence.frames !== 'png' && !avifRefused;
+        file = `${stem}.${avif ? 'avif' : 'png'}`;
+        taken = await hostShot(file);
+        if (!taken && avif) {
+          avifRefused = true;
+          file = `${stem}.png`;
+          taken = await hostShot(file);
+        }
+      } else taken = (await execute(['screenshot', file], base)).code === 0;
       if (taken && fs.existsSync(file)) {
         report.screenshot = file;
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
-        if (screen) fs.writeFileSync(file.replace(/\.png$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
+        if (screen) fs.writeFileSync(file.replace(/\.(png|avif)$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
       }
     }
   };
@@ -926,6 +987,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
+  if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
   if (tracing && options.traces) {
     await (await device().catch(() => undefined))?.command('traceContext', { traceparent: null }).catch(() => undefined);
     // A backend exports in batches, a moment after the requests it served.
@@ -941,6 +1003,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const report: CaseReport = {
     id: c.id,
     title: c.title,
+    ...aboutOf(c),
     file: c.file,
     result: failed ? 'failed' : unsupported ? 'unsupported' : 'passed',
     ms: Date.now() - started,
