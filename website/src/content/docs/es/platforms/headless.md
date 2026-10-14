@@ -35,7 +35,7 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 - lynkeus instalado y el agente montado en la app ([Instalación en React Native](/es/getting-started/installation-react-native/)).
 - El paquete `lynkeus-headless` instalado en el proyecto, junto con Jest y `@testing-library/react-native`. El host usa la configuración de Jest y la transformación de Babel de tu propia app.
 - Un backend local al que la app pueda apuntar.
-- Una app con un componente raíz que se pueda exportar. Una app con expo-router no lo tiene y no puede correr en este host (más abajo, [Lo que el host no puede decirte](#lo-que-el-host-no-puede-decirte)).
+- Una app con un componente raíz que se pueda exportar, o una app con expo-router (desde 0.4.0; más abajo, [Lo que el host no puede decirte](#lo-que-el-host-no-puede-decirte)).
 
 ## Pasos
 
@@ -120,7 +120,7 @@ const { default: App } = require('../app/App');
 export { App };
 ```
 
-`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometría e in-app-review.
+`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometría, in-app-review, webview, vision-camera, image-picker y la parte nativa de vector-icons (un ícono convertido en imagen recibe la ruta de un archivo).
 
 Reanimated y gesture-handler quedan intactos a propósito: su soporte para Jest es un plugin de Babel, no un `jest.mock`. Si tu app los quiere simulados, pásalos en `overrides`.
 
@@ -174,7 +174,7 @@ El host ejecuta el JavaScript de tu app contra un backend real, con la capa nati
 
 Para todo eso, ejecuta los mismos casos en un simulador.
 
-Hay además una clase de app que el host no puede alojar: la que usa expo-router. El host renderiza el componente raíz que tu app exporta, y una app con expo-router no tiene ninguno, porque sus pantallas son archivos que carga el enrutador. `headless init` se detiene con `no App component found`. Una app así corre en un simulador o en un emulador.
+Una app con expo-router no tiene un componente raíz: sus pantallas son archivos que carga el enrutador. Desde 0.4.0 corre igual en el host, porque la entrada renderiza el enrutador sobre esos archivos con `expo-router/testing-library`, la forma que Expo ofrece para usarlo en Jest. `headless init` escribe esa entrada cuando encuentra `expo-router` y una carpeta `app/` o `src/app/`, e instala `jest-expo` con el instalador de Expo. El agente se monta con `auto()` y reconoce las rutas: `lynkeus screen` imprime `index (__root > index)` y `nav` va a una ruta por su nombre de expo-router. La barra de pestañas nativa de la plantilla más reciente tampoco aparece aquí; para cambiar de pestaña, usa `nav`.
 
 Dentro de un caso, un paso que solo tiene sentido en un lado se marca con `on:`:
 

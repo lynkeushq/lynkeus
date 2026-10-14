@@ -41,7 +41,7 @@ npm install --save-dev lynkeus-agent lynkeus
 Keep the two packages on the same version. If they differ, the CLI prints a warning when it attaches, because an agent and a CLI from different releases can misread each other without raising an error:
 
 ```text
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.3.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
 ```
 
 ### 2. Mount the agent
@@ -117,6 +117,10 @@ module.exports = {
 ```
 
 ### 3. Choose a token
+
+:::note[Since 0.4.0]
+`lynkeus init` makes the project's token in `.lynkeus/token` (kept out of git), and the Babel plugin, the CLI and `lynkeus mcp` read it from there. Restart Metro with `--reset-cache` and skip this step. `LYNKEUS_TOKEN` in the environment still wins over the file.
+:::
 
 The token keeps other processes on your machine from driving the app. The app is built with a value, and the CLI reads the same value from the `LYNKEUS_TOKEN` environment variable. If the two differ, the agent does not answer.
 
