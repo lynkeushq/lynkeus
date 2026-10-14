@@ -53,7 +53,7 @@ Si el token coincide, o si la app no tiene token, responde:
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.3.0",
+  "agentVersion": "0.4.0",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "profile", "reset", "stores", "traceContext"],

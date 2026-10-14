@@ -53,7 +53,7 @@ If the app has a token and the driver's does not match, the app does not answer 
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.3.0",
+  "agentVersion": "0.4.0",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "profile", "reset", "stores", "traceContext"],

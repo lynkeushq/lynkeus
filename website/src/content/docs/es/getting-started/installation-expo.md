@@ -69,6 +69,10 @@ No hay que modificar ninguna pantalla ni ningún `_layout`.
 
 ### 3. Define el token en las dos variables
 
+:::note[Desde 0.4.0]
+`lynkeus init` crea el token del proyecto en `.lynkeus/token` y lo escribe en `.env.local` como `EXPO_PUBLIC_LYNKEUS_TOKEN`, el archivo que Expo lee y que su plantilla deja fuera de git; la CLI lee el mismo token. Reinicia el servidor de desarrollo y salta este paso. Definir las variables sigue funcionando, y el entorno gana sobre los archivos.
+:::
+
 El token es un secreto compartido: el agente solo atiende al proceso que abre la conexión con el mismo valor. Evita que otro programa de tu máquina maneje la app.
 
 | Quién lo lee | Variable |

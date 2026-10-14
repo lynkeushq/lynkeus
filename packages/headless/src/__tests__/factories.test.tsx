@@ -4,7 +4,7 @@ import { host } from 'lynkeus-agent';
 import { render } from '@testing-library/react-native';
 
 import { installControls } from '../mocks/controls.js';
-import { biometrics, cameras, imagePicker, pickerQueue, visionCamera } from '../mocks/factories.js';
+import { biometrics, cameras, imagePicker, pickerQueue, vectorIconsNative, visionCamera } from '../mocks/factories.js';
 import { reset } from '../runtime.js';
 
 type Command = (params: unknown) => unknown;
@@ -172,5 +172,20 @@ describe('imagePicker', () => {
     pickerQueue.push({ uri: 'file:///a.png' }, null);
     reset();
     expect(pickerQueue).toHaveLength(0);
+  });
+});
+
+describe('vectorIconsNative', () => {
+  type Native = {
+    getImageForFont: (font: string, glyph: string, size: number, color: number) => Promise<string>;
+    getImageForFontSync: (font: string, glyph: string, size: number, color: number) => string;
+  };
+  const native = (vectorIconsNative() as { default: Native }).default;
+
+  it('hands back a distinct image path for each glyph, size and color, as the native module does', async () => {
+    const home = native.getImageForFontSync('Ionicons', '', 40, 0xffe63946);
+    expect(home).toMatch(/^file:\/\/\/.+\.png$/);
+    expect(native.getImageForFontSync('Ionicons', '', 32, 0xffe63946)).not.toBe(home);
+    await expect(native.getImageForFont('Ionicons', '', 40, 0xffe63946)).resolves.toBe(home);
   });
 });

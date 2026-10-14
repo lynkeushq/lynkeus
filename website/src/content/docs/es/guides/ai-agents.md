@@ -9,51 +9,74 @@ El puente es MCP (Model Context Protocol), el protocolo con el que un cliente co
 
 ## Antes de empezar
 
-- La app corre con el agente de lynkeus montado, en un simulador, un emulador o un host sin pantalla. (En esta página, "el agente" a secas es el de IA.)
-- Tu cliente de IA admite servidores MCP por entrada y salida estándar.
-- Ejecutaste `npx lynkeus map build` en la carpeta de la app. Lee el código una vez y escribe `.lynkeus/graph.json`: las rutas, los `testID` y las navegaciones. Las herramientas `map_show` y `map_plan` dependen de ese archivo.
+- Una app de React Native, sin framework o con Expo, que puedas compilar y abrir en un simulador o un emulador. (En esta página, "el agente" a secas es el de IA; el de lynkeus es `lynkeus-agent`.)
+- Un cliente de IA que admita servidores MCP por entrada y salida estándar.
 
-## 1. Registra el servidor en tu cliente
+:::note[Desde 0.4.0]
+El servidor configura la app por su cuenta (`init`, `status`) y corre casos (`case_run`). Con una versión anterior, instala el agente como explica [Instalación](/es/getting-started/installation-react-native/), define `LYNKEUS_TOKEN` en el entorno con el que el cliente arranca el servidor y corre los casos desde una terminal.
+:::
 
-El servidor se inicia con un comando:
+## 1. Conecta el servidor
+
+`lynkeus mcp` es un servidor por entrada y salida estándar: el cliente lo arranca como proceso hijo y le habla por ahí. No lo ejecutes a mano. En Claude Code, desde la carpeta de la app:
 
 ```bash
-npx lynkeus mcp
+claude mcp add lynkeus -- npx -y lynkeus mcp
 ```
 
-No lo ejecutes a mano: es el cliente quien lo arranca y le habla por entrada y salida estándar. En los clientes que se configuran con un archivo JSON, la entrada suele tener esta forma:
+En Cursor, en `.cursor/mcp.json`:
 
 ```json
-{
-  "mcpServers": {
-    "lynkeus": {
-      "command": "npx",
-      "args": ["lynkeus", "mcp", "--root", "/ruta/a/tu/app"],
-      "env": { "LYNKEUS_TOKEN": "el-mismo-token-que-lee-la-app" }
-    }
-  }
-}
+{ "mcpServers": { "lynkeus": { "command": "npx", "args": ["-y", "lynkeus", "mcp"] } } }
 ```
 
-Dos detalles importan. `--root` le dice a lynkeus cuál es la carpeta de la app, porque el cliente no siempre arranca el servidor ahí. Y `LYNKEUS_TOKEN` debe tener el mismo valor que el token de la app; sin él, la app no atiende al servidor. El nombre y la ubicación exactos del archivo dependen de tu cliente: consulta su documentación.
+El servidor trabaja en la carpeta donde lo arranca el cliente, o en la que indique `--root <carpeta>`. Para que el agente pueda subir corridas a lynkeus.io, agrega al entorno del servidor `LYNKEUS_REPORTS_KEY` con una API key de tu organización (`-e LYNKEUS_REPORTS_KEY=lk_…` en Claude Code); la página de API keys muestra la línea con la key ya puesta.
 
-Deberías ver, en la lista de herramientas de tu cliente, las nueve del conjunto básico.
+Deberías ver las herramientas de lynkeus en la lista de tu cliente.
 
-## 2. Elige cuántas herramientas servir
+## 2. Pídele que configure lynkeus
+
+Con palabras comunes:
+
+```text
+Configura lynkeus en esta app.
+```
+
+Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo.
+
+El agente de lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
+
+Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
+
+## 3. Pídele un test
+
+```text
+Escribe un test para la pantalla de inicio de sesión, córrelo y sube la corrida.
+```
+
+La primera vez el agente llama a `case_init`, que escribe un caso de ejemplo y la referencia del formato. Después lleva la app a la pantalla con `press`, `type` y `wait`, escribe el caso como archivo markdown y lo corre con `case_run`. Un caso que falla vuelve con la pantalla donde falló y el motivo, para que el agente corrija el caso o reporte el error de la app. Con `push`, la corrida sube a lynkeus.io y el agente devuelve su dirección.
+
+## 4. Elige cuántas herramientas servir
 
 Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o no. Por eso hay dos tamaños:
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 9 | 750 tokens |
-| `lynkeus mcp --full` | las 42 | 4200 tokens |
+| `lynkeus mcp` | 15 | 1750 tokens |
+| `lynkeus mcp --full` | las 48 | 5400 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
 
-Las nueve herramientas básicas son:
+Las herramientas básicas son:
 
 | Herramienta | Qué hace |
 |---|---|
+| `status` | Qué tiene el proyecto de lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
+| `init` | Instala el agente de lynkeus, lo monta y crea el token del proyecto. |
+| `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
+| `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
+| `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
+| `case_run` | Corre casos; uno que falla vuelve con su pantalla y su motivo. |
 | `screen` | Lee la pantalla: ruta y elementos. |
 | `press` | Toca un elemento. |
 | `type` | Escribe en un campo. |
@@ -64,9 +87,9 @@ Las nueve herramientas básicas son:
 | `map_show` | Qué botones tiene una pantalla y a dónde llevan, según el código. |
 | `map_plan` | Indicaciones para ir de una ruta a otra. |
 
-Si `lynkeus.config.json` declara `language` o `locale`, aparece una décima, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
+Si `lynkeus.config.json` declara `language` o `locale`, aparece una más, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
 
-## 3. Enséñale a leer una pantalla
+## 5. Enséñale a leer una pantalla
 
 Esto es lo que recibe el modelo cuando llama a `screen`:
 
@@ -86,7 +109,7 @@ Settings.Main (Tabs > Settings.Main) +overlay#account-sheet · 12 hidden: 12 beh
 
 Una pantalla promedio ocupa unos 250 tokens. La salida en JSON es varias veces más grande y no agrega nada que un modelo necesite: es para programas.
 
-## 4. Dale instrucciones
+## 6. Dale instrucciones
 
 El modelo conoce las herramientas por su descripción, pero no sabe cuál es la forma barata de usarlas. Unas pocas reglas en sus instrucciones de sistema le ahorran la mayor parte de los errores. Este texto sirve de punto de partida:
 
@@ -136,7 +159,7 @@ Cada paso cuesta unos 50 ms, contra cerca de 1,5 s de un comando suelto. Cuando 
 
 ## Leer los reportes desde un agente
 
-Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Está descrito en [reportes](/es/guides/reports/).
+Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Sus herramientas son `list_runs`, `get_run`, `get_case`, `get_frame`, `case_history` y `flaky_cases`. `get_frame` devuelve como imagen la pantalla que dejó un paso, por defecto el que falló, para que el cliente vea qué mostraba la app. Una ejecución guarda capturas cuando se hizo con `--screenshots`. Está descrito en [reportes](/es/guides/reports/).
 
 ## Límites y cuidados
 
@@ -149,7 +172,7 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 **El cliente no muestra herramientas.** El servidor no arrancó. Ejecuta `npx lynkeus mcp --root /ruta/a/tu/app` a mano para ver el error; lo habitual es una ruta equivocada.
 
-**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Revisa que la app esté abierta, que sea un build de depuración, que el token haya llegado a la app (si llegó vacío, el agente queda apagado y el log de la app lo dice) y que coincida con el del servidor. `npx lynkeus hello` desde la terminal confirma la conexión.
+**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
 
 **`map_plan` no devuelve indicaciones.** El grafo estático solo conoce las navegaciones que pudo leer en el código. `npx lynkeus crawl` recorre la app y agrega los caminos observados.
 
@@ -158,5 +181,5 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 ## Siguientes pasos
 
 - [Manejar la app](/es/guides/driving-the-app/): los mismos comandos, a mano.
-- [Referencia de la CLI](/es/reference/cli/): los 42 comandos que sirve `--full`.
+- [Referencia de la CLI](/es/reference/cli/): los 48 comandos que sirve `--full`.
 - [Seguridad](/es/security/): qué expone el agente y por qué solo en depuración.

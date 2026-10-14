@@ -49,7 +49,8 @@ export { App };
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
 Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view, video, fast-image, biometrics, in-app-review. Reanimated
+worklets, pager-view, video, fast-image, biometrics, in-app-review, webview,
+vision-camera, image-picker, and vector-icons' native module. Reanimated
 and gesture-handler are deliberately left alone (their jest story is a babel
 plugin, not `jest.mock`); pass `overrides` if your app wants them mocked.
 Options: `skip`, `overrides`, `network`, `networkHosts`, `websocket`,
@@ -119,8 +120,11 @@ those, the same cases run on a simulator; only the way the host starts
 differs.
 
 An Expo Router app has no root component to export: its screens are files the
-router loads. `headless init` stops with `no App component found`, and such an
-app runs on a simulator or an emulator.
+router loads. `headless init` writes an entry that renders the router over them
+with `expo-router/testing-library` (`getMockContext` and `ExpoRoot`), mounts the
+agent with `auto()` so it finds the router's navigation, and installs `jest-expo`.
+`headless start` maps style sheets to an empty module and the `tsconfig.json`
+aliases, the longest first, since jest-expo tries `@/*` before `@/assets/*`.
 
 ## Security posture
 

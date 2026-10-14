@@ -116,6 +116,10 @@ Un build de depuración que apunta a producción, con cuentas reales, no deberí
 
 ### 3. Define el token
 
+:::note[Desde 0.4.0]
+`lynkeus init` crea el token del proyecto en `.lynkeus/token` (fuera de git), y el plugin de Babel, la CLI y `lynkeus mcp` lo leen de ahí. Reinicia Metro con `--reset-cache` y salta este paso. `LYNKEUS_TOKEN` en el entorno sigue ganando sobre el archivo.
+:::
+
 El token es un secreto compartido entre la app y el CLI. Sirve para que otros procesos de tu máquina no puedan manejar la app: el agente solo atiende a quien abre la conexión con el mismo valor.
 
 La app lo recibe en la opción `token` de `auto()`. El CLI lo lee de la variable de entorno `LYNKEUS_TOKEN`. Los dos valores tienen que coincidir.
@@ -276,7 +280,7 @@ El agente no tiene de dónde sacar las rutas. Con `auto()`, eso significa que no
 ### Aviso de versiones distintas
 
 ```
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.3.0: they can misread each other without an error.
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error.
 ```
 
 El agente y el CLI tienen que ser de la misma versión. Instala en la app la versión de `lynkeus-agent` que indica el aviso y recompila.
