@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Backend traces leave database queries out: a span with `db.system` is not filed under a step nor sent with a report, and no `db.*` attribute is kept. Their statements name the backend's tables and columns.
+- A run says where its commit lives and what it had that no commit has: `git.remote` (the repository's web address, credentials left out) and `git.changed` (up to 20 files with uncommitted changes, `changedCount` all of them), so a report can link the commit, compare it with the run before, and say the app was not exactly that commit.
 - `cases.appEvents: { provider }` names the service the app's own event list feeds, so a report shows those events under it (Mixpanel) instead of "App". A run file keeps a backend event's origin as `server`, which a report marks.
 - What the backend told its own analytics shows under each step too. `cases.serverEvents` names a fixture that, asked with the step's start, answers the events the backend sent since (an Olympus that hands Mixpanel events to background jobs reads them back from those jobs); a report lists them with the app's, under the service they went to.
 - `case run --no-app-events` leaves the app's own event list unread while a run keeps a report. Reading it can turn on an app's tracking debug, which may draw on the screen; frames that two runs compare should not have it.
