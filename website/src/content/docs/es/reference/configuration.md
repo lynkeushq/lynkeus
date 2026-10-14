@@ -179,6 +179,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 | `cases.macros` | objeto | ninguno | Pasos propios del proyecto: un nombre y la lista de pasos que representa. |
 | `cases.interruptions` | lista | ninguno | Lo que la app puede poner en medio de cualquier paso, y cómo quitarlo. |
 | `cases.nativeMocks` | objeto | ninguno | Qué responden los SDK nativos que un host sin pantalla no puede ejecutar. |
+| `cases.serverEvents` | objeto | ninguno | Un fixture que dice qué le contó el backend a su propia analítica en cada paso, para los reportes. |
 
 Las rutas de `dir`, `flows` y `fixtures.cwd` son relativas al archivo de configuración que las declara.
 
@@ -192,6 +193,22 @@ Los **fixtures** son los datos de prueba que un caso prepara en el backend. lynk
 | `cwd` | texto | `.` | La carpeta desde la que se ejecuta. |
 | `env` | objeto de textos | ninguno | Variables de entorno adicionales para el comando. Se suman a las del proceso de lynkeus. |
 | `timeoutMs` | número (ms) | `120000` | Cuánto esperar la respuesta de cada paso. |
+
+### `cases.serverEvents`
+
+Lo que el backend mandó a su analítica mientras corría un paso, que el reporte muestra debajo del paso junto a lo que mandó la app.
+Después de cada paso de la app, en una corrida que guarda evidencia, lynkeus llama al fixture con `{ "since": "<inicio del paso, ISO>" }`.
+El fixture responde `{ "events": [{ "name": "…", "props": { … }, "provider": "…" }] }`; `event` y `payload` se leen
+como `name` y `props`.
+
+```json
+"serverEvents": { "fixture": "olympus_events", "provider": "mixpanel" }
+```
+
+| Clave | Tipo | Qué es |
+| --- | --- | --- |
+| `fixture` | texto | El comando de fixtures al que se pregunta. |
+| `provider` | texto | El servicio, cuando los eventos del fixture no lo nombran. Por defecto `backend`. |
 
 ### `cases.refs`
 

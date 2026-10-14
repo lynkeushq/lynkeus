@@ -274,6 +274,30 @@ test("a host that records SDK calls is not asked for the app's own event list", 
   assert.deepEqual(report.steps.at(-1)?.sent, [{ provider: 'mixpanel', name: 'Refreshed', via: 'sdk' }]);
 });
 
+test('each app step gets what the backend told its analytics while it ran', async () => {
+  const c = parseCase('---\nid: sv\n---\nsteps:\n  - app.press: "#refresh"\n', 'sv.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['analytics'] };
+  (device as unknown as { command: (n: string) => Promise<unknown> }).command = async () => [];
+  const asked: Record<string, unknown>[] = [];
+  const server = {
+    call: async (name: string, params: Record<string, unknown>) => {
+      asked.push({ name, ...params });
+      return { events: [{ event: 'AuthAttemptResolved', payload: { outcome: 'ok' } }] };
+    },
+  } as unknown as typeof fixtures;
+  const report = await runCase(c, {
+    base,
+    config: { ...config, serverEvents: { fixture: 'olympus_events', provider: 'mixpanel' } },
+    fixtures: server,
+    events: true,
+  });
+  assert.equal(asked[0]?.name, 'olympus_events');
+  assert.equal(typeof asked[0]?.since, 'string');
+  assert.deepEqual(report.steps.at(-1)?.sent, [{ provider: 'mixpanel', name: 'AuthAttemptResolved', props: { outcome: 'ok' }, via: 'server' }]);
+});
+
 test('what the app puts in the way of a step is dealt with before it, unless the step is about it', async () => {
   const { base, calls } = fakeApp();
   const interruptions = [{ see: '#refresh', unless: 'refresh', do: [{ 'app.press': '#refresh' }] }];
