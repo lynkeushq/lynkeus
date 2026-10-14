@@ -212,6 +212,20 @@ const installCommand = (root: string, expo: boolean): string[] => {
   return manager === 'npm' ? ['npm', 'install', AGENT] : [manager, 'add', AGENT];
 };
 
+/**
+ * What a failed install said, short enough for one line. npm ends its errors with where its logs are, so
+ * the last lines alone told nothing; the reason (a peer range that does not match, say) comes before them.
+ */
+export const installFailure = (ran: { stderr?: string | null; error?: Error }): string =>
+  `${ran.stderr ?? ''}\n${ran.error?.message ?? ''}`
+    .split('\n')
+    .map((line) => line.replace(/^(npm (error|ERR!)|error|ERR_PNPM_\w+|YN\d{4}:)\s*/, '').trim())
+    .filter(
+      (line) => line && !/^code \w+$|^node_modules\/|_logs|complete log|full report|^Fix the upstream|^this command with|^to accept an incorrect/i.test(line),
+    )
+    .slice(0, 8)
+    .join('; ');
+
 const hasAgent = (manifest: Manifest): boolean => !!(manifest.dependencies?.[AGENT] ?? manifest.devDependencies?.[AGENT]);
 
 /** Adds lynkeus-agent to the app when it is not a dependency yet. It has native code, so the app is built again after. */
@@ -221,7 +235,7 @@ export const installAgent = (root: string): string => {
   const command = installCommand(root, !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo));
   const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
   if (ran.status === 0) return `installed ${AGENT} (${command.join(' ')}); it has native code, so build the app again`;
-  const said = `${ran.stderr ?? ''}${ran.error ? ran.error.message : ''}`.trim().split('\n').slice(-3).join(' ');
+  const said = installFailure(ran);
   return `could not install ${AGENT} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself, then \`lynkeus init\` again`;
 };
 
@@ -290,6 +304,6 @@ export const installHeadless = (root: string): string => {
   const command = devInstallCommand(root, missing);
   const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
   if (ran.status === 0) return `installed ${missing.join(', ')} (${command.join(' ')})`;
-  const said = `${ran.stderr ?? ''}${ran.error ? ran.error.message : ''}`.trim().split('\n').slice(-3).join(' ');
+  const said = installFailure(ran);
   return `could not install ${missing.join(', ')} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself`;
 };

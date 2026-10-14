@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { init, mountAgent, setupChecks } from '../commands/init.js';
+import { init, installFailure, mountAgent, setupChecks } from '../commands/init.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -128,4 +128,28 @@ test('status names what a project lacks, and nothing once init has run', () => {
     after.map((c) => c.what),
     ['lynkeus-agent is a dependency'],
   );
+});
+
+test('a failed install says why, not where npm keeps its logs', () => {
+  const stderr = [
+    'npm error code ERESOLVE',
+    'npm error ERESOLVE unable to resolve dependency tree',
+    'npm error',
+    'npm error While resolving: demo@1.0.0',
+    'npm error Found: react@19.2.0',
+    'npm error node_modules/react',
+    'npm error   react@"19.2.0" from the root project',
+    'npm error Could not resolve dependency:',
+    'npm error peer react@"^19.2.3" from react-native@0.86.0',
+    'npm error node_modules/react-native',
+    'npm error Fix the upstream dependency conflict, or retry',
+    'npm error For a full report see:',
+    'npm error /Users/me/.npm/_logs/2026-10-14T11_12_04_388Z-eresolve-report.txt',
+    'npm error A complete log of this run can be found in: /Users/me/.npm/_logs/debug-0.log',
+  ].join('\n');
+  assert.equal(
+    installFailure({ stderr }),
+    'ERESOLVE unable to resolve dependency tree; While resolving: demo@1.0.0; Found: react@19.2.0; react@"19.2.0" from the root project; Could not resolve dependency:; peer react@"^19.2.3" from react-native@0.86.0',
+  );
+  assert.equal(installFailure({ stderr: '', error: new Error('spawnSync yarn ENOENT') }), 'spawnSync yarn ENOENT');
 });
