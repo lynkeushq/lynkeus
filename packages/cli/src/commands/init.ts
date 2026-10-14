@@ -18,6 +18,16 @@ export type InitOptions = {
 
 const findFirst = (root: string, candidates: string[]): string | undefined => candidates.find((c) => fs.existsSync(path.join(root, c)));
 
+/** The file that already mounts the agent: the entry, or the App component of an app that renders `<Lynkeus>` itself. */
+const mountedIn = (root: string): string | undefined =>
+  [...INDEX_CANDIDATES, ...APP_CANDIDATES].find((file) => {
+    try {
+      return /from ['"]lynkeus-agent(\/auto)?['"]/.test(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      return false;
+    }
+  });
+
 const relImport = (fromFile: string, toFile: string): string => {
   const rel = path
     .relative(path.dirname(fromFile), toFile)
@@ -123,7 +133,10 @@ export const mountAgent = (root: string): string[] => {
   const expo = !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo);
   const index = findFirst(root, INDEX_CANDIDATES);
   const routed = manifest.main === 'expo-router/entry';
-  if (routed && !index) {
+  const already = mountedIn(root);
+  if (already) {
+    notes.push(`${already} already mounts the agent`);
+  } else if (routed && !index) {
     fs.writeFileSync(path.join(root, 'index.js'), `${mountLines(true)}\nimport 'expo-router/entry'\n`);
     fs.writeFileSync(
       path.join(root, 'package.json'),
@@ -136,15 +149,11 @@ export const mountAgent = (root: string): string[] => {
   } else {
     const indexPath = path.join(root, index);
     const text = fs.readFileSync(indexPath, 'utf8');
-    if (text.includes('lynkeus-agent/auto')) {
-      notes.push(`${index} already mounts the agent`);
-    } else {
-      // After the last import, so the app's own polyfills still run first.
-      const imports = [...text.matchAll(/^import .*$/gm)];
-      const at = imports.length ? imports[imports.length - 1]!.index! + imports[imports.length - 1]![0].length + 1 : 0;
-      fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo) + text.slice(at));
-      notes.push(`added auto() to ${index}`);
-    }
+    // After the last import, so the app's own polyfills still run first.
+    const imports = [...text.matchAll(/^import .*$/gm)];
+    const at = imports.length ? imports[imports.length - 1]!.index! + imports[imports.length - 1]![0].length + 1 : 0;
+    fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo) + text.slice(at));
+    notes.push(`added auto() to ${index}`);
   }
   const { token, made } = ensureToken(root);
   if (made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
@@ -220,9 +229,8 @@ export const setupChecks = (root: string): SetupCheck[] => {
       ok: fs.existsSync(path.join(root, 'node_modules', AGENT, 'package.json')),
       fix: 'install the project\u2019s dependencies',
     });
-  const index = findFirst(root, INDEX_CANDIDATES);
-  const mounted = !!index && /lynkeus-agent/.test(fs.readFileSync(path.join(root, index), 'utf8'));
-  checks.push({ what: 'the app\u2019s entry mounts the agent', ok: mounted, fix: '`lynkeus init` adds it' });
+  const mounted = mountedIn(root);
+  checks.push({ what: mounted ? `${mounted} mounts the agent` : 'the app mounts the agent', ok: !!mounted, fix: '`lynkeus init` adds it to the entry' });
   if (!expo) {
     const babel = findFirst(root, BABEL_CANDIDATES);
     checks.push({

@@ -119,7 +119,7 @@ test('status names what a project lacks, and nothing once init has run', () => {
   const before = setupChecks(root);
   assert.deepEqual(
     before.filter((c) => !c.ok).map((c) => c.what),
-    ['lynkeus-agent is a dependency', 'the app\u2019s entry mounts the agent', 'babel.config.js has lynkeus-agent/babel', 'the project has a token'],
+    ['lynkeus-agent is a dependency', 'the app mounts the agent', 'babel.config.js has lynkeus-agent/babel', 'the project has a token'],
   );
   assert.ok(before.every((c) => c.ok || c.fix));
   mountAgent(root);

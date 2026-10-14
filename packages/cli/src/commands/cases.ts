@@ -444,7 +444,10 @@ export const caseCommands = [
       const unsupported = count('unsupported');
       const summary = [
         ...reports.map(
-          (r) => `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}`,
+          (r) =>
+            `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}` +
+            // In a session or over MCP the caller reads this answer and nothing else: a case that did not pass brings its steps.
+            (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
