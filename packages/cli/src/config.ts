@@ -55,6 +55,11 @@ export type LynkeusConfig = {
   entry?: string;
   /** The environment variable the app reads its API base from; the headless entry refuses one that is not local. */
   apiEnv?: string;
+  /**
+   * The local backend `headless start` hands the app under `apiEnv` when the environment sets none: an agent
+   * starting the host over MCP cannot export a variable.
+   */
+  apiUrl?: string;
   /** The driver port the app dials. */
   port?: number;
   /** Simulator udid or name. */

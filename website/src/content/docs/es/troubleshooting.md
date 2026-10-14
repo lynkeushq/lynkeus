@@ -118,7 +118,7 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 ### Una advertencia sobre versiones distintas
 
-**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.3.0: they can misread each other without an error.`
+**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error.`
 
 **Por qué pasa.** La versión de `lynkeus-agent` compilada en la app no es la del CLI. Los dos pueden entenderse mal sin que aparezca ningún error; por ejemplo, escribir en un campo que no es.
 
