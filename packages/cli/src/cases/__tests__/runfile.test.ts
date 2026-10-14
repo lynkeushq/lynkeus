@@ -63,6 +63,17 @@ test('a case becomes a line that says where each step and event belongs', () => 
   assert.equal(line.steps[0]?.events, undefined);
 });
 
+test("an event keeps the service the app's list feeds, and one the backend sent says so", () => {
+  const r = report('passed');
+  r.events = [{ name: 'Tap - Send', step: 2, provider: 'mixpanel' }];
+  r.steps[1] = { ...r.steps[1]!, sent: [{ provider: 'mixpanel', name: 'TransferSent', via: 'server' }] };
+  const line = toRunCase(c, { report: r, attempt: 1, startedAt: new Date('2026-01-02T03:04:05Z') }, root);
+  assert.deepEqual(line.steps[1]?.events, [
+    { origin: 'app', provider: 'mixpanel', name: 'Tap - Send' },
+    { origin: 'server', provider: 'mixpanel', name: 'TransferSent' },
+  ]);
+});
+
 test('a run keeps every attempt and counts a case by its last one', () => {
   const dir = path.join(root, 'run');
   const run = new RunFile(dir, root, new Date('2026-01-02T03:00:00Z'));

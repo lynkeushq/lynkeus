@@ -57,6 +57,8 @@ export type CasesConfig = {
    * provider? }] }`. `provider` names the service when the fixture does not (an Olympus that sends to Mixpanel).
    */
   serverEvents?: { fixture: string; provider?: string };
+  /** The service the app's own event list feeds (its `events` command), so a report names it instead of "App". */
+  appEvents?: { provider: string };
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
@@ -320,7 +322,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (!d?.server.connected) return;
     const now = normalizeEvents(await d.command('events').catch(() => []));
     const route = (await d.screen().catch(() => undefined))?.route;
-    for (const e of newSince(buffer, now)) recorded.push({ ...e, step: index, route });
+    const provider = config.appEvents?.provider;
+    for (const e of newSince(buffer, now)) recorded.push({ ...e, step: index, route, ...(provider ? { provider } : {}) });
     buffer = now;
   };
 

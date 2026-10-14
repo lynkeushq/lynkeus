@@ -4,7 +4,8 @@ import path from 'node:path';
 import { readJsonl } from '../files.js';
 
 export type AppEvent = { name: string; props?: Record<string, unknown> };
-export type RunEvent = AppEvent & { step: number; route?: string };
+/** `provider`: the service the app's own list feeds, when the project says (`cases.appEvents`). */
+export type RunEvent = AppEvent & { step: number; route?: string; provider?: string };
 
 type Drainable = { command<T = unknown>(name: string, params?: unknown): Promise<T> };
 

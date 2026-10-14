@@ -22,8 +22,19 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
     // The runner numbers an event's step from 1, in the order the steps ran.
     const told = (report.events ?? [])
       .filter((e) => e.step === index + 1)
-      .map((e) => ({ origin: 'app' as const, name: e.name, ...(e.props ? { props: e.props } : {}), ...(e.route ? { route: e.route } : {}) }));
-    const sent = (s.sent ?? []).map((e) => ({ origin: 'app' as const, provider: e.provider, name: e.name, ...(e.props ? { props: e.props } : {}) }));
+      .map((e) => ({
+        origin: 'app' as const,
+        ...(e.provider ? { provider: e.provider } : {}),
+        name: e.name,
+        ...(e.props ? { props: e.props } : {}),
+        ...(e.route ? { route: e.route } : {}),
+      }));
+    const sent = (s.sent ?? []).map((e) => ({
+      origin: e.via === 'server' ? ('server' as const) : ('app' as const),
+      provider: e.provider,
+      name: e.name,
+      ...(e.props ? { props: e.props } : {}),
+    }));
     const events = [...told, ...sent];
     const screenshot = within(dir, s.screenshot);
     return {

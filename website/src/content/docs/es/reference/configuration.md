@@ -180,6 +180,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 | `cases.interruptions` | lista | ninguno | Lo que la app puede poner en medio de cualquier paso, y cómo quitarlo. |
 | `cases.nativeMocks` | objeto | ninguno | Qué responden los SDK nativos que un host sin pantalla no puede ejecutar. |
 | `cases.serverEvents` | objeto | ninguno | Un fixture que dice qué le contó el backend a su propia analítica en cada paso, para los reportes. |
+| `cases.appEvents` | objeto | ninguno | El servicio al que va la lista de eventos propia de la app, para que el reporte lo nombre en vez de "App". |
 
 Las rutas de `dir`, `flows` y `fixtures.cwd` son relativas al archivo de configuración que las declara.
 
@@ -193,6 +194,11 @@ Los **fixtures** son los datos de prueba que un caso prepara en el backend. lynk
 | `cwd` | texto | `.` | La carpeta desde la que se ejecuta. |
 | `env` | objeto de textos | ninguno | Variables de entorno adicionales para el comando. Se suman a las del proceso de lynkeus. |
 | `timeoutMs` | número (ms) | `120000` | Cuánto esperar la respuesta de cada paso. |
+
+### `cases.appEvents`
+
+La lista de eventos propia de la app (su comando `events`) no dice a qué servicio fue cada evento, y el reporte los
+muestra como "App". Cuando la app le pasa todos sus eventos a un servicio, nombralo: `{ "provider": "mixpanel" }`.
 
 ### `cases.serverEvents`
 
