@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
 import { transformSync } from '@babel/core';
 import { afterEach, describe, expect, it } from '@jest/globals';
 
@@ -17,6 +21,19 @@ describe('the babel plugin', () => {
     const code = transform('development');
     expect(code).toContain('token: "local-secret"');
     expect(code).toContain('other: process.env.OTHER');
+  });
+
+  it('takes the token from .lynkeus/token when the environment has none', () => {
+    delete process.env.LYNKEUS_TOKEN;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-babel-'));
+    fs.mkdirSync(path.join(root, '.lynkeus'));
+    fs.writeFileSync(path.join(root, '.lynkeus', 'token'), 'from-the-file\n');
+    const code = transformSync(SOURCE, { babelrc: false, configFile: false, envName: 'development', root, plugins: [require.resolve('../../babel.js')] })?.code;
+    expect(code).toContain('token: "from-the-file"');
+    process.env.LYNKEUS_TOKEN = 'from-the-environment';
+    expect(
+      transformSync(SOURCE, { babelrc: false, configFile: false, envName: 'development', root, plugins: [require.resolve('../../babel.js')] })?.code,
+    ).toContain('token: "from-the-environment"');
   });
 
   it('leaves a release bundle and an unset token alone', () => {

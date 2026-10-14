@@ -6,7 +6,7 @@
 import { AgentServer } from 'lynkeus-client';
 import type { CoreMethods, Screen, TraceEvent } from 'lynkeus-protocol';
 
-import { portFromEnv } from '../config.js';
+import { portFromEnv, readToken } from '../config.js';
 import { withoutHost } from '../knowledge/problems.js';
 import type { DeviceInfo } from './devices.js';
 import { lifecycleFor, type PlatformLifecycle } from './platform.js';
@@ -23,7 +23,7 @@ export class Device {
     this.info = info;
     this.#resolving = options.resolving;
     // The app serves commands only to a driver that presents its token; without one, anything on the loopback could drive a dev build.
-    this.server = options.server ?? new AgentServer({ token: process.env.LYNKEUS_TOKEN, port: portFromEnv() });
+    this.server = options.server ?? new AgentServer({ token: readToken(), port: portFromEnv() });
     this.#lifecycle = lifecycleFor(info.platform);
     this.#appId = options.appId ?? null;
   }

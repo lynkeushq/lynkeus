@@ -66,8 +66,16 @@ test('an Expo Router app gets an entry that mounts the agent, then the router, a
   assert.equal(manifest.dependencies.expo, '~57.0.0');
   assert.ok(notes.some((n) => n.includes('not in Expo Go')));
   assert.ok(notes.some((n) => n.includes('EXPO_PUBLIC_LYNKEUS_TOKEN')));
+  // The token is made once, kept out of git, and handed to Expo the only way it takes one.
+  const token = fs.readFileSync(path.join(root, '.lynkeus', 'token'), 'utf8').trim();
+  assert.match(token, /^[0-9a-f]{48}$/);
+  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8'), 'token\n');
+  assert.equal(fs.readFileSync(path.join(root, '.env.local'), 'utf8'), `EXPO_PUBLIC_LYNKEUS_TOKEN=${token}\n`);
+  assert.ok(notes.some((n) => n.includes('made a token')));
   // A second run changes nothing.
   assert.ok(mountAgent(root).some((n) => n.includes('already mounts the agent')));
+  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', 'token'), 'utf8').trim(), token);
+  assert.equal(fs.readFileSync(path.join(root, '.env.local'), 'utf8'), `EXPO_PUBLIC_LYNKEUS_TOKEN=${token}\n`);
   assert.equal(fs.readFileSync(path.join(root, 'index.js'), 'utf8'), index);
 });
 

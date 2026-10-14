@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { type LynkeusConfig, lynkeusDir, portFromEnv } from '../config.js';
+import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
@@ -47,17 +47,17 @@ export const headlessCommands = [
     group: 'headless',
     summary: 'Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator',
     details:
-      'Needs LYNKEUS_TOKEN in the environment (the value the app reads for its token). LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.',
+      "Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.",
     flags: ENTRY_FLAG,
     aliases: ['headless'],
     needs: 'nothing',
     session: false,
     mcp: false,
     run: async (ctx) => {
-      const token = process.env.LYNKEUS_TOKEN;
+      const token = readToken(ctx.root);
       if (!token)
         return {
-          text: 'lynkeus headless needs LYNKEUS_TOKEN in the environment (the same value the app reads for its token): a hosted app talks to a real backend, and without one any local process could drive it.',
+          text: 'lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it.',
           code: 1,
         };
       const entry = entryOf(ctx);
@@ -78,7 +78,7 @@ export const headlessCommands = [
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...ctx.passthrough], {
         cwd: ctx.root,
         stdio: ['inherit', 'inherit', 'pipe'],
-        env: { ...process.env, CI: '1', NODE_OPTIONS: nodeOptions },
+        env: { ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
       });
       let tail = '';
       child.stderr?.on('data', (chunk: Buffer) => {

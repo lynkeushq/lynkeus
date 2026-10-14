@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `lynkeus init` makes the project's token and nobody sets a variable for it: it writes a random one to `.lynkeus/token` (kept out of git by `.lynkeus/.gitignore`), and the CLI, `lynkeus mcp`, `lynkeus headless start` and `lynkeus-agent/babel` read it from there. An Expo app gets it as `EXPO_PUBLIC_LYNKEUS_TOKEN` in `.env.local`. `LYNKEUS_TOKEN` in the environment still wins, so nothing changes for a setup that sets it.
 - `case run --video-scale <n>` asks the host for a film of that many pixels per point. fastsim films at 2 unless told, and takes 1 to 3: sharper costs time and bytes (one case took 34 s at 3, 22 s at 2 and 21 s at 1; 15 s with no film).
 - `case run --screenshots` waits 150 ms of a still screen before each frame, where it waited 700 ms: the wait is paid on every step and was half the time of a filmed run (three cases at once took 133 s, and 68 s without it). `--settle <ms>` sets it; `--settle 700` gives the frames two runs can be compared by, pixel for pixel.
 

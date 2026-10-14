@@ -600,7 +600,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--settle <ms>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--settle <ms>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -627,7 +627,6 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--push` | with --out: upload the run to the reports service when it ends and print the report’s address |
 | `--project <name>` | with --push: the project the run is filed under (default: the app’s folder name) |
 | `--video-fps <n>` | frames per second of the film (default `30`) |
-| `--video-scale <n>` | pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told) |
 | `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
 | `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
 | `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
@@ -732,7 +731,7 @@ the app hosted in Node under jest, no simulator.
 
 Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator
 
-Needs LYNKEUS_TOKEN in the environment (the value the app reads for its token). LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
+Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
 
 | Flag | |
 |---|---|
