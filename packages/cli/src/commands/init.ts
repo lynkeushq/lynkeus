@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { ensureToken, packageName, readToken } from '../config.js';
@@ -183,7 +184,7 @@ export const init = (root: string, opts: InitOptions): string[] => {
   }
   if (opts.auto) notes.push(...mountAgent(root));
   notes.push("jest: make sure transformIgnorePatterns lets 'lynkeus-[^/]+' through, next to react-native (lynkeus headless doctor checks it)");
-  notes.push(`next: LYNKEUS_TOKEN=<token> ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start`);
+  notes.push(`next: ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start  (the token is the project's, in .lynkeus/token)`);
   notes.push('      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)');
   return notes;
 };
@@ -191,12 +192,22 @@ export const init = (root: string, opts: InitOptions): string[] => {
 const AGENT = 'lynkeus-agent';
 
 /** How this project adds a package: Expo's own installer picks the version its SDK wants; otherwise the manager whose lockfile is there. */
+type Manager = 'bun' | 'pnpm' | 'yarn' | 'npm';
+
+/** The package manager whose lockfile is in the app's folder or above it: an app in a monorepo has it at the top. */
+const managerOf = (root: string): Manager => {
+  for (let dir = path.resolve(root); ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'bun.lockb')) || fs.existsSync(path.join(dir, 'bun.lock'))) return 'bun';
+    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
+    if (fs.existsSync(path.join(dir, 'yarn.lock'))) return 'yarn';
+    if (fs.existsSync(path.join(dir, 'package-lock.json')) || fs.existsSync(path.join(dir, '.git')) || path.dirname(dir) === dir) return 'npm';
+  }
+};
+
 const installCommand = (root: string, expo: boolean): string[] => {
   if (expo) return ['npx', 'expo', 'install', AGENT];
-  if (fs.existsSync(path.join(root, 'bun.lockb')) || fs.existsSync(path.join(root, 'bun.lock'))) return ['bun', 'add', AGENT];
-  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return ['pnpm', 'add', AGENT];
-  if (fs.existsSync(path.join(root, 'yarn.lock'))) return ['yarn', 'add', AGENT];
-  return ['npm', 'install', AGENT];
+  const manager = managerOf(root);
+  return manager === 'npm' ? ['npm', 'install', AGENT] : [manager, 'add', AGENT];
 };
 
 const hasAgent = (manifest: Manifest): boolean => !!(manifest.dependencies?.[AGENT] ?? manifest.devDependencies?.[AGENT]);
@@ -247,4 +258,36 @@ export const setupChecks = (root: string): SetupCheck[] => {
     checks.push({ what: `Expo is given the token (${EXPO_TOKEN})`, ok: given, fix: '`lynkeus init` writes it to .env.local' });
   }
   return checks;
+};
+
+/** What `lynkeus headless start` runs on: jest hosts the app, Testing Library renders it, lynkeus-headless serves the agent. */
+const HEADLESS_PACKAGES = ['jest', '@testing-library/react-native', 'lynkeus-headless'];
+
+const resolvable = (root: string, name: string): boolean => {
+  try {
+    createRequire(path.join(root, 'package.json')).resolve(`${name}/package.json`);
+    return true;
+  } catch (error) {
+    // A package whose exports leave package.json out is still there.
+    return (error as { code?: string }).code === 'ERR_PACKAGE_PATH_NOT_EXPORTED';
+  }
+};
+
+/** The packages the headless host needs that this project cannot load yet. */
+export const headlessMissing = (root: string): string[] => HEADLESS_PACKAGES.filter((name) => !resolvable(root, name));
+
+const devInstallCommand = (root: string, names: string[]): string[] =>
+  ({ bun: ['bun', 'add', '-d'], pnpm: ['pnpm', 'add', '-D'], yarn: ['yarn', 'add', '-D'], npm: ['npm', 'install', '--save-dev'] })[managerOf(root)].concat(
+    names,
+  );
+
+/** Adds what the headless host needs as development dependencies; a line saying what happened. */
+export const installHeadless = (root: string): string => {
+  const missing = headlessMissing(root);
+  if (!missing.length) return 'jest, Testing Library and lynkeus-headless are installed';
+  const command = devInstallCommand(root, missing);
+  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
+  if (ran.status === 0) return `installed ${missing.join(', ')} (${command.join(' ')})`;
+  const said = `${ran.stderr ?? ''}${ran.error ? ran.error.message : ''}`.trim().split('\n').slice(-3).join(' ');
+  return `could not install ${missing.join(', ')} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself`;
 };

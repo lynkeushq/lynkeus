@@ -756,7 +756,7 @@ Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LY
 
 Also accepted: `headless`.
 
-### `lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force]`
+### `lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]`
 
 Write the headless entry: default mocks, a local-backend guard, your App
 
@@ -767,6 +767,7 @@ Write the headless entry: default mocks, a local-backend guard, your App
 | `--api-env <NAME>` | the env var the app reads its API base from |
 | `--auto` | also mount the agent from index.js with auto() |
 | `--force` | overwrite an existing entry |
+| `--no-install` | do not add jest, Testing Library and lynkeus-headless to the project |
 
 ### `lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]`
 
