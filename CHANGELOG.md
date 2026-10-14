@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `case run --video-scale <n>` asks the host for a film of that many pixels per point. fastsim films at 2 unless told, and takes 1 to 3: sharper costs time and bytes (one case took 34 s at 3, 22 s at 2 and 21 s at 1; 15 s with no film).
 - `case run --screenshots` waits 150 ms of a still screen before each frame, where it waited 700 ms: the wait is paid on every step and was half the time of a filmed run (three cases at once took 133 s, and 68 s without it). `--settle <ms>` sets it; `--settle 700` gives the frames two runs can be compared by, pixel for pixel.
 
 ## 0.3.0
