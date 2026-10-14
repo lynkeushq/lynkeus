@@ -34,8 +34,10 @@ hostApp(() => <entry.App />, { ${options.join(', ')} });
 const JEST_CONFIGS = ['jest.config.js', 'jest.config.cjs', 'jest.config.mjs', 'jest.config.ts', 'jest.config.json'];
 
 // React Native and most of what an app adds to it ship untranspiled ES modules, which jest leaves alone unless told.
+const apiFromConfig = (config: LynkeusConfig): Record<string, string> => (config.apiUrl ? { [config.apiEnv ?? 'API_URL']: config.apiUrl } : {});
+
 const TRANSFORM_PACKAGES =
-  '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library)';
+  '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library|immer|@reduxjs/toolkit|react-redux|redux|reselect)';
 
 /**
  * What jest is told when the app has not said it itself, so an app with no jest set up runs headless as it is:
@@ -128,7 +130,7 @@ export const headlessCommands = [
     group: 'headless',
     summary: 'Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator',
     details:
-      "Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.",
+      "Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.",
     flags: ENTRY_FLAG,
     aliases: ['headless'],
     needs: 'nothing',
@@ -162,7 +164,7 @@ export const headlessCommands = [
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), ...ctx.passthrough], {
         cwd: ctx.root,
         stdio: ['inherit', 'inherit', 'pipe'],
-        env: { ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
+        env: { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
       });
       let tail = '';
       child.stderr?.on('data', (chunk: Buffer) => {

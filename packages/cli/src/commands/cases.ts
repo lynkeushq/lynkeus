@@ -29,6 +29,18 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
   });
   let output = '';
   const tail = (n: number) => output.trim().split('\n').slice(-n).join(' · ');
+  // `headless start` ends a crash with what it usually means; without that, the error line jest printed.
+  const why = () => {
+    const plain = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const explained = plain.split('lynkeus: what this looks like')[1];
+    if (explained)
+      return explained
+        .trim()
+        .split('\n')
+        .map((line) => line.trim())
+        .join(' · ');
+    return plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
+  };
   await new Promise<void>((resolve, reject) => {
     const settle = (error?: Error) => {
       clearTimeout(timer);
@@ -39,11 +51,11 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     const read = (chunk: Buffer) => {
       output = (output + chunk.toString()).slice(-4000);
       if (/waiting for a driver/.test(output)) settle();
-      else if (/Test suite failed/.test(output)) settle(new Error(`the host failed to start: ${tail(5)}`));
     };
     host.stdout?.on('data', read);
     host.stderr?.on('data', read);
-    host.once('exit', (code) => settle(new Error(`the host exited (${code}): ${tail(3)}`)));
+    // A suite that fails to load exits right after printing why, so its explanation is read in full here.
+    host.once('exit', (code) => settle(new Error(`${/Test suite failed/.test(output) ? 'the host failed to start' : `the host exited (${code})`}: ${why()}`)));
   });
   err('host: up');
   return host;

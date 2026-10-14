@@ -32,6 +32,21 @@ test('init writes an entry that requires the app and refuses non-local backends'
   assert.ok(again.some((n) => n.includes('left as is')));
 });
 
+test('headless init makes the token headless start needs, once', () => {
+  const root = tmpApp();
+  const env = process.env.LYNKEUS_TOKEN;
+  delete process.env.LYNKEUS_TOKEN;
+  try {
+    const notes = init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: false, force: false });
+    assert.ok(notes.some((n) => n.startsWith('made a token')));
+    assert.match(fs.readFileSync(path.join(root, '.lynkeus/token'), 'utf8'), /^[0-9a-f]{48}\n$/);
+    const again = init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: false, force: false });
+    assert.ok(!again.some((n) => n.startsWith('made a token')));
+  } finally {
+    if (env !== undefined) process.env.LYNKEUS_TOKEN = env;
+  }
+});
+
 test('init --auto adds the mount after the imports, once', () => {
   const root = tmpApp();
   init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: true, force: false });
