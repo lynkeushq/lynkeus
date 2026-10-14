@@ -731,7 +731,7 @@ the app hosted in Node under jest, no simulator.
 
 Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator
 
-Needs LYNKEUS_TOKEN in the environment (the value the app reads for its token). LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
+Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
 
 | Flag | |
 |---|---|

@@ -13,7 +13,7 @@ import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
 import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
-import { graphFile, loadConfig, loadGraph, portFromEnv } from './config.js';
+import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice } from './device/devices.js';
 import { Device } from './device/driver.js';
@@ -56,7 +56,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? config.app;
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
-    const server = new AgentServer({ token: process.env.LYNKEUS_TOKEN, port: port ?? portFromEnv(config) });
+    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(config) });
     server.on('hello', (hello: HelloEvent) => {
       const told = mismatchTold ? undefined : agentMismatch(hello);
       if (!told) return;

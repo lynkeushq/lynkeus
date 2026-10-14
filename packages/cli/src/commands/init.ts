@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { packageName } from '../config.js';
+import { packageName, ensureToken } from '../config.js';
 
 const APP_CANDIDATES = ['App.tsx', 'App.jsx', 'App.js', 'app/App.tsx', 'src/App.tsx', 'src/App.jsx', 'src/App.js'];
 const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
@@ -95,6 +95,18 @@ const addTokenPlugin = (root: string): string => {
   return `added ${TOKEN_PLUGIN} to ${file}`;
 };
 
+const EXPO_ENV = '.env.local';
+const EXPO_TOKEN = 'EXPO_PUBLIC_LYNKEUS_TOKEN';
+
+/** Expo passes the app only variables that start with EXPO_PUBLIC_, and reads them from `.env.local`, which its template keeps out of git. */
+const giveExpoTheToken = (root: string, token: string): string => {
+  const file = path.join(root, EXPO_ENV);
+  const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (new RegExp(`^${EXPO_TOKEN}=`, 'm').test(text)) return `${EXPO_ENV} already sets ${EXPO_TOKEN}`;
+  fs.writeFileSync(file, `${text}${text && !text.endsWith('\n') ? '\n' : ''}${EXPO_TOKEN}=${token}\n`);
+  return `wrote ${EXPO_TOKEN} to ${EXPO_ENV} (check it is in .gitignore: Expo's template ignores .env*.local)`;
+};
+
 /**
  * Mounts the agent from the app's entry, before anything registers the root component. An Expo Router app
  * has no entry of its own (`"main": "expo-router/entry"`), so it gets one that mounts the agent and then
@@ -129,15 +141,16 @@ export const mountAgent = (root: string): string[] => {
       notes.push(`added auto() to ${index}`);
     }
   }
+  const { token, made } = ensureToken(root);
+  if (made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
   if (!expo) {
     notes.push(addTokenPlugin(root));
-    notes.push('start Metro with LYNKEUS_TOKEN set to the value the CLI reads; after changing it, start Metro with --reset-cache');
+    notes.push('restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file');
   }
   if (expo) {
+    notes.push(giveExpoTheToken(root, token));
     notes.push('Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go');
-    notes.push(
-      'Expo: start the dev server with EXPO_PUBLIC_LYNKEUS_TOKEN set to the same value as LYNKEUS_TOKEN; Expo passes the app only variables with that prefix',
-    );
+    notes.push('Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file');
   }
   return notes;
 };

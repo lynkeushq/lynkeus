@@ -195,7 +195,12 @@ export const caseCommands = [
       events: { type: 'string', help: 'keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl', value: 'dir' },
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
-      settle: { type: 'number', help: 'with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by', default: 150, value: 'ms' },
+      settle: {
+        type: 'number',
+        help: 'with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by',
+        default: 150,
+        value: 'ms',
+      },
       video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
       traces: {
         type: 'boolean',

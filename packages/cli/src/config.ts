@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -10,6 +11,33 @@ export const graphFile = (root?: string) => path.join(lynkeusDir(root), 'graph.j
 export const edgesFile = (root?: string) => path.join(lynkeusDir(root), 'edges.jsonl');
 export const frontierFile = (root?: string) => path.join(lynkeusDir(root), 'frontier.jsonl');
 export const runsDir = (root?: string) => path.join(lynkeusDir(root), 'runs');
+export const tokenFile = (root?: string) => path.join(lynkeusDir(root), 'token');
+
+/**
+ * The secret the app and its driver share. LYNKEUS_TOKEN wins; otherwise it is the one `lynkeus init` wrote to
+ * `.lynkeus/token`, which the app's bundle reads too, so nobody has to set a variable in two terminals.
+ */
+export const readToken = (root?: string): string | undefined => {
+  if (process.env.LYNKEUS_TOKEN) return process.env.LYNKEUS_TOKEN;
+  try {
+    return fs.readFileSync(tokenFile(root), 'utf8').trim() || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Makes the project's token if it has none, and keeps it out of git: `.lynkeus` also holds what a team commits. */
+export const ensureToken = (root?: string): { token: string; made: boolean } => {
+  const had = readToken(root);
+  if (had) return { token: had, made: false };
+  const token = crypto.randomBytes(24).toString('hex');
+  fs.mkdirSync(lynkeusDir(root), { recursive: true });
+  fs.writeFileSync(tokenFile(root), `${token}\n`, { mode: 0o600 });
+  const ignore = path.join(lynkeusDir(root), '.gitignore');
+  const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+  if (!ignored.split('\n').includes('token')) fs.writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}token\n`);
+  return { token, made: true };
+};
 
 export const loadGraph = (root?: string): ScreenGraph | null => {
   const file = graphFile(root);

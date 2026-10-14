@@ -63,14 +63,14 @@ auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
 ```
 
 React Native gives the app no environment, so the token is written into the
-bundle by a Babel plugin. Add it in `babel.config.js` and start Metro with
-`LYNKEUS_TOKEN` set:
+bundle by a Babel plugin. Add it in `babel.config.js`; it reads the token
+`lynkeus init` made in `.lynkeus/token`, or `LYNKEUS_TOKEN` when that is set:
 
 ```js
 plugins: ['lynkeus-agent/babel'],
 ```
 
-`npx lynkeus init` makes both changes for you.
+`npx lynkeus init` makes both changes for you, and the token.
 
 **2. Drive the app** from a terminal:
 
@@ -85,7 +85,7 @@ npx lynkeus wait Settings.Main              # until a route or an element appear
 
 ```sh
 npx lynkeus headless init --auto            # writes the headless entry and mounts the agent
-LYNKEUS_TOKEN=secret npx lynkeus headless start
+npx lynkeus headless start
 ```
 
 Running many commands in a row? Keep one connection open with `lynkeus session` (JSON lines, about 50 ms a step), or serve the commands to an AI agent with `lynkeus mcp`.
