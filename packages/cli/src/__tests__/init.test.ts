@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { init, installFailure, mountAgent, setupChecks } from '../commands/init.js';
+import { headlessMissing, init, installFailure, mountAgent, setupChecks } from '../commands/init.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -167,4 +167,34 @@ test('a failed install says why, not where npm keeps its logs', () => {
     'ERESOLVE unable to resolve dependency tree; While resolving: demo@1.0.0; Found: react@19.2.0; react@"19.2.0" from the root project; Could not resolve dependency:; peer react@"^19.2.3" from react-native@0.86.0',
   );
   assert.equal(installFailure({ stderr: '', error: new Error('spawnSync yarn ENOENT') }), 'spawnSync yarn ENOENT');
+});
+
+test('headless init hosts an Expo Router app through its router, with jest-expo', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-router-'));
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'routed', main: 'expo-router/entry', dependencies: { expo: '~57.0.0' } }));
+  fs.mkdirSync(path.join(root, 'src/app'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'src/app/_layout.tsx'), 'export default () => null');
+  for (const name of ['expo-router', 'react-native']) {
+    fs.mkdirSync(path.join(root, 'node_modules', name), { recursive: true });
+    fs.writeFileSync(path.join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version: name === 'react-native' ? '0.86.3' : '57.0.0' }));
+  }
+  const notes = init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: false, force: false });
+  assert.ok(notes.includes('wrote qa/headless.tsx (Expo Router, routes in src/app)'));
+  const entry = fs.readFileSync(path.join(root, 'qa/headless.tsx'), 'utf8');
+  assert.match(entry, /getMockContext\(require\('path'\)\.resolve\(__dirname, '\.\.\/src\/app'\)\)/);
+  assert.match(entry, /createElement\(ExpoRoot, \{ context: routes \}\)/);
+  // Expo's modules need jest-expo's setup; React Native's own preset is not asked for beside it.
+  assert.ok(headlessMissing(root).includes('jest-expo'));
+  assert.ok(!headlessMissing(root).includes('@react-native/jest-preset'));
+});
+
+test('headless init asks for React Native’s jest preset from 0.86 on', () => {
+  const root = tmpApp();
+  fs.mkdirSync(path.join(root, 'node_modules', 'react-native'), { recursive: true });
+  const version = (v: string) =>
+    fs.writeFileSync(path.join(root, 'node_modules/react-native/package.json'), JSON.stringify({ name: 'react-native', version: v }));
+  version('0.85.2');
+  assert.ok(!headlessMissing(root).includes('@react-native/jest-preset'));
+  version('0.86.0');
+  assert.ok(headlessMissing(root).includes('@react-native/jest-preset'));
 });

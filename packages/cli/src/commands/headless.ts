@@ -6,7 +6,7 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
-import { headlessMissing, init, installAgent, installHeadless, mountAgent, setupChecks } from './init.js';
+import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -37,11 +37,33 @@ const JEST_CONFIGS = ['jest.config.js', 'jest.config.cjs', 'jest.config.mjs', 'j
 const apiFromConfig = (config: LynkeusConfig): Record<string, string> => (config.apiUrl ? { [config.apiEnv ?? 'API_URL']: config.apiUrl } : {});
 
 const TRANSFORM_PACKAGES =
-  '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library|immer|@reduxjs/toolkit|react-redux|redux|reselect)';
+  '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library|immer|@reduxjs/toolkit|react-redux|redux|reselect|@expo-google-fonts|native-base|standard-navigation)';
+
+/**
+ * The import aliases in tsconfig.json's `paths`, as jest mappings, the longest first: \`@/assets/*\` has to be
+ * tried before \`@/*\`, which jest-expo does not do. The bundler reads them; jest knows nothing of them.
+ */
+const aliasesOf = (root: string): Record<string, string> => {
+  let options: { baseUrl?: string; paths?: Record<string, string[]> } | undefined;
+  try {
+    const text = fs.readFileSync(path.join(root, 'tsconfig.json'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+    options = (JSON.parse(text) as { compilerOptions?: typeof options }).compilerOptions;
+  } catch {
+    return {};
+  }
+  const base = path.join(root, options?.baseUrl ?? '.');
+  const literal = (text: string) => text.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+  return Object.fromEntries(
+    Object.entries(options?.paths ?? {})
+      .filter(([alias, [target]]) => alias.endsWith('/*') && target?.endsWith('/*'))
+      .sort(([a], [b]) => b.length - a.length)
+      .map(([alias, [target]]) => [`^${literal(alias.slice(0, -1))}(.*)$`, `${path.join(base, target!.slice(0, -1))}$1`]),
+  );
+};
 
 /**
  * What jest is told when the app has not said it itself, so an app with no jest set up runs headless as it is:
- * the React Native preset, and which packages under node_modules to transpile.
+ * the preset its framework needs (jest-expo for Expo, React Native's otherwise), and which packages under node_modules to transpile.
  */
 const jestDefaults = (root: string): string[] => {
   const file = JEST_CONFIGS.find((f) => fs.existsSync(path.join(root, f)));
@@ -53,14 +75,21 @@ const jestDefaults = (root: string): string[] => {
     } catch {}
   }
   const flags: string[] = [];
-  if (!config)
+  if (!config) {
+    // A style sheet imported from native code (Expo's templates import global.css) means nothing to jest, even
+    // behind an alias, so it is mapped first. Jest merges these with the preset's own mappings.
+    const stub = path.join(lynkeusDir(root), 'style-stub.js');
+    fs.mkdirSync(path.dirname(stub), { recursive: true });
+    fs.writeFileSync(stub, 'module.exports = {};\n');
+    flags.push('--preset', jestPreset(root), `--moduleNameMapper=${JSON.stringify({ '\\.(css|less|sass|scss)$': stub, ...aliasesOf(root) })}`);
+  }
+  // Two that must stay as they are, as jest-expo leaves them: babel running itself, or Reanimated's plugin, fails.
+  if (!config.includes('transformIgnorePatterns'))
     flags.push(
-      '--preset',
-      headlessMissing(root).length || !fs.existsSync(path.join(root, 'node_modules', '@react-native', 'jest-preset'))
-        ? 'react-native'
-        : '@react-native/jest-preset',
+      `--transformIgnorePatterns=node_modules/(?!${TRANSFORM_PACKAGES}/)`,
+      '--transformIgnorePatterns=/node_modules/react-native-reanimated/plugin/',
+      '--transformIgnorePatterns=/node_modules/@react-native/babel-preset/',
     );
-  if (!config.includes('transformIgnorePatterns')) flags.push(`--transformIgnorePatterns=node_modules/(?!${TRANSFORM_PACKAGES}/)`);
   return flags;
 };
 
@@ -193,7 +222,7 @@ export const headlessCommands = [
     },
     needs: 'nothing',
     mcp: 'core',
-    mcpOmit: ['entry', 'component', 'auto', 'force'],
+    mcpOmit: ['entry', 'auto', 'force'],
     mcpDetails:
       'Prepares the app to run in Node, no simulator: installs jest, Testing Library and lynkeus-headless, writes the entry. Then `case_run` with `host`.',
     run: async (ctx) => {

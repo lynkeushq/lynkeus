@@ -30,7 +30,7 @@ It exists for speed and scale. A host starts in about 40 seconds, several run si
   ```
 
 - Node 22 or newer.
-- An app with a root component the host can import (`App.tsx` and the like). An app that uses Expo Router has none, and cannot run on the headless host; see [What headless cannot tell you](#what-headless-cannot-tell-you).
+- An app with a root component the host can import (`App.tsx` and the like), or an Expo Router app (since 0.4.0; see [An Expo Router app](#an-expo-router-app)).
 - A backend the app can reach on a local address, if the app needs one to get past its first screen.
 
 ## Steps
@@ -282,11 +282,27 @@ For those, run the same cases on a simulator or emulator. Only the way the app i
 
 ### An Expo Router app
 
-An Expo Router app cannot run on the headless host. The host imports the app's root component and renders it, and an Expo Router app has no root component to export: its screens are files the router loads. `lynkeus headless init` stops with `no App component found`. Such an app runs on a simulator or an emulator.
+Since 0.4.0, an Expo Router app runs on the headless host. It has no root component to import, since its screens are files the router loads, so the entry renders the router itself over the route files. `lynkeus headless init` writes that entry when it finds `expo-router` and an `app/` or `src/app/` folder:
+
+```tsx title="qa/headless.tsx (the end of it)"
+process.env.EXPO_ROUTER_IMPORT_MODE = 'sync'
+const { getMockContext } = require('expo-router/testing-library')
+const React = require('react')
+const { ExpoRoot } = require('expo-router')
+const routes = getMockContext(require('path').resolve(__dirname, '../src/app'))
+require('lynkeus-agent/auto').auto({ token: process.env.LYNKEUS_TOKEN })
+const App = () => React.createElement(ExpoRoot, { context: routes })
+```
+
+`expo-router/testing-library` is Expo's own way to render the router under Jest. It also stands in for `expo-linking` and Reanimated, so it is loaded before the router. `auto()` mounts the agent as a development build does, and the agent then finds the router's navigation by itself: `lynkeus screen` prints `index (__root > index)`, and `nav` goes to a route by its expo-router name.
+
+For an Expo app with no Jest setup of its own, `headless init` installs `jest-expo` with Expo's installer, which picks the version of the app's SDK. `headless start` gives Jest that preset, maps style sheets (the Expo template imports `global.css`) to an empty module, and maps the aliases in `tsconfig.json`'s `paths`, the longest first.
+
+Tried on a new Expo SDK 57 project with React Native 0.86: a case that reads the home screen, goes to `explore` and reads it passes in under half a second. The native tab bar of the newest template is not drawn by React Native, so its tabs are not on the screen there either; go to a tab's route with `nav`.
 
 ## Common problems
 
-**`headless init` stops with `no App component found`.** The root component is not in a standard place: pass `--component <path>`. If the app uses Expo Router, there is no root component to point at, and the app cannot run on the headless host.
+**`headless init` stops with `no App component found`.** The root component is not in a standard place: pass `--component <path>`. An Expo Router app needs no component; that message there means `expo-router` is not installed or the routes are not in `app/` or `src/app/`.
 
 **The host stops with `Unexpected token 'export'`.** Jest is not transforming `lynkeus-agent`. See step 2.
 

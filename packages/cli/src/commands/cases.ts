@@ -2,6 +2,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
@@ -31,7 +32,7 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
   const tail = (n: number) => output.trim().split('\n').slice(-n).join(' · ');
   // `headless start` ends a crash with what it usually means; without that, the error line jest printed.
   const why = () => {
-    const plain = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const plain = stripVTControlCharacters(output);
     const explained = plain.split('lynkeus: what this looks like')[1];
     if (explained)
       return explained

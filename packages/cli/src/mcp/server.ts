@@ -117,5 +117,20 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     return text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
   });
-  await server.connect(new StdioServerTransport());
+  // The client going away ends the server: the session holds the driver's port open, and a server left behind
+  // keeps the next one (or a case run) from binding it.
+  const transport = new StdioServerTransport();
+  let stopping = false;
+  const stop = () => {
+    if (stopping) return;
+    stopping = true;
+    void session
+      .stop()
+      .catch(() => undefined)
+      .finally(() => process.exit(0));
+  };
+  process.stdin.once('end', stop);
+  process.stdin.once('close', stop);
+  transport.onclose = stop;
+  await server.connect(transport);
 };
