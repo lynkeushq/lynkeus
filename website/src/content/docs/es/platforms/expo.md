@@ -159,9 +159,7 @@ Si tu app usa una barra de pestañas dibujada con componentes de React Native, e
 
 ### El host sin pantalla, con expo-router
 
-Una app con expo-router no puede correr en el host sin pantalla. Ese host renderiza el componente raíz que la app exporta, y una app con expo-router no tiene ninguno: sus pantallas son archivos que carga el enrutador. `lynkeus headless init` se detiene con `no App component found`.
-
-Una app así corre en un simulador o en un emulador.
+Desde 0.4.0, una app con expo-router corre en el host sin pantalla. Como no tiene un componente raíz, la entrada que escribe `lynkeus headless init` renderiza el enrutador sobre los archivos de rutas. Antes de 0.4.0 no podía. Los detalles están en [Headless](/es/platforms/headless/).
 
 ### Expo Go
 

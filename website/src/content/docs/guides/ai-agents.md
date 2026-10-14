@@ -46,7 +46,7 @@ The server tells the model the order to follow when it connects. The agent calls
 
 The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
 
-To run without a simulator, ask it to set the app up headless: `headless_init` installs jest, Testing Library and `lynkeus-headless` and writes the entry, and cases then run in Node with `case_run` and `host`.
+To run without a simulator, ask it to set the app up headless: `headless_init` installs jest, Testing Library and `lynkeus-headless` and writes the entry, `headless_doctor` names any native module still to mock, and cases then run in Node with `case_run` and `host`. The app's backend must be local; `apiUrl` in `lynkeus.config.json` gives it to the host.
 
 ## Step 3: Ask for a test
 
@@ -62,7 +62,7 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 14 core tools | About 1,500 tokens |
+| `npx lynkeus mcp` | The 15 core tools | About 1,750 tokens |
 | `npx lynkeus mcp --full` | All 48 commands | About 5,400 tokens |
 
 Start with the core. Add `--full` for an agent whose job is crawling, recording or snapshots.
@@ -73,7 +73,8 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 |---|---|
 | `status` | What the project has of lynkeus and what is missing, each with its fix, and whether an app is attached. |
 | `init` | Installs the agent, mounts it from the app's entry, makes the project's token. |
-| `headless_init` | Prepares the app to run in Node with no simulator. |
+| `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
+| `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
 | `case_init` | Writes an example case and the reference of the format. |
 | `case_run` | Runs cases; a failure comes back with its screen and reason. |
 | `screen` | The route, the navigator path and every element on screen. |
@@ -172,6 +173,8 @@ This is a separate server from `lynkeus mcp`. The hosted service at lynkeus.io h
 | Claude | Settings → Connectors → Add custom connector → `https://lynkeus.io/mcp` |
 | Claude Code | `claude mcp add --transport http lynkeus https://lynkeus.io/mcp` |
 | Cursor | `"mcpServers": { "lynkeus": { "url": "https://lynkeus.io/mcp" } }` |
+
+Its tools are `list_runs`, `get_run`, `get_case`, `get_frame`, `case_history` and `flaky_cases`. `get_frame` returns the screen a step left as an image, by default the step that failed, so the client can see what the app showed. A run keeps frames when it was made with `--screenshots`.
 
 The first time, the client opens lynkeus to ask for your approval and which organization it may read. You can disconnect it at any time under **Members**. See [Reports](/guides/reports/).
 
