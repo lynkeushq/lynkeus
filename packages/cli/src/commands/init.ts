@@ -1,7 +1,8 @@
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { packageName, ensureToken } from '../config.js';
+import { ensureToken, packageName, readToken } from '../config.js';
 
 const APP_CANDIDATES = ['App.tsx', 'App.jsx', 'App.js', 'app/App.tsx', 'src/App.tsx', 'src/App.jsx', 'src/App.js'];
 const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
@@ -87,10 +88,14 @@ const addTokenPlugin = (root: string): string => {
   if (text.includes(TOKEN_PLUGIN)) return `${file} already has ${TOKEN_PLUGIN}`;
   const plugins = /\bplugins\s*:\s*\[/.exec(text);
   const presets = /^([ \t]*)presets\s*:/m.exec(text);
-  if (!plugins && !presets) return byHand;
+  // A config written on one line has its presets after the brace, not at the start of a line.
+  const inline = plugins || presets ? null : /\bpresets\s*:/.exec(text);
+  if (!plugins && !presets && !inline) return byHand;
   const next = plugins
     ? `${text.slice(0, plugins.index + plugins[0].length)}'${TOKEN_PLUGIN}', ${text.slice(plugins.index + plugins[0].length)}`
-    : `${text.slice(0, presets!.index)}${presets![1]}plugins: ['${TOKEN_PLUGIN}'],\n${text.slice(presets!.index)}`;
+    : presets
+      ? `${text.slice(0, presets.index)}${presets[1]}plugins: ['${TOKEN_PLUGIN}'],\n${text.slice(presets.index)}`
+      : `${text.slice(0, inline!.index)}plugins: ['${TOKEN_PLUGIN}'], ${text.slice(inline!.index)}`;
   fs.writeFileSync(path.join(root, file), next);
   return `added ${TOKEN_PLUGIN} to ${file}`;
 };
@@ -172,4 +177,66 @@ export const init = (root: string, opts: InitOptions): string[] => {
   notes.push(`next: LYNKEUS_TOKEN=<token> ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start`);
   notes.push('      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)');
   return notes;
+};
+
+const AGENT = 'lynkeus-agent';
+
+/** How this project adds a package: Expo's own installer picks the version its SDK wants; otherwise the manager whose lockfile is there. */
+const installCommand = (root: string, expo: boolean): string[] => {
+  if (expo) return ['npx', 'expo', 'install', AGENT];
+  if (fs.existsSync(path.join(root, 'bun.lockb')) || fs.existsSync(path.join(root, 'bun.lock'))) return ['bun', 'add', AGENT];
+  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return ['pnpm', 'add', AGENT];
+  if (fs.existsSync(path.join(root, 'yarn.lock'))) return ['yarn', 'add', AGENT];
+  return ['npm', 'install', AGENT];
+};
+
+const hasAgent = (manifest: Manifest): boolean => !!(manifest.dependencies?.[AGENT] ?? manifest.devDependencies?.[AGENT]);
+
+/** Adds lynkeus-agent to the app when it is not a dependency yet. It has native code, so the app is built again after. */
+export const installAgent = (root: string): string => {
+  const manifest = readManifest(root);
+  if (hasAgent(manifest)) return `${AGENT} is already a dependency`;
+  const command = installCommand(root, !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo));
+  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
+  if (ran.status === 0) return `installed ${AGENT} (${command.join(' ')}); it has native code, so build the app again`;
+  const said = `${ran.stderr ?? ''}${ran.error ? ran.error.message : ''}`.trim().split('\n').slice(-3).join(' ');
+  return `could not install ${AGENT} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself, then \`lynkeus init\` again`;
+};
+
+export type SetupCheck = { what: string; ok: boolean; fix?: string };
+
+/** What a project has of lynkeus and what it still lacks, each with the one thing that fixes it. Reads files only. */
+export const setupChecks = (root: string): SetupCheck[] => {
+  const manifest = readManifest(root);
+  if (!manifest.dependencies && !manifest.devDependencies)
+    return [{ what: 'a package.json here', ok: false, fix: 'run this from the app\u2019s folder (or pass --root)' }];
+  const expo = !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo);
+  const checks: SetupCheck[] = [];
+  const depends = hasAgent(manifest);
+  checks.push({ what: `${AGENT} is a dependency`, ok: depends, fix: '`lynkeus init` installs it' });
+  if (depends)
+    checks.push({
+      what: `${AGENT} is installed`,
+      ok: fs.existsSync(path.join(root, 'node_modules', AGENT, 'package.json')),
+      fix: 'install the project\u2019s dependencies',
+    });
+  const index = findFirst(root, INDEX_CANDIDATES);
+  const mounted = !!index && /lynkeus-agent/.test(fs.readFileSync(path.join(root, index), 'utf8'));
+  checks.push({ what: 'the app\u2019s entry mounts the agent', ok: mounted, fix: '`lynkeus init` adds it' });
+  if (!expo) {
+    const babel = findFirst(root, BABEL_CANDIDATES);
+    checks.push({
+      what: 'babel.config.js has lynkeus-agent/babel',
+      ok: !!babel && fs.readFileSync(path.join(root, babel), 'utf8').includes(TOKEN_PLUGIN),
+      fix: '`lynkeus init` adds it',
+    });
+  }
+  const token = readToken(root);
+  checks.push({ what: 'the project has a token', ok: !!token, fix: '`lynkeus init` makes one in .lynkeus/token' });
+  if (expo && token) {
+    const env = path.join(root, EXPO_ENV);
+    const given = !!process.env[EXPO_TOKEN] || (fs.existsSync(env) && new RegExp(`^${EXPO_TOKEN}=`, 'm').test(fs.readFileSync(env, 'utf8')));
+    checks.push({ what: `Expo is given the token (${EXPO_TOKEN})`, ok: given, fix: '`lynkeus init` writes it to .env.local' });
+  }
+  return checks;
 };

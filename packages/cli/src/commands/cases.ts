@@ -227,7 +227,27 @@ export const caseCommands = [
     },
     needs: 'nothing',
     session: false,
-    mcp: false,
+    mcp: 'core',
+    mcpOmit: [
+      'seen',
+      'report',
+      'events',
+      'settle',
+      'traces',
+      'traces-port',
+      'video-fps',
+      'video-scale',
+      'flakes',
+      'prepared',
+      'jobs',
+      'ports',
+      'host-command',
+      'in-order',
+      'ahead',
+      'idle',
+    ],
+    mcpDetails:
+      'A case is a markdown file with `setup`, `steps` and `expected`; `case init` writes an example and the reference of the format beside it (read cases/README.md before writing one). Without files, every case in `cases.dir`. Runs against the attached app, or pass `host` to host the app in Node for the run. A failed step comes back with the screen it failed on. With `out`, `screenshots` and `push`, the run is uploaded and its report’s address printed.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;
@@ -491,7 +511,7 @@ export const caseCommands = [
     flags: { force: { type: 'boolean', help: 'overwrite what is there' } },
     needs: 'nothing',
     session: false,
-    mcp: false,
+    mcp: 'core',
     run: async (ctx) => {
       const dir = path.resolve(ctx.root, ctx.config.cases?.dir ?? 'cases');
       fs.mkdirSync(dir, { recursive: true });

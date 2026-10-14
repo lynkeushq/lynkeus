@@ -6,7 +6,7 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
-import { init, mountAgent } from './init.js';
+import { init, installAgent, mountAgent, setupChecks } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -35,11 +35,55 @@ export const headlessCommands = [
   define({
     name: 'init',
     group: 'drive',
-    summary: "Mount the agent from the app's entry: React Native or Expo (Expo Router gets an entry of its own)",
+    summary: "Set lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
+    details:
+      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
+    flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
     needs: 'nothing',
+    mcp: 'core',
     run: async (ctx) => {
-      const lines = mountAgent(ctx.root);
+      const lines = [...(ctx.flags['no-install'] ? [] : [installAgent(ctx.root)]), ...mountAgent(ctx.root)];
+      lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
       return { text: lines.join('\n'), json: lines };
+    },
+  }),
+  define({
+    name: 'status',
+    group: 'drive',
+    summary: 'What this project has of lynkeus and what is missing: the agent, the token, a running app, cases, the reports key',
+    details: 'The first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.',
+    flags: { offline: { type: 'boolean', help: 'check the files only; do not wait for a running app' } },
+    needs: 'nothing',
+    mcp: 'core',
+    run: async (ctx) => {
+      const checks = setupChecks(ctx.root);
+      const ready = checks.every((c) => c.ok);
+      if (ready && !ctx.flags.offline) {
+        try {
+          const device = await ctx.device();
+          checks.push({ what: `an app is attached (${device.info.name})`, ok: true });
+        } catch {
+          checks.push({
+            what: 'an app is attached',
+            ok: false,
+            fix: 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
+          });
+        }
+      }
+      const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
+      const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
+      checks.push({
+        what: cases ? `${cases} case${cases === 1 ? '' : 's'} in ${path.relative(ctx.root, dir) || '.'}` : 'cases to run',
+        ok: cases > 0,
+        fix: '`lynkeus case init` writes an example and the format',
+      });
+      checks.push({
+        what: 'runs can be pushed to the reports service',
+        ok: !!process.env.LYNKEUS_REPORTS_KEY,
+        fix: 'set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional',
+      });
+      const text = checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`).join('\n');
+      return { text, json: checks };
     },
   }),
   define({

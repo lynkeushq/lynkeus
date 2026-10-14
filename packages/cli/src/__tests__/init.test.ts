@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { init, mountAgent } from '../commands/init.js';
+import { init, mountAgent, setupChecks } from '../commands/init.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -110,4 +110,22 @@ test('a bare React Native app gets the plugin that carries the token into the bu
   // A second run changes nothing.
   assert.ok(mountAgent(presetsOnly).some((n) => n.includes('already has lynkeus-agent/babel')));
   assert.equal(fs.readFileSync(path.join(presetsOnly, 'babel.config.js'), 'utf8'), config);
+});
+
+test('status names what a project lacks, and nothing once init has run', () => {
+  const root = tmpApp();
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'demo', dependencies: { 'react-native': '0.83.0' } }));
+  fs.writeFileSync(path.join(root, 'babel.config.js'), "module.exports = { presets: ['module:@react-native/babel-preset'] };\n");
+  const before = setupChecks(root);
+  assert.deepEqual(
+    before.filter((c) => !c.ok).map((c) => c.what),
+    ['lynkeus-agent is a dependency', 'the app\u2019s entry mounts the agent', 'babel.config.js has lynkeus-agent/babel', 'the project has a token'],
+  );
+  assert.ok(before.every((c) => c.ok || c.fix));
+  mountAgent(root);
+  const after = setupChecks(root).filter((c) => !c.ok);
+  assert.deepEqual(
+    after.map((c) => c.what),
+    ['lynkeus-agent is a dependency'],
+  );
 });

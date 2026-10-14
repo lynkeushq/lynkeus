@@ -221,9 +221,25 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init`
+### `lynkeus init [--no-install]`
 
-Mount the agent from the app's entry: React Native or Expo (Expo Router gets an entry of its own)
+Set lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
+
+React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
+
+| Flag | |
+|---|---|
+| `--no-install` | do not add lynkeus-agent to the app; mount it only |
+
+### `lynkeus status [--offline]`
+
+What this project has of lynkeus and what is missing: the agent, the token, a running app, cases, the reports key
+
+The first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.
+
+| Flag | |
+|---|---|
+| `--offline` | check the files only; do not wait for a running app |
 
 ## os
 
@@ -600,7 +616,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--settle <ms>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--settle <ms>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -627,6 +643,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--push` | with --out: upload the run to the reports service when it ends and print the report’s address |
 | `--project <name>` | with --push: the project the run is filed under (default: the app’s folder name) |
 | `--video-fps <n>` | frames per second of the film (default `30`) |
+| `--video-scale <n>` | pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told) |
 | `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
 | `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
 | `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |

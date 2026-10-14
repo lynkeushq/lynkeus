@@ -60,9 +60,21 @@ const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
   return av;
 };
 
+// What a model is told once, when it connects: the order things are done in, so "set lynkeus up" and "write me
+// a test for this" need nothing more from the person asking.
+const INSTRUCTIONS = `lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
+
+In a project you do not know, call status first: it lists what is set up and, for what is not, the one thing that fixes it.
+
+To set lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
+
+To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there; prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
+
+To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.`;
+
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };
-  const server = new Server({ name: 'lynkeus', version }, { capabilities: { tools: {} } });
+  const server = new Server({ name: 'lynkeus', version }, { capabilities: { tools: {} }, instructions: INSTRUCTIONS });
   const served = commands().filter((c) => overMcp(c, !!options.full));
   const byName = new Map(served.map((c) => [identifier(c.name), c]));
   // So a model reading the app's screens knows their language before it starts guessing.

@@ -118,9 +118,9 @@ export const plan = async (o: Service & { go?: 'upgrade' | 'manage' }) => {
 };
 
 export const service = (): Service | string => {
-  const url = process.env.LYNKEUS_REPORTS_URL;
+  const url = process.env.LYNKEUS_REPORTS_URL || 'https://lynkeus.io';
   const key = process.env.LYNKEUS_REPORTS_KEY;
-  return url && key ? { url, key } : 'set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organization’s API key)';
+  return key ? { url, key } : 'set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service';
 };
 
 export const reportCommands = [
