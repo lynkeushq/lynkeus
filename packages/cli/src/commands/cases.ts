@@ -207,6 +207,10 @@ export const caseCommands = [
       report: { type: 'string', help: 'append one JSON line per case', value: 'file' },
       events: { type: 'string', help: 'keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl', value: 'dir' },
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
+      'no-app-events': {
+        type: 'boolean',
+        help: "with --out: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen; frames two runs compare should not have it",
+      },
       screenshots: { type: 'boolean', help: 'with --out: a frame of the screen after every step of the app' },
       settle: {
         type: 'number',
@@ -300,7 +304,7 @@ export const caseCommands = [
           : undefined;
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
       // A run file files each event under its step, so it needs them collected.
-      const events = typeof ctx.flags.events === 'string' || out !== undefined;
+      const events = typeof ctx.flags.events === 'string' || (out !== undefined && !ctx.flags['no-app-events']);
       const claimed = dry
         ? undefined
         : claimPorts(
