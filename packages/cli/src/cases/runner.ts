@@ -303,9 +303,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   let why: string | undefined;
   const recorded: RunEvent[] = [];
   let buffer: AppEvent[] = [];
+  // A host that records what each SDK was handed (fastsim, the headless host) already has every event. Asking the
+  // app for its own list as well turns on the app's tracking debug, which may draw on the screen (a counter in
+  // every frame of the film).
+  let sdkRecorded = false;
   // Read, never emptied: a case may be asserting on the buffer.
   const collect = async (index: number) => {
-    if (!options.events) return;
+    if (!options.events || sdkRecorded) return;
     const d = await base.device().catch(() => undefined);
     if (!d?.server.connected) return;
     const now = normalizeEvents(await d.command('events').catch(() => []));
@@ -789,7 +793,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
 
   if (options.events && !options.dry) {
     const d = await base.device().catch(() => undefined);
-    if (d?.server.connected) buffer = normalizeEvents(await d.command('events').catch(() => []));
+    sdkRecorded = !!d?.server.hello?.commands?.includes('analytics');
+    if (d?.server.connected && !sdkRecorded) buffer = normalizeEvents(await d.command('events').catch(() => []));
   }
 
   const evidence = options.dry ? undefined : options.evidence;
