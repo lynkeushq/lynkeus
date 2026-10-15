@@ -132,9 +132,18 @@ npx lynkeus report push run --project myapp
 - What the case is about: its `description`, `why`, `given`, `ticket` and `expected`.
 - The analytics events each step sent, with the service they went to (over 40 services: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase and Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly and others). See [Analytics events](/guides/analytics-events/).
 - The requests each step sent, with their headers and bodies, and what came back. Secrets in them (passwords, codes, tokens, card numbers, `Authorization` and cookies) are replaced by `…`, and a body is cut at 16 KB. Since 0.5.0, for any run made with `--out`.
-- Why a failed case failed.
-- What the backend did for each step, when the run used `--traces`. See [Backend traces](/guides/backend-traces/).
-- The branch and commit the run was made from.
+- Why a failed case failed, with only the nearby requests that got a server error or no answer.
+- What the backend did for each step, when the run used `--traces`: each request with what the app sent and got back, and the jobs and calls out it set off. Database queries are never kept or shown, since their statements name your tables. See [Backend traces](/guides/backend-traces/).
+- The events your backend sent to its own analytics, marked BACKEND, when `cases.serverEvents` names a fixture that reads them. See [Configuration](/reference/configuration/#casesserverevents).
+- The branch and commit the run was made from, linked to the repository; what commit the project's run before was on, with a link to compare the two; and the files the run had with changes no commit has.
+
+### Finding your way in a report
+
+- The cases list names each case by its `title`, with its id under it. Fold it to a rail of status dots with its button or `[`.
+- Tabs narrow what each step shows: All, Steps, Events, Network and Backend, each with a count. A filter (built in, yours or your team's) and **Edit rules** choose the rest.
+- The search box filters steps, events, properties and services as you type; `/` focuses it. A pill per service shows or hides its events, and a switch shows the SDK calls (`setAttribute`, `identify`, `updateUser`…) that are hidden by default.
+- **Events map** lays out which service heard what in each step, a row per step and a column per service: a step that should have told a service something and did not shows as a gap. A cell opens that step with only that service.
+- The timeline under the film has a dot per service above each step that sent to it.
 
 The report's address contains a token of its own that cannot be guessed. Anyone with the link can open it.
 
