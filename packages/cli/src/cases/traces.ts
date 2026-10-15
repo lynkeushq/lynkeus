@@ -193,7 +193,7 @@ export const decodeJson = (body: unknown): Span[] => {
 
 // What a report keeps of a span's attributes: what it did, not every label an instrumentation adds.
 const KEEP =
-  /^(http\.(request\.)?method|http\.(response\.)?status_code|http\.route|http\.target|url\.(path|full)|server\.address|net\.peer\.name|db\.(system|statement|operation|sql\.table)|messaging\.|code\.(namespace|function)|rpc\.|exception\.message|enduser\.id)/;
+  /^(http\.(request\.)?method|http\.(response\.)?status_code|http\.route|http\.target|url\.(path|full)|server\.address|net\.peer\.name|messaging\.|code\.(namespace|function)|rpc\.|exception\.message|enduser\.id)/;
 
 /**
  * Listens for OTLP traces while a run goes on: a backend with OTEL_EXPORTER_OTLP_ENDPOINT pointed here sends
@@ -272,6 +272,8 @@ export class TraceSink {
       return undefined;
     };
     for (const span of [...spans].sort((a, b) => (a.startNs < b.startNs ? -1 : 1))) {
+      // A database query never leaves the machine: its statement names the backend's tables and columns.
+      if (span.attributes['db.system'] !== undefined) continue;
       const where = place(span);
       if (!where) continue;
       const startedMs = [...steps.values()].find((s) => s.index === where.step)!.startedMs;
