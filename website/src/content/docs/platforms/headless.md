@@ -318,6 +318,8 @@ npx lynkeus headless doctor --explain "<first line of the error>"
 
 **A screen never settles.** A screen that keeps re-rendering, such as a countdown or a spinner, never goes idle, and `lynkeus idle` answers `idle: false`. That is information about the screen, not a fault in the host. If the cause is one control whose content changes on its own, list its `testID` pattern under `live` in `lynkeus.config.json` and its text stops counting.
 
+**Screens never load and the host says `did not answer (ECONNREFUSED)`.** The backend is not up at that address, or the app is not using the one you meant: it reads its API base from the env var `apiEnv` names, and falls back to its own default when that variable is not set in the shell that ran `headless start`.
+
 **Two hosts fight over the port.** The driver keeps whichever host dialed in last, so two hosts on one port take turns and a step can land on the wrong app (a command one has and the other lacks fails as `this host has no …`). The CLI warns once with `Another app attached on port …`, naming both. Stop the host you left running, or set `LYNKEUS_PORT` on both the host and the driver of each pair.
 
 **Memory grows over a long run.** Node's heap grows by a few dozen megabytes per full app reset. A runner that drives hundreds of cases on one host should restart the host when `lynkeus call memory` reports too much.

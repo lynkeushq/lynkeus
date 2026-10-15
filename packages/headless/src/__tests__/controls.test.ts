@@ -229,3 +229,33 @@ describe('network off', () => {
     expect(() => network('maybe')).toThrow('network needs');
   });
 });
+
+describe('network: real, to a backend that is not up', () => {
+  it('says once per address that it did not answer, and the app still sees the failure', async () => {
+    const { installDefaultMocks } = require('../mocks/install.js') as typeof import('../mocks/install.js');
+    const g = globalThis as { fetch?: unknown };
+    const before = g.fetch;
+    const lines: string[] = [];
+    const write = jest.spyOn(process.stderr, 'write').mockImplementation((chunk: unknown) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    // A port that was free a moment ago: nothing listens on it.
+    const net = require('node:net') as typeof import('node:net');
+    const port = await new Promise<number>((resolve) => {
+      const server = net.createServer().listen(0, '127.0.0.1', () => {
+        const { port: free } = server.address() as { port: number };
+        server.close(() => resolve(free));
+      });
+    });
+    installDefaultMocks({ network: 'real', networkHosts: ['127.0.0.1'] });
+    const fetch = g.fetch as (url: string) => Promise<unknown>;
+    await expect(fetch(`http://127.0.0.1:${port}/api/one`)).rejects.toBeTruthy();
+    await expect(fetch(`http://127.0.0.1:${port}/api/two`)).rejects.toBeTruthy();
+    write.mockRestore();
+    g.fetch = before;
+    const told = lines.filter((l) => l.includes('did not answer'));
+    expect(told).toHaveLength(1);
+    expect(told[0]).toContain(`http://127.0.0.1:${port} did not answer (ECONNREFUSED)`);
+  });
+});
