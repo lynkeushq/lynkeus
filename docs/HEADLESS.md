@@ -156,5 +156,7 @@ to their cause and fix.
 re-renders) never goes idle, and `lynkeus idle` says so with `idle: false`.
 That is information, not a bug in the host.
 
-**Two hosts fight over the port.** Set `LYNKEUS_PORT` on both the host and the
-driver; each pair is independent.
+**Two hosts fight over the port.** The driver keeps whichever host dialed in
+last, so two on one port take turns; the CLI warns once with `Another app
+attached on port …`. Stop the one left running, or set `LYNKEUS_PORT` on both
+the host and the driver; each pair is independent.
