@@ -81,7 +81,32 @@ const gitOf = (root: string): RunManifest['git'] => {
   const commit = ask('rev-parse', '--short', 'HEAD');
   if (!commit) return undefined;
   const branch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || ask('rev-parse', '--abbrev-ref', 'HEAD');
-  return { commit, ...(branch && branch !== 'HEAD' ? { branch } : {}) };
+  const remote = webOf(ask('remote', 'get-url', 'origin'));
+  // What the run had that no commit has: a report says the app was not exactly the commit it names.
+  const changed = (ask('status', '--porcelain', '--untracked-files=no') ?? '')
+    .split('\n')
+    .map((l) => l.slice(3).trim())
+    .filter(Boolean);
+  return {
+    commit,
+    ...(branch && branch !== 'HEAD' ? { branch } : {}),
+    ...(remote ? { remote } : {}),
+    ...(changed.length ? { changed: changed.slice(0, 20), changedCount: changed.length } : {}),
+  };
+};
+
+/** A remote as a web address a report can link commits to, without any credentials it carried. */
+export const webOf = (url: string | undefined): string | undefined => {
+  if (!url) return undefined;
+  const ssh = url.match(/^[\w.-]+@([\w.-]+):(.+?)(\.git)?$/);
+  if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:' && u.protocol !== 'ssh:') return undefined;
+    return `https://${u.hostname}${u.pathname.replace(/\.git$/, '')}`;
+  } catch {
+    return undefined;
+  }
 };
 
 export class RunFile {

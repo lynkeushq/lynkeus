@@ -107,7 +107,8 @@ export type RunManifest = {
   /** Whether the app ran on a device or simulator (true) or hosted without one. */
   native?: boolean;
   /** Where the run was made from, when it was a git checkout. */
-  git?: { branch?: string; commit?: string };
+  /** `remote`: the repository's web address (no credentials); `changed`: files with changes no commit has (at most 20 of `changedCount`). */
+  git?: { branch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number };
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { RUN_SCHEMA, type RunCase, type RunManifest } from 'lynkeus-protocol';
 
 import { parseCase } from '../format.js';
-import { RunFile, toRunCase } from '../runfile.js';
+import { toRunCase, RunFile, webOf } from '../runfile.js';
 import type { CaseReport } from '../runner.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-run-'));
@@ -96,4 +96,12 @@ test('a run keeps every attempt and counts a case by its last one', () => {
   assert.equal(manifest.platform, 'ios');
   assert.equal(manifest.native, false);
   assert.deepEqual(manifest.totals, { cases: 1, passed: 1, failed: 0, unsupported: 0, retried: 1 });
+});
+
+test('a remote becomes a web address with no credentials in it', () => {
+  assert.equal(webOf('git@github.com:acme/app.git'), 'https://github.com/acme/app');
+  assert.equal(webOf('https://x-access-token:secret@github.com/acme/app.git'), 'https://github.com/acme/app');
+  assert.equal(webOf('ssh://git@gitlab.com/acme/app.git'), 'https://gitlab.com/acme/app');
+  assert.equal(webOf('/local/path/app.git'), undefined);
+  assert.equal(webOf(undefined), undefined);
 });
