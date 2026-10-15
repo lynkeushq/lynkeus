@@ -194,13 +194,33 @@ export const headlessCommands = [
         cwd: ctx.root,
         stdio: ['inherit', 'inherit', 'pipe'],
         env: { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
+        // Its own process group: npx, jest and the host it runs end together. Stopping only npx left the
+        // host dialing the port, where a later run's driver took it for the app it meant to drive.
+        detached: true,
       });
+      const stop = (signal: NodeJS.Signals) => {
+        try {
+          if (child.pid) process.kill(-child.pid, signal);
+        } catch {
+          // already gone
+        }
+      };
+      const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+      const forward = signals.map((signal) => {
+        const handler = () => stop(signal);
+        process.on(signal, handler);
+        return () => process.off(signal, handler);
+      });
+      const onExit = () => stop('SIGTERM');
+      process.on('exit', onExit);
       let tail = '';
       child.stderr?.on('data', (chunk: Buffer) => {
         process.stderr.write(chunk);
         tail = (tail + chunk.toString()).slice(-20000);
       });
       const code = await new Promise<number>((resolve) => child.on('exit', (c) => resolve(c ?? 0)));
+      for (const off of forward) off();
+      process.off('exit', onExit);
       if (code) {
         const found = explainError(tail);
         if (found.length) ctx.err(describeExplanations(found));
