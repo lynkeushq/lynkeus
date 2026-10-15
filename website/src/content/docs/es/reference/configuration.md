@@ -171,7 +171,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `cases.dir` | texto | `cases` | La carpeta donde viven los casos. Sin archivos en la línea de comandos, `case run` ejecuta todos los `.md` que haya allí. |
+| `cases.dir` | texto | `cases` | La carpeta donde viven los casos. Sin archivos en la línea de comandos, `case run` ejecuta todos los `.md` que haya allí y en sus subcarpetas, en orden de ruta; también acepta una carpeta como argumento. |
 | `cases.flows` | texto | `flows` | La carpeta donde viven los flows que un caso ejecuta con `app.run`. |
 | `cases.fixtures` | objeto | ninguno | El comando que responde los pasos de fixtures. Ver abajo. |
 | `cases.inspect` | texto | `inspect` | El nombre del fixture por el que `assert` lee el backend. |
