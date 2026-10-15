@@ -14,7 +14,7 @@ import { osCommands } from './commands/os.js';
 import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
-import { agentMismatch } from './device/agentVersion.js';
+import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
@@ -42,6 +42,8 @@ export type Session = { ctx: Base; stop: () => Promise<void> };
 
 // Once per process: a suite reattaches for every case.
 let mismatchTold = false;
+let switchTold = false;
+let lastApp: string | undefined;
 
 // `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device.
 const contextFor = (argv: string[], attached = false, port?: number, ownHost = false): Session => {
@@ -58,6 +60,13 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
     const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(config) });
     server.on('hello', (hello: HelloEvent) => {
+      const identity = helloIdentity(hello);
+      const switched = switchTold ? undefined : appSwitched(lastApp, identity, server.port);
+      lastApp = identity;
+      if (switched) {
+        switchTold = true;
+        err(switched);
+      }
       const told = mismatchTold ? undefined : agentMismatch(hello);
       if (!told) return;
       mismatchTold = true;

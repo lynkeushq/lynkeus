@@ -212,6 +212,8 @@ LYNKEUS_PORT=8124 LYNKEUS_TOKEN=un-secreto-local npx lynkeus screen
 
 Es lo que permite repartir una suite entre los núcleos de una máquina de CI. La guía [CI](/es/guides/ci/) lo desarrolla.
 
+Dos hosts en el mismo puerto no dan error: el driver se queda con el último que se conectó, así que se turnan y un paso puede caer en la app equivocada (un comando que una tiene y la otra no falla como `this host has no …`). La CLI lo avisa una vez con `Another app attached on port …` y nombra las dos. Detén el host que quedó corriendo o dale a cada uno su propio `LYNKEUS_PORT`.
+
 ## Problemas frecuentes
 
 ### La app no pasa de la pantalla de carga
