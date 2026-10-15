@@ -208,14 +208,10 @@ export const headlessCommands = [
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
         cwd: ctx.root,
         stdio: ['inherit', 'inherit', 'pipe'],
-<<<<<<< HEAD
-        env: { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
+        env,
         // Its own process group: npx, jest and the host it runs end together. Stopping only npx left the
         // host dialing the port, where a later run's driver took it for the app it meant to drive.
         detached: true,
-=======
-        env,
->>>>>>> bd27fdf (Keep a jest cache per API address for the headless host)
       });
       const stop = (signal: NodeJS.Signals) => {
         try {
