@@ -84,8 +84,34 @@ const hostFence = (hosts: string[], kind: string) => {
 
 type Fetch = (input: unknown, init?: unknown) => Promise<unknown>;
 
+/** The cause a failed fetch carries (undici puts the socket's error under `cause`, sometimes several). */
+const unreachable = (error: unknown): string | undefined => {
+  const cause = (error as { cause?: { code?: string; errors?: { code?: string }[] } } | null)?.cause;
+  const code = cause?.code ?? cause?.errors?.find((e) => e.code)?.code;
+  return code && ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ETIMEDOUT', 'ECONNRESET'].includes(code) ? code : undefined;
+};
+
 const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
   const refuse = hostFence(hosts, 'network');
+  // A backend that is not up, or an API base the app took from its default because the env var was not set,
+  // otherwise shows only as screens that never load: say it once per address.
+  const silent = new Set<string>();
+  const told = (url: string) => (error: unknown) => {
+    const code = unreachable(error);
+    let origin = url;
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      // not a URL; keep it whole
+    }
+    if (code && !silent.has(origin)) {
+      silent.add(origin);
+      log(
+        `network: ${origin} did not answer (${code}). Is the backend up, and is that the address the app should use? An app reads it from the env var lynkeus.config.json names in apiEnv.`,
+      );
+    }
+    throw error;
+  };
   return (input, init) => {
     const url = typeof input === 'string' ? input : ((input as { url?: string } | null)?.url ?? String(input));
     const refused = refuse(url);
@@ -101,7 +127,7 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       return fetchImpl(input, init).then(lost, () => lost());
     }
     if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response);
-    const result = fetchImpl(input, init);
+    const result = fetchImpl(input, init).catch(told(url));
     if (!netControls.recording()) return result;
     return result.then(async (response) => {
       const r = response as { clone: () => { text: () => Promise<string> }; status: number };

@@ -216,6 +216,10 @@ Dos hosts en el mismo puerto no dan error: el driver se queda con el último que
 
 ## Problemas frecuentes
 
+### Las pantallas nunca cargan y el host dice `did not answer (ECONNREFUSED)`
+
+El backend no está levantado en esa dirección, o la app no usa la que esperabas: lee la base de su API de la variable que nombra `apiEnv`, y si esa variable no está definida en la terminal donde corriste `headless start`, usa la suya por defecto.
+
 ### La app no pasa de la pantalla de carga
 
 Casi siempre es un módulo nativo que lynkeus no conoce. Ejecuta `lynkeus headless doctor` y simula lo que falte en el archivo de entrada.
