@@ -55,6 +55,10 @@ export class Fixtures {
   #lines: string[] = [];
   #waiting: ((line: string | null) => void) | null = null;
   #stderr = '';
+  // Ends in a row without one answer. A command that cannot start (a wrong path, a backend that is not
+  // there) would otherwise be started again for every case, and each case would wait out its own start.
+  #silentEnds = 0;
+  #broken: string | null = null;
 
   constructor(config: FixturesConfig, root: string) {
     this.#config = config;
@@ -70,12 +74,15 @@ export class Fixtures {
       cwd: path.resolve(this.#root, this.#config.cwd ?? '.'),
       env: { ...process.env, ...this.#config.env },
     });
+    // Writing to a command that already ended fails here; its close says so to whoever waits.
+    child.stdin.on('error', () => undefined);
     child.stderr.on('data', (chunk: Buffer) => {
       this.#stderr = (this.#stderr + chunk.toString()).slice(-4000);
     });
     const reader = readline.createInterface({ input: child.stdout });
     reader.on('line', (line) => {
       if (!line.trim().startsWith('{')) return;
+      this.#silentEnds = 0;
       if (this.#waiting) {
         const resolve = this.#waiting;
         this.#waiting = null;
@@ -83,6 +90,7 @@ export class Fixtures {
       } else this.#lines.push(line);
     });
     child.on('close', () => {
+      if (this.#child === child) this.#silentEnds += 1;
       this.#child = null;
       this.#waiting?.(null);
       this.#waiting = null;
@@ -92,6 +100,7 @@ export class Fixtures {
   }
 
   async call(command: string, params: Record<string, unknown>): Promise<Answer> {
+    if (this.#broken) throw new Error(`${command}: ${this.#broken}`);
     const child = this.#start();
     child.stdin.write(`${JSON.stringify({ command, params, env: envOf(params) })}\n`);
     const timeoutMs = this.#config.timeoutMs ?? 120_000;
@@ -107,8 +116,11 @@ export class Fixtures {
         resolve(answer);
       };
     });
-    if (line === null)
-      throw new Error(`${command}: the fixtures command ended${this.#stderr ? `: ${this.#stderr.trim().split('\n').slice(-3).join(' · ')}` : ''}`);
+    if (line === null) {
+      const ended = `the fixtures command ended${this.#stderr ? `: ${this.#stderr.trim().split('\n').slice(-3).join(' · ')}` : ''}`;
+      if (this.#silentEnds >= 2) this.#broken = `${ended} (it ended twice without answering, so it is not started again in this run)`;
+      throw new Error(`${command}: ${ended}`);
+    }
     const answer = JSON.parse(line) as Answer;
     if (answer.ok === false) throw new Error(`${command}: ${String(answer.error ?? answer.message ?? 'ok=false')}`);
     return answer;

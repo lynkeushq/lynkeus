@@ -115,19 +115,27 @@ const idleShare = async (): Promise<number> => {
   return after.all > before.all ? (after.idle - before.idle) / (after.all - before.all) : 1;
 };
 
-/** The case files named, or every case under the cases directory; a sentence when there are none. */
+/** Every case under a directory and its subdirectories, in path order, so a suite can group its cases in folders. */
+const casesIn = (dir: string): string[] =>
+  fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => !e.name.startsWith('.') && e.name !== 'node_modules')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((e) => {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) return casesIn(full);
+      return e.name.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(e.name) ? [full] : [];
+    });
+
+/** The case files named (a directory stands for every case under it), or every case under the cases directory; a sentence when there are none. */
 const caseFiles = (args: string[], home: string, casesDir: string | undefined): string[] | string => {
   const dir = path.resolve(home, casesDir ?? 'cases');
-  const files = args.length
-    ? args.map((f) => path.resolve(f))
-    : fs.existsSync(dir)
-      ? fs
-          .readdirSync(dir)
-          .filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f) && !f.startsWith('.'))
-          .sort()
-          .map((f) => path.join(dir, f))
-      : [];
-  return files.length > 0 ? files : `no cases under ${path.relative(home, dir) || '.'}; \`lynkeus case init\` writes one`;
+  const named = args.map((f) => path.resolve(f));
+  const missing = named.find((f) => !fs.existsSync(f));
+  if (missing) return `no such case file: ${path.relative(process.cwd(), missing) || missing}`;
+  const files = named.length ? named.flatMap((f) => (fs.statSync(f).isDirectory() ? casesIn(f) : [f])) : fs.existsSync(dir) ? casesIn(dir) : [];
+  const where = named.length === 1 ? path.relative(home, named[0]!) : path.relative(home, dir);
+  return files.length > 0 ? files : `no cases under ${where || '.'}; \`lynkeus case init\` writes one`;
 };
 
 type PrepareOptions = { base: Base; config: CasesConfig; store: Store; open: () => Fixtures; limit: number; idle: number; jobs: number };

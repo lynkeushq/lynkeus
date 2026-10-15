@@ -160,7 +160,7 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `cases.dir` | string | `cases` | The folder of case files. `case run` without arguments runs every `.md` file directly in it, except `README.md`, `FORMAT.md`, `CATALOG.md` and files that start with a dot. |
+| `cases.dir` | string | `cases` | The folder of case files. `case run` without arguments runs every `.md` file in it and its subfolders, in path order, except `README.md`, `FORMAT.md`, `CATALOG.md` and files that start with a dot. A folder named on the command line stands for the cases under it. |
 | `cases.flows` | string | `flows` | The folder of the flows an `app.run` step names. |
 | `cases.fixtures` | object | none | The command that answers fixture steps. Without it, a case can only use `app.*` and `exec` steps. |
 | `cases.fixtures.command` | string | required | A shell command. lynkeus starts it once per run and speaks JSON lines to it: one line in per step, one line out. |
