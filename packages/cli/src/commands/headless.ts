@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -35,6 +36,18 @@ const JEST_CONFIGS = ['jest.config.js', 'jest.config.cjs', 'jest.config.mjs', 'j
 
 // React Native and most of what an app adds to it ship untranspiled ES modules, which jest leaves alone unless told.
 const apiFromConfig = (config: LynkeusConfig): Record<string, string> => (config.apiUrl ? { [config.apiEnv ?? 'API_URL']: config.apiUrl } : {});
+
+/**
+ * A jest cache of its own for each API base. Babel inlines `process.env` into the code it transforms and jest
+ * keeps that output, so a host started with another API address kept calling the first one it was started with.
+ */
+export const cacheFor = (root: string, env: Record<string, string | undefined>, apiEnv = 'API_URL'): string => {
+  const key = createHash('sha256')
+    .update(`${apiEnv}=${env[apiEnv] ?? ''}`)
+    .digest('hex')
+    .slice(0, 12);
+  return path.join(lynkeusDir(root), 'jest-cache', key);
+};
 
 const TRANSFORM_PACKAGES =
   '((jest-)?react-native[^/]*|@react-native[^/]*|@react-navigation|react-navigation|expo(nent)?|@expo(nent)?/.*|expo-.*|@unimodules|unimodules|@shopify|@gorhom|@sentry/react-native|lynkeus-[^/]+|yoga-layout|@testing-library|immer|@reduxjs/toolkit|react-redux|redux|reselect|@expo-google-fonts|native-base|standard-navigation)';
@@ -190,10 +203,12 @@ export const headlessCommands = [
       fs.writeFileSync(testFile, hostTest(rel.startsWith('.') ? rel : `./${rel}`, port, ctx.config, path.basename(ctx.root)));
       // Node resolves `localhost` to ::1 first; local backends usually listen on IPv4 only.
       const nodeOptions = [process.env.NODE_OPTIONS, '--dns-result-order=ipv4first'].filter(Boolean).join(' ');
-      const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), ...ctx.passthrough], {
+      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions };
+      const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
+      const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
         cwd: ctx.root,
         stdio: ['inherit', 'inherit', 'pipe'],
-        env: { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions },
+        env,
         // Its own process group: npx, jest and the host it runs end together. Stopping only npx left the
         // host dialing the port, where a later run's driver took it for the app it meant to drive.
         detached: true,

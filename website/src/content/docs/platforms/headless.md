@@ -314,7 +314,7 @@ npx lynkeus headless doctor --explain "<first line of the error>"
 
 **The app never leaves the splash screen.** Usually a native module that nothing mocks: run `lynkeus headless doctor` and mock what it lists. The other cause is Node resolving `localhost` to IPv6 while your backend listens on IPv4; use `127.0.0.1` in the API URL.
 
-**A change to an environment variable has no effect.** If your Babel configuration inlines environment variables, Jest's transform cache keeps the first value it saw. Remove the cache directory your Jest configuration points at.
+**A change to an environment variable has no effect.** If your Babel configuration inlines environment variables, Jest's transform cache keeps the first value it saw. `headless start` keeps a cache per value of the variable `apiEnv` names (under `.lynkeus/jest-cache/`), so changing the API address takes effect, at the cost of a slower first start with a new one. For any other inlined variable, remove `.lynkeus/jest-cache/`.
 
 **A screen never settles.** A screen that keeps re-rendering, such as a countdown or a spinner, never goes idle, and `lynkeus idle` answers `idle: false`. That is information about the screen, not a fault in the host. If the cause is one control whose content changes on its own, list its `testID` pattern under `live` in `lynkeus.config.json` and its text stops counting.
 

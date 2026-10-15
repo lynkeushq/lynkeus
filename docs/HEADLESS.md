@@ -140,8 +140,9 @@ aliases, the longest first, since jest-expo tries `@/*` before `@/assets/*`.
 ## Troubleshooting
 
 **An env var change has no effect.** If your babel inlines environment
-variables, jest's transform cache freezes the first value it saw. Remove the
-cache directory your jest config points at.
+variables, jest's transform cache freezes the first value it saw. `headless
+start` keeps one cache per value of the `apiEnv` variable, under
+`.lynkeus/jest-cache/`; for any other inlined variable, remove that folder.
 
 **The app never leaves the splash.** Usually a native module that lynkeus does
 not know: run `lynkeus headless doctor`, then mock it in your entry (`--fix`
