@@ -238,7 +238,7 @@ Pega la primera línea, no la traza completa.
 
 ### Cambiar una variable de entorno no tiene efecto
 
-Si tu configuración de Babel sustituye variables de entorno al compilar, la caché de transformaciones de Jest conserva el primer valor que vio. Borra el directorio de caché al que apunta tu configuración de Jest.
+Si tu configuración de Babel sustituye variables de entorno al compilar, la caché de transformaciones de Jest conserva el primer valor que vio. `headless start` guarda una caché por cada valor de la variable que nombra `apiEnv` (en `.lynkeus/jest-cache/`), así que cambiar la dirección de la API surte efecto, con un primer arranque más lento para cada dirección nueva. Para cualquier otra variable sustituida, borra `.lynkeus/jest-cache/`.
 
 ### Una pantalla nunca se estabiliza
 
