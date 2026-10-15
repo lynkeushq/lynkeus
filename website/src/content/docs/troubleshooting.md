@@ -414,11 +414,11 @@ The errors it recognizes:
 
 ## Reports
 
-### `set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY`
+### `set LYNKEUS_REPORTS_KEY to an API key of your organization`
 
-**Why.** `case run --push` and the `lynkeus report` commands need the address of the report service and your organization's API key.
+**Why.** `case run --push` and the `lynkeus report` commands need your organization's API key, and it is not set.
 
-**Fix.** Export both. `case run --push` checks for them before it runs anything, so a missing key does not surface only after every case has run.
+**Fix.** Create a key at lynkeus.io, under **API keys**, and export it as `LYNKEUS_REPORTS_KEY`. `LYNKEUS_REPORTS_URL` is needed only for a service other than `https://lynkeus.io`. `case run --push` checks for them before it runs anything, so a missing key does not surface only after every case has run.
 
 ### `not kept on this plan: …`
 

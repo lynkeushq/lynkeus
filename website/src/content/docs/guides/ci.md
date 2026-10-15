@@ -230,7 +230,7 @@ Each of these acts on the screen the app is showing or on a recorded run, so the
 
 **The job passes although cases were not run.** Read the summary line. `3/5 passed, 2 cannot run on this host` means two cases were `unsupported` on this host. They need the other kind of host.
 
-**`set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)`.** The variables are not set for this step. Check that the secret exists and that the step's `env` passes it.
+**`set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.** The key is not set for this step. Check that the secret exists and that the step's `env` passes it.
 
 ## Next steps
 
