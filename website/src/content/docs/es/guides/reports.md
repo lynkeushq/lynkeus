@@ -102,7 +102,17 @@ npx lynkeus report push run --project mi-app
 
 El reporte presenta cada caso con sus pasos. Junto a ellos corre la película, sincronizada con el paso que se está viendo, o la captura de pantalla de cada paso. Desde 0.5.0, un host que puede (fastsim en una Mac) guarda las capturas en AVIF, cerca de un quinto de lo que pesa un PNG; `--frames png` las deja en PNG, para comparar píxel por píxel. Arriba de los pasos va de qué se trata el caso: `description`, `why`, `given`, `ticket` y `expected`. Cada paso lista los eventos de analítica que envió, con el servicio al que fueron (más de 40 servicios: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase y Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly y otros), y las peticiones que mandó la app, con encabezados y cuerpos de ida y de vuelta. Los secretos (contraseñas, códigos, tokens, números de tarjeta, `Authorization` y cookies) se reemplazan por `…` y un cuerpo se corta a los 16 KB; desde 0.5.0, en toda ejecución con `--out`. Un caso fallido muestra por qué falló. La ejecución aparece en **Runs** con su rama y su commit.
 
-Si ejecutaste con `--traces`, cada paso muestra además las peticiones que envió la app y lo que el backend hizo por cada una. Está en [trazas del backend](/es/guides/backend-traces/).
+Si ejecutaste con `--traces`, cada paso muestra además las peticiones que envió la app, con lo que mandó y lo que recibió, y los jobs y llamadas que el backend disparó por cada una. Las consultas a la base nunca se guardan ni se muestran, porque nombran tus tablas. Está en [trazas del backend](/es/guides/backend-traces/). Si `cases.serverEvents` nombra un fixture que los lee, también aparecen los eventos que tu backend mandó a su analítica, marcados BACKEND.
+
+Arriba, el reporte enlaza el commit al repositorio, dice en qué commit estaba la ejecución anterior del proyecto (con un enlace para compararlos) y avisa si la ejecución tenía archivos con cambios sin commitear.
+
+### Cómo moverte en un reporte
+
+- La lista de casos nombra cada caso por su `title`, con el id debajo. Se pliega a una columna de puntos de estado con su botón o con `[`.
+- Las pestañas All, Steps, Events, Network y Backend, cada una con su cantidad, acotan lo que muestra cada paso; un filtro (de los que vienen, tuyo o del equipo) y **Edit rules** eligen el resto.
+- La búsqueda filtra pasos, eventos, propiedades y servicios mientras escribes; `/` la enfoca. Una pastilla por servicio muestra u oculta sus eventos, y un interruptor muestra las llamadas de SDK (`setAttribute`, `identify`, `updateUser`…), ocultas por defecto.
+- **Events map** muestra qué servicio recibió qué en cada paso, una fila por paso y una columna por servicio: un paso que tendría que haberle avisado algo a un servicio y no lo hizo queda como un hueco. Una celda abre ese paso con solo ese servicio.
+- La línea de tiempo bajo la película tiene un punto por servicio sobre cada paso que le mandó algo.
 
 ## Planes y retención
 
