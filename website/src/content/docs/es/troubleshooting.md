@@ -345,11 +345,11 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 ## Problemas con los reportes
 
-### `set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY`
+### `set LYNKEUS_REPORTS_KEY to an API key of your organization`
 
-**Por qué pasa.** `--push` y los comandos `lynkeus report` necesitan saber adónde subir y con qué clave, y falta alguna de las dos variables.
+**Por qué pasa.** `--push` y los comandos `lynkeus report` necesitan la clave de API de tu organización, y no está definida.
 
-**Cómo se arregla.** Define las dos. La clave se crea en el servicio y se muestra una sola vez.
+**Cómo se arregla.** Crea una clave en lynkeus.io, en **API keys** (se muestra una sola vez), y expórtala como `LYNKEUS_REPORTS_KEY`. `LYNKEUS_REPORTS_URL` solo hace falta para un servicio distinto de `https://lynkeus.io`.
 
 ### `--push uploads the run directory: add --out <dir>`
 

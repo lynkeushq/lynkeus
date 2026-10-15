@@ -74,7 +74,6 @@ Si solo necesitas un resumen para otra herramienta, `--report <archivo>` agrega 
 ## 4. Sube la ejecución
 
 ```bash
-export LYNKEUS_REPORTS_URL=https://lynkeus.io
 export LYNKEUS_REPORTS_KEY=lk_…
 npx lynkeus case run --out run --screenshots --push
 ```
@@ -88,7 +87,9 @@ newly failing (1): checkout-gift
 fixed since the run before (1): settings-dark-mode
 ```
 
-La presencia de las dos variables se comprueba antes de ejecutar nada, para que una clave faltante no aparezca recién cuando ya corrieron todos los casos. En cambio, si la subida falla al final, la ejecución no se pierde ni cambia su resultado: verás `the report was not uploaded: <motivo>` y el directorio sigue en tu disco.
+La CLI habla con `https://lynkeus.io` salvo que `LYNKEUS_REPORTS_URL` nombre otro servicio.
+
+La presencia de la clave se comprueba antes de ejecutar nada, para que una clave faltante no aparezca recién cuando ya corrieron todos los casos. En cambio, si la subida falla al final, la ejecución no se pierde ni cambia su resultado: verás `the report was not uploaded: <motivo>` y el directorio sigue en tu disco.
 
 Una ejecución que ya tienes guardada se sube después con:
 
@@ -155,7 +156,7 @@ Un cliente MCP como Claude, Claude Code o Cursor también puede leer las ejecuci
 
 **`--push uploads the run directory: add --out <dir>`.** Mismo motivo: `--push` sube lo que escribe `--out`.
 
-**`set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)`.** Falta una de las dos variables en el entorno donde corre el comando. En CI, revisa que el secreto esté expuesto en ese paso.
+**`set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.** Falta la clave en el entorno donde corre el comando. En CI, revisa que el secreto esté expuesto en ese paso.
 
 **`` run: no cases.jsonl; pass the directory `case run --out` wrote ``.** `report push` recibió una carpeta que no es una ejecución.
 

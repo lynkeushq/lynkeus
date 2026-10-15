@@ -173,15 +173,14 @@ Solo el valor exacto `1` la activa. Lo grabado es lo que después lee `lynkeus m
 
 ### `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`
 
-La dirección del servicio de reportes y la clave de API de la organización. Las leen `lynkeus case run --push` y todos los comandos `lynkeus report`. Hacen falta las dos.
+La dirección del servicio de reportes y la clave de API de la organización. Las leen `lynkeus case run --push` y todos los comandos `lynkeus report`. La clave es obligatoria; la dirección es `https://lynkeus.io` si no defines otra.
 
 ```bash
-export LYNKEUS_REPORTS_URL=https://lynkeus.io
 export LYNKEUS_REPORTS_KEY=lk_…
 npx lynkeus case run --out run --screenshots --push
 ```
 
-Si falta alguna, el comando termina con `set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)`.
+Si falta la clave, el comando termina con `set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.
 
 La clave se crea en el servicio, en la sección de claves de API, y se muestra una sola vez. Es un secreto: en CI va en los secretos del repositorio, nunca en el archivo del workflow.
 

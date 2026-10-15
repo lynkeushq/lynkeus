@@ -23,7 +23,7 @@ lynkeus no publica una acción propia para ejecutar casos: un job de CI ejecuta 
 | `LYNKEUS_TOKEN` | El secreto compartido entre la app y quien la maneja. Debe tener el mismo valor en ambos lados. |
 | El backend | El que el job está probando: su imagen, con su base de datos y su caché como servicios, y datos de prueba. No hace falta un entorno compartido. |
 | El comando de fixtures | Lo que declaraste en `cases.fixtures`, con acceso a ese backend. |
-| Las variables del servicio de reportes | `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`, solo si usas `--push`. |
+| Las variables del servicio de reportes | `LYNKEUS_REPORTS_KEY`, solo si usas `--push` (y `LYNKEUS_REPORTS_URL` para un servicio distinto de lynkeus.io). |
 
 ## Elige el host
 

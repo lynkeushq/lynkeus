@@ -125,16 +125,15 @@ Any value other than `1` leaves it off.
 
 ### `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`
 
-Read by the CLI, for `lynkeus case run --push` and every `lynkeus report` command. `LYNKEUS_REPORTS_URL` is the address of the report service. `LYNKEUS_REPORTS_KEY` is your organization's API key.
+Read by the CLI, for `lynkeus case run --push` and every `lynkeus report` command. `LYNKEUS_REPORTS_KEY` is your organization's API key. `LYNKEUS_REPORTS_URL` is the address of the report service, `https://lynkeus.io` unless you set another.
 
-Both are required. Without them, those commands stop with:
+The key is required. Without it, those commands stop with:
 
 ```text
-set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)
+set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service
 ```
 
 ```bash
-export LYNKEUS_REPORTS_URL=https://lynkeus.io
 export LYNKEUS_REPORTS_KEY=lk_…
 lynkeus case run --out run --screenshots --push
 ```

@@ -90,10 +90,9 @@ The TypeScript types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in t
 
 1. Sign in at lynkeus.io with Google or GitHub. You get an organization of your own, or join the one that invited you.
 2. Under **API keys**, create a key. It is shown once.
-3. Export the service address and the key:
+3. Export the key. The CLI talks to `https://lynkeus.io` unless `LYNKEUS_REPORTS_URL` names another service:
 
 ```bash
-export LYNKEUS_REPORTS_URL=https://lynkeus.io
 export LYNKEUS_REPORTS_KEY=lk_…
 ```
 
@@ -123,7 +122,7 @@ npx lynkeus report push run --project myapp
 
 `--project <name>` is the project the run is filed under. It defaults to the name of the app's folder.
 
-`--push` checks the two variables before the run starts, so a missing key stops the command at once instead of after every case has run. If the upload itself fails, the run still counts: the summary says `the report was not uploaded: …` and the exit code reflects the cases.
+`--push` checks for the key before the run starts, so a missing key stops the command at once instead of after every case has run. If the upload itself fails, the run still counts: the summary says `the report was not uploaded: …` and the exit code reflects the cases.
 
 ## What the hosted report shows
 
@@ -198,7 +197,7 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **`--push uploads the run directory: add --out <dir>`.** Same cause.
 
-**`set LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY (the organisation’s API key)`.** One of the two variables is missing in this shell.
+**`set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.** The key is not set in this shell.
 
 **``run: no cases.jsonl; pass the directory `case run --out` wrote``.** `report push` was given a directory that is not a run.
 

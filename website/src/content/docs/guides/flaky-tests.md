@@ -161,7 +161,7 @@ Each line has the outcome, when the run was made, how long the case took, the br
 
 This is the view that tells the two apart. Failures scattered across unrelated commits point to a flaky test. Failures that begin at one commit and continue point to a change that broke it, and the line names the commit.
 
-Both commands need `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`. `report flakes` is on the Team plan.
+Both commands need `LYNKEUS_REPORTS_KEY`. `report flakes` is on the Team plan.
 
 ## A routine that works
 
