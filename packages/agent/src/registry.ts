@@ -15,6 +15,11 @@ const defaults = new Map<string, Handler>([
   ['networkBodies', setNetworkBodies],
 ]);
 
+/** A command the agent answers by itself only on some hosts (`analytics`, where it could wrap the SDKs). */
+export const addDefault = (name: string, handler: Handler): void => {
+  defaults.set(name, handler);
+};
+
 const register = (name: string, handler: Handler): (() => void) => {
   if (!/^[a-zA-Z][\w.-]*$/.test(name)) throw new Error(`Invalid command name "${name}"`);
   handlers.set(name, handler);
