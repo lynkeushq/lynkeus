@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Over MCP, a command that ends with a non-zero code (a case that failed, a fixtures server that does not keep the contract) comes back as an error, with all it said; it used to read as success. `case coverage`, `case impact`, `case new`, `fixtures check` and `fixtures describe` are served to every MCP client, not only with `mcp --full`.
+
 - `lynkeus case new <id> --to <Route> [--from <Route>]` drafts a case to finish: the frontmatter's questions, the setup the project's fixtures server describes (commented out: what state a case needs is its author's call), the presses to the screen as `map plan` knows them, and the checks left to write; `--write` saves it in the cases folder, never over a file. `cases.start` in the config names where drafts begin. An MCP tool.
 
 - `lynkeus case coverage` says which of the app's screens the cases touch (by what they name in `app.nav`, `app.wait` and `app.see: { route }`, and what passing runs went through with `--seen`), which none does, and which a case names that the app no longer has. `lynkeus case impact --base <ref>` crosses a branch's changes with that coverage: the cases to run, nearest first, and the screens reached that no case covers; `--files` prints the case files for `case run`. Both are MCP tools.

@@ -37,7 +37,7 @@ export const coverageCommands = [
     },
     needs: 'graph',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
@@ -78,7 +78,7 @@ export const coverageCommands = [
     },
     needs: 'graph',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
@@ -112,7 +112,7 @@ export const coverageCommands = [
     },
     needs: 'graph',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const id = ctx.args[0]!;
