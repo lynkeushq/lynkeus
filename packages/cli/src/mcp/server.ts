@@ -126,7 +126,10 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
       return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
     const r = await execute(argvFor(c, input), session.ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
-    return text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is
+    // reported as such, with everything it said, so a model does not read it as success.
+    return r.code === 0 ? body : { ...body, isError: true };
   });
   // The client going away ends the server: the session holds the driver's port open, and a server left behind
   // keeps the next one (or a case run) from binding it.

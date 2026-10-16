@@ -49,6 +49,8 @@ export type CasesConfig = {
   /** `{ "user": "user_id" }` turns `user: u` into `user_id: <u.user_id>`, and gives a step that names no user the latest one. */
   refs?: Record<string, string>;
   /** Steps this project adds: `{ "app.login": [...] }`. Inside, `{{param.x}}` is what the case passed. */
+  /** The screen a case begins on, for drafts (`case new`): the first the app shows a signed-in person, say. */
+  start?: string;
   macros?: Record<string, unknown[]>;
   /** What the app may put in the way of a step and the steps that get past it; a step whose own words match `unless` is about it, and is left alone. */
   interruptions?: { see: string; do: unknown[]; unless?: string }[];
