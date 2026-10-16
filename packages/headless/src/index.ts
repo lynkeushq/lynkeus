@@ -160,18 +160,26 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   log('rendering the app');
   let rendered = await render(make());
   let resets = 0;
+  // Between the unmount and the next render the old renderer throws on every read; what idle and waitFor
+  // poll meanwhile is an empty screen, which changes as soon as the app is back.
+  let remounting = false;
   // A reset wipes the mocked native state and mounts the app again: a process
   // that never relaunches still gets a fresh tree, and a dead navigator a way back.
   host.onReset(async () => {
     resets += 1;
     reset();
+    remounting = true;
     try {
-      // Rendering again before the unmount settles leaves an empty tree.
-      await rendered.unmount();
-    } catch (error) {
-      log(`reset: unmount failed (${error instanceof Error ? error.message : String(error)})`);
+      try {
+        // Rendering again before the unmount settles leaves an empty tree.
+        await rendered.unmount();
+      } catch (error) {
+        log(`reset: unmount failed (${error instanceof Error ? error.message : String(error)})`);
+      }
+      rendered = await render(make());
+    } finally {
+      remounting = false;
     }
-    rendered = await render(make());
     log('reset: app re-rendered');
   });
   qa.register('memory', () => {
@@ -206,7 +214,8 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   );
   const yoga = await loadYoga(log);
   log(yoga ? 'layout: Yoga loaded (approximate real coordinates)' : 'layout: none (synthetic frames)');
-  const backend = headlessBackend(() => rendered.container as unknown as ReactTestInstance, {
+  const blank = { type: 'View', props: {}, children: [], parent: null } as unknown as ReactTestInstance;
+  const backend = headlessBackend(() => (remounting ? blank : (rendered.container as unknown as ReactTestInstance)), {
     window: options.window,
     yoga,
     valueComponents: options.valueComponents,
