@@ -40,7 +40,9 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
         .split('\n')
         .map((line) => line.trim())
         .join(' · ');
-    return plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
+    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message.
+    const thrown = plain.match(/Test suite failed to run\s*\n\s*\n?\s*(\S.*)$/m)?.[1]?.trim();
+    return thrown ?? plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
   };
   await new Promise<void>((resolve, reject) => {
     const settle = (error?: Error) => {
