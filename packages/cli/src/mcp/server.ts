@@ -72,7 +72,9 @@ To write a test: call case_init once if the project has no cases, and read the R
 
 To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.
 
-To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.`;
+To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
+
+For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video, traces and push. Before it, check what only the app's people know, in the project's own QA notes (a README or AGENTS.md next to its cases), and ask if it is not written: which build turns the app's analytics SDKs on (many apps switch Mixpanel and the like off in development, and then no event shows), and how the backend exports OpenTelemetry to the run. Film needs a host that films (fastsim). When the run ends it warns about evidence it could not keep: pass that on, do not hide it.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

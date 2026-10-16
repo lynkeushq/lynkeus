@@ -199,6 +199,22 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
   });
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
+// A run that kept evidence but none of a kind says so, with the usual cause: an app whose build turns its analytics
+// off never calls the SDK, so there is nothing to keep, and the report would only show the gap.
+export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }): string[] => {
+  if (reports.length === 0) return [];
+  const steps = reports.flatMap((r) => r.steps);
+  const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
+  return [
+    ...(fromApp
+      ? []
+      : [
+          '⚠ no case saw the app send an analytics event. If the app has Mixpanel, AppsFlyer or Firebase Analytics, check that the build it ran turns them on (an env file or flag): lynkeus keeps the calls that reach the SDK.',
+        ]),
+    ...(asked.video && !reports.some((r) => r.video) ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).'] : []),
+  ];
+};
+
 const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string, err: (line: string) => void) => {
   try {
     const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
@@ -497,6 +513,7 @@ export const caseCommands = [
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
+        ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(reportsTo && out
           ? [
