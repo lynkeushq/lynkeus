@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus ci` runs a suite the way a CI job does: brings the project's backend up with its own command (`ci.backend.up`, waiting for `ci.backend.ready`), starts N hosts of the app (headless unless `ci.hosts.command` says otherwise), runs the cases across them, uploads the run with `ci.push`, writes the job summary to `$GITHUB_STEP_SUMMARY`, and tears everything down. `--affected` runs only the cases a branch's changes reach; `--dry-run` says what it would do.
+
 - Over MCP, a command that ends with a non-zero code (a case that failed, a fixtures server that does not keep the contract) comes back as an error, with all it said; it used to read as success. `case coverage`, `case impact`, `case new`, `fixtures check` and `fixtures describe` are served to every MCP client, not only with `mcp --full`.
 
 - `lynkeus case new <id> --to <Route> [--from <Route>]` drafts a case to finish: the frontmatter's questions, the setup the project's fixtures server describes (commented out: what state a case needs is its author's call), the presses to the screen as `map plan` knows them, and the checks left to write; `--write` saves it in the cases folder, never over a file. `cases.start` in the config names where drafts begin. An MCP tool.

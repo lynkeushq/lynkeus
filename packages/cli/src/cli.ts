@@ -11,6 +11,7 @@ import { driveCommands } from './commands/drive.js';
 import { headlessCommands } from './commands/headless.js';
 import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
+import { ciCommands } from './commands/ci.js';
 import { coverageCommands } from './commands/coverage.js';
 import { fixturesCommands } from './commands/fixtures.js';
 import { reportCommands } from './commands/report.js';
@@ -29,6 +30,7 @@ register([
   ...runsCommands,
   ...caseCommands,
   ...coverageCommands,
+  ...ciCommands,
   ...fixturesCommands,
   ...reportCommands,
   ...headlessCommands,

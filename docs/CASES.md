@@ -141,6 +141,24 @@ A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks
 screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
 graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
 
+## In CI
+
+`lynkeus ci` is a suite run the way a CI job wants one: the project's backend brought up by the project's own
+command, N hosts of the app, the cases spread across them, the report uploaded, a summary for the job, and
+everything torn down, failure or not. lynkeus knows no backend; the config says how to start one:
+
+```json
+"ci": {
+  "backend": { "up": "../qa-tools/ci/env.sh up", "down": "../qa-tools/ci/env.sh down", "ready": "http://127.0.0.1:3100/up" },
+  "hosts": { "count": 4 },
+  "push": true
+}
+```
+
+```yaml
+- run: npx lynkeus ci --affected --base origin/main   # only the cases this pull request's changes reach
+```
+
 ## Configuration
 
 ```json
