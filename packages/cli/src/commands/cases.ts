@@ -28,6 +28,11 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
+  // Everything the host prints, for the render errors and warnings a failed case points at; the console keeps the run's own lines.
+  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}.log`);
+  const logStream = fs.createWriteStream(logFile);
+  logStream.on('error', () => {});
+  host.once('exit', () => logStream.end());
   let output = '';
   const tail = (n: number) => output.trim().split('\n').slice(-n).join(' · ');
   // `headless start` ends a crash with what it usually means; without that, the error line jest printed.
@@ -52,6 +57,7 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     };
     const timer = setTimeout(() => settle(new Error(`the host did not come up within 180 s: ${tail(3)}`)), 180_000);
     const read = (chunk: Buffer) => {
+      logStream.write(chunk);
       output = (output + chunk.toString()).slice(-4000);
       if (/waiting for a driver/.test(output)) settle();
     };
@@ -60,7 +66,8 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     // A suite that fails to load exits right after printing why, so its explanation is read in full here.
     host.once('exit', (code) => settle(new Error(`${/Test suite failed/.test(output) ? 'the host failed to start' : `the host exited (${code})`}: ${why()}`)));
   });
-  err('host: up');
+  // The listeners above stay: the log takes all the host prints until it stops.
+  err(`host: up (its log: ${logFile})`);
   return host;
 };
 
