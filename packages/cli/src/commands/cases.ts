@@ -495,6 +495,8 @@ export const caseCommands = [
             (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
+        // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
+        ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(reportsTo && out
           ? [
