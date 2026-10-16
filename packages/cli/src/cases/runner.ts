@@ -294,6 +294,48 @@ export const missingFixtures = (c: Case, config: CasesConfig, known: string[]): 
 /** What the app or its host answers to a method it does not have; the name is what it lacks. */
 export const lacking = (message: string): string | undefined => /Unknown method (\S+)/.exec(message)?.[1];
 
+// A request is read from the app at the end of the step after the one that sent it when it leaves at the very
+// end of a step (a GET the app sends as an action finishes): its trace, carrying the step it left in, says where
+// it belongs. Each request without a trace in its own step moves to the step whose trace served the same method
+// and path at the same moment.
+export const fileRequestsByTrace = (steps: StepReport[], spans: Map<string, { index: number; startedMs: number }>) => {
+  const started = new Map([...spans.values()].map((v) => [v.index, v.startedMs]));
+  const pathOf = (u: unknown) => {
+    try {
+      return new URL(String(u)).pathname;
+    } catch {
+      return String(u ?? '').split('?')[0]!;
+    }
+  };
+  const roots = steps.flatMap((st, index) =>
+    (st.backend ?? [])
+      .filter((sp) => sp.depth === 0)
+      .map((sp) => ({
+        index,
+        method: String(sp.attributes?.['http.method'] ?? sp.attributes?.['http.request.method'] ?? '').toUpperCase(),
+        path: pathOf(sp.attributes?.['http.target'] ?? sp.attributes?.['url.path'] ?? ''),
+        at: (started.get(index) ?? 0) + sp.at,
+      })),
+  );
+  if (!roots.length) return;
+  steps.forEach((st, index) => {
+    const keep: RequestRecord[] = [];
+    for (const q of st.requests ?? []) {
+      const method = String(q.method).toUpperCase(),
+        path = pathOf(q.url);
+      const same = roots.filter((r) => r.method === method && r.path === path);
+      const here = same.some((r) => r.index === index);
+      const near = same
+        .filter((r) => typeof q.startedAt === 'number' && Math.abs(r.at - q.startedAt) < 1500)
+        .sort((a, b) => Math.abs(a.at - q.startedAt!) - Math.abs(b.at - q.startedAt!))[0];
+      if (here || !near || near.index === index || !steps[near.index]) keep.push(q);
+      else steps[near.index]!.requests = [...(steps[near.index]!.requests ?? []), q].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+    }
+    if (st.requests) st.requests = keep.length ? keep : undefined;
+    if (st.requests === undefined) delete st.requests;
+  });
+};
+
 export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport> => {
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
@@ -876,7 +918,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
         e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}), via: 'sdk' as const }] : [],
       );
-      if (sent.length > 0) report.sent = sent;
+      // Added to what the backend told its analytics, read above for the same step, not in its place.
+      if (sent.length > 0) report.sent = [...(report.sent ?? []), ...sent];
     }
     if (requestsSeen !== undefined) {
       const made = await d.requests(requestsSeen).then(
@@ -1066,9 +1109,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await options.traces.settle(tracing.traceId);
     for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
       const s = steps[index];
-      // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
-      if (s) s.backend = spans.slice(0, 400);
+      // A step that set off thousands of spans keeps the first ones; a report is not a profiler.
+      if (s) s.backend = spans.slice(0, 1500);
     }
+    fileRequestsByTrace(steps, tracing.steps);
   }
   if (options.setupOnly && !failed) options.setupOnly.keep({ scope, latest, ran: [...ran], steps });
   if (options.dry) failed = steps.some((s) => s.status === 'failed');
