@@ -115,7 +115,13 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     if (request.params.name === 'app_locale' && locale) return text(locale);
     const c = byName.get(request.params.name);
     if (!c) return { ...text(`✗ no tool ${request.params.name}`), isError: true };
-    const r = await execute(argvFor(c, (request.params.arguments ?? {}) as Record<string, unknown>), session.ctx);
+    const input = (request.params.arguments ?? {}) as Record<string, unknown>;
+    // An argument the tool does not take is dropped by argvFor; a run would then go on without it (every case
+    // instead of the one named), so it is refused, with what the tool does take.
+    const known = Object.keys(schemaFor(c).properties);
+    const unknown = Object.keys(input).filter((key) => !known.includes(key));
+    if (unknown.length) return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
+    const r = await execute(argvFor(c, input), session.ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     return text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
   });
