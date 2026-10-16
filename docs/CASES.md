@@ -207,6 +207,7 @@ did. What turns each on:
 | Film | `--video`, on a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
 | Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
 | The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on fastsim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
+| What the app printed | `--out`: the agent keeps its console and uncaught errors, with their stacks, under the step that printed them |
 | The backend's analytics | `cases.serverEvents` in the config |
 | What the backend did | `--traces` (above) |
 | A link to share | `--push`, with `LYNKEUS_REPORTS_KEY` in the environment |

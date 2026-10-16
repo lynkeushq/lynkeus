@@ -82,7 +82,12 @@ export type StepReport = {
   backend?: BackendSpan[];
   /** The requests the app sent while it ran, with headers and bodies (secrets hidden), when the run keeps evidence. */
   requests?: RequestRecord[];
+  /** What the app printed while it ran: its console and the errors it did not catch, when the run keeps evidence. */
+  logs?: LogLine[];
 };
+
+/** A line the app printed: `at` in ms since the epoch, `source` where it came from (`js`, `native`, `host`). */
+export type LogLine = { at: number; level: 'debug' | 'info' | 'warn' | 'error'; source: string; text: string; stack?: string };
 export type CaseReport = {
   id: string;
   title?: string;
@@ -869,6 +874,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
+  // The same for what it printed.
+  const logging = !!evidence && (await offers('logs'));
+  if (logging) await (await device()).command('logs', { take: true }).catch(() => undefined);
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
   let requestsSeen: number | undefined;
   // Requests filed while still waiting for an answer: read again later and completed where they were filed.
@@ -937,6 +945,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       );
       // Added to what the backend told its analytics, read above for the same step, not in its place.
       if (sent.length > 0) report.sent = [...(report.sent ?? []), ...sent];
+    }
+    if (logging) {
+      const raw = (await d.command('logs', { take: true }).catch(() => [])) as Partial<LogLine>[];
+      const logs = (Array.isArray(raw) ? raw : []).flatMap((l): LogLine[] =>
+        typeof l?.text === 'string' && typeof l.at === 'number'
+          ? [{ at: l.at, level: l.level === 'debug' || l.level === 'warn' || l.level === 'error' ? l.level : 'info', source: typeof l.source === 'string' ? l.source : 'js', text: l.text, ...(typeof l.stack === 'string' ? { stack: l.stack } : {}) }]
+          : [],
+      );
+      if (logs.length > 0) report.logs = logs;
     }
     if (requestsSeen !== undefined) {
       await completeInFlight(d);

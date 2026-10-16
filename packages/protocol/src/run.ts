@@ -70,7 +70,12 @@ export type RunStep = {
   backend?: RunBackendSpan[];
   /** The requests the app sent while it ran, with headers and bodies whose secrets are hidden. */
   requests?: RequestRecord[];
+  /** What the app printed while it ran: its console, the errors it did not catch, its native log. */
+  logs?: RunLogLine[];
 };
+
+/** A printed line: `at` in ms since the epoch; `source` is `js`, `native` or `host`. */
+export type RunLogLine = { at: number; level: 'debug' | 'info' | 'warn' | 'error'; source: string; text: string; stack?: string };
 
 export type RunCase = {
   id: string;
