@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics on a simulator, an emulator or a phone too, not only on fastsim and the headless host: it wraps those SDKs' native modules, keeps each call, and lets it go on to the SDK. A report then shows the app's Mixpanel events under each step next to the backend's. A module the runtime keeps frozen cannot be wrapped and stays unseen.
+- A report opens as soon as its cases are in, says how its frames are coming along, and a run's cases go up in parts of about 256 KB: with every request's headers and bodies a run file is megabytes, more than the service reads in one request.
+- After `app.refresh` (or any reload of the app's JavaScript) a step's requests are kept again: the agent's request ids started over at 1, and the runner asked for ids after the last one it had seen.
+
 - Pushing a run is a request per case, not per file: `report push` (and `case run --push`) sends each case's frames as one tar, four cases at once, retrying what fails on the way, and the reports service reads it into storage as it arrives. A suite of 1,707 frames took over 20 minutes to send a file at a time. Films still go on their own. A service from before this answers 404 and the CLI sends the files one by one.
 - A simulator's or emulator's frames are kept as AVIF too, not only fastsim's: they come as PNG (neither `simctl` nor `screencap` writes AVIF), and the CLI encodes each again while the case goes on, about 4% of the PNG's bytes in some 70 ms (sharp, an optional dependency; without it the PNG stays). `--frames png` keeps them exact, for comparing two runs pixel for pixel.
 
