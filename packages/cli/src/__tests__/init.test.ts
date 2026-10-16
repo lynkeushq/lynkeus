@@ -64,6 +64,12 @@ test('the error catalog names the module behind a TurboModule crash', () => {
   assert.ok(e);
   assert.match(e.cause, /RNCWebView/);
   assert.equal(explainError('all good').length, 0);
+  const [esm] = explainError(
+    'Error [ERR_REQUIRE_ESM]: require() of ES Module /app/node_modules/react-native-builder-bob/babel-config.js from /app/babel.config.js not supported.',
+  );
+  assert.ok(esm);
+  assert.match(esm.cause, /builder-bob\/babel-config\.js/);
+  assert.match(esm.fix, /22\.12/);
 });
 
 test('an Expo Router app gets an entry that mounts the agent, then the router, and reads the token Expo lets through', () => {
