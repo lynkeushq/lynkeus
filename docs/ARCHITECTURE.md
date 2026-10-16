@@ -100,17 +100,19 @@ In order, each step leaning on the ones before:
    `fixtures check`.
 1. `case impact` and `case coverage` in the CLI.
 2. `case new <route>`: the path from the route map, the setup offered from `fixtures describe`.
-3. Record and replay: a run that records keeps each case's answers as its mocks; a case can then run with no backend.
-4. `fixtures init` and its MCP tool; HTTP and SQL fixtures built in.
-5. `ci`: run a suite over N hosts and only the cases a diff touches, with the product's command to bring its backend
+3. `fixtures init` and its MCP tool; HTTP and SQL fixtures built in.
+4. `ci`: run a suite over N hosts and only the cases a diff touches, with the product's command to bring its backend
    up.
-6. Cloud: a GitHub App, screens changed on a pull request with approval, coverage over time.
+5. Cloud: a GitHub App, screens changed on a pull request with approval, coverage over time.
+
+Later, when a team needs it: record and replay, an optional mode for running a case with no backend. A recording
+holds what the app received (each step's responses and the fixtures' answers), never what it produced, and is kept
+next to its case. Running against the real backend stays the default.
 
 Alongside, as before: pixel parity on fastsim (Android first, then iOS on Linux) and the headless cases that still
 fail.
 
 ## Open questions
 
-- Where a recorded case keeps its answers: next to the case (reviewable in a pull request) or in `.lynkeus/`.
 - Whether `ci` is a CLI command, a GitHub Action, or both.
 - How the cloud stores the screens baseline per branch, and who may approve a change.
