@@ -871,6 +871,23 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
   let requestsSeen: number | undefined;
+  // Requests filed while still waiting for an answer: read again later and completed where they were filed.
+  const inFlight = new Map<number, RequestRecord>();
+  const answered = (r: RequestRecord) => r.status !== undefined || !!r.error;
+  const completeInFlight = async (d: Device) => {
+    if (!inFlight.size) return;
+    const again = await d.requests(Math.min(...inFlight.keys()) - 1).then(
+      (r) => r.requests,
+      () => [],
+    );
+    for (const r of again) {
+      const kept = inFlight.get(r.id);
+      if (kept && answered(r)) {
+        Object.assign(kept, r);
+        inFlight.delete(r.id);
+      }
+    }
+  };
   // Frames the host is still encoding: the case waits for them before it says it is done.
   const encoding: string[] = [];
   // Frames a simulator or emulator gave as PNG, being encoded again as AVIF while the case goes on.
@@ -922,6 +939,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (sent.length > 0) report.sent = [...(report.sent ?? []), ...sent];
     }
     if (requestsSeen !== undefined) {
+      await completeInFlight(d);
       const made = await d.requests(requestsSeen).then(
         (r) => r.requests,
         () => [],
@@ -931,6 +949,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (made.length > 0) {
         report.requests = made;
         requestsSeen = made.at(-1)!.id;
+        for (const r of made) if (!answered(r)) inFlight.set(r.id, r);
         // A JS SDK (Segment, PostHog…) never reaches a native module: what it sent is in its requests.
         const traffic = trafficEvents(made).map((e) => ({ ...e, via: 'network' as const }));
         if (traffic.length > 0) report.sent = [...(report.sent ?? []), ...traffic];
@@ -1095,7 +1114,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
-  if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
+  if (requestsSeen !== undefined) {
+    const d = await device().catch(() => undefined);
+    // The last answers of the case, given a moment to arrive.
+    for (let i = 0; d && inFlight.size && i < 5; i++) {
+      await sleep(200);
+      await completeInFlight(d);
+    }
+    await d?.command('networkBodies', { on: false }).catch(() => undefined);
+  }
   await Promise.all(compacting);
   if (encoding.length > 0) {
     const until = Date.now() + 15_000;
