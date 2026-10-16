@@ -13,7 +13,8 @@
  *
  *   {"command": "lynkeus.describe", "params": {}, "env": {}}
  *
- * — and a server that knows answers `{"commands": ["create_user", …]}`. With
+ * — and a server that knows answers `{"commands": ["create_user", …]}`, each entry a name or a description
+ * (`FixtureCommand` in lynkeus-protocol: summary, params, example). The contract is docs/FIXTURES.md. With
  * that, a case naming a fixture nobody answers is refused before anything
  * runs. A server that answers `"ok": false`, as one written before this did,
  * is taken to describe nothing, and its cases run unchecked. A server that is
@@ -29,6 +30,8 @@ import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import path from 'node:path';
 import readline from 'node:readline';
 
+import type { FixtureCommand } from 'lynkeus-protocol';
+
 export type FixturesConfig = { command: string; cwd?: string; env?: Record<string, string>; timeoutMs?: number };
 
 export type Answer = Record<string, unknown>;
@@ -36,7 +39,23 @@ export type Answer = Record<string, unknown>;
 /** The one command that is lynkeus's own and not the project's. */
 export const DESCRIBE = 'lynkeus.describe';
 
-export type Description = { commands: string[]; down?: string };
+/** What the server answers: the names, with each command's description where it gave one. */
+export type Description = { commands: string[]; details: FixtureCommand[]; down?: string; protocol?: number };
+
+/** A description as the server sent it, names and descriptions mixed, made one shape; anything else is no description. */
+export const readDescription = (answer: Record<string, unknown> | undefined): Description | undefined => {
+  const list = answer?.commands;
+  if (!Array.isArray(list)) return undefined;
+  const details: FixtureCommand[] = [];
+  for (const c of list) {
+    if (typeof c === 'string' && c) details.push({ name: c });
+    else if (c && typeof c === 'object' && typeof (c as FixtureCommand).name === 'string' && (c as FixtureCommand).name) details.push(c as FixtureCommand);
+    else return undefined;
+  }
+  const down = typeof answer?.down === 'string' && answer.down ? answer.down : undefined;
+  const protocol = typeof answer?.protocol === 'number' ? answer.protocol : undefined;
+  return { commands: details.map((d) => d.name), details, ...(down ? { down } : {}), ...(protocol !== undefined ? { protocol } : {}) };
+};
 
 /** lynkeus's second own command: this connection works ahead of the cases. */
 export const AHEAD = 'lynkeus.ahead';
@@ -128,10 +147,7 @@ export class Fixtures {
 
   /** What the server says it answers, or nothing when it does not say. */
   async describe(): Promise<Description | undefined> {
-    const answer = await this.call(DESCRIBE, {}).catch(() => undefined);
-    const commands = answer?.commands;
-    if (!Array.isArray(commands) || !commands.every((c) => typeof c === 'string')) return undefined;
-    return typeof answer?.down === 'string' && answer.down ? { commands, down: answer.down } : { commands };
+    return readDescription(await this.call(DESCRIBE, {}).catch(() => undefined));
   }
 
   /** Says this connection works ahead of the cases being run. Whatever the server answers, it goes on. */
