@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus case new <id> --to <Route> [--from <Route>]` drafts a case to finish: the frontmatter's questions, the setup the project's fixtures server describes (commented out: what state a case needs is its author's call), the presses to the screen as `map plan` knows them, and the checks left to write; `--write` saves it in the cases folder, never over a file. `cases.start` in the config names where drafts begin. An MCP tool.
+
 - `lynkeus case coverage` says which of the app's screens the cases touch (by what they name in `app.nav`, `app.wait` and `app.see: { route }`, and what passing runs went through with `--seen`), which none does, and which a case names that the app no longer has. `lynkeus case impact --base <ref>` crosses a branch's changes with that coverage: the cases to run, nearest first, and the screens reached that no case covers; `--files` prints the case files for `case run`. Both are MCP tools.
 
 - The fixtures protocol is a written contract ([FIXTURES.md](docs/FIXTURES.md), version 1, types in `lynkeus-protocol`). `lynkeus.describe` may answer descriptions as well as names: a summary, parameters, an example, what the answer carries and whether the command only reads; servers that answer names keep working. `lynkeus fixtures describe` lists what a project's server can do and `lynkeus fixtures check` says whether it keeps the contract, telling a server that never answers from one that answers wrong. Both are MCP tools.
