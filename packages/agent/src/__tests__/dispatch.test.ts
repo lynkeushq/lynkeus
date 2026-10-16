@@ -4,6 +4,7 @@ import { fabricBackend } from '../backends/fabric';
 import { createHandlers, dispatch } from '../handlers';
 import { noNavigation } from '../navigation';
 import { qa } from '../registry';
+import { lastSeq, record } from '../trace';
 
 describe('dispatch', () => {
   const handlers = createHandlers(noNavigation, fabricBackend());
@@ -28,5 +29,14 @@ describe('dispatch', () => {
       results: unknown[];
     };
     expect(ok.results).toHaveLength(2);
+  });
+
+  it('counts a route reached after `since` and already left', async () => {
+    const since = lastSeq();
+    record({ kind: 'route', route: 'Pay.Success', path: ['Pay', 'Pay.Success'] });
+    record({ kind: 'route', route: 'Pay.MoneySent', path: ['Pay', 'Pay.MoneySent'] });
+    const passed = (await dispatch(handlers, 'waitFor', { route: 'Pay.Success', since, timeoutMs: 200 })) as { passed?: boolean };
+    expect(passed.passed).toBe(true);
+    await expect(dispatch(handlers, 'waitFor', { route: 'Pay.Success', since: lastSeq(), timeoutMs: 100 })).rejects.toThrow(/Timed out/);
   });
 });

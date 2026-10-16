@@ -50,8 +50,8 @@ export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<st
   const byRoute: Record<string, string[]> = {};
   const files: Record<string, string> = {};
   const add = (route: string, id: string) => {
-    const ids = (byRoute[route] ??= []);
-    if (!ids.includes(id)) ids.push(id);
+    byRoute[route] ??= [];
+    if (!byRoute[route].includes(id)) byRoute[route].push(id);
   };
   for (const c of cases) {
     files[c.id] = c.file;

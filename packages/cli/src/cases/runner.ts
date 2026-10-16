@@ -354,6 +354,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
+  // Where the trace stood as the last step's action ended: a screen that closes itself can come and go while
+  // that step's frame settles, and the wait for it that follows still counts it.
+  let actedUpTo: number | undefined;
   // The app numbers its requests as they start. A step that looks for one counts only those started after the
   // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
   // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
@@ -723,8 +726,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
+          const what = typeof value === 'string' ? value : String(params?.what ?? '');
+          const since = isRoute(what) && actedUpTo !== undefined ? { since: actedUpTo } : {};
+          actedUpTo = undefined;
           if (config.interruptions?.length) {
-            const asked: Record<string, unknown> = typeof value === 'string' ? { what: value } : { ...(params ?? {}) };
+            const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
             for (;;) {
               await interrupted(value);
@@ -736,9 +742,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
                 throw new Error(outcome.error ?? outcome.text ?? 'wait failed');
               }
             }
-          } else await cli(argvFor(find('wait')!, value));
+          } else await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value));
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
-          const what = typeof value === 'string' ? value : String(params?.what ?? '');
           if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         }
         return undefined;
@@ -994,6 +999,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // moment, not of a state. The wait is paid on every step: short for a report, and long enough for what
       // arrives after a short delay (700 ms) where two runs' frames are compared pixel by pixel.
       const quietMs = evidence.settleMs ?? 150;
+      actedUpTo = await d.trace().then(
+        (t) => t.last,
+        () => undefined,
+      );
       const settled = await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
         (r) => r.idle,
         () => false,
