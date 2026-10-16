@@ -28,7 +28,12 @@ describe('console lines', () => {
     const before = jest.fn();
     const g = {
       console: { log: jest.fn() } as unknown as Console,
-      ErrorUtils: { getGlobalHandler: () => before, setGlobalHandler: (h: typeof handler) => { handler = h; } },
+      ErrorUtils: {
+        getGlobalHandler: () => before,
+        setGlobalHandler: (h: typeof handler) => {
+          handler = h;
+        },
+      },
     };
     tapLogs(g);
     const e = new Error('render failed');

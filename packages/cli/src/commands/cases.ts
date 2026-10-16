@@ -207,19 +207,27 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
   return [
-    ...(fromApp
-      ? []
-      : [
-          '⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).',
-        ]),
-    ...(asked.video && !reports.some((r) => r.video) ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).'] : []),
+    ...(fromApp ? [] : ['⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).']),
+    ...(asked.video && !reports.some((r) => r.video)
+      ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).']
+      : []),
   ];
 };
 
-const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string, err: (line: string) => void, afterPush: 'keep' | 'delete' = 'keep') => {
+const pushed = async (
+  dir: string,
+  to: Exclude<ReturnType<typeof service>, string>,
+  project: string,
+  err: (line: string) => void,
+  afterPush: 'keep' | 'delete' = 'keep',
+) => {
   try {
     const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
-    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes), keptOrDeleted(dir, afterPush, run.refused.length === 0)].join('\n');
+    return [
+      `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`,
+      ...describeChanges(run.changes),
+      keptOrDeleted(dir, afterPush, run.refused.length === 0),
+    ].join('\n');
   } catch (error) {
     return `the report was not uploaded: ${(error as Error).message}`;
   }

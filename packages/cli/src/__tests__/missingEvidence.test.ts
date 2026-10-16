@@ -4,7 +4,14 @@ import { test } from 'node:test';
 import type { CaseReport } from '../cases/runner.js';
 import { missingEvidence } from '../commands/cases.js';
 
-const run = (over: Partial<CaseReport> = {}): CaseReport => ({ id: 'a', file: 'a.md', result: 'passed', ms: 1, steps: [{ step: 'press', status: 'passed', ms: 1 }], ...over });
+const run = (over: Partial<CaseReport> = {}): CaseReport => ({
+  id: 'a',
+  file: 'a.md',
+  result: 'passed',
+  ms: 1,
+  steps: [{ step: 'press', status: 'passed', ms: 1 }],
+  ...over,
+});
 
 test('a run where the app sent no analytics event says to check its build', () => {
   const lines = missingEvidence([run()], { video: false });

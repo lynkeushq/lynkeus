@@ -137,7 +137,7 @@ export type RunOptions = {
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
-  routes?: boolean | 'fresh';  /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */
+  routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
   nativeLogs?: { take: () => LogLine[] };
 };
 
@@ -952,7 +952,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const raw = (await d.command('logs', { take: true }).catch(() => [])) as Partial<LogLine>[];
       const logs = (Array.isArray(raw) ? raw : []).flatMap((l): LogLine[] =>
         typeof l?.text === 'string' && typeof l.at === 'number'
-          ? [{ at: l.at, level: l.level === 'debug' || l.level === 'warn' || l.level === 'error' ? l.level : 'info', source: typeof l.source === 'string' ? l.source : 'js', text: l.text, ...(typeof l.stack === 'string' ? { stack: l.stack } : {}) }]
+          ? [
+              {
+                at: l.at,
+                level: l.level === 'debug' || l.level === 'warn' || l.level === 'error' ? l.level : 'info',
+                source: typeof l.source === 'string' ? l.source : 'js',
+                text: l.text,
+                ...(typeof l.stack === 'string' ? { stack: l.stack } : {}),
+              },
+            ]
           : [],
       );
       if (logs.length > 0) report.logs = logs;

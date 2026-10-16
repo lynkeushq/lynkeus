@@ -26,7 +26,12 @@ export const parseOsLog = (line: string): LogLine | undefined => {
   if (!e.eventMessage || !e.timestamp) return undefined;
   if (e.subsystem === 'com.facebook.react.log' && e.category === 'javascript') return undefined;
   // "2026-10-16 14:55:01.123456-0300" → an instant.
-  const at = Date.parse(e.timestamp.replace(' ', 'T').replace(/(\.\d{3})\d*/, '$1').replace(/([+-]\d\d)(\d\d)$/, '$1:$2'));
+  const at = Date.parse(
+    e.timestamp
+      .replace(' ', 'T')
+      .replace(/(\.\d{3})\d*/, '$1')
+      .replace(/([+-]\d\d)(\d\d)$/, '$1:$2'),
+  );
   if (Number.isNaN(at)) return undefined;
   const type = (e.messageType ?? '').toLowerCase();
   const level = type === 'error' || type === 'fault' ? 'error' : type === 'debug' ? 'debug' : 'info';
@@ -71,7 +76,9 @@ export const startNativeLogs = async (device: DeviceInfo, appId: string): Promis
       // the rest only from the app's own code (NSLog and print have no subsystem) and React Native's native side.
       const own = `subsystem == "" OR subsystem BEGINSWITH "${appId.replaceAll('"', '')}" OR subsystem BEGINSWITH "com.facebook.react"`;
       const predicate = `process == "${name.replaceAll('"', '')}" AND (messageType == error OR messageType == fault OR ${own})`;
-      child = spawn('xcrun', ['simctl', 'spawn', device.id, 'log', 'stream', '--style', 'ndjson', '--level', 'default', '--predicate', predicate], { stdio: ['ignore', 'pipe', 'ignore'] });
+      child = spawn('xcrun', ['simctl', 'spawn', device.id, 'log', 'stream', '--style', 'ndjson', '--level', 'default', '--predicate', predicate], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
       parse = parseOsLog;
     } else {
       const uid = await androidUid(device.id, appId);

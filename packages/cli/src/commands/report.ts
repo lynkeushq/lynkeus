@@ -258,7 +258,10 @@ export const reportCommands = [
       const dry = !!ctx.flags['dry-run'];
       const { removed, bytes } = pruneRuns(root, older, dry);
       if (removed.length === 0) return { text: 'no run old enough to delete', json: { removed, bytes } };
-      return { text: [...removed.map((d) => `${dry ? 'would delete' : 'deleted'} ${d}`), `${dry ? 'would free' : 'freed'} ${megabytes(bytes)}`].join('\n'), json: { removed, bytes } };
+      return {
+        text: [...removed.map((d) => `${dry ? 'would delete' : 'deleted'} ${d}`), `${dry ? 'would free' : 'freed'} ${megabytes(bytes)}`].join('\n'),
+        json: { removed, bytes },
+      };
     },
   }),
   define({

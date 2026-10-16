@@ -20,7 +20,13 @@ const show = (value: unknown): string => {
 const keep = (level: LogLevel, args: unknown[], stack?: string) => {
   const text = args.map(show).join(' ');
   const error = args.find((a): a is Error => a instanceof Error);
-  kept.push({ at: Date.now(), level, source: 'js', text: text.length > LONG ? `${text.slice(0, LONG)}…` : text, ...((stack ?? error?.stack) ? { stack: stack ?? error?.stack } : {}) });
+  kept.push({
+    at: Date.now(),
+    level,
+    source: 'js',
+    text: text.length > LONG ? `${text.slice(0, LONG)}…` : text,
+    ...((stack ?? error?.stack) ? { stack: stack ?? error?.stack } : {}),
+  });
   if (kept.length > KEEP) kept.shift();
 };
 
@@ -32,7 +38,11 @@ const LEVELS: [keyof Console, LogLevel][] = [
   ['error', 'error'],
 ];
 
-type Global = { console: Console; ErrorUtils?: { getGlobalHandler: () => (e: unknown, fatal?: boolean) => void; setGlobalHandler: (h: (e: unknown, fatal?: boolean) => void) => void }; __lynkeusLogs?: boolean };
+type Global = {
+  console: Console;
+  ErrorUtils?: { getGlobalHandler: () => (e: unknown, fatal?: boolean) => void; setGlobalHandler: (h: (e: unknown, fatal?: boolean) => void) => void };
+  __lynkeusLogs?: boolean;
+};
 
 /** Wraps the console and the global error handler once; answers whether it did now. */
 export const tapLogs = (g: Global = globalThis as unknown as Global): boolean => {

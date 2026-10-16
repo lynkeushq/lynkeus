@@ -118,7 +118,15 @@ export type RunManifest = {
    * request): the branch, and the commit on any remote branch. A report links only what is there. A branch only this
    * machine has is replaced by the remote branch that holds the commit, and `localBranch` keeps its name.
    */
-  git?: { branch?: string; localBranch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number; pushed?: { branch: boolean; commit: boolean } };
+  git?: {
+    branch?: string;
+    localBranch?: string;
+    commit?: string;
+    remote?: string;
+    changed?: string[];
+    changedCount?: number;
+    pushed?: { branch: boolean; commit: boolean };
+  };
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };
