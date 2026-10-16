@@ -199,9 +199,9 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
   });
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
-const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string) => {
+const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string, err: (line: string) => void) => {
   try {
-    const run = await pushRun(dir, { ...to, project });
+    const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
     return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes)].join('\n');
   } catch (error) {
     return `the report was not uploaded: ${(error as Error).message}`;
@@ -237,7 +237,7 @@ export const caseCommands = [
       },
       frames: {
         type: 'string',
-        help: 'with --screenshots: avif, the default and a few percent of the bytes (a simulator\'s or emulator\'s PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel',
+        help: "with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel",
         default: 'avif',
         value: 'avif|png',
       },
@@ -502,6 +502,7 @@ export const caseCommands = [
                 path.resolve(ctx.flags.out as string),
                 reportsTo,
                 typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
+                ctx.err,
               ),
             ]
           : []),

@@ -65,7 +65,10 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
  * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
  * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
  */
-export const pushRun = async (dir: string, o: { url: string; key: string; project: string; fetch?: Fetch }): Promise<Pushed> => {
+export const pushRun = async (
+  dir: string,
+  o: { url: string; key: string; project: string; fetch?: Fetch; onReady?: (url: string) => void; onProgress?: (line: string) => void },
+): Promise<Pushed> => {
   const call = o.fetch ?? fetch;
   const auth = { authorization: `Bearer ${o.key}` };
   const base = o.url.replace(/\/+$/, '');
@@ -82,6 +85,10 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
   );
   const id = String(created.id);
   await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
+  // The report opens as soon as its cases are in: their steps, results and requests show at once, and each
+  // frame as it arrives.
+  const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
+  o.onReady?.(String(finished.url));
 
   // Per case: its frames, sent as one tar, and its film, sent on its own (a film can be bigger than a request).
   const work: { frames: string[]; film?: string }[] = [];
@@ -136,15 +143,24 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
     for (const f of frames) await sendFile(f);
   };
   const queue = [...work];
+  const total = work.length;
+  let sent = 0;
+  let bytes = 0;
+  const started = Date.now();
+  const sizeOf = (c: { frames: string[]; film?: string }) =>
+    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
       for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
         await sendFrames(c.frames);
         if (c.film) await sendFile(c.film);
+        sent += 1;
+        bytes += sizeOf(c);
+        if (sent === total || sent % Math.max(1, Math.ceil(total / 10)) === 0)
+          o.onProgress?.(`frames: ${sent}/${total} cases, ${(bytes / 1024 / 1024).toFixed(1)} MB in ${((Date.now() - started) / 1000).toFixed(0)} s`);
       }
     }),
   );
-  const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
   const changes = finished.changes as Pushed['changes'] | undefined;
   return { url: String(finished.url), files, refused, ...(changes ? { changes } : {}) };
 };
@@ -223,7 +239,7 @@ export const reportCommands = [
       if (typeof to === 'string') return { text: to, code: 2 };
       const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       try {
-        const pushed = await pushRun(dir, { ...to, project });
+        const pushed = await pushRun(dir, { ...to, project, onReady: (url) => ctx.err(`report: ${url} (its frames are on their way)`), onProgress: ctx.err });
         const notes = [...describeChanges(pushed.changes), ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : [])];
         return { text: [pushed.url, ...notes].join('\n'), json: pushed };
       } catch (error) {

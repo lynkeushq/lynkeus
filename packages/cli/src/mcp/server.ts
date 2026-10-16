@@ -120,7 +120,8 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     // instead of the one named), so it is refused, with what the tool does take.
     const known = Object.keys(schemaFor(c).properties);
     const unknown = Object.keys(input).filter((key) => !known.includes(key));
-    if (unknown.length) return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
+    if (unknown.length)
+      return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
     const r = await execute(argvFor(c, input), session.ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     return text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
