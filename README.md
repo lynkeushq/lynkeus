@@ -125,6 +125,7 @@ The runner waits out what only a device does — a pager's momentum, a screen st
 | [Concepts](docs/CONCEPTS.md) | Agent, driver, host, targets, routes, screens, flows, the graph and configuration. |
 | [Driving the app](docs/DRIVE.md) | Mounting the agent, commands, commands of your own, how the screen is read, why a step failed. |
 | [Headless](docs/HEADLESS.md) | The app in Node: init, doctor, start, OS-side controls, mocks, and what headless cannot tell you. |
+| [Fixtures](docs/FIXTURES.md) | The contract a backend's fixtures server keeps so cases can prepare and read state. |
 | [Knowledge](docs/KNOWLEDGE.md) | The screen graph, paths and plans, crawl, smoke, lint baselines, performance, snapshots and analytics funnels. |
 | [Cases](docs/CASES.md) | The case format, backend fixtures, custom steps, and what a run leaves behind. |
 | [AI agents](docs/LLM.md) | Driving it from a model: which tools, how to read a screen, the cycle for a pull request. |

@@ -85,7 +85,8 @@ Before the first case lynkeus asks the fixtures command what it answers
 `{"commands": ["create_user", …]}` has every case checked against that list,
 and a case naming a fixture that is not on it is refused before anything runs,
 instead of failing halfway with the backend already changed. A server that
-replies `"ok": false` is not checked.
+replies `"ok": false` is not checked. The whole contract, with descriptions a server can give of
+each command, is [FIXTURES.md](FIXTURES.md).
 
 ## Steps of your own
 
