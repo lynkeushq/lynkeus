@@ -18,6 +18,7 @@ import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
+import { compactFrame } from './frames.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
@@ -830,6 +831,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   let requestsSeen: number | undefined;
   // Frames the host is still encoding: the case waits for them before it says it is done.
   const encoding: string[] = [];
+  // Frames a simulator or emulator gave as PNG, being encoded again as AVIF while the case goes on.
+  const compacting: Promise<void>[] = [];
   if (evidence && (await offers('networkBodies'))) {
     const d = await device();
     await d.command('networkBodies', { on: true }).catch(() => undefined);
@@ -947,6 +950,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       } else taken = (await execute(['screenshot', file], base)).code === 0;
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
+        if (file.endsWith('.png') && evidence.frames !== 'png') {
+          const taken = file;
+          compacting.push(
+            compactFrame(taken).then((compact) => {
+              if (report.screenshot === taken) report.screenshot = compact;
+            }),
+          );
+        }
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
@@ -1040,6 +1051,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
 
   if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
+  await Promise.all(compacting);
   if (encoding.length > 0) {
     const until = Date.now() + 15_000;
     while (encoding.some((f) => !fs.existsSync(f)) && Date.now() < until) await sleep(25);

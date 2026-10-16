@@ -42,7 +42,12 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
     header.write('0000000\0', 108);
     header.write('0000000\0', 116);
     header.write(`${data.length.toString(8).padStart(11, '0')}\0`, 124);
-    header.write(`${Math.floor(Date.now() / 1000).toString(8).padStart(11, '0')}\0`, 136);
+    header.write(
+      `${Math.floor(Date.now() / 1000)
+        .toString(8)
+        .padStart(11, '0')}\0`,
+      136,
+    );
     header.write('0', 156);
     header.write('ustar\0', 257);
     header.write('00', 263);
