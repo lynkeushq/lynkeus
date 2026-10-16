@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- An MCP tool call with an argument the tool does not take is refused, naming the ones it takes. It used to be dropped: `case_run` with `cases` instead of `files` ran every case in the project.
+- `case run --host` keeps everything the headless host prints in `$TMPDIR/lynkeus-headless-<pid>.log` and names the file when the host is up. It was read only to see the host start, so the render error a failed step points at was nowhere to be found.
+- When the headless host fails to start because the app's entry throws while jest loads it, `case run --host` says what was thrown, not jest's summary line.
+- `lynkeus-headless` answers the cases config's `nativeMocks` as fastsim does: a native SDK the host cannot run (Sumsub's launch, Intercom's messenger) gets a stand-in module whose mocked methods resolve with the configured result, or put up a page whose buttons (`#native-mock-<label>`) each resolve it with theirs.
+
 - Backend traces leave database queries out: a span with `db.system` is not filed under a step nor sent with a report, and no `db.*` attribute is kept. Their statements name the backend's tables and columns.
 - A run says where its commit lives and what it had that no commit has: `git.remote` (the repository's web address, credentials left out) and `git.changed` (up to 20 files with uncommitted changes, `changedCount` all of them), so a report can link the commit, compare it with the run before, and say the app was not exactly that commit.
 - `case run <dir>` runs every case under that directory, and the cases directory is read with its subfolders, so a suite can keep its cases in folders (`qa/cases/login/`). A name that is not there says so instead of failing with `EISDIR`.
