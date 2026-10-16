@@ -883,6 +883,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         (r) => r.requests,
         () => [],
       );
+      // A reload (app.refresh) turns the app's keeping of bodies off with everything else it held: ask again.
+      await d.command('networkBodies', { on: true }).catch(() => undefined);
       if (made.length > 0) {
         report.requests = made;
         requestsSeen = made.at(-1)!.id;
