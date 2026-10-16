@@ -237,7 +237,7 @@ export const caseCommands = [
       },
       frames: {
         type: 'string',
-        help: 'with --screenshots: avif (where the host writes it, a fifth of the bytes) or png, exact, for frames two runs are compared by',
+        help: 'with --screenshots: avif, the default and a few percent of the bytes (a simulator\'s or emulator\'s PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel',
         default: 'avif',
         value: 'avif|png',
       },

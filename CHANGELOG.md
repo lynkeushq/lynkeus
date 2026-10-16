@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Pushing a run is a request per case, not per file: `report push` (and `case run --push`) sends each case's frames as one tar, four cases at once, retrying what fails on the way, and the reports service reads it into storage as it arrives. A suite of 1,707 frames took over 20 minutes to send a file at a time. Films still go on their own. A service from before this answers 404 and the CLI sends the files one by one.
+- A simulator's or emulator's frames are kept as AVIF too, not only fastsim's: they come as PNG (neither `simctl` nor `screencap` writes AVIF), and the CLI encodes each again while the case goes on, about 4% of the PNG's bytes in some 70 ms (sharp, an optional dependency; without it the PNG stays). `--frames png` keeps them exact, for comparing two runs pixel for pixel.
+
 - An MCP tool call with an argument the tool does not take is refused, naming the ones it takes. It used to be dropped: `case_run` with `cases` instead of `files` ran every case in the project.
 - `case run --host` keeps everything the headless host prints in `$TMPDIR/lynkeus-headless-<pid>.log` and names the file when the host is up. It was read only to see the host start, so the render error a failed step points at was nowhere to be found.
 - When the headless host fails to start because the app's entry throws while jest loads it, `case run --host` says what was thrown, not jest's summary line.
