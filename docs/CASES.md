@@ -198,25 +198,21 @@ request.
 ### A run with everything
 
 A report shows, under each step, a frame, the second of the film, every
-request with its headers and bodies, what the app told its analytics and what
-the backend did. Each needs something of the run, and something of the app and
-the backend that lynkeus cannot set for them:
+request with its headers and bodies, the analytics events and what the backend
+did. What turns each on:
 
-| In the report | The run | The app and its backend |
-| --- | --- | --- |
-| Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) | nothing |
-| Film | `--video` | a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
-| Requests and responses | `--out` | nothing: the agent keeps them while a run keeps evidence |
-| The app's analytics (Mixpanel, AppsFlyer, Firebase) | `--out` | a build with those SDKs **turned on**. Many apps switch them off in development (an env file, a flag); lynkeus keeps the calls that reach the SDK, so a build that never calls it shows none. |
-| The backend's analytics | `cases.serverEvents` in the config | a fixture that reads them back from the backend |
-| What the backend did | `--traces` | its OpenTelemetry exporter on, pointed at the run (above) |
-| A link to share | `--push` | `LYNKEUS_REPORTS_KEY` in the environment |
+| In the report | How |
+| --- | --- |
+| Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
+| Film | `--video`, on a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
+| Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
+| The app's analytics (Mixpanel, AppsFlyer, Firebase) | `--out`: the agent keeps every call that reaches those SDKs |
+| The backend's analytics | `cases.serverEvents` in the config |
+| What the backend did | `--traces` (above) |
+| A link to share | `--push`, with `LYNKEUS_REPORTS_KEY` in the environment |
 
 A run that kept evidence and saw no analytics event from the app, or was asked
-for a film and kept none, says so when it ends, so a gap is found before the
-report is read. Write down what your app needs (which env file turns its
-analytics on, how its backend exports traces) next to its cases, where whoever
-runs them next will find it: lynkeus knows the SDKs, not your app's build.
+for a film and kept none, says so when it ends.
 
 The types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in
 `lynkeus-protocol`, with `RUN_SCHEMA` in `run.json`. A field is only ever

@@ -74,7 +74,7 @@ To test without a simulator: call headless_init (it installs what the Node host 
 
 To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
 
-For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video, traces and push. Before it, check what only the app's people know, in the project's own QA notes (a README or AGENTS.md next to its cases), and ask if it is not written: which build turns the app's analytics SDKs on (many apps switch Mixpanel and the like off in development, and then no event shows), and how the backend exports OpenTelemetry to the run. Film needs a host that films (fastsim). When the run ends it warns about evidence it could not keep: pass that on, do not hide it.`;
+For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs fastsim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

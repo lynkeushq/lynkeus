@@ -216,8 +216,7 @@ name reads like a secret (`token`, `password`, `session`…) as `…`.
 The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics
 by wrapping those SDKs' native modules: each call is kept and goes on to the
 SDK as before, and `lynkeus call analytics` reads them. It sees only calls that
-reach the SDK, so an app whose build turns its analytics off (a development env
-file often does) shows none: run cases on a build with them on.
+reach the SDK.
 
 `qa.event(name, props)`, called from wherever the app reports to its
 analytics, records the event in the trace and in a buffer that

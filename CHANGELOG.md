@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A run that keeps evidence says when it ends what it could not keep: no analytics event from the app in any case (the usual cause is a build with its SDKs turned off) or, with `--video`, no film (only fastsim films). The cases docs gain "A run with everything", a table of what each part of a report needs from the run and from the app, and the MCP server's instructions say the same. The drive and protocol docs no longer say requests never keep bodies.
+- A run that keeps evidence says when it ends what it could not keep: no analytics event from the app in any case or, with `--video`, no film (only fastsim films). The cases docs gain "A run with everything", a table of what turns on each part of a report, and the MCP server's instructions say the same. The drive and protocol docs no longer say requests never keep bodies.
 
 - The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics on a simulator, an emulator or a phone too, not only on fastsim and the headless host: it wraps those SDKs' native modules, keeps each call, and lets it go on to the SDK. A report then shows the app's Mixpanel events under each step next to the backend's. A module the runtime keeps frozen cannot be wrapped and stays unseen.
 - A report opens as soon as its cases are in, says how its frames are coming along, and a run's cases go up in parts of about 256 KB: with every request's headers and bodies a run file is megabytes, more than the service reads in one request.

@@ -199,8 +199,7 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
   });
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
-// A run that kept evidence but none of a kind says so, with the usual cause: an app whose build turns its analytics
-// off never calls the SDK, so there is nothing to keep, and the report would only show the gap.
+// A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
 export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }): string[] => {
   if (reports.length === 0) return [];
   const steps = reports.flatMap((r) => r.steps);
@@ -209,7 +208,7 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
     ...(fromApp
       ? []
       : [
-          '⚠ no case saw the app send an analytics event. If the app has Mixpanel, AppsFlyer or Firebase Analytics, check that the build it ran turns them on (an env file or flag): lynkeus keeps the calls that reach the SDK.',
+          '⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).',
         ]),
     ...(asked.video && !reports.some((r) => r.video) ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).'] : []),
   ];
