@@ -10,6 +10,7 @@ import { WebSocket as NodeWebSocket } from 'ws';
 import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
 import { listenerCounts } from './mocks/controls.js';
+import { NativeMockScreen } from './mocks/native.js';
 import { installRuntime, log, reset } from './runtime.js';
 import type { ReactTestInstance } from './tree.js';
 
@@ -258,7 +259,9 @@ export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}):
   // An app mounted with `auto()` has no <Lynkeus> of its own: host it under the root a device build gets.
   const make = (): ReactElement => {
     const Root = autoWrapper();
-    return createElement(CrashBoundary, null, Root ? createElement(Root, null, makeApp()) : makeApp());
+    const app = Root ? createElement(Root, null, makeApp()) : makeApp();
+    // A mocked native SDK's page goes over the whole app, as the SDK presents over it on a device.
+    return createElement(CrashBoundary, null, app, createElement(NativeMockScreen));
   };
   g.jest?.setTimeout(FOREVER);
   // Reconnects, waits and pacing are all timers; fake ones would freeze the host.
