@@ -176,5 +176,6 @@ it.
   condition holds; `idle` resolves after `quietMs` without commits or
   requests, or reports `idle: false` at `timeoutMs` (a ticking screen never
   settles, and that is information).
-- `requests` never includes headers or bodies; query values under keys such
+- `requests` includes headers and bodies only after `networkBodies` turns them
+  on (a case run that keeps evidence does), with secrets replaced; query values under keys such
   as `token`, `code`, `otp`, `password`, `pin`, `session`, `auth` are redacted.

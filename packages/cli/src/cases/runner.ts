@@ -18,6 +18,7 @@ import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
+import { compactFrame } from './frames.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
@@ -81,7 +82,12 @@ export type StepReport = {
   backend?: BackendSpan[];
   /** The requests the app sent while it ran, with headers and bodies (secrets hidden), when the run keeps evidence. */
   requests?: RequestRecord[];
+  /** What the app printed while it ran: its console and the errors it did not catch, when the run keeps evidence. */
+  logs?: LogLine[];
 };
+
+/** A line the app printed: `at` in ms since the epoch, `source` where it came from (`js`, `native`, `host`). */
+export type LogLine = { at: number; level: 'debug' | 'info' | 'warn' | 'error'; source: string; text: string; stack?: string };
 export type CaseReport = {
   id: string;
   title?: string;
@@ -131,7 +137,8 @@ export type RunOptions = {
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
-  routes?: boolean | 'fresh';
+  routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
+  nativeLogs?: { take: () => LogLine[] };
 };
 
 /** What a case's setup leaves for its steps: the aliases and what they answered, and what ran. */
@@ -292,6 +299,48 @@ export const missingFixtures = (c: Case, config: CasesConfig, known: string[]): 
 
 /** What the app or its host answers to a method it does not have; the name is what it lacks. */
 export const lacking = (message: string): string | undefined => /Unknown method (\S+)/.exec(message)?.[1];
+
+// A request is read from the app at the end of the step after the one that sent it when it leaves at the very
+// end of a step (a GET the app sends as an action finishes): its trace, carrying the step it left in, says where
+// it belongs. Each request without a trace in its own step moves to the step whose trace served the same method
+// and path at the same moment.
+export const fileRequestsByTrace = (steps: StepReport[], spans: Map<string, { index: number; startedMs: number }>) => {
+  const started = new Map([...spans.values()].map((v) => [v.index, v.startedMs]));
+  const pathOf = (u: unknown) => {
+    try {
+      return new URL(String(u)).pathname;
+    } catch {
+      return String(u ?? '').split('?')[0]!;
+    }
+  };
+  const roots = steps.flatMap((st, index) =>
+    (st.backend ?? [])
+      .filter((sp) => sp.depth === 0)
+      .map((sp) => ({
+        index,
+        method: String(sp.attributes?.['http.method'] ?? sp.attributes?.['http.request.method'] ?? '').toUpperCase(),
+        path: pathOf(sp.attributes?.['http.target'] ?? sp.attributes?.['url.path'] ?? ''),
+        at: (started.get(index) ?? 0) + sp.at,
+      })),
+  );
+  if (!roots.length) return;
+  steps.forEach((st, index) => {
+    const keep: RequestRecord[] = [];
+    for (const q of st.requests ?? []) {
+      const method = String(q.method).toUpperCase(),
+        path = pathOf(q.url);
+      const same = roots.filter((r) => r.method === method && r.path === path);
+      const here = same.some((r) => r.index === index);
+      const near = same
+        .filter((r) => typeof q.startedAt === 'number' && Math.abs(r.at - q.startedAt) < 1500)
+        .sort((a, b) => Math.abs(a.at - q.startedAt!) - Math.abs(b.at - q.startedAt!))[0];
+      if (here || !near || near.index === index || !steps[near.index]) keep.push(q);
+      else steps[near.index]!.requests = [...(steps[near.index]!.requests ?? []), q].sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0));
+    }
+    if (st.requests) st.requests = keep.length ? keep : undefined;
+    if (st.requests === undefined) delete st.requests;
+  });
+};
 
 export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport> => {
   const { base, config } = options;
@@ -826,10 +875,33 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
+  // The same for what it printed.
+  const logging = !!evidence && (await offers('logs'));
+  if (logging) await (await device()).command('logs', { take: true }).catch(() => undefined);
+  options.nativeLogs?.take();
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
   let requestsSeen: number | undefined;
+  // Requests filed while still waiting for an answer: read again later and completed where they were filed.
+  const inFlight = new Map<number, RequestRecord>();
+  const answered = (r: RequestRecord) => r.status !== undefined || !!r.error;
+  const completeInFlight = async (d: Device) => {
+    if (!inFlight.size) return;
+    const again = await d.requests(Math.min(...inFlight.keys()) - 1).then(
+      (r) => r.requests,
+      () => [],
+    );
+    for (const r of again) {
+      const kept = inFlight.get(r.id);
+      if (kept && answered(r)) {
+        Object.assign(kept, r);
+        inFlight.delete(r.id);
+      }
+    }
+  };
   // Frames the host is still encoding: the case waits for them before it says it is done.
   const encoding: string[] = [];
+  // Frames a simulator or emulator gave as PNG, being encoded again as AVIF while the case goes on.
+  const compacting: Promise<void>[] = [];
   if (evidence && (await offers('networkBodies'))) {
     const d = await device();
     await d.command('networkBodies', { on: true }).catch(() => undefined);
@@ -873,16 +945,41 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
         e?.name ? [{ provider: String(e.sdk ?? 'unknown'), name: String(e.name), ...(e.properties ? { props: e.properties } : {}), via: 'sdk' as const }] : [],
       );
-      if (sent.length > 0) report.sent = sent;
+      // Added to what the backend told its analytics, read above for the same step, not in its place.
+      if (sent.length > 0) report.sent = [...(report.sent ?? []), ...sent];
     }
+    if (logging) {
+      const raw = (await d.command('logs', { take: true }).catch(() => [])) as Partial<LogLine>[];
+      const logs = (Array.isArray(raw) ? raw : []).flatMap((l): LogLine[] =>
+        typeof l?.text === 'string' && typeof l.at === 'number'
+          ? [
+              {
+                at: l.at,
+                level: l.level === 'debug' || l.level === 'warn' || l.level === 'error' ? l.level : 'info',
+                source: typeof l.source === 'string' ? l.source : 'js',
+                text: l.text,
+                ...(typeof l.stack === 'string' ? { stack: l.stack } : {}),
+              },
+            ]
+          : [],
+      );
+      if (logs.length > 0) report.logs = logs;
+    }
+    const native = options.nativeLogs?.take() ?? [];
+    // In the order they were printed, whichever side printed them.
+    if (native.length > 0) report.logs = [...(report.logs ?? []), ...native].sort((x, y) => x.at - y.at);
     if (requestsSeen !== undefined) {
+      await completeInFlight(d);
       const made = await d.requests(requestsSeen).then(
         (r) => r.requests,
         () => [],
       );
+      // A reload (app.refresh) turns the app's keeping of bodies off with everything else it held: ask again.
+      await d.command('networkBodies', { on: true }).catch(() => undefined);
       if (made.length > 0) {
         report.requests = made;
         requestsSeen = made.at(-1)!.id;
+        for (const r of made) if (!answered(r)) inFlight.set(r.id, r);
         // A JS SDK (Segment, PostHog…) never reaches a native module: what it sent is in its requests.
         const traffic = trafficEvents(made).map((e) => ({ ...e, via: 'network' as const }));
         if (traffic.length > 0) report.sent = [...(report.sent ?? []), ...traffic];
@@ -947,6 +1044,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       } else taken = (await execute(['screenshot', file], base)).code === 0;
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
+        if (file.endsWith('.png') && evidence.frames !== 'png') {
+          const taken = file;
+          compacting.push(
+            compactFrame(taken).then((compact) => {
+              if (report.screenshot === taken) report.screenshot = compact;
+            }),
+          );
+        }
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
@@ -1039,7 +1144,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
   }
 
-  if (requestsSeen !== undefined) await (await device().catch(() => undefined))?.command('networkBodies', { on: false }).catch(() => undefined);
+  if (requestsSeen !== undefined) {
+    const d = await device().catch(() => undefined);
+    // The last answers of the case, given a moment to arrive.
+    for (let i = 0; d && inFlight.size && i < 5; i++) {
+      await sleep(200);
+      await completeInFlight(d);
+    }
+    await d?.command('networkBodies', { on: false }).catch(() => undefined);
+  }
+  await Promise.all(compacting);
   if (encoding.length > 0) {
     const until = Date.now() + 15_000;
     while (encoding.some((f) => !fs.existsSync(f)) && Date.now() < until) await sleep(25);
@@ -1052,9 +1166,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await options.traces.settle(tracing.traceId);
     for (const [index, spans] of options.traces.take(tracing.traceId, tracing.steps)) {
       const s = steps[index];
-      // A step that set off thousands of queries keeps the first ones; a report is not a profiler.
-      if (s) s.backend = spans.slice(0, 400);
+      // A step that set off thousands of spans keeps the first ones; a report is not a profiler.
+      if (s) s.backend = spans.slice(0, 1500);
     }
+    fileRequestsByTrace(steps, tracing.steps);
   }
   if (options.setupOnly && !failed) options.setupOnly.keep({ scope, latest, ran: [...ran], steps });
   if (options.dry) failed = steps.some((s) => s.status === 'failed');

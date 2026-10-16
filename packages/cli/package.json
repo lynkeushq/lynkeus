@@ -47,5 +47,8 @@
     "tsx": "^4.19.2",
     "typescript": "^6.0.3"
   },
-  "homepage": "https://github.com/lynkeushq/lynkeus#readme"
+  "homepage": "https://github.com/lynkeushq/lynkeus#readme",
+  "optionalDependencies": {
+    "sharp": "^0.34.4"
+  }
 }

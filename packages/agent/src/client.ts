@@ -1,12 +1,14 @@
-import { LogBox, Platform } from 'react-native';
+import { LogBox, NativeModules, Platform } from 'react-native';
 
 import type { Backend } from './backend';
 import { fabricBackend } from './backends/fabric';
 import { createHandlers, dispatch } from './handlers';
 import type { NavigationAdapter } from './navigation';
 import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response } from './protocol';
-import { host } from './registry';
+import { addDefault, host } from './registry';
 import { trackRequests } from './requests';
+import { readLogs, tapLogs } from './logs';
+import { readSdkCalls, tapSdks } from './sdks';
 import { record as trace } from './trace';
 
 export type ClientOptions = {
@@ -61,6 +63,11 @@ export const start = (options: ClientOptions): (() => void) => {
     return () => undefined;
   }
   trackRequests();
+  // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,
+  // from the SDKs' own modules.
+  if (tapSdks(NativeModules as Record<string, Record<string, unknown> | undefined>) > 0) addDefault('analytics', readSdkCalls);
+  // A host that keeps the app's console itself (fastsim, headless) answers `logs` itself.
+  if (tapLogs()) addDefault('logs', readLogs);
   const { navigation } = options;
   const backend = options.backend ?? fabricBackend();
   const handlers = createHandlers(navigation, backend);
