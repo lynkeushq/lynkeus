@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { describeChanges, flakes, listRuns, plan, pushRun } from '../commands/report.js';
+import { describeChanges, flakes, listRuns, plan, pushRun, tarOf } from '../commands/report.js';
 
 const runDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-push-'));
@@ -48,12 +48,34 @@ test('a run goes up as its run file, its cases and the files they name, and a fi
     [
       'POST /v1/runs',
       'PUT /v1/runs/r1/cases',
+      'PUT /v1/runs/r1/bundle',
       'PUT /v1/runs/r1/files/home/video.mp4',
-      'PUT /v1/runs/r1/files/home/01-app-login.png',
       'POST /v1/runs/r1/finish',
     ],
   );
   assert.ok(asked.every((a) => a.auth === 'Bearer lk_1'));
+});
+
+test('a case’s frames go as one tar, and one by one to a service from before bundles', async () => {
+  const sent: Record<string, Uint8Array> = {};
+  const older = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/v1/runs') return new Response(JSON.stringify({ id: 'r1' }), { status: 201 });
+    if (url.pathname.endsWith('/bundle')) return new Response(JSON.stringify({ error: 'not found' }), { status: 404 });
+    if (url.pathname.endsWith('/finish')) return new Response(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    if (init?.body instanceof Uint8Array) sent[url.pathname] = init.body;
+    return new Response('{}');
+  }) as typeof fetch;
+  const pushed = await pushRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: older });
+  assert.equal(pushed.files, 2);
+  assert.equal(Buffer.from(sent['/v1/runs/r1/files/home/01-app-login.png']!).toString(), 'png');
+
+  const tar = tarOf([['home/01-app-login.png', Buffer.from('png')]]);
+  assert.equal(tar.length % 512, 0);
+  assert.equal(Buffer.from(tar.subarray(0, 100)).toString().replace(/\0+$/, ''), '01-app-login.png');
+  assert.equal(Buffer.from(tar.subarray(345, 500)).toString().replace(/\0+$/, ''), 'home');
+  assert.equal(Number.parseInt(Buffer.from(tar.subarray(124, 135)).toString(), 8), 3);
+  assert.equal(Buffer.from(tar.subarray(512, 515)).toString(), 'png');
 });
 
 test('a refusal from the service comes back as what it said', async () => {

@@ -22,8 +22,39 @@ const answer = async (response: Response, doing: string) => {
   throw new Error(`${doing}: ${body.error ?? `the service answered ${response.status}`}`);
 };
 
-const UPLOADS_AT_ONCE = 8;
+const UPLOADS_AT_ONCE = 4;
 const UPLOAD_ATTEMPTS = 3;
+
+// A ustar header holds a name of up to 100 bytes and a folder of up to 155 before it.
+const fitsTar = (file: string) => {
+  const cut = file.lastIndexOf('/');
+  return Buffer.byteLength(file.slice(cut + 1)) <= 100 && Buffer.byteLength(cut > 0 ? file.slice(0, cut) : '') <= 155;
+};
+
+/** An uncompressed tar: frames are PNG or AVIF, already compressed, and a tar is read as it arrives. */
+export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
+  const blocks: Uint8Array[] = [];
+  for (const [file, data] of entries) {
+    const header = Buffer.alloc(512);
+    const cut = file.lastIndexOf('/');
+    header.write(file.slice(cut + 1), 0, 'utf8');
+    header.write('0000644\0', 100);
+    header.write('0000000\0', 108);
+    header.write('0000000\0', 116);
+    header.write(`${data.length.toString(8).padStart(11, '0')}\0`, 124);
+    header.write(`${Math.floor(Date.now() / 1000).toString(8).padStart(11, '0')}\0`, 136);
+    header.write('0', 156);
+    header.write('ustar\0', 257);
+    header.write('00', 263);
+    if (cut > 0) header.write(file.slice(0, cut), 345, 'utf8');
+    header.fill(' ', 148, 156);
+    const sum = header.reduce((n, b) => n + b, 0);
+    header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148);
+    blocks.push(header, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return Buffer.concat(blocks);
+};
 
 /**
  * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
@@ -47,41 +78,65 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
   const id = String(created.id);
   await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
 
-  const named = new Set<string>();
+  // Per case: its frames, sent as one tar, and its film, sent on its own (a film can be bigger than a request).
+  const work: { frames: string[]; film?: string }[] = [];
   for (const line of cases.split('\n')) {
     if (!line.trim()) continue;
     const c = JSON.parse(line) as { video?: string; steps?: { screenshot?: string }[] };
-    for (const p of [c.video, ...(c.steps ?? []).map((s) => s.screenshot)]) if (p) named.add(p);
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
+    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
+    work.push({ frames: [...new Set(frames)], ...(film ? { film } : {}) });
   }
   let files = 0;
   const refused: string[] = [];
-  // A run with screenshots is thousands of frames: one at a time, each waiting out its round trip, a suite took
-  // over 20 minutes to send. A file that fails on the way (a dropped connection, a 5xx, a 429) is sent again.
-  const send = async (file: string) => {
-    const local = path.join(dir, file);
-    if (!fs.existsSync(local)) return;
-    const body = fs.readFileSync(local);
-    const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
+  // A dropped connection, a 5xx or a 429 is tried again, waiting longer each time.
+  const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
     for (let attempt = 1; ; attempt++) {
       const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
-        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`sending ${file}: ${error instanceof Error ? error.message : String(error)}`);
+        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
         return undefined;
       });
-      if (response && (response.ok || response.status === 402 || (response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) {
-        if (response.status === 402) refused.push(file);
-        else {
-          await answer(response, `sending ${file}`);
-          files += 1;
-        }
-        return;
-      }
+      if (response && ((response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) return response;
       await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
     }
   };
-  const queue = [...named];
+  const sendFile = async (file: string) => {
+    const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
+    const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);
+    if (response.status === 402) refused.push(file);
+    else {
+      await answer(response, `sending ${file}`);
+      files += 1;
+    }
+  };
+  // A suite with screenshots is thousands of frames: a request per frame took one over 20 minutes to send. A
+  // service from before bundles answers 404, and the frames then go one by one, as they used to.
+  let bundles = true;
+  const sendFrames = async (frames: string[]) => {
+    const fits = frames.filter(fitsTar);
+    if (bundles && fits.length > 0) {
+      const response = await sendWithRetries(
+        `${base}/v1/runs/${id}/bundle`,
+        tarOf(fits.map((f) => [f, fs.readFileSync(path.join(dir, f))])),
+        `sending ${fits.length} frames`,
+      );
+      if (response.status === 404 || response.status === 405) bundles = false;
+      else {
+        await answer(response, `sending ${fits.length} frames`);
+        files += fits.length;
+        for (const f of frames.filter((f) => !fitsTar(f))) await sendFile(f);
+        return;
+      }
+    }
+    for (const f of frames) await sendFile(f);
+  };
+  const queue = [...work];
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
-      for (let file = queue.shift(); file !== undefined; file = queue.shift()) await send(file);
+      for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
+        await sendFrames(c.frames);
+        if (c.film) await sendFile(c.film);
+      }
     }),
   );
   const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
