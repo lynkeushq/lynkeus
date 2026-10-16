@@ -88,10 +88,18 @@ const gitOf = (root: string): RunManifest['git'] => {
     .split('\n')
     .map((l) => l.slice(3).trim())
     .filter(Boolean);
+  // A link to a branch or commit that only this machine has is a 404 on the forge.
+  const pushed = remote
+    ? {
+        branch: !!branch && branch !== 'HEAD' && !!ask('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`),
+        commit: !!ask('branch', '--remotes', '--contains', commit),
+      }
+    : undefined;
   return {
     commit,
     ...(branch && branch !== 'HEAD' ? { branch } : {}),
     ...(remote ? { remote } : {}),
+    ...(pushed ? { pushed } : {}),
     ...(changed.length ? { changed: changed.slice(0, 20), changedCount: changed.length } : {}),
   };
 };

@@ -113,7 +113,11 @@ export type RunManifest = {
   native?: boolean;
   /** Where the run was made from, when it was a git checkout. */
   /** `remote`: the repository's web address (no credentials); `changed`: files with changes no commit has (at most 20 of `changedCount`). */
-  git?: { branch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number };
+  /**
+   * `pushed`: what of it the remote has, as the clone knew when the run began (its remote-tracking refs, not a
+   * request): the branch, and the commit on any remote branch. A report links only what is there.
+   */
+  git?: { branch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number; pushed?: { branch: boolean; commit: boolean } };
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };
