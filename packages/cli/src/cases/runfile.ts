@@ -71,7 +71,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
 };
 
 /** The branch and commit the run was made from, so a report can say which code it tested. */
-const gitOf = (root: string): RunManifest['git'] => {
+export const gitOf = (root: string): RunManifest['git'] => {
   const ask = (...args: string[]) => {
     try {
       return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
@@ -88,20 +88,33 @@ const gitOf = (root: string): RunManifest['git'] => {
     .split('\n')
     .map((l) => l.slice(3).trim())
     .filter(Boolean);
-  // A link to a branch or commit that only this machine has is a 404 on the forge.
-  const pushed = remote
-    ? {
-        branch: !!branch && branch !== 'HEAD' && !!ask('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${branch}`),
-        commit: !!ask('branch', '--remotes', '--contains', commit),
-      }
-    : undefined;
+  // A branch that lives only on this machine names nothing a reader can open: the run names the remote branch
+  // that has its commit instead (the one it tracks first, else any), and keeps the local name beside it.
+  const local = branch && branch !== 'HEAD' ? branch : undefined;
+  const onRemote = (name: string) => !!ask('rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`);
+  const holding = remote && local && !onRemote(local) ? remoteBranchWith(ask, commit) : undefined;
+  const shown = holding ?? local;
+  const pushed = remote ? { branch: !!shown && (shown === holding || onRemote(shown)), commit: !!ask('branch', '--remotes', '--contains', commit) } : undefined;
   return {
     commit,
-    ...(branch && branch !== 'HEAD' ? { branch } : {}),
+    ...(shown ? { branch: shown } : {}),
+    ...(holding && local ? { localBranch: local } : {}),
     ...(remote ? { remote } : {}),
     ...(pushed ? { pushed } : {}),
     ...(changed.length ? { changed: changed.slice(0, 20), changedCount: changed.length } : {}),
   };
+};
+
+/** The origin branch that holds `commit`: the one the checkout tracks when it does, else the first. */
+const remoteBranchWith = (ask: (...args: string[]) => string | undefined, commit: string): string | undefined => {
+  const strip = (ref: string) => ref.replace(/^origin\//, '');
+  const upstream = ask('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}');
+  const holders = (ask('branch', '--remotes', '--contains', commit, '--format=%(refname:short)') ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith('origin/') && l !== 'origin/HEAD' && l !== 'origin');
+  if (upstream && holders.includes(upstream)) return strip(upstream);
+  return holders[0] ? strip(holders[0]) : undefined;
 };
 
 /** A remote as a web address a report can link commits to, without any credentials it carried. */

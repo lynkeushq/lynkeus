@@ -115,9 +115,10 @@ export type RunManifest = {
   /** `remote`: the repository's web address (no credentials); `changed`: files with changes no commit has (at most 20 of `changedCount`). */
   /**
    * `pushed`: what of it the remote has, as the clone knew when the run began (its remote-tracking refs, not a
-   * request): the branch, and the commit on any remote branch. A report links only what is there.
+   * request): the branch, and the commit on any remote branch. A report links only what is there. A branch only this
+   * machine has is replaced by the remote branch that holds the commit, and `localBranch` keeps its name.
    */
-  git?: { branch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number; pushed?: { branch: boolean; commit: boolean } };
+  git?: { branch?: string; localBranch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number; pushed?: { branch: boolean; commit: boolean } };
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

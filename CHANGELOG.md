@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A run says whether its branch and commit are on the remote (`git.pushed`, from the clone's remote-tracking refs), so a report links only what the forge has: a branch that lives only on this machine was a 404.
+- A run says whether its branch and commit are on the remote (`git.pushed`, from the clone's remote-tracking refs), so a report links only what the forge has: a branch that lives only on this machine was a 404. Such a branch is named by the remote branch that holds the commit (the tracked one first), and `git.localBranch` keeps the local name.
 
 - After a push, the CLI says how much the run's folder holds on disk; with `"report": { "afterPush": "delete" }` in `lynkeus.config.json` it deletes the folder once the service has taken every file (never when one was refused). `lynkeus report prune <dir> [--older 7d] [--dry-run]` deletes the runs left in a folder that ended longer ago than that, touching nothing that is not a run.
 
