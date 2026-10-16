@@ -19,6 +19,7 @@ import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { describeChanges, pushRun, service } from './report.js';
 import { TraceSink } from '../cases/traces.js';
+import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -387,6 +388,15 @@ export const caseCommands = [
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
           return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
+        // One simulator or emulator, one log: with several jobs a line could not be told to its case.
+        const native: NativeLogs | undefined =
+          out && jobs === 1 && !hostCommand && !ctx.flags.host && ctx.config.app
+            ? await ctx
+                .device()
+                .then((d) => d.resolved())
+                .then((info) => startNativeLogs(info, ctx.config.app as string))
+                .catch(() => undefined)
+            : undefined;
         // Several jobs finish together only if the longest cases start first: one left for the end runs alone
         // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
         if (jobs > 1 && ledger && !ctx.flags['in-order']) {
@@ -449,6 +459,7 @@ export const caseCommands = [
                     continue: !!ctx.flags.continue,
                     routes: seenDir ? (host ? 'fresh' : true) : false,
                     traces,
+                    nativeLogs: native,
                   });
                   if (seenDir && report.result === 'passed' && report.routes?.length) {
                     fs.mkdirSync(seenDir, { recursive: true });
@@ -497,6 +508,7 @@ export const caseCommands = [
         await Promise.all(Array.from({ length: jobs }, (_, i) => job(i)));
         await preparing;
         if (out) out.finish({ platform: seen?.platform, native: seen?.native });
+        native?.stop();
       } finally {
         stop();
       }

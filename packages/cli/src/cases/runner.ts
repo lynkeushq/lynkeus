@@ -137,7 +137,8 @@ export type RunOptions = {
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
-  routes?: boolean | 'fresh';
+  routes?: boolean | 'fresh';  /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */
+  nativeLogs?: { take: () => LogLine[] };
 };
 
 /** What a case's setup leaves for its steps: the aliases and what they answered, and what ran. */
@@ -877,6 +878,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // The same for what it printed.
   const logging = !!evidence && (await offers('logs'));
   if (logging) await (await device()).command('logs', { take: true }).catch(() => undefined);
+  options.nativeLogs?.take();
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
   let requestsSeen: number | undefined;
   // Requests filed while still waiting for an answer: read again later and completed where they were filed.
@@ -955,6 +957,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       );
       if (logs.length > 0) report.logs = logs;
     }
+    const native = options.nativeLogs?.take() ?? [];
+    // In the order they were printed, whichever side printed them.
+    if (native.length > 0) report.logs = [...(report.logs ?? []), ...native].sort((x, y) => x.at - y.at);
     if (requestsSeen !== undefined) {
       await completeInFlight(d);
       const made = await d.requests(requestsSeen).then(
