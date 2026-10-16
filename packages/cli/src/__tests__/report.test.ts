@@ -45,7 +45,7 @@ test('a run goes up as its run file, its cases and the files they name, and a fi
   assert.deepEqual(pushed.refused, ['home/video.mp4']);
   assert.deepEqual(
     asked.map((a) => `${a.method} ${a.path}`),
-    ['POST /v1/runs', 'PUT /v1/runs/r1/cases', 'PUT /v1/runs/r1/bundle', 'PUT /v1/runs/r1/files/home/video.mp4', 'POST /v1/runs/r1/finish'],
+    ['POST /v1/runs', 'PUT /v1/runs/r1/cases', 'POST /v1/runs/r1/finish', 'PUT /v1/runs/r1/bundle', 'PUT /v1/runs/r1/files/home/video.mp4'],
   );
   assert.ok(asked.every((a) => a.auth === 'Bearer lk_1'));
 });
