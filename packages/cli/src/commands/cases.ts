@@ -19,6 +19,7 @@ import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { describeChanges, pushRun, service } from './report.js';
 import { TraceSink } from '../cases/traces.js';
+import { megabytes, sizeOf } from '../cases/runDirs.js';
 import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
@@ -215,13 +216,23 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
   ];
 };
 
-const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string, err: (line: string) => void) => {
+const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string, err: (line: string) => void, afterPush: 'keep' | 'delete' = 'keep') => {
   try {
     const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
-    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes)].join('\n');
+    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes), keptOrDeleted(dir, afterPush, run.refused.length === 0)].join('\n');
   } catch (error) {
     return `the report was not uploaded: ${(error as Error).message}`;
   }
+};
+
+// After a push: the folder deleted when the config asks and the service took every file, else how much it holds.
+export const keptOrDeleted = (dir: string, afterPush: 'keep' | 'delete', complete: boolean): string => {
+  const bytes = sizeOf(dir);
+  if (afterPush === 'delete' && complete) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return `run folder deleted after the push (${megabytes(bytes)})`;
+  }
+  return `run folder: ${megabytes(bytes)} on disk${afterPush === 'delete' ? ', kept because some files were not taken' : ''} · \`lynkeus report prune ${path.dirname(dir)} --older 7d\` frees old ones`;
 };
 
 export const caseCommands = [
@@ -533,6 +544,7 @@ export const caseCommands = [
                 reportsTo,
                 typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
                 ctx.err,
+                ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep',
               ),
             ]
           : []),

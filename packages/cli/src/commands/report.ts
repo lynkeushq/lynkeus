@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { define } from '../registry.js';
+import { ageOf, megabytes, pruneRuns } from '../cases/runDirs.js';
+import { keptOrDeleted } from './cases.js';
 
 type Fetch = typeof fetch;
 
@@ -235,6 +237,31 @@ export const service = (): Service | string => {
 
 export const reportCommands = [
   define({
+    name: 'report prune',
+    group: 'runs',
+    summary: 'Delete the runs `case run --out` left in a folder that ended more than a while ago',
+    details:
+      'Looks at the folder given, or each folder right under it, and deletes the ones that hold a run (`run.json` and `cases.jsonl`) older than --older. Nothing else is touched. Pushed reports stay on the service; this only frees the disk.',
+    positionals: [{ name: 'dir', help: 'a run folder, or the folder that holds them' }],
+    flags: {
+      older: { type: 'string', help: 'how old a run must be: 7d, 12h, 30m', value: 'age', default: '7d' },
+      'dry-run': { type: 'boolean', help: 'list what would go, delete nothing' },
+    },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const root = path.resolve(ctx.args[0] ?? '.');
+      if (!fs.existsSync(root)) return { text: `${ctx.args[0]}: no such folder`, code: 2 };
+      const older = ageOf(String(ctx.flags.older ?? '7d'));
+      if (older === undefined) return { text: `--older ${ctx.flags.older}: give it as 7d, 12h or 30m`, code: 2 };
+      const dry = !!ctx.flags['dry-run'];
+      const { removed, bytes } = pruneRuns(root, older, dry);
+      if (removed.length === 0) return { text: 'no run old enough to delete', json: { removed, bytes } };
+      return { text: [...removed.map((d) => `${dry ? 'would delete' : 'deleted'} ${d}`), `${dry ? 'would free' : 'freed'} ${megabytes(bytes)}`].join('\n'), json: { removed, bytes } };
+    },
+  }),
+  define({
     name: 'report push',
     group: 'runs',
     summary: 'Upload a run to the reports service and print the report’s address',
@@ -256,7 +283,11 @@ export const reportCommands = [
       const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       try {
         const pushed = await pushRun(dir, { ...to, project, onReady: (url) => ctx.err(`report: ${url} (its frames are on their way)`), onProgress: ctx.err });
-        const notes = [...describeChanges(pushed.changes), ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : [])];
+        const notes = [
+          ...describeChanges(pushed.changes),
+          ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : []),
+          keptOrDeleted(dir, ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep', pushed.refused.length === 0),
+        ];
         return { text: [pushed.url, ...notes].join('\n'), json: pushed };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };

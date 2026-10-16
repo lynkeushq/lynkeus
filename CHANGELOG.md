@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- After a push, the CLI says how much the run's folder holds on disk; with `"report": { "afterPush": "delete" }` in `lynkeus.config.json` it deletes the folder once the service has taken every file (never when one was refused). `lynkeus report prune <dir> [--older 7d] [--dry-run]` deletes the runs left in a folder that ended longer ago than that, touching nothing that is not a run.
+
 - A run that keeps evidence (`--out`) keeps what the app printed under the step that printed it: every `console.debug/log/info/warn/error` call and every error nobody caught (with its stack), from the agent, on any host. Each line still reaches the console. `RunStep.logs` in `lynkeus-protocol`; the agent answers a `logs` command. On a simulator or an emulator, with `app` in `lynkeus.config.json` and one job, the app's native log is kept too (`source: native`): on iOS its errors and what its own code and React Native's native side log, on Android every line of its uid; React Native's console lines are left to the agent, which has their stacks.
 
 - On a simulator, an emulator or a phone the agent keeps the app's calls to Sentry, Datadog (RUM, logs, traces), Intercom and Crashlytics too, named as fastsim names them (`addAction: TAP`, `logEvent: opened_help`), and passes each on to the SDK. Calls that only read from the SDK (`get…`, `fetch…`) are left out. As before, the agent runs only in development builds unless told otherwise.
