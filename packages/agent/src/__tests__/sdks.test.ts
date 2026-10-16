@@ -21,6 +21,27 @@ describe('analytics SDK calls', () => {
     expect(tapSdks(modules)).toBe(0);
   });
 
+  it('keeps every call of a crash, RUM or support SDK, named as fastsim names it', () => {
+    const addAction = jest.fn();
+    const modules = {
+      DdRum: { addAction, getCurrentSessionId: jest.fn(), constant: 1 },
+      RNSentry: { addBreadcrumb: jest.fn(), fetchNativeRelease: jest.fn() },
+      IntercomModule: { logEvent: jest.fn() },
+    };
+    expect(tapSdks(modules)).toBe(3);
+    (modules.DdRum.addAction as (...a: unknown[]) => unknown)('TAP', 'Continue', { screen: 'Intro' }, 12);
+    (modules.DdRum.getCurrentSessionId as (...a: unknown[]) => unknown)();
+    (modules.RNSentry.addBreadcrumb as (...a: unknown[]) => unknown)({ category: 'navigation', message: 'Home' });
+    (modules.RNSentry.fetchNativeRelease as (...a: unknown[]) => unknown)();
+    (modules.IntercomModule.logEvent as (...a: unknown[]) => unknown)('opened_help', { from: 'pin' });
+    expect(addAction).toHaveBeenCalledWith('TAP', 'Continue', { screen: 'Intro' }, 12);
+    expect(readSdkCalls({ take: true })).toEqual([
+      { sdk: 'datadog', name: 'addAction: TAP', properties: { screen: 'Intro' } },
+      { sdk: 'sentry', name: 'addBreadcrumb', properties: { category: 'navigation', message: 'Home' } },
+      { sdk: 'intercom', name: 'logEvent: opened_help', properties: { from: 'pin' } },
+    ]);
+  });
+
   it('leaves a module it cannot change alone', () => {
     const frozen = Object.freeze({ track: () => undefined });
     expect(tapSdks({ MixpanelReactNative: frozen })).toBe(0);
