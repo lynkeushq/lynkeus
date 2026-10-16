@@ -139,7 +139,7 @@ const casesIn = (dir: string): string[] =>
     });
 
 /** The case files named (a directory stands for every case under it), or every case under the cases directory; a sentence when there are none. */
-const caseFiles = (args: string[], home: string, casesDir: string | undefined): string[] | string => {
+export const caseFiles = (args: string[], home: string, casesDir: string | undefined): string[] | string => {
   const dir = path.resolve(home, casesDir ?? 'cases');
   const named = args.map((f) => path.resolve(f));
   const missing = named.find((f) => !fs.existsSync(f));

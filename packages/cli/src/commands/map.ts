@@ -30,6 +30,25 @@ const describeAffected = (affected: Affected[], chain: boolean): string[] => {
   return lines;
 };
 
+/** Source files a branch changed against `base`, committed or not. */
+export const changedSources = (root: string, base: string, err: (line: string) => void): string[] => {
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  try {
+    const names = `${git('diff', '--name-only', `${base}...HEAD`)}\n${git('diff', '--name-only', 'HEAD')}`;
+    return [
+      ...new Set(
+        names
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => /\.[cm]?[jt]sx?$/.test(l)),
+      ),
+    ];
+  } catch (error) {
+    err(`could not diff against ${base}: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
+};
+
 export const mapCommands = [
   define({
     name: 'map build',
@@ -215,21 +234,7 @@ export const mapCommands = [
     run: async (ctx) => {
       const graph = ctx.graph();
       const base = ctx.flags.base as string;
-      const git = (...args: string[]) => execFileSync('git', args, { cwd: ctx.root, encoding: 'utf8' });
-      let changed: string[] = [];
-      try {
-        const names = `${git('diff', '--name-only', `${base}...HEAD`)}\n${git('diff', '--name-only', 'HEAD')}`;
-        changed = [
-          ...new Set(
-            names
-              .split('\n')
-              .map((l) => l.trim())
-              .filter((l) => /\.[cm]?[jt]sx?$/.test(l)),
-          ),
-        ];
-      } catch (error) {
-        ctx.err(`could not diff against ${base}: ${error instanceof Error ? error.message : String(error)}`);
-      }
+      const changed = changedSources(ctx.root, base, ctx.err);
       const affected = screensAffectedBy(graph, changed, ctx.flags.depth as number);
       const lines = [`changed against ${base}: ${changed.length} source file(s)`, ...describeAffected(affected, true)];
       if (!affected.length && changed.length) lines.push('  (no screen imports these files within the depth)');
