@@ -22,6 +22,9 @@ const answer = async (response: Response, doing: string) => {
   throw new Error(`${doing}: ${body.error ?? `the service answered ${response.status}`}`);
 };
 
+const UPLOADS_AT_ONCE = 8;
+const UPLOAD_ATTEMPTS = 3;
+
 /**
  * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
  * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
@@ -52,20 +55,35 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
   }
   let files = 0;
   const refused: string[] = [];
-  for (const file of named) {
+  // A run with screenshots is thousands of frames: one at a time, each waiting out its round trip, a suite took
+  // over 20 minutes to send. A file that fails on the way (a dropped connection, a 5xx, a 429) is sent again.
+  const send = async (file: string) => {
     const local = path.join(dir, file);
-    if (!fs.existsSync(local)) continue;
-    const response = await call(`${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`, {
-      method: 'PUT',
-      headers: auth,
-      body: fs.readFileSync(local),
-    });
-    if (response.status === 402) refused.push(file);
-    else {
-      await answer(response, `sending ${file}`);
-      files += 1;
+    if (!fs.existsSync(local)) return;
+    const body = fs.readFileSync(local);
+    const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
+    for (let attempt = 1; ; attempt++) {
+      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
+        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`sending ${file}: ${error instanceof Error ? error.message : String(error)}`);
+        return undefined;
+      });
+      if (response && (response.ok || response.status === 402 || (response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) {
+        if (response.status === 402) refused.push(file);
+        else {
+          await answer(response, `sending ${file}`);
+          files += 1;
+        }
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
     }
-  }
+  };
+  const queue = [...named];
+  await Promise.all(
+    Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
+      for (let file = queue.shift(); file !== undefined; file = queue.shift()) await send(file);
+    }),
+  );
   const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
   const changes = finished.changes as Pushed['changes'] | undefined;
   return { url: String(finished.url), files, refused, ...(changes ? { changes } : {}) };
