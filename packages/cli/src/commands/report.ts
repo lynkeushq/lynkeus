@@ -23,6 +23,7 @@ const answer = async (response: Response, doing: string) => {
 };
 
 const UPLOADS_AT_ONCE = 4;
+const CASES_PART = 256 * 1024;
 const UPLOAD_ATTEMPTS = 3;
 
 // A ustar header holds a name of up to 100 bytes and a folder of up to 155 before it.
@@ -84,7 +85,33 @@ export const pushRun = async (
     'creating the run',
   );
   const id = String(created.id);
-  await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
+  // A dropped connection, a 5xx or a 429 is tried again, waiting longer each time.
+  const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
+    for (let attempt = 1; ; attempt++) {
+      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
+        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
+        return undefined;
+      });
+      if (response && ((response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) return response;
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+    }
+  };
+  // The run file in parts of about 256 KB: with every request's headers and bodies it runs to megabytes, more
+  // than the service reads in one request. A service from before parts answers without `part`, and then
+  // takes the whole file in one.
+  const parts: string[] = [];
+  for (const line of cases.split('\n').filter((l) => l.trim())) {
+    const last = parts.length - 1;
+    if (last >= 0 && Buffer.byteLength(parts[last]!) + Buffer.byteLength(line) < CASES_PART) parts[last] += `\n${line}`;
+    else parts.push(line);
+  }
+  for (const [n, part] of parts.entries()) {
+    const sent = await answer(await sendWithRetries(`${base}/v1/runs/${id}/cases?part=${n}`, Buffer.from(part), 'sending its cases'), 'sending its cases');
+    if (sent.part === undefined) {
+      await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
+      break;
+    }
+  }
   // The report opens as soon as its cases are in: their steps, results and requests show at once, and each
   // frame as it arrives.
   const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
@@ -101,17 +128,6 @@ export const pushRun = async (
   }
   let files = 0;
   const refused: string[] = [];
-  // A dropped connection, a 5xx or a 429 is tried again, waiting longer each time.
-  const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
-    for (let attempt = 1; ; attempt++) {
-      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
-        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
-        return undefined;
-      });
-      if (response && ((response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) return response;
-      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
-    }
-  };
   const sendFile = async (file: string) => {
     const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
     const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);

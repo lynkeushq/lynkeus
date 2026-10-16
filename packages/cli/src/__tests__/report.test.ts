@@ -32,6 +32,7 @@ const freeService = () => {
     if (url.pathname === '/v1/runs') return reply(201, { id: 'r1', url: 'https://reports.test/r/abc' });
     if (url.pathname.endsWith('.mp4')) return reply(402, { error: 'films are kept on the Team plan' });
     if (url.pathname.endsWith('/finish')) return reply(200, { url: 'https://reports.test/r/abc' });
+    if (url.searchParams.has('part')) return reply(200, { cases: 1, part: Number(url.searchParams.get('part')) });
     return reply(200, {});
   }) as typeof fetch;
   return { fake, asked };
