@@ -123,6 +123,8 @@ export type Evidence = {
   settleMs?: number;
   /** On a device: take the frame again until two in a row are the same, this many ms apart. */
   stillMs?: number;
+  /** A looking step on an unchanged screen shares the last frame instead of taking one. */
+  onChange?: boolean;
   frames?: 'avif' | 'png';
   video?: { fps: number; scale?: number };
 };
@@ -366,6 +368,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
   // Waits and looks change nothing, so they keep the mark of the action before them.
   let actedFrom: number | undefined;
+  let lastFrame: { file: string; shape?: string } | undefined;
   // The app numbers its requests as they start. A step that looks for one counts only those started after the
   // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
   // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
@@ -1007,6 +1010,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (traffic.length > 0) report.sent = [...(report.sent ?? []), ...traffic];
       }
     }
+    // A step that only looks (app.see, app.wait) on a screen no different from the last frame's shares that frame:
+    // its wait and capture are what make a frame per step slow on a device. The shape is the route and each
+    // element's id, text and place, read from the app, so a change in any of them still takes a frame.
+    let shape: string | undefined;
+    if (evidence?.screenshots && evidence.onChange) {
+      shape = await d.screen().then(
+        (sc) => `${sc.route}|${sc.elements.map((e) => `${e.testId ?? ''}:${e.text ?? ''}:${Math.round(e.frame.x)},${Math.round(e.frame.y)}`).join(';')}`,
+        () => undefined,
+      );
+      if (shape !== undefined && shape === lastFrame?.shape && /^app\.(see|wait)\b/.test(report.step)) {
+        report.screenshot = lastFrame.file;
+        return;
+      }
+    }
     if (evidence?.screenshots) {
       // A step may end mid-transition (a screen fading in, the splash fading out): the frame is of where the
       // step left the app, so two runs' frames of the same step show the same screen.
@@ -1086,6 +1103,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       }
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
+        lastFrame = { file, shape };
         if (file.endsWith('.png') && evidence.frames !== 'png') {
           const taken = file;
           compacting.push(

@@ -270,6 +270,10 @@ export const caseCommands = [
         default: 150,
         value: 'ms',
       },
+      'frames-on-change': {
+        type: 'boolean',
+        help: 'with --screenshots: a step that only looks (app.see, app.wait) on an unchanged screen shares the last frame',
+      },
       still: {
         type: 'number',
         help: 'with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see)',
@@ -314,6 +318,7 @@ export const caseCommands = [
       'events',
       'settle',
       'still',
+      'frames-on-change',
       'frames',
       'traces',
       'traces-port',
@@ -355,6 +360,7 @@ export const caseCommands = [
               screenshots: !!ctx.flags.screenshots,
               settleMs: Number(ctx.flags.settle ?? 150),
               ...(ctx.flags.still ? { stillMs: Number(ctx.flags.still) } : {}),
+              ...(ctx.flags['frames-on-change'] ? { onChange: true } : {}),
               frames: ctx.flags.frames === 'png' ? ('png' as const) : ('avif' as const),
               ...(ctx.flags.video
                 ? { video: { fps: Number(ctx.flags['video-fps'] ?? 30), ...(ctx.flags['video-scale'] ? { scale: Number(ctx.flags['video-scale']) } : {}) } }
