@@ -118,7 +118,7 @@ export const osCommands = [
   define({
     name: 'mock',
     group: 'os',
-    summary: 'Headless: answer a request before the network (--sticky survives a reset)',
+    summary: 'Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)',
     positionals: [{ name: 'route', help: "'GET /path' (a bare path matches any method)" }],
     flags: {
       status: { type: 'number', help: 'HTTP status to answer', default: 200, value: 'code' },
