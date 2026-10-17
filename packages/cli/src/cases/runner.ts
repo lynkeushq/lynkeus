@@ -697,10 +697,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const app = async (name: string, value: StepValue): Promise<'skipped' | undefined> => {
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
-    mark ??= (await d.trace()).last;
-    if (!LOOKING.has(name)) actedFrom = (await d.trace()).last;
+    // An app in the background has no connection to answer with: the step that brings it back must still run.
+    const lastSeq = () =>
+      d.trace().then(
+        (t) => t.last,
+        () => undefined,
+      );
+    mark ??= await lastSeq();
+    if (!LOOKING.has(name)) actedFrom = await lastSeq();
     // An interruption handled inside a wait is not the action the wait is about.
-    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
+    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d).catch(() => undefined);
     switch (name) {
       case 'press': {
         await interrupted(value);

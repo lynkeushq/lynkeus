@@ -48,7 +48,10 @@ export const osCommands = [
       } catch (error) {
         // A host stands in for the OS; on a simulator or an emulator the OS itself moves the app.
         if ((await device.resolved()).id === 'headless') throw error;
-        return simulator('appstate')(ctx);
+        const done = await simulator('appstate')(ctx);
+        // Back in front, the app dials in again; what comes next reads its screen.
+        if (ctx.args[0] === 'active') await device.server.waitForApp(15_000);
+        return done;
       }
     },
   }),

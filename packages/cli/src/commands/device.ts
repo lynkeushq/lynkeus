@@ -110,7 +110,7 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
       // Home sends the app to the background; its launcher intent brings the same task back, not a new one.
       const [state] = args;
       if (state === 'background') return [adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME'])];
-      if (state === 'active') return [adb(['shell', 'monkey', '-p', needApp(), '-c', 'android.intent.category.LAUNCHER', '1'])];
+      if (state === 'active') return [adb(['shell', 'monkey', '--pct-syskeys', '0', '-p', needApp(), '-c', 'android.intent.category.LAUNCHER', '1'])];
       throw new Error('lynkeus os appstate background|active on an emulator or a phone');
     }
     default:
