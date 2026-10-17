@@ -354,9 +354,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
-  // Where the trace stood as the last step's action ended: a screen that closes itself can come and go while
-  // that step's frame settles, and the wait for it that follows still counts it.
-  let actedUpTo: number | undefined;
+  // Where the trace stood as the last action began: a screen it led to that closes itself (a success screen) can
+  // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
+  // Waits and looks change nothing, so they keep the mark of the action before them.
+  let actedFrom: number | undefined;
   // The app numbers its requests as they start. A step that looks for one counts only those started after the
   // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
   // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
@@ -689,6 +690,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
     mark ??= (await d.trace()).last;
+    if (!LOOKING.has(name)) actedFrom = (await d.trace()).last;
     // An interruption handled inside a wait is not the action the wait is about.
     if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
     switch (name) {
@@ -727,8 +729,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         else if (params?.request) await waitForRequest(params);
         else {
           const what = typeof value === 'string' ? value : String(params?.what ?? '');
-          const since = isRoute(what) && actedUpTo !== undefined ? { since: actedUpTo } : {};
-          actedUpTo = undefined;
+          const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
             const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
@@ -999,10 +1000,6 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // moment, not of a state. The wait is paid on every step: short for a report, and long enough for what
       // arrives after a short delay (700 ms) where two runs' frames are compared pixel by pixel.
       const quietMs = evidence.settleMs ?? 150;
-      actedUpTo = await d.trace().then(
-        (t) => t.last,
-        () => undefined,
-      );
       const settled = await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
         (r) => r.idle,
         () => false,
