@@ -80,7 +80,7 @@ export const osCommands = [
   define({
     name: 'os biometrics',
     group: 'os',
-    summary: 'Headless: the sensor and what the next prompts answer',
+    summary: 'The sensor and what the next prompts answer; on a simulator, --available enrolls Face ID or Touch ID or not',
     flags: {
       available: { type: 'string', help: 'FaceID | TouchID | none', value: 'kind' },
       next: { type: 'string', help: 'outcomes of the next prompts, in order', value: 'success,fail,cancel' },
@@ -88,11 +88,25 @@ export const osCommands = [
     },
     aliases: ['biometrics'],
     needs: 'app',
-    run: agent('biometrics', ({ flags }) => ({
-      available: flags.available || undefined,
-      next: flags.next ? (flags.next as string).split(',') : undefined,
-      fallback: flags.fallback || undefined,
-    })),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      const params = {
+        available: ctx.flags.available || undefined,
+        next: ctx.flags.next ? (ctx.flags.next as string).split(',') : undefined,
+        fallback: ctx.flags.fallback || undefined,
+      };
+      try {
+        return { json: await device.command('biometrics', params) };
+      } catch (error) {
+        const info = await device.resolved();
+        if (info.id === 'headless') throw error;
+        // A device's prompts answer the person in front of it: only a simulator's enrollment is set from outside.
+        // Anything else stays the host's, and the runner says the step cannot run here.
+        if (info.platform !== 'ios' || !params.available || params.next || params.fallback) throw error;
+        ctx.args = [String(params.available)];
+        return simulator('biometrics')(ctx);
+      }
+    },
   }),
   define({
     name: 'os scan',

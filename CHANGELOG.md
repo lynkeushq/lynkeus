@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
+
 - `os appstate background|active` (and `app.appstate` in a case) works on a simulator and an emulator too, through the OS: another app in front sends the app to the background, launching it again brings it back. A case using it ran only on fastsim and headless before.
 
 - `case run --screenshots --still <ms>`: on a simulator, an emulator or a host (PNG frames), each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.

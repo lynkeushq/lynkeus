@@ -76,6 +76,17 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
           { bin: 'xcrun', args: ['simctl', 'launch', deviceId, app, '-AppleLanguages', `(${tag})`, '-AppleLocale', locale] },
         ];
       }
+      case 'biometrics': {
+        // The simulator's Face ID / Touch ID enrollment, as Features ▸ Face ID ▸ Enrolled toggles it; which of the two
+        // the device has is its model's.
+        const [available] = args;
+        if (!available) throw new Error('lynkeus os biometrics --available FaceID|TouchID|none on a simulator');
+        const enrolled = available === 'none' ? '0' : '1';
+        return [
+          { bin: 'xcrun', args: ['simctl', 'spawn', deviceId, 'notifyutil', '-s', 'com.apple.BiometricKit.enrollmentChanged', enrolled] },
+          { bin: 'xcrun', args: ['simctl', 'spawn', deviceId, 'notifyutil', '-p', 'com.apple.BiometricKit.enrollmentChanged'] },
+        ];
+      }
       case 'appstate': {
         // Another app in front puts this one in the background; launching it again brings it back as it was.
         const [state] = args;

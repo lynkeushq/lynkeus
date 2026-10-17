@@ -56,3 +56,9 @@ test('appstate on a simulator or emulator moves the app for real', () => {
   ]);
   assert.throws(() => simulatorArgv('android', 'emulator-5554', 'appstate', ['inactive']), /background\|active/);
 });
+
+test('biometrics on a simulator sets whether a face or finger is enrolled', () => {
+  const off = simulatorArgv('ios', 'SIM', 'biometrics', ['none']);
+  assert.deepEqual(off[0]!.args, ['simctl', 'spawn', 'SIM', 'notifyutil', '-s', 'com.apple.BiometricKit.enrollmentChanged', '0']);
+  assert.equal(simulatorArgv('ios', 'SIM', 'biometrics', ['FaceID'])[0]!.args.at(-1), '1');
+});
