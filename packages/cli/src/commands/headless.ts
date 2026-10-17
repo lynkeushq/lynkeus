@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
@@ -78,6 +79,21 @@ const aliasesOf = (root: string): Record<string, string> => {
  * What jest is told when the app has not said it itself, so an app with no jest set up runs headless as it is:
  * the preset its framework needs (jest-expo for Expo, React Native's otherwise), and which packages under node_modules to transpile.
  */
+/** The app's react folder, when lynkeus-headless would load another copy; undefined when they are one. */
+export const duplicateReact = (root: string): string | undefined => {
+  const require = createRequire(import.meta.url);
+  try {
+    // Its exports leave out package.json: from its entry up to the folder that holds one.
+    let headless = path.dirname(fs.realpathSync(require.resolve('lynkeus-headless', { paths: [root] })));
+    while (!fs.existsSync(path.join(headless, 'package.json')) && path.dirname(headless) !== headless) headless = path.dirname(headless);
+    const ours = path.dirname(require.resolve('react/package.json', { paths: [root] }));
+    const theirs = path.dirname(require.resolve('react/package.json', { paths: [headless] }));
+    return fs.realpathSync(ours) === fs.realpathSync(theirs) ? undefined : ours;
+  } catch {
+    return undefined;
+  }
+};
+
 const jestDefaults = (root: string): string[] => {
   const file = JEST_CONFIGS.find((f) => fs.existsSync(path.join(root, f)));
   let config = file ? fs.readFileSync(path.join(root, file), 'utf8') : '';
@@ -88,13 +104,23 @@ const jestDefaults = (root: string): string[] => {
     } catch {}
   }
   const flags: string[] = [];
+  const react = duplicateReact(root);
+  // lynkeus-headless with a React of its own (a linked package, a workspace, pnpm) breaks every hook: the app and
+  // the renderer must share the app's copy.
+  const sameReact = react ? { '^react$': react, '^react/(.*)$': `${react}/$1` } : {};
   if (!config) {
     // A style sheet imported from native code (Expo's templates import global.css) means nothing to jest, even
     // behind an alias, so it is mapped first. Jest merges these with the preset's own mappings.
     const stub = path.join(lynkeusDir(root), 'style-stub.js');
     fs.mkdirSync(path.dirname(stub), { recursive: true });
     fs.writeFileSync(stub, 'module.exports = {};\n');
-    flags.push('--preset', jestPreset(root), `--moduleNameMapper=${JSON.stringify({ '\\.(css|less|sass|scss)$': stub, ...aliasesOf(root) })}`);
+    flags.push('--preset', jestPreset(root), `--moduleNameMapper=${JSON.stringify({ '\\.(css|less|sass|scss)$': stub, ...aliasesOf(root), ...sameReact })}`);
+  } else if (react) {
+    if (config.includes('moduleNameMapper'))
+      process.stderr.write(
+        `lynkeus: lynkeus-headless finds another copy of react than the app's; add to moduleNameMapper in the app's jest config: '^react$': '${react}', '^react/(.*)$': '${react}/$1'\n`,
+      );
+    else flags.push(`--moduleNameMapper=${JSON.stringify(sameReact)}`);
   }
   // Two that must stay as they are, as jest-expo leaves them: babel running itself, or Reanimated's plugin, fails.
   if (!config.includes('transformIgnorePatterns'))
@@ -203,7 +229,9 @@ export const headlessCommands = [
       fs.writeFileSync(testFile, hostTest(rel.startsWith('.') ? rel : `./${rel}`, port, ctx.config, path.basename(ctx.root)));
       // Node resolves `localhost` to ::1 first; local backends usually listen on IPv4 only.
       const nodeOptions = [process.env.NODE_OPTIONS, '--dns-result-order=ipv4first'].filter(Boolean).join(' ');
-      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions };
+      // LYNKEUS_HEADLESS tells the app's jest setup a host is starting, not its unit tests: a setup that stubs a native
+      // SDK whole can leave it real there, so the call reaches the stand-in `nativeMocks` shows.
+      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, LYNKEUS_HEADLESS: '1', CI: '1', NODE_OPTIONS: nodeOptions };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
         cwd: ctx.root,

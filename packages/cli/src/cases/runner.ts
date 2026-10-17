@@ -117,7 +117,15 @@ export type CaseReport = {
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
 /** `frames`: AVIF where the host writes it (a fifth of a PNG's bytes, lossy), or PNG, exact, for frames two runs are compared by. */
-export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; frames?: 'avif' | 'png'; video?: { fps: number; scale?: number } };
+export type Evidence = {
+  dir: string;
+  screenshots?: boolean;
+  settleMs?: number;
+  /** On a device: take the frame again until two in a row are the same, this many ms apart. */
+  stillMs?: number;
+  frames?: 'avif' | 'png';
+  video?: { fps: number; scale?: number };
+};
 
 // A host that could not write AVIF once (an older one) is asked for PNG from then on.
 let avifRefused = false;
@@ -354,6 +362,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const started = Date.now();
   const steps: StepReport[] = [];
   let mark: number | undefined;
+  // Where the trace stood as the last action began: a screen it led to that closes itself (a success screen) can
+  // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
+  // Waits and looks change nothing, so they keep the mark of the action before them.
+  let actedFrom: number | undefined;
   // The app numbers its requests as they start. A step that looks for one counts only those started after the
   // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
   // action caused. `app.requests` marks by hand, and holds until a step has looked for a request.
@@ -685,9 +697,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const app = async (name: string, value: StepValue): Promise<'skipped' | undefined> => {
     const params = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
     const d = await device();
-    mark ??= (await d.trace()).last;
+    // An app in the background has no connection to answer with: the step that brings it back must still run.
+    const lastSeq = () =>
+      d.trace().then(
+        (t) => t.last,
+        () => undefined,
+      );
+    mark ??= await lastSeq();
+    if (!LOOKING.has(name)) actedFrom = await lastSeq();
     // An interruption handled inside a wait is not the action the wait is about.
-    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d);
+    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d).catch(() => undefined);
     switch (name) {
       case 'press': {
         await interrupted(value);
@@ -723,8 +742,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
+          const what = typeof value === 'string' ? value : String(params?.what ?? '');
+          const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
-            const asked: Record<string, unknown> = typeof value === 'string' ? { what: value } : { ...(params ?? {}) };
+            const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
             for (;;) {
               await interrupted(value);
@@ -736,9 +757,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
                 throw new Error(outcome.error ?? outcome.text ?? 'wait failed');
               }
             }
-          } else await cli(argvFor(find('wait')!, value));
+          } else await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value));
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
-          const what = typeof value === 'string' ? value : String(params?.what ?? '');
           if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         }
         return undefined;
@@ -1019,6 +1039,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           },
           () => false,
         );
+      let still: boolean | undefined;
       let file = `${stem}.png`;
       let taken: boolean;
       if (await offers('screenshot')) {
@@ -1044,6 +1065,25 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           taken = await hostShot(file);
         }
       } else taken = (await execute(['screenshot', file], base)).code === 0;
+      // An animation the agent cannot see (a device's native transition, a host's printer running on its own clock)
+      // leaves a quiet app on a moving screen: the picture itself says when it stopped. Two frames alike, taken
+      // stillMs apart, are a still screen. Frames still being encoded (AVIF on a host) are left as they are.
+      if (taken && evidence.stillMs && !encoding.includes(file)) {
+        const stillMs = evidence.stillMs;
+        const take = async (to: string) => ((await offers('screenshot')) ? hostShot(to) : (await execute(['screenshot', to], base)).code === 0);
+        still = false;
+        const until = Date.now() + Math.max(2000, stillMs * 8);
+        let last = fs.readFileSync(file);
+        while (!still && Date.now() < until) {
+          await sleep(stillMs);
+          const again = `${file}.again${path.extname(file)}`;
+          if (!(await take(again))) break;
+          const now = fs.readFileSync(again);
+          fs.renameSync(again, file);
+          still = now.equals(last);
+          last = now;
+        }
+      }
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
         if (file.endsWith('.png') && evidence.frames !== 'png') {
@@ -1057,7 +1097,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
-        if (screen) fs.writeFileSync(file.replace(/\.(png|avif)$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
+        if (screen)
+          fs.writeFileSync(
+            file.replace(/\.(png|avif)$/, '.json'),
+            JSON.stringify({ ...screen, settled, ...(still === undefined ? {} : { still }), ...(moving ? { moving } : {}) }),
+          );
       }
     }
   };

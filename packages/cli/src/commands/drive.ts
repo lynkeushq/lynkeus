@@ -166,7 +166,7 @@ export const driveCommands = [
   define({
     name: 'wait',
     mcp: 'core',
-    mcpOmit: ['nth'],
+    mcpOmit: ['nth', 'since'],
     group: 'drive',
     summary: 'Until a route or element appears (or leaves), or a number of ms',
     positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP} | 800 (ms)`, required: true }],
@@ -175,6 +175,7 @@ export const driveCommands = [
       gone: { type: 'boolean', help: 'until it leaves the screen' },
       scroll: { type: 'boolean', help: 'scroll until it is in the window' },
       timeout: { type: 'number', help: 'give up after', default: 10000, value: 'ms' },
+      since: { type: 'number', help: 'a trace mark: a route reached after it counts, even if already left', value: 'seq' },
     },
     needs: 'app',
     run: async (ctx) => {
@@ -189,6 +190,7 @@ export const driveCommands = [
           gone: ctx.flags.gone ? true : undefined,
           scroll: ctx.flags.scroll ? true : undefined,
           timeoutMs: ctx.flags.timeout as number,
+          since: ctx.flags.since as number | undefined,
         }),
       };
     },

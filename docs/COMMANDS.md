@@ -84,7 +84,7 @@ Jump straight to a route (a teleport, not a user action)
 | `route` | e.g. Settings.Main |
 | `params` | JSON params (optional) |
 
-### `lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>]`
+### `lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]`
 
 Until a route or element appears (or leaves), or a number of ms
 
@@ -99,6 +99,7 @@ Until a route or element appears (or leaves), or a number of ms
 | `--gone` | until it leaves the screen |
 | `--scroll` | scroll until it is in the window |
 | `--timeout <ms>` | give up after (default `10000`) |
+| `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
 
 ### `lynkeus screenshot <file>`
 
@@ -255,13 +256,17 @@ Open a URL in the app, as the OS would hand it over
 
 Also accepted: `deeplink`.
 
-### `lynkeus os appstate <state>`
+### `lynkeus os appstate <state> [--app <bundleId>]`
 
-Headless: AppState listeners see the change (background, then active: what refetches or re-locks)
+AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real
 
 | Argument | |
 |---|---|
-| `state` | active | background | inactive |
+| `state` | active | background | inactive (inactive: a host only) |
+
+| Flag | |
+|---|---|
+| `--app <bundleId>` | the app to bring back on a simulator or emulator (default: the config’s app) |
 
 Also accepted: `appstate`.
 
@@ -331,7 +336,7 @@ Also accepted: `gallery`.
 
 ### `lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]`
 
-Headless: answer a request before the network (--sticky survives a reset)
+Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)
 
 | Argument | |
 |---|---|
@@ -616,7 +621,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -638,6 +643,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--no-app-events` | with --out: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen; frames two runs compare should not have it |
 | `--screenshots` | with --out: a frame of the screen after every step of the app |
 | `--settle <ms>` | with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by (default `150`) |
+| `--still <ms>` | with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see) |
 | `--frames <avif|png>` | with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel (default `avif`) |
 | `--video` | with --out: film each case, where the host films (the step says at what second it began) |
 | `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
@@ -680,6 +686,93 @@ Write an example case, the reference of the format and a fixtures server to star
 | Flag | |
 |---|---|
 | `--force` | overwrite what is there |
+
+### `lynkeus case coverage [--route <Route>] [--seen <dir>]`
+
+Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has
+
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).
+
+| Flag | |
+|---|---|
+| `--route <Route>` | only this screen: the cases that touch it |
+| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+
+### `lynkeus case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]`
+
+The cases a branch’s changes reach, to run only those, and the reached screens no case covers
+
+The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
+
+| Flag | |
+|---|---|
+| `--base <ref>` | git ref to diff against (default `main`) |
+| `--depth <n>` | how many imports away a change still reaches a screen (default `4`) |
+| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+| `--files` | print only the case files, one per line |
+
+### `lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]`
+
+Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write
+
+Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+
+| Argument | |
+|---|---|
+| `id` | the case id, which is also its file name |
+
+| Flag | |
+|---|---|
+| `--to <Route>` | the screen the case is about |
+| `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json) |
+| `--title <text>` | what a person can do there, as the report will title it |
+| `--write` | save it in the cases folder instead of printing it |
+
+### `lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
+
+Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down
+
+Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
+
+| Flag | |
+|---|---|
+| `--affected` | only the cases the changes against --base reach |
+| `--base <ref>` | git ref --affected diffs against (default `origin/main`) |
+| `--jobs <n>` | how many hosts and jobs (default ci.hosts.count, else 2) |
+| `--out <dir>` | where the run goes (default `lynkeus-run`) |
+| `--keep-up` | leave the backend and the hosts up afterwards |
+| `--dry-run` | say what it would do and run nothing |
+
+### `lynkeus fixtures describe [--fresh]`
+
+List what the project’s fixtures server can do: each command, what it makes or reads, its parameters
+
+Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names. What it answered last (here or before a run) is kept in .lynkeus and shown for a day without starting it; --fresh asks again.
+
+| Flag | |
+|---|---|
+| `--fresh` | ask the server even when it described itself in the last day |
+
+### `lynkeus fixtures check`
+
+Tell whether the project’s fixtures server keeps the fixtures protocol
+
+Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this lynkeus knows, and whether it is up. It changes nothing in the backend.
+
+### `lynkeus report prune [dir] [--older <age>] [--dry-run]`
+
+Delete the runs `case run --out` left in a folder that ended more than a while ago
+
+Looks at the folder given, or each folder right under it, and deletes the ones that hold a run (`run.json` and `cases.jsonl`) older than --older. Nothing else is touched. Pushed reports stay on the service; this only frees the disk.
+
+| Argument | |
+|---|---|
+| `dir` | a run folder, or the folder that holds them (optional) |
+
+| Flag | |
+|---|---|
+| `--older <age>` | how old a run must be: 7d, 12h, 30m (default `7d`) |
+| `--dry-run` | list what would go, delete nothing |
 
 ### `lynkeus report push <dir> [--project <name>]`
 

@@ -39,6 +39,8 @@ export class AgentServer extends EventEmitter {
   readonly host: string;
 
   #token?: string;
+  /** An app connected and stayed silent after the auth: the sign of a token that does not match. */
+  #unanswered = false;
   #session = Math.random().toString(36).slice(2) + Date.now().toString(36);
   #server: WebSocketServer | null = null;
   #socket: WebSocket | null = null;
@@ -101,7 +103,11 @@ export class AgentServer extends EventEmitter {
     return new Promise<HelloEvent>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.off('hello', onHello);
-        reject(new AgentError(`No app attached on ${this.host}:${this.port} within ${timeoutMs}ms. Is a dev build running with <Lynkeus>?`));
+        // An app that dials in and never says hello is one whose token is not ours: the agent stays silent then.
+        const why = this.#unanswered
+          ? ' An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.'
+          : ' Is a dev build running with <Lynkeus>?';
+        reject(new AgentError(`No app attached on ${this.host}:${this.port} within ${timeoutMs}ms.${why}`));
       }, timeoutMs);
       const onHello = (hello: HelloEvent) => {
         clearTimeout(timer);
@@ -152,6 +158,10 @@ export class AgentServer extends EventEmitter {
     this.#hello = null;
     this.#cancelGrace();
     socket.send(JSON.stringify({ event: 'auth', session: this.#session, token: this.#token }));
+    const silence = setTimeout(() => {
+      if (this.#socket === socket && !this.#hello && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
+    }, 2000);
+    socket.once('close', () => clearTimeout(silence));
 
     socket.on('message', (data) => {
       let message: Response | AgentEvent;
@@ -163,6 +173,8 @@ export class AgentServer extends EventEmitter {
       if ('event' in message) {
         if (message.event === 'hello') {
           this.#hello = message;
+          this.#unanswered = false;
+          clearTimeout(silence);
           // Resend what the previous socket may have dropped, but only once this one has spoken the
           // protocol: a bare local connection could be any process.
           if (socket.readyState === WebSocket.OPEN) {
