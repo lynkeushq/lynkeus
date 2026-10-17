@@ -35,11 +35,22 @@ export const osCommands = [
   define({
     name: 'os appstate',
     group: 'os',
-    summary: 'Headless: AppState listeners see the change (background, then active: what refetches or re-locks)',
-    positionals: [{ name: 'state', help: 'active | background | inactive', required: true }],
+    summary:
+      'AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real',
+    positionals: [{ name: 'state', help: 'active | background | inactive (inactive: a host only)', required: true }],
+    flags: { app: { type: 'string', help: 'the app to bring back on a simulator or emulator (default: the config’s app)', value: 'bundleId' } },
     aliases: ['appstate'],
     needs: 'app',
-    run: agent('appstate', (ctx) => ({ state: ctx.args[0] })),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      try {
+        return { json: await device.command('appstate', { state: ctx.args[0] }) };
+      } catch (error) {
+        // A host stands in for the OS; on a simulator or an emulator the OS itself moves the app.
+        if ((await device.resolved()).id === 'headless') throw error;
+        return simulator('appstate')(ctx);
+      }
+    },
   }),
   define({
     name: 'os network',

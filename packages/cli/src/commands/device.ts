@@ -76,8 +76,15 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
           { bin: 'xcrun', args: ['simctl', 'launch', deviceId, app, '-AppleLanguages', `(${tag})`, '-AppleLocale', locale] },
         ];
       }
+      case 'appstate': {
+        // Another app in front puts this one in the background; launching it again brings it back as it was.
+        const [state] = args;
+        if (state === 'background') return [{ bin: 'xcrun', args: ['simctl', 'launch', deviceId, 'com.apple.Preferences'] }];
+        if (state === 'active') return [{ bin: 'xcrun', args: ['simctl', 'launch', deviceId, needApp()] }];
+        throw new Error('lynkeus os appstate background|active on a simulator');
+      }
       default:
-        throw new Error(`unknown os subcommand "${sub}"; one of permissions, push, appearance, location, language`);
+        throw new Error(`unknown os subcommand "${sub}"; one of permissions, push, appearance, location, language, appstate`);
     }
   }
   const adb = (a: string[]): Invocation => ({ bin: 'adb', args: ['-s', deviceId, ...a] });
@@ -99,8 +106,15 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
       const [lat, lon] = where.split(',');
       return [adb(['emu', 'geo', 'fix', lon!, lat!])];
     }
+    case 'appstate': {
+      // Home sends the app to the background; its launcher intent brings the same task back, not a new one.
+      const [state] = args;
+      if (state === 'background') return [adb(['shell', 'input', 'keyevent', 'KEYCODE_HOME'])];
+      if (state === 'active') return [adb(['shell', 'monkey', '-p', needApp(), '-c', 'android.intent.category.LAUNCHER', '1'])];
+      throw new Error('lynkeus os appstate background|active on an emulator or a phone');
+    }
     default:
-      throw new Error(`"${sub}" is not available on Android through lynkeus; permissions, appearance and location are`);
+      throw new Error(`"${sub}" is not available on Android through lynkeus; permissions, appearance, location and appstate are`);
   }
 };
 

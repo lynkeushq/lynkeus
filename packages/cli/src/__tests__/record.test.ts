@@ -47,3 +47,12 @@ test('device subcommands map to simctl and adb', () => {
   assert.throws(() => simulatorArgv('ios', 'UDID', 'permissions', ['grant', 'camera']), /--app/);
   assert.throws(() => simulatorArgv('ios', 'UDID', 'appearance', ['blue']), /light\|dark/);
 });
+
+test('appstate on a simulator or emulator moves the app for real', () => {
+  assert.deepEqual(simulatorArgv('ios', 'SIM', 'appstate', ['background']), [{ bin: 'xcrun', args: ['simctl', 'launch', 'SIM', 'com.apple.Preferences'] }]);
+  assert.deepEqual(simulatorArgv('ios', 'SIM', 'appstate', ['active'], 'app.id'), [{ bin: 'xcrun', args: ['simctl', 'launch', 'SIM', 'app.id'] }]);
+  assert.deepEqual(simulatorArgv('android', 'emulator-5554', 'appstate', ['background']), [
+    { bin: 'adb', args: ['-s', 'emulator-5554', 'shell', 'input', 'keyevent', 'KEYCODE_HOME'] },
+  ]);
+  assert.throws(() => simulatorArgv('android', 'emulator-5554', 'appstate', ['inactive']), /background\|active/);
+});
