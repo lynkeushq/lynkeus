@@ -117,7 +117,15 @@ export type CaseReport = {
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
 /** `frames`: AVIF where the host writes it (a fifth of a PNG's bytes, lossy), or PNG, exact, for frames two runs are compared by. */
-export type Evidence = { dir: string; screenshots?: boolean; settleMs?: number; frames?: 'avif' | 'png'; video?: { fps: number; scale?: number } };
+export type Evidence = {
+  dir: string;
+  screenshots?: boolean;
+  settleMs?: number;
+  /** On a device: take the frame again until two in a row are the same, this many ms apart. */
+  stillMs?: number;
+  frames?: 'avif' | 'png';
+  video?: { fps: number; scale?: number };
+};
 
 // A host that could not write AVIF once (an older one) is asked for PNG from then on.
 let avifRefused = false;
@@ -1025,6 +1033,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           },
           () => false,
         );
+      let still: boolean | undefined;
       let file = `${stem}.png`;
       let taken: boolean;
       if (await offers('screenshot')) {
@@ -1049,7 +1058,26 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           file = `${stem}.png`;
           taken = await hostShot(file);
         }
-      } else taken = (await execute(['screenshot', file], base)).code === 0;
+      } else {
+        taken = (await execute(['screenshot', file], base)).code === 0;
+        // A device's own animations (a screen sliding in, a transition between two screens) run where the agent
+        // cannot see them, and a quiet app is no sign they ended: the picture itself is. Two frames alike, taken
+        // stillMs apart, say the screen stopped.
+        if (taken && evidence.stillMs) {
+          still = false;
+          const until = Date.now() + Math.max(2000, evidence.stillMs * 8);
+          let last = fs.readFileSync(file);
+          while (!still && Date.now() < until) {
+            await sleep(evidence.stillMs);
+            const again = `${file}.again.png`;
+            if ((await execute(['screenshot', again], base)).code !== 0) break;
+            const now = fs.readFileSync(again);
+            fs.renameSync(again, file);
+            still = now.equals(last);
+            last = now;
+          }
+        }
+      }
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
         if (file.endsWith('.png') && evidence.frames !== 'png') {
@@ -1063,7 +1091,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
         const screen = await d.screen().catch(() => undefined);
-        if (screen) fs.writeFileSync(file.replace(/\.(png|avif)$/, '.json'), JSON.stringify({ ...screen, settled, ...(moving ? { moving } : {}) }));
+        if (screen)
+          fs.writeFileSync(
+            file.replace(/\.(png|avif)$/, '.json'),
+            JSON.stringify({ ...screen, settled, ...(still === undefined ? {} : { still }), ...(moving ? { moving } : {}) }),
+          );
       }
     }
   };

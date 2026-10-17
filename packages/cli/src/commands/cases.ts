@@ -270,6 +270,11 @@ export const caseCommands = [
         default: 150,
         value: 'ms',
       },
+      still: {
+        type: 'number',
+        help: 'with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see)',
+        value: 'ms',
+      },
       frames: {
         type: 'string',
         help: "with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel",
@@ -308,6 +313,7 @@ export const caseCommands = [
       'report',
       'events',
       'settle',
+      'still',
       'frames',
       'traces',
       'traces-port',
@@ -348,6 +354,7 @@ export const caseCommands = [
               dir: out.evidenceDir(id, attempt),
               screenshots: !!ctx.flags.screenshots,
               settleMs: Number(ctx.flags.settle ?? 150),
+              ...(ctx.flags.still ? { stillMs: Number(ctx.flags.still) } : {}),
               frames: ctx.flags.frames === 'png' ? ('png' as const) : ('avif' as const),
               ...(ctx.flags.video
                 ? { video: { fps: Number(ctx.flags['video-fps'] ?? 30), ...(ctx.flags['video-scale'] ? { scale: Number(ctx.flags['video-scale']) } : {}) } }
