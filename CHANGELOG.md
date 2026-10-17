@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- A step that waits for a screen counts it when the app reached it after the last action and has already left it: a success screen that closes itself could come and go while the step before waited for its frame to settle or for a request, and the wait timed out on a device. `waitFor` takes `since` (a trace mark) for this; `lynkeus wait --since <seq>` too.
+
+- When no app attaches, the CLI says why it can tell: an app that connected and never answered has another token (start Metro with the driver's `LYNKEUS_TOKEN`, with `--reset-cache`). `LYNKEUS_DEVICE` set to an adb serial no longer fails with "No booted simulator", which hid the attach error.
+
+- `lynkeus headless start` loads the app's React when `lynkeus-headless` would load another copy (a linked package, a workspace, pnpm); the app's hooks failed with "Invalid hook call" and the host showed an empty screen. With mappings of its own in the app's jest config, it says what to add instead. A headless host that fails on Node older than 22.12 with `ERR_REQUIRE_ESM` says to update Node.
+
+- The MCP server's instructions say to press with `settle: true` to read the screen a press led to: a screen read right after a press can still be the one it left.
+
 - `lynkeus ci` runs a suite the way a CI job does: brings the project's backend up with its own command (`ci.backend.up`, waiting for `ci.backend.ready`), starts N hosts of the app (headless unless `ci.hosts.command` says otherwise), runs the cases across them, uploads the run with `ci.push`, writes the job summary to `$GITHUB_STEP_SUMMARY`, and tears everything down. `--affected` runs only the cases a branch's changes reach; `--dry-run` says what it would do.
 
 - Over MCP, a command that ends with a non-zero code (a case that failed, a fixtures server that does not keep the contract) comes back as an error, with all it said; it used to read as success. `case coverage`, `case impact`, `case new`, `fixtures check` and `fixtures describe` are served to every MCP client, not only with `mcp --full`.
