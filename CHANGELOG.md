@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `case run --screenshots --still <ms>`: on a simulator or emulator, each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.
+- `case run --screenshots --still <ms>`: on a simulator, an emulator or a host (PNG frames), each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.
 - Backend traces leave database queries out: a span with `db.system` is not filed under a step nor sent with a report, and no `db.*` attribute is kept. Their statements name the backend's tables and columns.
 - A run says where its commit lives and what it had that no commit has: `git.remote` (the repository's web address, credentials left out) and `git.changed` (up to 20 files with uncommitted changes, `changedCount` all of them), so a report can link the commit, compare it with the run before, and say the app was not exactly that commit.
 - `case run <dir>` runs every case under that directory, and the cases directory is read with its subfolders, so a suite can keep its cases in folders (`qa/cases/login/`). A name that is not there says so instead of failing with `EISDIR`.
