@@ -250,6 +250,17 @@ did. What turns each on:
 A run that kept evidence and saw no analytics event from the app, or was asked
 for a film and kept none, says so when it ends.
 
+### Frames two runs are compared by
+
+A frame is taken once the app stops committing (`--settle <ms>`, 150 by default).
+A simulator's or an emulator's own transitions, and a host's animations on its own
+clock, keep moving after the app is quiet; `--still <ms>` takes the frame again
+until two in a row are the same, that many ms apart, and the frame's JSON says
+whether it stopped (`still`). For frames compared pixel by pixel across two runs
+or two hosts: `--screenshots --frames png --settle 700 --still 300`. A screen that
+moves on by itself (a success screen that prints, then leaves) is still caught at
+another moment on each side.
+
 The types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in
 `lynkeus-protocol`, with `RUN_SCHEMA` in `run.json`. A field is only ever
 added; a change to what an existing field means raises the schema, and a
