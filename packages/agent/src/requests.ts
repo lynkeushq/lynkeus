@@ -1,5 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
+import { answer, installNetmock, mockFor } from './netmock';
 
 const KEEP = 200;
 const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
@@ -160,6 +161,7 @@ const trackXhr = (): void => {
   };
   proto.send = function (this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>) {
     const request = opened.get(this);
+    const rule = request ? mockFor(...request) : null;
     if (request) {
       const { record, finish } = track(...request);
       const bodies = keepBodies;
@@ -188,6 +190,7 @@ const trackXhr = (): void => {
         }
       }
     }
+    if (rule && request && answer(this, rule, request[1])) return;
     return send.apply(this, args);
   } as typeof proto.send;
 };
@@ -195,6 +198,7 @@ const trackXhr = (): void => {
 export const trackRequests = (): void => {
   if (installed) return;
   installed = true;
+  installNetmock();
   if (typeof XMLHttpRequest === 'undefined') trackFetch();
   else trackXhr();
 };
