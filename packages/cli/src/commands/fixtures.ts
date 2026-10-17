@@ -1,6 +1,6 @@
 import { FIXTURES_PROTOCOL, type FixtureCommand } from 'lynkeus-protocol';
 
-import { DESCRIBE, type Description, Fixtures, readDescription } from '../cases/fixtures.js';
+import { DESCRIBE, type Description, Fixtures, lastDescription, readDescription } from '../cases/fixtures.js';
 import { define } from '../registry.js';
 
 const paramsOf = (c: FixtureCommand) =>
@@ -47,18 +47,26 @@ export const fixturesCommands = [
     group: 'runs',
     summary: 'List what the project’s fixtures server can do: each command, what it makes or reads, its parameters',
     details:
-      'Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names.',
+      'Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names. What it answered last (here or before a run) is kept in .lynkeus and shown for a day without starting it; --fresh asks again.',
+    flags: { fresh: { type: 'boolean', help: 'ask the server even when it described itself in the last day' } },
     needs: 'nothing',
     session: false,
     mcp: 'core',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       if (!config.fixtures) return { text: 'the project declares no fixtures (cases.fixtures in lynkeus.config.json)', code: 1 };
-      const server = new Fixtures(config.fixtures, config.base ?? ctx.root);
-      const d = await server.describe().finally(() => server.close());
+      const root = config.base ?? ctx.root;
+      const kept = ctx.flags.fresh ? undefined : lastDescription(root, config.fixtures.command);
+      const recent = kept && Date.now() - kept.at < 24 * 3600_000 ? kept : undefined;
+      let d = recent?.description;
+      if (!d) {
+        const server = new Fixtures(config.fixtures, root);
+        d = await server.describe().finally(() => server.close());
+      }
       if (!d) return { text: 'the fixtures server did not describe itself (it answers `lynkeus.describe` with {"commands": [...]})', code: 1 };
       const text = d.details.map((c) => `${c.name}${c.params ? ` ${paramsOf(c)}` : ''}${c.summary ? `\n    ${c.summary}` : ''}`).join('\n');
-      return { text: d.down ? `${text}\n(the server cannot serve now: ${d.down})` : text, json: d };
+      const age = recent ? `\n(as the server described itself ${Math.round((Date.now() - recent.at) / 60_000)} min ago; --fresh asks it again)` : '';
+      return { text: d.down ? `${text}\n(the server cannot serve now: ${d.down})` : `${text}${age}`, json: d };
     },
   }),
   define({
