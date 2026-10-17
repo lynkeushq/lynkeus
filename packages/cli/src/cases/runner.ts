@@ -1058,24 +1058,24 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           file = `${stem}.png`;
           taken = await hostShot(file);
         }
-      } else {
-        taken = (await execute(['screenshot', file], base)).code === 0;
-        // A device's own animations (a screen sliding in, a transition between two screens) run where the agent
-        // cannot see them, and a quiet app is no sign they ended: the picture itself is. Two frames alike, taken
-        // stillMs apart, say the screen stopped.
-        if (taken && evidence.stillMs) {
-          still = false;
-          const until = Date.now() + Math.max(2000, evidence.stillMs * 8);
-          let last = fs.readFileSync(file);
-          while (!still && Date.now() < until) {
-            await sleep(evidence.stillMs);
-            const again = `${file}.again.png`;
-            if ((await execute(['screenshot', again], base)).code !== 0) break;
-            const now = fs.readFileSync(again);
-            fs.renameSync(again, file);
-            still = now.equals(last);
-            last = now;
-          }
+      } else taken = (await execute(['screenshot', file], base)).code === 0;
+      // An animation the agent cannot see (a device's native transition, a host's printer running on its own clock)
+      // leaves a quiet app on a moving screen: the picture itself says when it stopped. Two frames alike, taken
+      // stillMs apart, are a still screen. Frames still being encoded (AVIF on a host) are left as they are.
+      if (taken && evidence.stillMs && !encoding.includes(file)) {
+        const stillMs = evidence.stillMs;
+        const take = async (to: string) => ((await offers('screenshot')) ? hostShot(to) : (await execute(['screenshot', to], base)).code === 0);
+        still = false;
+        const until = Date.now() + Math.max(2000, stillMs * 8);
+        let last = fs.readFileSync(file);
+        while (!still && Date.now() < until) {
+          await sleep(stillMs);
+          const again = `${file}.again${path.extname(file)}`;
+          if (!(await take(again))) break;
+          const now = fs.readFileSync(again);
+          fs.renameSync(again, file);
+          still = now.equals(last);
+          last = now;
         }
       }
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {

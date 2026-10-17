@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- `case run --screenshots --still <ms>`: on a simulator or emulator, each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.
+- `case run --screenshots --still <ms>`: on a simulator, an emulator or a host (PNG frames), each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.
 
 - `lynkeus headless start` sets `LYNKEUS_HEADLESS=1`, so an app's jest setup that stubs a native SDK for its unit tests can leave it real for a host, where `nativeMocks` stands in for its screen (docs/HEADLESS.md). Reanimated's `withRepeat` calls its completion callback headless, and `withSequence` ends at its last value: a screen that moves on when a repeat ends stayed put.
 
