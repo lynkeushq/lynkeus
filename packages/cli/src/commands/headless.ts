@@ -229,7 +229,9 @@ export const headlessCommands = [
       fs.writeFileSync(testFile, hostTest(rel.startsWith('.') ? rel : `./${rel}`, port, ctx.config, path.basename(ctx.root)));
       // Node resolves `localhost` to ::1 first; local backends usually listen on IPv4 only.
       const nodeOptions = [process.env.NODE_OPTIONS, '--dns-result-order=ipv4first'].filter(Boolean).join(' ');
-      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, CI: '1', NODE_OPTIONS: nodeOptions };
+      // LYNKEUS_HEADLESS tells the app's jest setup a host is starting, not its unit tests: a setup that stubs a native
+      // SDK whole can leave it real there, so the call reaches the stand-in `nativeMocks` shows.
+      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, LYNKEUS_HEADLESS: '1', CI: '1', NODE_OPTIONS: nodeOptions };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
         cwd: ctx.root,

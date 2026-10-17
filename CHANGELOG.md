@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus headless start` sets `LYNKEUS_HEADLESS=1`, so an app's jest setup that stubs a native SDK for its unit tests can leave it real for a host, where `nativeMocks` stands in for its screen (docs/HEADLESS.md). Reanimated's `withRepeat` calls its completion callback headless, and `withSequence` ends at its last value: a screen that moves on when a repeat ends stayed put.
+
 - A step that waits for a screen counts it when the app reached it after the last action and has already left it: a success screen that closes itself could come and go while the step before waited for its frame to settle or for a request, and the wait timed out on a device. `waitFor` takes `since` (a trace mark) for this; `lynkeus wait --since <seq>` too.
 
 - When no app attaches, the CLI says why it can tell: an app that connected and never answered has another token (start Metro with the driver's `LYNKEUS_TOKEN`, with `--reset-cache`). `LYNKEUS_DEVICE` set to an adb serial no longer fails with "No booted simulator", which hid the attach error.
