@@ -149,8 +149,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   };
 
   // An element still sliding in would be tapped where it was. Two identical
-  // measurements 40 ms apart mean it has landed.
-  const settled = async (target: Target, timeoutMs = 600): Promise<Point> => {
+  // measurements 40 ms apart mean it has landed. An Android fling coasts for
+  // seconds, and a finger that lands on it stops the scroll where it is: wait
+  // it out, or the screen depends on when the tap came.
+  const settled = async (target: Target, timeoutMs = 3000): Promise<Point> => {
     const deadline = Date.now() + timeoutMs;
     let previous = pointOf(target);
     while (Date.now() < deadline) {
@@ -294,6 +296,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // list stops moving, then back up, and give up when that stops moving too.
     let back = false;
     let before = '';
+    let moving = '';
+    let movedAt = 0;
     const shape = (all: Element[]) => all.map((e) => `${e.testId ?? e.text ?? ''}@${Math.round(e.frame.y)}`).join('|');
     const started = Date.now();
     const deadline = started + (params.timeoutMs ?? 5000);
@@ -312,8 +316,15 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
           `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${route})`,
         );
       }
-      // A device scroller keeps moving after the finger lifts; a host's stops at once.
-      if (params.scroll && params.target && !params.gone && swipes < 30 && Date.now() - lastSwipe > (backend.native ? 400 : 50)) {
+      // A device scroller keeps moving after the finger lifts; a host's stops at once. The next swipe waits
+      // for it to stop, so that whether one more is needed is decided where the scroll ends, not on its way.
+      const now = shape(all);
+      if (now !== moving) {
+        moving = now;
+        movedAt = Date.now();
+      }
+      const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      if (params.scroll && params.target && !params.gone && swipes < 30 && still && Date.now() - lastSwipe > (backend.native ? 400 : 50)) {
         if (!found && swipes > 0 && shape(all) === before) {
           if (back) swipes = 30;
           back = true;
