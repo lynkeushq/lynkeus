@@ -598,7 +598,8 @@ test('a host that waits for a still screen on its own clock is asked to, and the
         fs.writeFileSync(String(params.path), `frame ${shots}`);
         return { path: params.path, signature: `s${shots}` };
       }
-      if (name === 'still') return { still: true, changed: changed && params.since === 's1' };
+      if (name === 'still')
+        return changed ? { still: false, changed: params.since === 's1', moving: [{ x: 1, y: 2, w: 3, h: 4 }] } : { still: true, changed: false };
       return {};
     };
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-still-'));
@@ -613,6 +614,9 @@ test('a host that waits for a still screen on its own clock is asked to, and the
     assert.ok(asked.filter((a) => a.name === 'screenshot').every((a) => a.params.sign === true));
     assert.equal(shots, changed ? 3 : 2);
     const first = report.steps.find((s) => s.screenshot)!.screenshot!;
-    assert.equal(JSON.parse(fs.readFileSync(first.replace(/\.png$/, '.json'), 'utf8')).still, true);
+    const frame = JSON.parse(fs.readFileSync(first.replace(/\.png$/, '.json'), 'utf8'));
+    // A screen that never stood still keeps what moved while the host waited.
+    assert.equal(frame.still, !changed);
+    assert.deepEqual(frame.moving, changed ? [{ x: 1, y: 2, w: 3, h: 4 }] : undefined);
   }
 });

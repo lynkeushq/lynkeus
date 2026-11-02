@@ -968,7 +968,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         // the screen it settled on is another one.
         const stillMs = evidence.stillMs!;
         const answer = (await d.command('still', { stepMs: stillMs, timeoutMs: Math.max(2000, stillMs * 8), since: signature }).catch(() => undefined)) as
-          | { still?: unknown; changed?: unknown }
+          | { still?: unknown; changed?: unknown; moving?: unknown }
           | undefined;
         if (answer) {
           still = answer.still === true;
@@ -976,6 +976,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             fs.rmSync(file, { force: true });
             taken = await hostShot(file);
           }
+          // A screen that never stood still: what moved during the wait is of a moment too.
+          if (Array.isArray(answer.moving)) moving = [...(Array.isArray(moving) ? moving : []), ...answer.moving];
         }
       } else if (taken && evidence.stillMs && !encoding.includes(file)) {
         const stillMs = evidence.stillMs;
