@@ -45,7 +45,7 @@
     "@types/node": "^22.10.2",
     "@types/pngjs": "^6.0.5",
     "tsx": "^4.19.2",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "homepage": "https://github.com/lynkeushq/lynkeus#readme",
   "optionalDependencies": {
