@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
 
