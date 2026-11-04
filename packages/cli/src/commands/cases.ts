@@ -19,6 +19,8 @@ import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { describeChanges, pushRun, service } from './report.js';
 import { TraceSink } from '../cases/traces.js';
+import { megabytes, sizeOf } from '../cases/runDirs.js';
+import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 
 const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -28,6 +30,11 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
+  // Everything the host prints, for the render errors and warnings a failed case points at; the console keeps the run's own lines.
+  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}.log`);
+  const logStream = fs.createWriteStream(logFile);
+  logStream.on('error', () => {});
+  host.once('exit', () => logStream.end());
   let output = '';
   const tail = (n: number) => output.trim().split('\n').slice(-n).join(' · ');
   // `headless start` ends a crash with what it usually means; without that, the error line jest printed.
@@ -40,7 +47,9 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
         .split('\n')
         .map((line) => line.trim())
         .join(' · ');
-    return plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
+    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message.
+    const thrown = plain.match(/Test suite failed to run\s*\n\s*\n?\s*(\S.*)$/m)?.[1]?.trim();
+    return thrown ?? plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
   };
   await new Promise<void>((resolve, reject) => {
     const settle = (error?: Error) => {
@@ -50,6 +59,7 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     };
     const timer = setTimeout(() => settle(new Error(`the host did not come up within 180 s: ${tail(3)}`)), 180_000);
     const read = (chunk: Buffer) => {
+      logStream.write(chunk);
       output = (output + chunk.toString()).slice(-4000);
       if (/waiting for a driver/.test(output)) settle();
     };
@@ -58,7 +68,8 @@ const startHost = async (root: string, err: (line: string) => void): Promise<Chi
     // A suite that fails to load exits right after printing why, so its explanation is read in full here.
     host.once('exit', (code) => settle(new Error(`${/Test suite failed/.test(output) ? 'the host failed to start' : `the host exited (${code})`}: ${why()}`)));
   });
-  err('host: up');
+  // The listeners above stay: the log takes all the host prints until it stops.
+  err(`host: up (its log: ${logFile})`);
   return host;
 };
 
@@ -190,13 +201,46 @@ const spawnHost = (command: string, port: number, job: number, cwd: string): Chi
   });
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
-const pushed = async (dir: string, to: Exclude<ReturnType<typeof service>, string>, project: string) => {
+// A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
+export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }): string[] => {
+  if (reports.length === 0) return [];
+  const steps = reports.flatMap((r) => r.steps);
+  const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
+  return [
+    ...(fromApp ? [] : ['⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).']),
+    ...(asked.video && !reports.some((r) => r.video)
+      ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).']
+      : []),
+  ];
+};
+
+const pushed = async (
+  dir: string,
+  to: Exclude<ReturnType<typeof service>, string>,
+  project: string,
+  err: (line: string) => void,
+  afterPush: 'keep' | 'delete' = 'keep',
+) => {
   try {
-    const run = await pushRun(dir, { ...to, project });
-    return [`report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`, ...describeChanges(run.changes)].join('\n');
+    const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
+    return [
+      `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`,
+      ...describeChanges(run.changes),
+      keptOrDeleted(dir, afterPush, run.refused.length === 0),
+    ].join('\n');
   } catch (error) {
     return `the report was not uploaded: ${(error as Error).message}`;
   }
+};
+
+// After a push: the folder deleted when the config asks and the service took every file, else how much it holds.
+export const keptOrDeleted = (dir: string, afterPush: 'keep' | 'delete', complete: boolean): string => {
+  const bytes = sizeOf(dir);
+  if (afterPush === 'delete' && complete) {
+    fs.rmSync(dir, { recursive: true, force: true });
+    return `run folder deleted after the push (${megabytes(bytes)})`;
+  }
+  return `run folder: ${megabytes(bytes)} on disk${afterPush === 'delete' ? ', kept because some files were not taken' : ''} · \`lynkeus report prune ${path.dirname(dir)} --older 7d\` frees old ones`;
 };
 
 export const caseCommands = [
@@ -228,7 +272,7 @@ export const caseCommands = [
       },
       frames: {
         type: 'string',
-        help: 'with --screenshots: avif (where the host writes it, a fifth of the bytes) or png, exact, for frames two runs are compared by',
+        help: "with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel",
         default: 'avif',
         value: 'avif|png',
       },
@@ -363,6 +407,15 @@ export const caseCommands = [
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
           return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
+        // One simulator or emulator, one log: with several jobs a line could not be told to its case.
+        const native: NativeLogs | undefined =
+          out && jobs === 1 && !hostCommand && !ctx.flags.host && ctx.config.app
+            ? await ctx
+                .device()
+                .then((d) => d.resolved())
+                .then((info) => startNativeLogs(info, ctx.config.app as string))
+                .catch(() => undefined)
+            : undefined;
         // Several jobs finish together only if the longest cases start first: one left for the end runs alone
         // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
         if (jobs > 1 && ledger && !ctx.flags['in-order']) {
@@ -425,6 +478,7 @@ export const caseCommands = [
                     continue: !!ctx.flags.continue,
                     routes: seenDir ? (host ? 'fresh' : true) : false,
                     traces,
+                    nativeLogs: native,
                   });
                   if (seenDir && report.result === 'passed' && report.routes?.length) {
                     fs.mkdirSync(seenDir, { recursive: true });
@@ -473,6 +527,7 @@ export const caseCommands = [
         await Promise.all(Array.from({ length: jobs }, (_, i) => job(i)));
         await preparing;
         if (out) out.finish({ platform: seen?.platform, native: seen?.native });
+        native?.stop();
       } finally {
         stop();
       }
@@ -486,6 +541,9 @@ export const caseCommands = [
             (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
+        // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
+        ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
+        ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(reportsTo && out
           ? [
@@ -493,6 +551,8 @@ export const caseCommands = [
                 path.resolve(ctx.flags.out as string),
                 reportsTo,
                 typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
+                ctx.err,
+                ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep',
               ),
             ]
           : []),

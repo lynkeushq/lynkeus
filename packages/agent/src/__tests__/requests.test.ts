@@ -45,6 +45,40 @@ describe('the trace context', () => {
   });
 });
 
+describe('request ids', () => {
+  it('go on rising after the app reloads its JavaScript', () => {
+    class FakeXhr {
+      open(_method: string, _url: string) {}
+      setRequestHeader() {}
+      addEventListener() {}
+      send() {}
+    }
+    const g = globalThis as unknown as { XMLHttpRequest?: unknown };
+    const before = g.XMLHttpRequest;
+    const lastId = () => {
+      let id = 0;
+      g.XMLHttpRequest = FakeXhr;
+      jest.isolateModules(() => {
+        const { trackRequests, recentRequests } = require('../requests') as typeof import('../requests');
+        trackRequests();
+        const x = new FakeXhr();
+        x.open('GET', '/user');
+        x.send();
+        id = recentRequests().at(-1)?.id ?? 0;
+      });
+      return id;
+    };
+    // Each isolateModules is the module loaded again, as a reload loads it.
+    const first = lastId();
+    // A reload takes far longer than a millisecond.
+    const now = jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 500);
+    const afterReload = lastId();
+    now.mockRestore();
+    g.XMLHttpRequest = before;
+    expect(afterReload).toBeGreaterThan(first);
+  });
+});
+
 describe('request and response bodies', () => {
   it('hides secrets in a JSON body and in headers, and keeps the rest', async () => {
     const { redactBody, redactHeaders } = await import('../requests');

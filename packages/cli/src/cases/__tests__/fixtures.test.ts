@@ -15,4 +15,3 @@ test('a fixtures command that cannot start is not started again for every case',
   assert.equal(fs.readFileSync(starts, 'utf8').trim().split('\n').length, 2);
   fixtures.close();
 });
-

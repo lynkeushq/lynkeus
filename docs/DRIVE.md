@@ -213,6 +213,11 @@ trace says which top-level keys changed and keeps their values short: an
 object as its size, a long string as its first 80 characters, and a key whose
 name reads like a secret (`token`, `password`, `session`…) as `…`.
 
+The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics
+by wrapping those SDKs' native modules: each call is kept and goes on to the
+SDK as before, and `lynkeus call analytics` reads them. It sees only calls that
+reach the SDK.
+
 `qa.event(name, props)`, called from wherever the app reports to its
 analytics, records the event in the trace and in a buffer that
 `lynkeus call events` reads (`'{"clear":true}'` empties it). An app that
@@ -228,8 +233,10 @@ Inactive screens of a stack or tab navigator are skipped; a modal or a sheet
 marks what it covers. The whole snapshot is one JavaScript tick.
 
 Values of `secureTextEntry` fields are masked. Request logging records
-method, path, status and duration; never headers or bodies, and sensitive
-query values are redacted.
+method, path, status and duration, and sensitive query values are redacted.
+While a case run keeps evidence (`--out`) it also keeps headers and bodies,
+with passwords, codes, tokens, card numbers, `Authorization` and cookies
+replaced by `…` and bodies cut at 16 KB.
 
 ## Why did that fail
 

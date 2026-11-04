@@ -66,6 +66,8 @@ export type LynkeusConfig = {
   device?: string;
   /** Bundle id or application id. */
   app?: string;
+  /** What a pushed run's local folder becomes: kept (the default), or deleted once the service has every file. */
+  report?: { afterPush?: 'keep' | 'delete' };
   /**
    * The language this app speaks, passed on and never interpreted: `os
    * language` defaults to it, the headless entry mocks this locale, and an MCP

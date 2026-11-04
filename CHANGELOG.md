@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- A run says whether its branch and commit are on the remote (`git.pushed`, from the clone's remote-tracking refs), so a report links only what the forge has: a branch that lives only on this machine was a 404. Such a branch is named by the remote branch that holds the commit (the tracked one first), and `git.localBranch` keeps the local name.
+
+- After a push, the CLI says how much the run's folder holds on disk; with `"report": { "afterPush": "delete" }` in `lynkeus.config.json` it deletes the folder once the service has taken every file (never when one was refused). `lynkeus report prune <dir> [--older 7d] [--dry-run]` deletes the runs left in a folder that ended longer ago than that, touching nothing that is not a run.
+
+- A run that keeps evidence (`--out`) keeps what the app printed under the step that printed it: every `console.debug/log/info/warn/error` call and every error nobody caught (with its stack), from the agent, on any host. Each line still reaches the console. `RunStep.logs` in `lynkeus-protocol`; the agent answers a `logs` command. On a simulator or an emulator, with `app` in `lynkeus.config.json` and one job, the app's native log is kept too (`source: native`): on iOS its errors and what its own code and React Native's native side log, on Android every line of its uid; React Native's console lines are left to the agent, which has their stacks.
+
+- On a simulator, an emulator or a phone the agent keeps the app's calls to Sentry, Datadog (RUM, logs, traces), Intercom and Crashlytics too, named as fastsim names them (`addAction: TAP`, `logEvent: opened_help`), and passes each on to the SDK. Calls that only read from the SDK (`get…`, `fetch…`) are left out. As before, the agent runs only in development builds unless told otherwise.
+
+- A run that keeps evidence says when it ends what it could not keep: no analytics event from the app in any case or, with `--video`, no film (only fastsim films). The cases docs gain "A run with everything", a table of what turns on each part of a report, and the MCP server's instructions say the same. The drive and protocol docs no longer say requests never keep bodies.
+
+- The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics on a simulator, an emulator or a phone too, not only on fastsim and the headless host: it wraps those SDKs' native modules, keeps each call, and lets it go on to the SDK. A report then shows the app's Mixpanel events under each step next to the backend's. A module the runtime keeps frozen cannot be wrapped and stays unseen.
+- A report opens as soon as its cases are in, says how its frames are coming along, and a run's cases go up in parts of about 256 KB: with every request's headers and bodies a run file is megabytes, more than the service reads in one request.
+- After `app.refresh` (or any reload of the app's JavaScript) a step's requests are kept again: the agent's request ids started over at 1, and the runner asked for ids after the last one it had seen.
+
+- Pushing a run is a request per case, not per file: `report push` (and `case run --push`) sends each case's frames as one tar, four cases at once, retrying what fails on the way, and the reports service reads it into storage as it arrives. A suite of 1,707 frames took over 20 minutes to send a file at a time. Films still go on their own. A service from before this answers 404 and the CLI sends the files one by one.
+- A simulator's or emulator's frames are kept as AVIF too, not only fastsim's: they come as PNG (neither `simctl` nor `screencap` writes AVIF), and the CLI encodes each again while the case goes on, about 4% of the PNG's bytes in some 70 ms (sharp, an optional dependency; without it the PNG stays). `--frames png` keeps them exact, for comparing two runs pixel for pixel.
+
+- An MCP tool call with an argument the tool does not take is refused, naming the ones it takes. It used to be dropped: `case_run` with `cases` instead of `files` ran every case in the project.
+- `case run --host` keeps everything the headless host prints in `$TMPDIR/lynkeus-headless-<pid>.log` and names the file when the host is up. It was read only to see the host start, so the render error a failed step points at was nowhere to be found.
+- When the headless host fails to start because the app's entry throws while jest loads it, `case run --host` says what was thrown, not jest's summary line.
+- `lynkeus-headless` answers the cases config's `nativeMocks` as fastsim does: a native SDK the host cannot run (Sumsub's launch, Intercom's messenger) gets a stand-in module whose mocked methods resolve with the configured result, or put up a page whose buttons (`#native-mock-<label>`) each resolve it with theirs.
+
 - Backend traces leave database queries out: a span with `db.system` is not filed under a step nor sent with a report, and no `db.*` attribute is kept. Their statements name the backend's tables and columns.
 - A run says where its commit lives and what it had that no commit has: `git.remote` (the repository's web address, credentials left out) and `git.changed` (up to 20 files with uncommitted changes, `changedCount` all of them), so a report can link the commit, compare it with the run before, and say the app was not exactly that commit.
 - `case run <dir>` runs every case under that directory, and the cases directory is read with its subfolders, so a suite can keep its cases in folders (`qa/cases/login/`). A name that is not there says so instead of failing with `EISDIR`.

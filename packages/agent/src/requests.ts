@@ -14,7 +14,9 @@ export const setTraceContext = (params: unknown): { traceparent: string | null }
   traceparent = typeof given === 'string' && /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/.test(given) ? given : null;
   return { traceparent };
 };
-let nextId = 1;
+// Ids go on rising when the app reloads its JavaScript (`app.refresh`, a fast refresh): a runner asks for the
+// requests after the last id it saw, and a counter back at 1 would answer none for the rest of the case.
+let nextId = Date.now() * 1000;
 let inFlight = 0;
 let installed = false;
 
