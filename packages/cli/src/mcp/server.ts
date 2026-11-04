@@ -68,11 +68,13 @@ In a project you do not know, call status first: it lists what is set up and, fo
 
 To set lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
 
-To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there; prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
+To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there (press with settle: true answers with the screen once the app has settled; a screen read right after a press can still be the one it left); prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
 
 To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.
 
-To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.`;
+To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
+
+For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs fastsim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };
@@ -115,9 +117,19 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     if (request.params.name === 'app_locale' && locale) return text(locale);
     const c = byName.get(request.params.name);
     if (!c) return { ...text(`✗ no tool ${request.params.name}`), isError: true };
-    const r = await execute(argvFor(c, (request.params.arguments ?? {}) as Record<string, unknown>), session.ctx);
+    const input = (request.params.arguments ?? {}) as Record<string, unknown>;
+    // An argument the tool does not take is dropped by argvFor; a run would then go on without it (every case
+    // instead of the one named), so it is refused, with what the tool does take.
+    const known = Object.keys(schemaFor(c).properties);
+    const unknown = Object.keys(input).filter((key) => !known.includes(key));
+    if (unknown.length)
+      return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
+    const r = await execute(argvFor(c, input), session.ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
-    return text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is
+    // reported as such, with everything it said, so a model does not read it as success.
+    return r.code === 0 ? body : { ...body, isError: true };
   });
   // The client going away ends the server: the session holds the driver's port open, and a server left behind
   // keeps the next one (or a case run) from binding it.

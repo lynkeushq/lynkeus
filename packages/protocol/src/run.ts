@@ -70,7 +70,12 @@ export type RunStep = {
   backend?: RunBackendSpan[];
   /** The requests the app sent while it ran, with headers and bodies whose secrets are hidden. */
   requests?: RequestRecord[];
+  /** What the app printed while it ran: its console, the errors it did not catch, its native log. */
+  logs?: RunLogLine[];
 };
+
+/** A printed line: `at` in ms since the epoch; `source` is `js`, `native` or `host`. */
+export type RunLogLine = { at: number; level: 'debug' | 'info' | 'warn' | 'error'; source: string; text: string; stack?: string };
 
 export type RunCase = {
   id: string;
@@ -108,7 +113,20 @@ export type RunManifest = {
   native?: boolean;
   /** Where the run was made from, when it was a git checkout. */
   /** `remote`: the repository's web address (no credentials); `changed`: files with changes no commit has (at most 20 of `changedCount`). */
-  git?: { branch?: string; commit?: string; remote?: string; changed?: string[]; changedCount?: number };
+  /**
+   * `pushed`: what of it the remote has, as the clone knew when the run began (its remote-tracking refs, not a
+   * request): the branch, and the commit on any remote branch. A report links only what is there. A branch only this
+   * machine has is replaced by the remote branch that holds the commit, and `localBranch` keeps its name.
+   */
+  git?: {
+    branch?: string;
+    localBranch?: string;
+    commit?: string;
+    remote?: string;
+    changed?: string[];
+    changedCount?: number;
+    pushed?: { branch: boolean; commit: boolean };
+  };
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

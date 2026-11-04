@@ -63,6 +63,11 @@ export const pickAgentDevice = async (wanted?: string): Promise<DeviceInfo> => {
   const devices = await bootedSimulators();
   const id = wanted ?? process.env.LYNKEUS_DEVICE;
   const device = id ? devices.find((d) => d.id === id || d.name.includes(id)) : devices[0];
+  if (!device && id) {
+    // An adb serial names an Android device; which platform the app is on is only known once it dials in.
+    const android = (await androidDevices()).find((d) => d.id === id);
+    if (android) return android;
+  }
   if (!device) {
     // A headless host dials the driver itself: nothing to boot or attach to.
     if (!id && devices.length === 0) return HEADLESS_HOST;

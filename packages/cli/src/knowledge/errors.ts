@@ -48,6 +48,12 @@ const RULES: Rule[] = [
     fix: () => `start the backend (or the lynkeus driver, if this is the agent's socket) and check the port the entry dials.`,
   },
   {
+    // Babel loads the project's config with require(); a plugin shipped as ESM only loads that way from Node 22.12.
+    re: /ERR_REQUIRE_ESM(?:[^\n]*?require\(\) of ES Module (\S+))?|require\(\) of ES Module (\S+)/,
+    cause: (m) => `Node ${process.versions.node} cannot require() an ES module${m[1] || m[2] ? ` (${m[1] || m[2]})` : ''}, which the babel config loads`,
+    fix: () => `run with Node 22.12 or newer (lynkeus-headless needs >=22), where require() loads ES modules.`,
+  },
+  {
     re: /Test environment jest-environment-\w+ cannot be found|Unexpected token 'export'|SyntaxError: Cannot use import statement/,
     cause: () => `jest is not transforming a dependency (ESM in node_modules)`,
     fix: () =>

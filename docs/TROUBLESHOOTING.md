@@ -41,6 +41,11 @@ the build is a debug build, that `enabled` is true for this environment, and
 that the token the app was built with is the `LYNKEUS_TOKEN` the driver reads.
 `--attach-timeout <ms>` (or `attachTimeout` in the config) gives it longer;
 `--launch --app <bundleId>` relaunches the app first.
+When the error says *an app connected but did not answer*, the app dialled in
+and stayed silent after the driver's token: it was bundled with another one.
+Start Metro with the driver's `LYNKEUS_TOKEN` (`.lynkeus/token` or the
+environment) and `--reset-cache`. With `LYNKEUS_DEVICE` set to an adb serial
+(`emulator-5554`) the error is the attach one, not "no booted simulator".
 
 **The app logs `lynkeus: the app passed a token and it is empty`.** The entry
 reads `process.env.LYNKEUS_TOKEN` and nothing put a value there, so the agent

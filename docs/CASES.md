@@ -85,7 +85,8 @@ Before the first case lynkeus asks the fixtures command what it answers
 `{"commands": ["create_user", …]}` has every case checked against that list,
 and a case naming a fixture that is not on it is refused before anything runs,
 instead of failing halfway with the backend already changed. A server that
-replies `"ok": false` is not checked.
+replies `"ok": false` is not checked. The whole contract, with descriptions a server can give of
+each command, is [FIXTURES.md](FIXTURES.md).
 
 ## Steps of your own
 
@@ -123,6 +124,40 @@ its `cases` are relative to it.
 `{{random.letters}}` and `{{random.digits}}` are new on every run. With
 `LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
 different ones from the case beside it: what comparing two runs' screens needs.
+
+## Coverage and impact
+
+```sh
+npx lynkeus case coverage                              # screens touched, untouched, and names the app lost
+npx lynkeus case coverage --route Pay.Main             # the cases that touch one screen
+npx lynkeus case run $(npx lynkeus case impact --files)   # only the cases a branch's changes reach
+npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: the way there and the setup to pick
+```
+
+`case new` begins at `--from`, or at `cases.start` in the config. It never chooses the setup: it lists, commented out,
+what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and the author keeps what the case needs.
+
+A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
+screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
+graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
+
+## In CI
+
+`lynkeus ci` is a suite run the way a CI job wants one: the project's backend brought up by the project's own
+command, N hosts of the app, the cases spread across them, the report uploaded, a summary for the job, and
+everything torn down, failure or not. lynkeus knows no backend; the config says how to start one:
+
+```json
+"ci": {
+  "backend": { "up": "../qa-tools/ci/env.sh up", "down": "../qa-tools/ci/env.sh down", "ready": "http://127.0.0.1:3100/up" },
+  "hosts": { "count": 4 },
+  "push": true
+}
+```
+
+```yaml
+- run: npx lynkeus ci --affected --base origin/main   # only the cases this pull request's changes reach
+```
 
 ## Configuration
 
@@ -194,6 +229,26 @@ backend's spans that no step's request caused, such as a scheduler's, are left
 out. Turn
 the backend's exporter on only for test runs: it costs a little on every
 request.
+
+### A run with everything
+
+A report shows, under each step, a frame, the second of the film, every
+request with its headers and bodies, the analytics events and what the backend
+did. What turns each on:
+
+| In the report | How |
+| --- | --- |
+| Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
+| Film | `--video`, on a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
+| Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
+| The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on fastsim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
+| What the app printed | `--out`: the agent keeps its console and uncaught errors, with their stacks, under the step that printed them |
+| The backend's analytics | `cases.serverEvents` in the config |
+| What the backend did | `--traces` (above) |
+| A link to share | `--push`, with `LYNKEUS_REPORTS_KEY` in the environment |
+
+A run that kept evidence and saw no analytics event from the app, or was asked
+for a film and kept none, says so when it ends.
 
 ### Frames two runs are compared by
 

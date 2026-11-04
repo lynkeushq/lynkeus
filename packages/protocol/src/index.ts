@@ -97,6 +97,11 @@ export type WaitForParams = {
   /** Swipe the nearest scrolling container towards the target until it is in the window. */
   scroll?: boolean;
   timeoutMs?: number;
+  /**
+   * A trace mark (`trace().last`): a `route` the app reached after it counts as arrived, even if the app has
+   * already left it. A screen that closes itself (a success screen) can come and go while a step's frame settles.
+   */
+  since?: number;
 };
 
 export type TraceEvent = { seq: number; t: number } & (
@@ -157,7 +162,7 @@ export type CoreMethods = {
   back: { params: undefined; result: { route?: string } };
   waitFor: {
     params: WaitForParams;
-    result: { route?: string; matched?: Target; waitedMs: number };
+    result: { route?: string; matched?: Target; waitedMs: number /** The route was reached after `since` and left again. */; passed?: boolean };
   };
   idle: {
     /** `after`: a commit count from before the awaited change; quiet only counts once the app has committed past it. */
@@ -201,3 +206,4 @@ export type AuthEvent = { event: 'auth'; session: string; token?: string };
 export type AgentEvent = HelloEvent | NavigationEvent;
 
 export * from './run.js';
+export * from './fixtures.js';

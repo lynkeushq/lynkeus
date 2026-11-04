@@ -5,11 +5,12 @@ import { render } from '@testing-library/react-native';
 import { Component, createElement, Fragment, type ReactElement, type ReactNode } from 'react';
 import { host, noNavigation, qa, start, traceRecord, type ClientOptions, type NavigationAdapter, type Socket } from 'lynkeus-agent';
 import { autoWrapper } from 'lynkeus-agent/auto';
-import { WebSocket as NodeWebSocket } from 'ws';
+import * as wsModule from 'ws';
 
 import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
 import { listenerCounts } from './mocks/controls.js';
+import { NativeMockScreen } from './mocks/native.js';
 import { installRuntime, log, reset } from './runtime.js';
 import type { ReactTestInstance } from './tree.js';
 
@@ -59,6 +60,11 @@ class CrashBoundary extends Component<{ children?: ReactNode }, { crashed: boole
 }
 
 // React Native's WebSocket is a mock under jest; the agent dials out through Node's.
+// ws 8 exports the class as `WebSocket`; an older ws an app hoists over ours (6 and 7) is the class itself.
+const NodeWebSocket = ((wsModule as unknown as { WebSocket?: typeof wsModule.WebSocket }).WebSocket ??
+  (wsModule as unknown as { default?: typeof wsModule.WebSocket }).default ??
+  wsModule) as unknown as typeof wsModule.WebSocket;
+
 const nodeSocket = (url: string): Socket => {
   const ws = new NodeWebSocket(url);
   const socket: Socket = {
@@ -160,18 +166,26 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   log('rendering the app');
   let rendered = await render(make());
   let resets = 0;
+  // Between the unmount and the next render the old renderer throws on every read; what idle and waitFor
+  // poll meanwhile is an empty screen, which changes as soon as the app is back.
+  let remounting = false;
   // A reset wipes the mocked native state and mounts the app again: a process
   // that never relaunches still gets a fresh tree, and a dead navigator a way back.
   host.onReset(async () => {
     resets += 1;
     reset();
+    remounting = true;
     try {
-      // Rendering again before the unmount settles leaves an empty tree.
-      await rendered.unmount();
-    } catch (error) {
-      log(`reset: unmount failed (${error instanceof Error ? error.message : String(error)})`);
+      try {
+        // Rendering again before the unmount settles leaves an empty tree.
+        await rendered.unmount();
+      } catch (error) {
+        log(`reset: unmount failed (${error instanceof Error ? error.message : String(error)})`);
+      }
+      rendered = await render(make());
+    } finally {
+      remounting = false;
     }
-    rendered = await render(make());
     log('reset: app re-rendered');
   });
   qa.register('memory', () => {
@@ -206,7 +220,8 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   );
   const yoga = await loadYoga(log);
   log(yoga ? 'layout: Yoga loaded (approximate real coordinates)' : 'layout: none (synthetic frames)');
-  const backend = headlessBackend(() => rendered.container as unknown as ReactTestInstance, {
+  const blank = { type: 'View', props: {}, children: [], parent: null } as unknown as ReactTestInstance;
+  const backend = headlessBackend(() => (remounting ? blank : (rendered.container as unknown as ReactTestInstance)), {
     window: options.window,
     yoga,
     valueComponents: options.valueComponents,
@@ -249,7 +264,9 @@ export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}):
   // An app mounted with `auto()` has no <Lynkeus> of its own: host it under the root a device build gets.
   const make = (): ReactElement => {
     const Root = autoWrapper();
-    return createElement(CrashBoundary, null, Root ? createElement(Root, null, makeApp()) : makeApp());
+    const app = Root ? createElement(Root, null, makeApp()) : makeApp();
+    // A mocked native SDK's page goes over the whole app, as the SDK presents over it on a device.
+    return createElement(CrashBoundary, null, app, createElement(NativeMockScreen));
   };
   g.jest?.setTimeout(FOREVER);
   // Reconnects, waits and pacing are all timers; fake ones would freeze the host.

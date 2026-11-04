@@ -51,6 +51,8 @@ export const loadGraph = (root?: string): ScreenGraph | null => {
  */
 export type LynkeusConfig = {
   cases?: CasesConfig;
+  /** What `lynkeus ci` brings up around a suite: the project's backend and the app's hosts. */
+  ci?: CiConfig;
   /** The headless entry (default `qa/headless.tsx`). */
   entry?: string;
   /** The environment variable the app reads its API base from; the headless entry refuses one that is not local. */
@@ -66,6 +68,8 @@ export type LynkeusConfig = {
   device?: string;
   /** Bundle id or application id. */
   app?: string;
+  /** What a pushed run's local folder becomes: kept (the default), or deleted once the service has every file. */
+  report?: { afterPush?: 'keep' | 'delete' };
   /**
    * The language this app speaks, passed on and never interpreted: `os
    * language` defaults to it, the headless entry mocks this locale, and an MCP
@@ -124,6 +128,17 @@ export const loadConfig = (root?: string): LynkeusConfig => {
   const own = readConfig(configFile(root));
   const extra = process.env.LYNKEUS_CONFIG ? readConfig(path.resolve(process.env.LYNKEUS_CONFIG)) : {};
   return { ...own, ...extra };
+};
+
+export type CiConfig = {
+  /** Shell commands that bring the project's backend up and down, and a URL that answers once it can serve. */
+  backend?: { up: string; down?: string; ready?: string; timeoutMs?: number };
+  /** How many hosts of the app, and the command that starts one (`{port}` is where it dials). Default: headless. */
+  hosts?: { count?: number; command?: string; timeoutMs?: number };
+  /** Upload the run (needs LYNKEUS_REPORTS_KEY). */
+  push?: boolean;
+  /** Extra `case run` flags, as on the command line. */
+  run?: string[];
 };
 
 export const portFromEnv = (config: LynkeusConfig = {}): number | undefined => (process.env.LYNKEUS_PORT ? Number(process.env.LYNKEUS_PORT) : config.port);

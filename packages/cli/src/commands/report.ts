@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { define } from '../registry.js';
+import { ageOf, megabytes, pruneRuns } from '../cases/runDirs.js';
+import { keptOrDeleted } from './cases.js';
 
 type Fetch = typeof fetch;
 
@@ -22,11 +24,54 @@ const answer = async (response: Response, doing: string) => {
   throw new Error(`${doing}: ${body.error ?? `the service answered ${response.status}`}`);
 };
 
+const UPLOADS_AT_ONCE = 4;
+const CASES_PART = 256 * 1024;
+const UPLOAD_ATTEMPTS = 3;
+
+// A ustar header holds a name of up to 100 bytes and a folder of up to 155 before it.
+const fitsTar = (file: string) => {
+  const cut = file.lastIndexOf('/');
+  return Buffer.byteLength(file.slice(cut + 1)) <= 100 && Buffer.byteLength(cut > 0 ? file.slice(0, cut) : '') <= 155;
+};
+
+/** An uncompressed tar: frames are PNG or AVIF, already compressed, and a tar is read as it arrives. */
+export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
+  const blocks: Uint8Array[] = [];
+  for (const [file, data] of entries) {
+    const header = Buffer.alloc(512);
+    const cut = file.lastIndexOf('/');
+    header.write(file.slice(cut + 1), 0, 'utf8');
+    header.write('0000644\0', 100);
+    header.write('0000000\0', 108);
+    header.write('0000000\0', 116);
+    header.write(`${data.length.toString(8).padStart(11, '0')}\0`, 124);
+    header.write(
+      `${Math.floor(Date.now() / 1000)
+        .toString(8)
+        .padStart(11, '0')}\0`,
+      136,
+    );
+    header.write('0', 156);
+    header.write('ustar\0', 257);
+    header.write('00', 263);
+    if (cut > 0) header.write(file.slice(0, cut), 345, 'utf8');
+    header.fill(' ', 148, 156);
+    const sum = header.reduce((n, b) => n + b, 0);
+    header.write(`${sum.toString(8).padStart(6, '0')}\0 `, 148);
+    blocks.push(header, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return Buffer.concat(blocks);
+};
+
 /**
  * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
  * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
  */
-export const pushRun = async (dir: string, o: { url: string; key: string; project: string; fetch?: Fetch }): Promise<Pushed> => {
+export const pushRun = async (
+  dir: string,
+  o: { url: string; key: string; project: string; fetch?: Fetch; onReady?: (url: string) => void; onProgress?: (line: string) => void },
+): Promise<Pushed> => {
   const call = o.fetch ?? fetch;
   const auth = { authorization: `Bearer ${o.key}` };
   const base = o.url.replace(/\/+$/, '');
@@ -42,31 +87,98 @@ export const pushRun = async (dir: string, o: { url: string; key: string; projec
     'creating the run',
   );
   const id = String(created.id);
-  await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
+  // A dropped connection, a 5xx or a 429 is tried again, waiting longer each time.
+  const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
+    for (let attempt = 1; ; attempt++) {
+      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
+        if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
+        return undefined;
+      });
+      if (response && ((response.status < 500 && response.status !== 429) || attempt >= UPLOAD_ATTEMPTS)) return response;
+      await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
+    }
+  };
+  // The run file in parts of about 256 KB: with every request's headers and bodies it runs to megabytes, more
+  // than the service reads in one request. A service from before parts answers without `part`, and then
+  // takes the whole file in one.
+  const parts: string[] = [];
+  for (const line of cases.split('\n').filter((l) => l.trim())) {
+    const last = parts.length - 1;
+    if (last >= 0 && Buffer.byteLength(parts[last]!) + Buffer.byteLength(line) < CASES_PART) parts[last] += `\n${line}`;
+    else parts.push(line);
+  }
+  for (const [n, part] of parts.entries()) {
+    const sent = await answer(await sendWithRetries(`${base}/v1/runs/${id}/cases?part=${n}`, Buffer.from(part), 'sending its cases'), 'sending its cases');
+    if (sent.part === undefined) {
+      await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
+      break;
+    }
+  }
+  // The report opens as soon as its cases are in: their steps, results and requests show at once, and each
+  // frame as it arrives.
+  const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
+  o.onReady?.(String(finished.url));
 
-  const named = new Set<string>();
+  // Per case: its frames, sent as one tar, and its film, sent on its own (a film can be bigger than a request).
+  const work: { frames: string[]; film?: string }[] = [];
   for (const line of cases.split('\n')) {
     if (!line.trim()) continue;
     const c = JSON.parse(line) as { video?: string; steps?: { screenshot?: string }[] };
-    for (const p of [c.video, ...(c.steps ?? []).map((s) => s.screenshot)]) if (p) named.add(p);
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
+    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
+    work.push({ frames: [...new Set(frames)], ...(film ? { film } : {}) });
   }
   let files = 0;
   const refused: string[] = [];
-  for (const file of named) {
-    const local = path.join(dir, file);
-    if (!fs.existsSync(local)) continue;
-    const response = await call(`${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`, {
-      method: 'PUT',
-      headers: auth,
-      body: fs.readFileSync(local),
-    });
+  const sendFile = async (file: string) => {
+    const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
+    const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);
     if (response.status === 402) refused.push(file);
     else {
       await answer(response, `sending ${file}`);
       files += 1;
     }
-  }
-  const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
+  };
+  // A suite with screenshots is thousands of frames: a request per frame took one over 20 minutes to send. A
+  // service from before bundles answers 404, and the frames then go one by one, as they used to.
+  let bundles = true;
+  const sendFrames = async (frames: string[]) => {
+    const fits = frames.filter(fitsTar);
+    if (bundles && fits.length > 0) {
+      const response = await sendWithRetries(
+        `${base}/v1/runs/${id}/bundle`,
+        tarOf(fits.map((f) => [f, fs.readFileSync(path.join(dir, f))])),
+        `sending ${fits.length} frames`,
+      );
+      if (response.status === 404 || response.status === 405) bundles = false;
+      else {
+        await answer(response, `sending ${fits.length} frames`);
+        files += fits.length;
+        for (const f of frames.filter((f) => !fitsTar(f))) await sendFile(f);
+        return;
+      }
+    }
+    for (const f of frames) await sendFile(f);
+  };
+  const queue = [...work];
+  const total = work.length;
+  let sent = 0;
+  let bytes = 0;
+  const started = Date.now();
+  const sizeOf = (c: { frames: string[]; film?: string }) =>
+    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+  await Promise.all(
+    Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
+      for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
+        await sendFrames(c.frames);
+        if (c.film) await sendFile(c.film);
+        sent += 1;
+        bytes += sizeOf(c);
+        if (sent === total || sent % Math.max(1, Math.ceil(total / 10)) === 0)
+          o.onProgress?.(`frames: ${sent}/${total} cases, ${(bytes / 1024 / 1024).toFixed(1)} MB in ${((Date.now() - started) / 1000).toFixed(0)} s`);
+      }
+    }),
+  );
   const changes = finished.changes as Pushed['changes'] | undefined;
   return { url: String(finished.url), files, refused, ...(changes ? { changes } : {}) };
 };
@@ -125,6 +237,34 @@ export const service = (): Service | string => {
 
 export const reportCommands = [
   define({
+    name: 'report prune',
+    group: 'runs',
+    summary: 'Delete the runs `case run --out` left in a folder that ended more than a while ago',
+    details:
+      'Looks at the folder given, or each folder right under it, and deletes the ones that hold a run (`run.json` and `cases.jsonl`) older than --older. Nothing else is touched. Pushed reports stay on the service; this only frees the disk.',
+    positionals: [{ name: 'dir', help: 'a run folder, or the folder that holds them' }],
+    flags: {
+      older: { type: 'string', help: 'how old a run must be: 7d, 12h, 30m', value: 'age', default: '7d' },
+      'dry-run': { type: 'boolean', help: 'list what would go, delete nothing' },
+    },
+    needs: 'nothing',
+    session: false,
+    mcp: false,
+    run: async (ctx) => {
+      const root = path.resolve(ctx.args[0] ?? '.');
+      if (!fs.existsSync(root)) return { text: `${ctx.args[0]}: no such folder`, code: 2 };
+      const older = ageOf(String(ctx.flags.older ?? '7d'));
+      if (older === undefined) return { text: `--older ${ctx.flags.older}: give it as 7d, 12h or 30m`, code: 2 };
+      const dry = !!ctx.flags['dry-run'];
+      const { removed, bytes } = pruneRuns(root, older, dry);
+      if (removed.length === 0) return { text: 'no run old enough to delete', json: { removed, bytes } };
+      return {
+        text: [...removed.map((d) => `${dry ? 'would delete' : 'deleted'} ${d}`), `${dry ? 'would free' : 'freed'} ${megabytes(bytes)}`].join('\n'),
+        json: { removed, bytes },
+      };
+    },
+  }),
+  define({
     name: 'report push',
     group: 'runs',
     summary: 'Upload a run to the reports service and print the report’s address',
@@ -145,8 +285,12 @@ export const reportCommands = [
       if (typeof to === 'string') return { text: to, code: 2 };
       const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       try {
-        const pushed = await pushRun(dir, { ...to, project });
-        const notes = [...describeChanges(pushed.changes), ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : [])];
+        const pushed = await pushRun(dir, { ...to, project, onReady: (url) => ctx.err(`report: ${url} (its frames are on their way)`), onProgress: ctx.err });
+        const notes = [
+          ...describeChanges(pushed.changes),
+          ...(pushed.refused.length ? [`not kept on this plan: ${pushed.refused.join(', ')}`] : []),
+          keptOrDeleted(dir, ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep', pushed.refused.length === 0),
+        ];
         return { text: [pushed.url, ...notes].join('\n'), json: pushed };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };

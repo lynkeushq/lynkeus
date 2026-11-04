@@ -307,6 +307,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const matched = params.anyOf?.find((t) => pick(all, t) !== undefined);
       const anyOk = !params.anyOf || matched !== undefined;
       if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
+      if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
+        const reached = traceSince(params.since).some((e) => e.kind === 'route' && e.route === params.route);
+        if (reached) return { route, waitedMs: Date.now() - started, passed: true };
+      }
       if (Date.now() > deadline) {
         throw new Error(
           `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${route})`,

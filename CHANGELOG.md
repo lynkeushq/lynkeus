@@ -2,7 +2,54 @@
 
 ## Unreleased
 
+- `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
+
+- `os appstate background|active` (and `app.appstate` in a case) works on a simulator and an emulator too, through the OS: another app in front sends the app to the background, launching it again brings it back. A case using it ran only on fastsim and headless before.
+
 - `case run --screenshots --still <ms>`: on a simulator, an emulator or a host (PNG frames), each frame is taken again until two in a row are the same, that many ms apart, so a native transition the agent cannot see (a screen sliding in) is not caught half-way. The frame's JSON says whether the screen stopped (`still`). On iOS it took the frames over 0.01 % against fastsim from 6 to 3 of 90.
+
+- `lynkeus headless start` sets `LYNKEUS_HEADLESS=1`, so an app's jest setup that stubs a native SDK for its unit tests can leave it real for a host, where `nativeMocks` stands in for its screen (docs/HEADLESS.md). Reanimated's `withRepeat` calls its completion callback headless, and `withSequence` ends at its last value: a screen that moves on when a repeat ends stayed put.
+
+- A step that waits for a screen counts it when the app reached it after the last action and has already left it: a success screen that closes itself could come and go while the step before waited for its frame to settle or for a request, and the wait timed out on a device. `waitFor` takes `since` (a trace mark) for this; `lynkeus wait --since <seq>` too.
+
+- When no app attaches, the CLI says why it can tell: an app that connected and never answered has another token (start Metro with the driver's `LYNKEUS_TOKEN`, with `--reset-cache`). `LYNKEUS_DEVICE` set to an adb serial no longer fails with "No booted simulator", which hid the attach error.
+
+- `lynkeus headless start` loads the app's React when `lynkeus-headless` would load another copy (a linked package, a workspace, pnpm); the app's hooks failed with "Invalid hook call" and the host showed an empty screen. With mappings of its own in the app's jest config, it says what to add instead. A headless host that fails on Node older than 22.12 with `ERR_REQUIRE_ESM` says to update Node.
+
+- The MCP server's instructions say to press with `settle: true` to read the screen a press led to: a screen read right after a press can still be the one it left.
+
+- `lynkeus ci` runs a suite the way a CI job does: brings the project's backend up with its own command (`ci.backend.up`, waiting for `ci.backend.ready`), starts N hosts of the app (headless unless `ci.hosts.command` says otherwise), runs the cases across them, uploads the run with `ci.push`, writes the job summary to `$GITHUB_STEP_SUMMARY`, and tears everything down. `--affected` runs only the cases a branch's changes reach; `--dry-run` says what it would do.
+
+- Over MCP, a command that ends with a non-zero code (a case that failed, a fixtures server that does not keep the contract) comes back as an error, with all it said; it used to read as success. `case coverage`, `case impact`, `case new`, `fixtures check` and `fixtures describe` are served to every MCP client, not only with `mcp --full`.
+
+- `lynkeus case new <id> --to <Route> [--from <Route>]` drafts a case to finish: the frontmatter's questions, the setup the project's fixtures server describes (commented out: what state a case needs is its author's call), the presses to the screen as `map plan` knows them, and the checks left to write; `--write` saves it in the cases folder, never over a file. `cases.start` in the config names where drafts begin. An MCP tool.
+
+- `lynkeus case coverage` says which of the app's screens the cases touch (by what they name in `app.nav`, `app.wait` and `app.see: { route }`, and what passing runs went through with `--seen`), which none does, and which a case names that the app no longer has. `lynkeus case impact --base <ref>` crosses a branch's changes with that coverage: the cases to run, nearest first, and the screens reached that no case covers; `--files` prints the case files for `case run`. Both are MCP tools.
+
+- The fixtures protocol is a written contract ([FIXTURES.md](docs/FIXTURES.md), version 1, types in `lynkeus-protocol`). `lynkeus.describe` may answer descriptions as well as names: a summary, parameters, an example, what the answer carries and whether the command only reads; servers that answer names keep working. `lynkeus fixtures describe` lists what a project's server can do and `lynkeus fixtures check` says whether it keeps the contract, telling a server that never answers from one that answers wrong. Both are MCP tools.
+
+- A run says whether its branch and commit are on the remote (`git.pushed`, from the clone's remote-tracking refs), so a report links only what the forge has: a branch that lives only on this machine was a 404. Such a branch is named by the remote branch that holds the commit (the tracked one first), and `git.localBranch` keeps the local name.
+
+- After a push, the CLI says how much the run's folder holds on disk; with `"report": { "afterPush": "delete" }` in `lynkeus.config.json` it deletes the folder once the service has taken every file (never when one was refused). `lynkeus report prune <dir> [--older 7d] [--dry-run]` deletes the runs left in a folder that ended longer ago than that, touching nothing that is not a run.
+
+- A run that keeps evidence (`--out`) keeps what the app printed under the step that printed it: every `console.debug/log/info/warn/error` call and every error nobody caught (with its stack), from the agent, on any host. Each line still reaches the console. `RunStep.logs` in `lynkeus-protocol`; the agent answers a `logs` command. On a simulator or an emulator, with `app` in `lynkeus.config.json` and one job, the app's native log is kept too (`source: native`): on iOS its errors and what its own code and React Native's native side log, on Android every line of its uid; React Native's console lines are left to the agent, which has their stacks.
+
+- On a simulator, an emulator or a phone the agent keeps the app's calls to Sentry, Datadog (RUM, logs, traces), Intercom and Crashlytics too, named as fastsim names them (`addAction: TAP`, `logEvent: opened_help`), and passes each on to the SDK. Calls that only read from the SDK (`get…`, `fetch…`) are left out. As before, the agent runs only in development builds unless told otherwise.
+
+- A run that keeps evidence says when it ends what it could not keep: no analytics event from the app in any case or, with `--video`, no film (only fastsim films). The cases docs gain "A run with everything", a table of what turns on each part of a report, and the MCP server's instructions say the same. The drive and protocol docs no longer say requests never keep bodies.
+
+- The agent keeps what the app tells Mixpanel, AppsFlyer and Firebase Analytics on a simulator, an emulator or a phone too, not only on fastsim and the headless host: it wraps those SDKs' native modules, keeps each call, and lets it go on to the SDK. A report then shows the app's Mixpanel events under each step next to the backend's. A module the runtime keeps frozen cannot be wrapped and stays unseen.
+- A report opens as soon as its cases are in, says how its frames are coming along, and a run's cases go up in parts of about 256 KB: with every request's headers and bodies a run file is megabytes, more than the service reads in one request.
+- After `app.refresh` (or any reload of the app's JavaScript) a step's requests are kept again: the agent's request ids started over at 1, and the runner asked for ids after the last one it had seen.
+
+- Pushing a run is a request per case, not per file: `report push` (and `case run --push`) sends each case's frames as one tar, four cases at once, retrying what fails on the way, and the reports service reads it into storage as it arrives. A suite of 1,707 frames took over 20 minutes to send a file at a time. Films still go on their own. A service from before this answers 404 and the CLI sends the files one by one.
+- A simulator's or emulator's frames are kept as AVIF too, not only fastsim's: they come as PNG (neither `simctl` nor `screencap` writes AVIF), and the CLI encodes each again while the case goes on, about 4% of the PNG's bytes in some 70 ms (sharp, an optional dependency; without it the PNG stays). `--frames png` keeps them exact, for comparing two runs pixel for pixel.
+
+- An MCP tool call with an argument the tool does not take is refused, naming the ones it takes. It used to be dropped: `case_run` with `cases` instead of `files` ran every case in the project.
+- `case run --host` keeps everything the headless host prints in `$TMPDIR/lynkeus-headless-<pid>.log` and names the file when the host is up. It was read only to see the host start, so the render error a failed step points at was nowhere to be found.
+- When the headless host fails to start because the app's entry throws while jest loads it, `case run --host` says what was thrown, not jest's summary line.
+- `lynkeus-headless` answers the cases config's `nativeMocks` as fastsim does: a native SDK the host cannot run (Sumsub's launch, Intercom's messenger) gets a stand-in module whose mocked methods resolve with the configured result, or put up a page whose buttons (`#native-mock-<label>`) each resolve it with theirs.
+
 - Backend traces leave database queries out: a span with `db.system` is not filed under a step nor sent with a report, and no `db.*` attribute is kept. Their statements name the backend's tables and columns.
 - A run says where its commit lives and what it had that no commit has: `git.remote` (the repository's web address, credentials left out) and `git.changed` (up to 20 files with uncommitted changes, `changedCount` all of them), so a report can link the commit, compare it with the run before, and say the app was not exactly that commit.
 - `case run <dir>` runs every case under that directory, and the cases directory is read with its subfolders, so a suite can keep its cases in folders (`qa/cases/login/`). A name that is not there says so instead of failing with `EISDIR`.

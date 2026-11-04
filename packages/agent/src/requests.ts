@@ -1,5 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
+import { answer, installNetmock, mockFor } from './netmock';
 
 const KEEP = 200;
 const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
@@ -14,7 +15,9 @@ export const setTraceContext = (params: unknown): { traceparent: string | null }
   traceparent = typeof given === 'string' && /^00-[0-9a-f]{32}-[0-9a-f]{16}-0[01]$/.test(given) ? given : null;
   return { traceparent };
 };
-let nextId = 1;
+// Ids go on rising when the app reloads its JavaScript (`app.refresh`, a fast refresh): a runner asks for the
+// requests after the last id it saw, and a counter back at 1 would answer none for the rest of the case.
+let nextId = Date.now() * 1000;
 let inFlight = 0;
 let installed = false;
 
@@ -158,6 +161,7 @@ const trackXhr = (): void => {
   };
   proto.send = function (this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>) {
     const request = opened.get(this);
+    const rule = request ? mockFor(...request) : null;
     if (request) {
       const { record, finish } = track(...request);
       const bodies = keepBodies;
@@ -186,6 +190,7 @@ const trackXhr = (): void => {
         }
       }
     }
+    if (rule && request && answer(this, rule, request[1])) return;
     return send.apply(this, args);
   } as typeof proto.send;
 };
@@ -193,6 +198,7 @@ const trackXhr = (): void => {
 export const trackRequests = (): void => {
   if (installed) return;
   installed = true;
+  installNetmock();
   if (typeof XMLHttpRequest === 'undefined') trackFetch();
   else trackXhr();
 };

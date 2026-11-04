@@ -13,7 +13,8 @@
  *
  *   {"command": "lynkeus.describe", "params": {}, "env": {}}
  *
- * — and a server that knows answers `{"commands": ["create_user", …]}`. With
+ * — and a server that knows answers `{"commands": ["create_user", …]}`, each entry a name or a description
+ * (`FixtureCommand` in lynkeus-protocol: summary, params, example). The contract is docs/FIXTURES.md. With
  * that, a case naming a fixture nobody answers is refused before anything
  * runs. A server that answers `"ok": false`, as one written before this did,
  * is taken to describe nothing, and its cases run unchecked. A server that is
@@ -26,8 +27,11 @@
  * answer anything.
  */
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
+
+import type { FixtureCommand } from 'lynkeus-protocol';
 
 export type FixturesConfig = { command: string; cwd?: string; env?: Record<string, string>; timeoutMs?: number };
 
@@ -36,7 +40,23 @@ export type Answer = Record<string, unknown>;
 /** The one command that is lynkeus's own and not the project's. */
 export const DESCRIBE = 'lynkeus.describe';
 
-export type Description = { commands: string[]; down?: string };
+/** What the server answers: the names, with each command's description where it gave one. */
+export type Description = { commands: string[]; details: FixtureCommand[]; down?: string; protocol?: number };
+
+/** A description as the server sent it, names and descriptions mixed, made one shape; anything else is no description. */
+export const readDescription = (answer: Record<string, unknown> | undefined): Description | undefined => {
+  const list = answer?.commands;
+  if (!Array.isArray(list)) return undefined;
+  const details: FixtureCommand[] = [];
+  for (const c of list) {
+    if (typeof c === 'string' && c) details.push({ name: c });
+    else if (c && typeof c === 'object' && typeof (c as FixtureCommand).name === 'string' && (c as FixtureCommand).name) details.push(c as FixtureCommand);
+    else return undefined;
+  }
+  const down = typeof answer?.down === 'string' && answer.down ? answer.down : undefined;
+  const protocol = typeof answer?.protocol === 'number' ? answer.protocol : undefined;
+  return { commands: details.map((d) => d.name), details, ...(down ? { down } : {}), ...(protocol !== undefined ? { protocol } : {}) };
+};
 
 /** lynkeus's second own command: this connection works ahead of the cases. */
 export const AHEAD = 'lynkeus.ahead';
@@ -47,6 +67,18 @@ const envOf = (params: Record<string, unknown>): Record<string, string> =>
       .filter(([, v]) => v !== undefined && v !== null)
       .map(([k, v]) => [k.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase(), typeof v === 'object' ? JSON.stringify(v) : String(v)]),
   );
+
+const describedFile = (root: string) => path.join(root, '.lynkeus', 'fixtures-described.json');
+
+/** What the server last said it answers, and how long ago; undefined when it never did for this command. */
+export const lastDescription = (root: string, command: string): { at: number; description: Description } | undefined => {
+  try {
+    const kept = JSON.parse(fs.readFileSync(describedFile(root), 'utf8')) as { at: number; command: string; description: Description };
+    return kept.command === command ? { at: kept.at, description: kept.description } : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export class Fixtures {
   #config: FixturesConfig;
@@ -128,10 +160,15 @@ export class Fixtures {
 
   /** What the server says it answers, or nothing when it does not say. */
   async describe(): Promise<Description | undefined> {
-    const answer = await this.call(DESCRIBE, {}).catch(() => undefined);
-    const commands = answer?.commands;
-    if (!Array.isArray(commands) || !commands.every((c) => typeof c === 'string')) return undefined;
-    return typeof answer?.down === 'string' && answer.down ? { commands, down: answer.down } : { commands };
+    const d = readDescription(await this.call(DESCRIBE, {}).catch(() => undefined));
+    // Kept for `fixtures describe`: a server that boots a backend's framework takes longer to start than an MCP
+    // client waits, and what it answers changes only with its code.
+    if (d && !d.down)
+      try {
+        fs.mkdirSync(path.dirname(describedFile(this.#root)), { recursive: true });
+        fs.writeFileSync(describedFile(this.#root), JSON.stringify({ at: Date.now(), command: this.#config.command, description: d }));
+      } catch {}
+    return d;
   }
 
   /** Says this connection works ahead of the cases being run. Whatever the server answers, it goes on. */

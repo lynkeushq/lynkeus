@@ -35,11 +35,25 @@ export const osCommands = [
   define({
     name: 'os appstate',
     group: 'os',
-    summary: 'Headless: AppState listeners see the change (background, then active: what refetches or re-locks)',
-    positionals: [{ name: 'state', help: 'active | background | inactive', required: true }],
+    summary:
+      'AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real',
+    positionals: [{ name: 'state', help: 'active | background | inactive (inactive: a host only)', required: true }],
+    flags: { app: { type: 'string', help: 'the app to bring back on a simulator or emulator (default: the config’s app)', value: 'bundleId' } },
     aliases: ['appstate'],
     needs: 'app',
-    run: agent('appstate', (ctx) => ({ state: ctx.args[0] })),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      try {
+        return { json: await device.command('appstate', { state: ctx.args[0] }) };
+      } catch (error) {
+        // A host stands in for the OS; on a simulator or an emulator the OS itself moves the app.
+        if ((await device.resolved()).id === 'headless') throw error;
+        const done = await simulator('appstate')(ctx);
+        // Back in front, the app dials in again; what comes next reads its screen.
+        if (ctx.args[0] === 'active') await device.server.waitForApp(15_000);
+        return done;
+      }
+    },
   }),
   define({
     name: 'os network',
@@ -66,7 +80,7 @@ export const osCommands = [
   define({
     name: 'os biometrics',
     group: 'os',
-    summary: 'Headless: the sensor and what the next prompts answer',
+    summary: 'The sensor and what the next prompts answer; on a simulator, --available enrolls Face ID or Touch ID or not',
     flags: {
       available: { type: 'string', help: 'FaceID | TouchID | none', value: 'kind' },
       next: { type: 'string', help: 'outcomes of the next prompts, in order', value: 'success,fail,cancel' },
@@ -74,11 +88,25 @@ export const osCommands = [
     },
     aliases: ['biometrics'],
     needs: 'app',
-    run: agent('biometrics', ({ flags }) => ({
-      available: flags.available || undefined,
-      next: flags.next ? (flags.next as string).split(',') : undefined,
-      fallback: flags.fallback || undefined,
-    })),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      const params = {
+        available: ctx.flags.available || undefined,
+        next: ctx.flags.next ? (ctx.flags.next as string).split(',') : undefined,
+        fallback: ctx.flags.fallback || undefined,
+      };
+      try {
+        return { json: await device.command('biometrics', params) };
+      } catch (error) {
+        const info = await device.resolved();
+        if (info.id === 'headless') throw error;
+        // A device's prompts answer the person in front of it: only a simulator's enrollment is set from outside.
+        // Anything else stays the host's, and the runner says the step cannot run here.
+        if (info.platform !== 'ios' || !params.available || params.next || params.fallback) throw error;
+        ctx.args = [String(params.available)];
+        return simulator('biometrics')(ctx);
+      }
+    },
   }),
   define({
     name: 'os scan',
@@ -107,7 +135,7 @@ export const osCommands = [
   define({
     name: 'mock',
     group: 'os',
-    summary: 'Headless: answer a request before the network (--sticky survives a reset)',
+    summary: 'Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)',
     positionals: [{ name: 'route', help: "'GET /path' (a bare path matches any method)" }],
     flags: {
       status: { type: 'number', help: 'HTTP status to answer', default: 200, value: 'code' },
