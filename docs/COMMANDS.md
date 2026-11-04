@@ -294,7 +294,7 @@ Also accepted: `clock`.
 
 ### `lynkeus os biometrics [--available <kind>] [--next <success,fail,cancel>] [--fallback <outcome>]`
 
-Headless: the sensor and what the next prompts answer
+The sensor and what the next prompts answer; on a simulator, --available enrolls Face ID or Touch ID or not
 
 | Flag | |
 |---|---|
@@ -621,7 +621,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -643,6 +643,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--no-app-events` | with --out: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen; frames two runs compare should not have it |
 | `--screenshots` | with --out: a frame of the screen after every step of the app |
 | `--settle <ms>` | with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by (default `150`) |
+| `--frames-on-change` | with --screenshots: a step that only looks (app.see, app.wait) on an unchanged screen shares the last frame |
 | `--still <ms>` | with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see) |
 | `--frames <avif|png>` | with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel (default `avif`) |
 | `--video` | with --out: film each case, where the host films (the step says at what second it began) |
@@ -727,6 +728,22 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 | `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json) |
 | `--title <text>` | what a person can do there, as the report will title it |
 | `--write` | save it in the cases folder instead of printing it |
+
+### `lynkeus case here <id> [--title <text>] [--write] [--host]`
+
+Draft a case from the screen the app shows now, with checks that pass as it is
+
+Reads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+
+| Argument | |
+|---|---|
+| `id` | the case id, which is also its file name |
+
+| Flag | |
+|---|---|
+| `--title <text>` | what the case shows, as the report will title it |
+| `--write` | save it in the cases folder instead of printing it |
+| `--host` | start `headless start` for the read and stop it after |
 
 ### `lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
 
