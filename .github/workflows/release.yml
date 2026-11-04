@@ -29,10 +29,10 @@ jobs:
           done
 
       - name: Build and test
-        run: yarn test
+        run: pnpm test
 
       - name: Pack
-        run: yarn workspaces foreach -A --no-private pack --out "$PWD/dist/%s-%v.tgz"
+        run: pnpm --filter "./packages/**" -r pack --pack-destination "$PWD/dist"
 
       - name: Publish
         # The npm that ships with the pinned Node does trusted publishing (11.5.1 or newer); npm@latest

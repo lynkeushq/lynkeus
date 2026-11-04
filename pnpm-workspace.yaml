@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+  - example
+  - website
+# A release has to be a week old before an install takes it: most compromised versions are found and pulled within days.
+minimumReleaseAge: 10080
+# Install scripts run only for esbuild, which fetches its platform binary. sharp loads its prebuilt @img binary
+# without one: its script only falls back to building from source, which fails.
+allowBuilds:
+  esbuild: true
+  sharp: false
