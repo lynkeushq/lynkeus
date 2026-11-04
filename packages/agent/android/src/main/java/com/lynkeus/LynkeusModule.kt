@@ -42,9 +42,9 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
   private fun px(points: Double): Float =
     (points * reactApplicationContext.resources.displayMetrics.density).toFloat()
 
-  private fun dispatch(down: Long, action: Int, x: Float, y: Float) {
+  private fun dispatch(down: Long, action: Int, x: Float, y: Float, at: Long = SystemClock.uptimeMillis()) {
     val root = rootView() ?: return
-    val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+    val event = MotionEvent.obtain(down, at, action, x, y, 0)
     event.source = InputDevice.SOURCE_TOUCHSCREEN
     root.dispatchTouchEvent(event)
     event.recycle()
@@ -91,10 +91,13 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
         val t = i.toDouble() / steps
         val x = px(x1 + (x2 - x1) * t)
         val y = px(y1 + (y2 - y1) * t)
+        // Each move carries the time it was meant for, not the time the main thread got to it: VelocityTracker
+        // reads the release speed off these, and a late frame would change how far the fling goes.
+        val at = down + (duration * t).toLong()
         main.postDelayed({
-          dispatch(down, MotionEvent.ACTION_MOVE, x, y)
+          dispatch(down, MotionEvent.ACTION_MOVE, x, y, at)
           if (i == steps) {
-            dispatch(down, MotionEvent.ACTION_UP, x, y)
+            dispatch(down, MotionEvent.ACTION_UP, x, y, at)
             promise.resolve(true)
           }
         }, (duration * t).toLong())
