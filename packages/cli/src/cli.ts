@@ -11,6 +11,7 @@ import { driveCommands } from './commands/drive.js';
 import { headlessCommands } from './commands/headless.js';
 import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
+import { coverageCommands } from './commands/coverage.js';
 import { fixturesCommands } from './commands/fixtures.js';
 import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
@@ -21,7 +22,17 @@ import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
 
-register([...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...caseCommands, ...fixturesCommands, ...reportCommands, ...headlessCommands]);
+register([
+  ...driveCommands,
+  ...osCommands,
+  ...mapCommands,
+  ...runsCommands,
+  ...caseCommands,
+  ...coverageCommands,
+  ...fixturesCommands,
+  ...reportCommands,
+  ...headlessCommands,
+]);
 
 /** The global flags, read leniently from the whole argv before any command parses its own. */
 const globals = (argv: string[]) => {

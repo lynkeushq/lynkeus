@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus case coverage` says which of the app's screens the cases touch (by what they name in `app.nav`, `app.wait` and `app.see: { route }`, and what passing runs went through with `--seen`), which none does, and which a case names that the app no longer has. `lynkeus case impact --base <ref>` crosses a branch's changes with that coverage: the cases to run, nearest first, and the screens reached that no case covers; `--files` prints the case files for `case run`. Both are MCP tools.
+
 - The fixtures protocol is a written contract ([FIXTURES.md](docs/FIXTURES.md), version 1, types in `lynkeus-protocol`). `lynkeus.describe` may answer descriptions as well as names: a summary, parameters, an example, what the answer carries and whether the command only reads; servers that answer names keep working. `lynkeus fixtures describe` lists what a project's server can do and `lynkeus fixtures check` says whether it keeps the contract, telling a server that never answers from one that answers wrong. Both are MCP tools.
 
 - A run says whether its branch and commit are on the remote (`git.pushed`, from the clone's remote-tracking refs), so a report links only what the forge has: a branch that lives only on this machine was a 404. Such a branch is named by the remote branch that holds the commit (the tracked one first), and `git.localBranch` keeps the local name.

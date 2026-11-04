@@ -125,6 +125,18 @@ its `cases` are relative to it.
 `LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
 different ones from the case beside it: what comparing two runs' screens needs.
 
+## Coverage and impact
+
+```sh
+npx lynkeus case coverage                              # screens touched, untouched, and names the app lost
+npx lynkeus case coverage --route Pay.Main             # the cases that touch one screen
+npx lynkeus case run $(npx lynkeus case impact --files)   # only the cases a branch's changes reach
+```
+
+A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
+screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
+graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
+
 ## Configuration
 
 ```json
