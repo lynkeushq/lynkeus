@@ -582,3 +582,41 @@ test('a report carries what the case says about itself', async () => {
     expected: 'The intro says "last used".',
   });
 });
+
+test('a host that waits for a still screen on its own clock is asked to, and the frame is taken again only if it changed', async () => {
+  const c = parseCase('---\nid: still\n---\nsteps:\n  - app.see: { text: "Hello" }\n  - app.press: "#refresh"\n', 'still.md');
+  for (const changed of [false, true]) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot', 'still'] };
+    const asked: { name: string; params: Record<string, unknown> }[] = [];
+    let shots = 0;
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      asked.push({ name, params });
+      if (name === 'screenshot') {
+        shots++;
+        fs.writeFileSync(String(params.path), `frame ${shots}`);
+        return { path: params.path, signature: `s${shots}` };
+      }
+      if (name === 'still')
+        return changed ? { still: false, changed: params.since === 's1', moving: [{ x: 1, y: 2, w: 3, h: 4 }] } : { still: true, changed: false };
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-still-'));
+    const began = Date.now();
+    const report = await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, stillMs: 300, frames: 'png' } });
+    assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+    // No wall-clock wait of stillMs per frame.
+    assert.ok(Date.now() - began < 600, `took ${Date.now() - began} ms`);
+    const stills = asked.filter((a) => a.name === 'still');
+    assert.equal(stills.length, 2);
+    assert.equal(stills[0]?.params.stepMs, 300);
+    assert.ok(asked.filter((a) => a.name === 'screenshot').every((a) => a.params.sign === true));
+    assert.equal(shots, changed ? 3 : 2);
+    const first = report.steps.find((s) => s.screenshot)!.screenshot!;
+    const frame = JSON.parse(fs.readFileSync(first.replace(/\.png$/, '.json'), 'utf8'));
+    // A screen that never stood still keeps what moved while the host waited.
+    assert.equal(frame.still, !changed);
+    assert.deepEqual(frame.moving, changed ? [{ x: 1, y: 2, w: 3, h: 4 }] : undefined);
+  }
+});

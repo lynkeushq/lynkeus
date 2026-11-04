@@ -121,7 +121,8 @@ export type Evidence = {
   dir: string;
   screenshots?: boolean;
   settleMs?: number;
-  /** On a device: take the frame again until two in a row are the same, this many ms apart. */
+  /** Wait for the screen to stand still: two frames alike this many ms apart, on a host's own clock where it offers
+   * that (`still`), or taken again on a device. */
   stillMs?: number;
   /** A looking step on an unchanged screen shares the last frame instead of taking one. */
   onChange?: boolean;
@@ -1046,12 +1047,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // A host on another machine writes the file there; `inline` asks it for the picture as well.
       // A host that knows what was still animating says so, as frames in points.
       let moving: unknown;
+      // A host that waits for a still screen on its own clock signs each picture, so it can say whether the screen
+      // it settled on is still the one in the picture.
+      const hostStill = !!evidence.stillMs && (await offers('still'));
+      let signature: string | undefined;
       const hostShot = async (file: string) =>
-        d.command('screenshot', { path: file, inline: true }).then(
+        d.command('screenshot', { path: file, inline: true, ...(hostStill ? { sign: true } : {}) }).then(
           (answer) => {
-            const { png, moving: animating } = (answer ?? {}) as { png?: unknown; moving?: unknown };
+            const { png, moving: animating, signature: signed } = (answer ?? {}) as { png?: unknown; moving?: unknown; signature?: unknown };
             if (typeof png === 'string' && !fs.existsSync(file)) fs.writeFileSync(file, Buffer.from(png, 'base64'));
             if (Array.isArray(animating)) moving = animating;
+            if (typeof signed === 'string') signature = signed;
             return fs.existsSync(file);
           },
           () => false,
@@ -1085,7 +1091,23 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // An animation the agent cannot see (a device's native transition, a host's printer running on its own clock)
       // leaves a quiet app on a moving screen: the picture itself says when it stopped. Two frames alike, taken
       // stillMs apart, are a still screen. Frames still being encoded (AVIF on a host) are left as they are.
-      if (taken && evidence.stillMs && !encoding.includes(file)) {
+      if (taken && hostStill && signature !== undefined && !encoding.includes(file)) {
+        // No real time passes and no picture is made while the host waits; the picture is taken again only when
+        // the screen it settled on is another one.
+        const stillMs = evidence.stillMs!;
+        const answer = (await d.command('still', { stepMs: stillMs, timeoutMs: Math.max(2000, stillMs * 8), since: signature }).catch(() => undefined)) as
+          | { still?: unknown; changed?: unknown; moving?: unknown }
+          | undefined;
+        if (answer) {
+          still = answer.still === true;
+          if (answer.changed === true) {
+            fs.rmSync(file, { force: true });
+            taken = await hostShot(file);
+          }
+          // A screen that never stood still: what moved during the wait is of a moment too.
+          if (Array.isArray(answer.moving)) moving = [...(Array.isArray(moving) ? moving : []), ...answer.moving];
+        }
+      } else if (taken && evidence.stillMs && !encoding.includes(file)) {
         const stillMs = evidence.stillMs;
         const take = async (to: string) => ((await offers('screenshot')) ? hostShot(to) : (await execute(['screenshot', to], base)).code === 0);
         still = false;
