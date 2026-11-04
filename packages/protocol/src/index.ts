@@ -201,3 +201,4 @@ export type AuthEvent = { event: 'auth'; session: string; token?: string };
 export type AgentEvent = HelloEvent | NavigationEvent;
 
 export * from './run.js';
+export * from './fixtures.js';
