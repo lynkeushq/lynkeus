@@ -27,6 +27,7 @@
  * answer anything.
  */
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -66,6 +67,18 @@ const envOf = (params: Record<string, unknown>): Record<string, string> =>
       .filter(([, v]) => v !== undefined && v !== null)
       .map(([k, v]) => [k.replace(/([a-z])([A-Z])/g, '$1_$2').toUpperCase(), typeof v === 'object' ? JSON.stringify(v) : String(v)]),
   );
+
+const describedFile = (root: string) => path.join(root, '.lynkeus', 'fixtures-described.json');
+
+/** What the server last said it answers, and how long ago; undefined when it never did for this command. */
+export const lastDescription = (root: string, command: string): { at: number; description: Description } | undefined => {
+  try {
+    const kept = JSON.parse(fs.readFileSync(describedFile(root), 'utf8')) as { at: number; command: string; description: Description };
+    return kept.command === command ? { at: kept.at, description: kept.description } : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 export class Fixtures {
   #config: FixturesConfig;
@@ -147,7 +160,15 @@ export class Fixtures {
 
   /** What the server says it answers, or nothing when it does not say. */
   async describe(): Promise<Description | undefined> {
-    return readDescription(await this.call(DESCRIBE, {}).catch(() => undefined));
+    const d = readDescription(await this.call(DESCRIBE, {}).catch(() => undefined));
+    // Kept for `fixtures describe`: a server that boots a backend's framework takes longer to start than an MCP
+    // client waits, and what it answers changes only with its code.
+    if (d && !d.down)
+      try {
+        fs.mkdirSync(path.dirname(describedFile(this.#root)), { recursive: true });
+        fs.writeFileSync(describedFile(this.#root), JSON.stringify({ at: Date.now(), command: this.#config.command, description: d }));
+      } catch {}
+    return d;
   }
 
   /** Says this connection works ahead of the cases being run. Whatever the server answers, it goes on. */

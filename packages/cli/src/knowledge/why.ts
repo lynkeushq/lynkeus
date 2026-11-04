@@ -14,6 +14,8 @@ export type Evidence = {
   trace?: TraceEvent[];
   /** What the failed command was looking for. */
   target?: { testId?: string; text?: string; route?: string };
+  /** Whether the app made any request before `requests` begins: `requests` may be only those of the failed command. */
+  fetchedBefore?: boolean;
 };
 
 export type Finding = { rule: string; message: string };
@@ -159,7 +161,7 @@ export const explain = (e: Evidence): Finding[] => {
       message: `${e.inFlight} request(s) still in flight when the command gave up: the screen had not finished loading. A longer timeout, or wait for the request it needs.`,
     });
 
-  if (done.length === 0 && e.inFlight === 0 && e.target?.route)
+  if (done.length === 0 && e.inFlight === 0 && e.target?.route && !e.fetchedBefore)
     out.push({
       rule: 'no-requests',
       message: 'no request left the app while this ran: nothing was fetched. Is the user logged in, and is the app talking to the backend it should?',

@@ -80,4 +80,7 @@ npx lynkeus fixtures check      # does it answer lynkeus.describe as this page s
 npx lynkeus fixtures describe   # each command, its summary and parameters
 ```
 
-Both are MCP tools too, so a model writing cases can read what the backend can do.
+Both are MCP tools too, so a model writing cases can read what the backend can do. What a server last described
+(to `fixtures describe` or before a run) is kept in `.lynkeus/fixtures-described.json`, and `fixtures describe` shows
+it for a day without starting the server: a server that boots a backend framework takes longer than an MCP client
+waits. `--fresh` asks the server again.

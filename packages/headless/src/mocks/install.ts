@@ -320,6 +320,14 @@ const deferAnimationCompletions = () => {
     return true;
   });
   if (patched.length) log(`animations: completions deferred to the next tick (${patched.join(', ')})`);
+  // Reanimated's mock returns withRepeat's animation and never calls its callback, and withSequence answers 0:
+  // a screen that moves on when a repeat ends (a receipt printed six times, then the next screen) never moved on.
+  if (typeof mock.withRepeat === 'function')
+    mock.withRepeat = (animation: unknown, _times?: unknown, _reverse?: unknown, callback?: unknown) => {
+      if (typeof callback === 'function') setTimeout(() => (callback as (finished: boolean) => void)(true), 0);
+      return animation;
+    };
+  if (typeof mock.withSequence === 'function') mock.withSequence = (...animations: unknown[]) => animations.at(-1) ?? 0;
 };
 
 // Call at the top of the headless entry, before the app is required. Returns the modules it mocked.

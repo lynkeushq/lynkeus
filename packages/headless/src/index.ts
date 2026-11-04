@@ -5,7 +5,7 @@ import { render } from '@testing-library/react-native';
 import { Component, createElement, Fragment, type ReactElement, type ReactNode } from 'react';
 import { host, noNavigation, qa, start, traceRecord, type ClientOptions, type NavigationAdapter, type Socket } from 'lynkeus-agent';
 import { autoWrapper } from 'lynkeus-agent/auto';
-import { WebSocket as NodeWebSocket } from 'ws';
+import * as wsModule from 'ws';
 
 import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
@@ -60,6 +60,11 @@ class CrashBoundary extends Component<{ children?: ReactNode }, { crashed: boole
 }
 
 // React Native's WebSocket is a mock under jest; the agent dials out through Node's.
+// ws 8 exports the class as `WebSocket`; an older ws an app hoists over ours (6 and 7) is the class itself.
+const NodeWebSocket = ((wsModule as unknown as { WebSocket?: typeof wsModule.WebSocket }).WebSocket ??
+  (wsModule as unknown as { default?: typeof wsModule.WebSocket }).default ??
+  wsModule) as unknown as typeof wsModule.WebSocket;
+
 const nodeSocket = (url: string): Socket => {
   const ws = new NodeWebSocket(url);
   const socket: Socket = {

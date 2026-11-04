@@ -141,6 +141,24 @@ A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks
 screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
 graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
 
+## In CI
+
+`lynkeus ci` is a suite run the way a CI job wants one: the project's backend brought up by the project's own
+command, N hosts of the app, the cases spread across them, the report uploaded, a summary for the job, and
+everything torn down, failure or not. lynkeus knows no backend; the config says how to start one:
+
+```json
+"ci": {
+  "backend": { "up": "../qa-tools/ci/env.sh up", "down": "../qa-tools/ci/env.sh down", "ready": "http://127.0.0.1:3100/up" },
+  "hosts": { "count": 4 },
+  "push": true
+}
+```
+
+```yaml
+- run: npx lynkeus ci --affected --base origin/main   # only the cases this pull request's changes reach
+```
+
 ## Configuration
 
 ```json
@@ -231,6 +249,17 @@ did. What turns each on:
 
 A run that kept evidence and saw no analytics event from the app, or was asked
 for a film and kept none, says so when it ends.
+
+### Frames two runs are compared by
+
+A frame is taken once the app stops committing (`--settle <ms>`, 150 by default).
+A simulator's or an emulator's own transitions, and a host's animations on its own
+clock, keep moving after the app is quiet; `--still <ms>` takes the frame again
+until two in a row are the same, that many ms apart, and the frame's JSON says
+whether it stopped (`still`). For frames compared pixel by pixel across two runs
+or two hosts: `--screenshots --frames png --settle 700 --still 300`. A screen that
+moves on by itself (a success screen that prints, then leaves) is still caught at
+another moment on each side.
 
 The types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in
 `lynkeus-protocol`, with `RUN_SCHEMA` in `run.json`. A field is only ever

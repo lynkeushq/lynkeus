@@ -174,8 +174,9 @@ elements instead of pixels, so it can decide the next step from facts.
 --status 500` (or `--delay`, an empty list, a specific body) answers before the
 network, so error states, timeouts and empty states are one line each, with no
 backend fixture. `lynkeus os clock`, `lynkeus os appstate` and `lynkeus os deeplink`
-do the same for time, foreground/background and links. All headless-only
-except `os deeplink`; on a device you get the real thing.
+do the same for time, foreground/background and links. `mock`, `os appstate`
+and `os deeplink` work on a simulator or an emulator too (the agent answers the
+mock inside the app; simctl and adb move the app); `os clock` is a host's only.
 
 **A quick accessibility and copy pass.** `lynkeus lint` reads the current screen
 and flags controls with no label, tap targets under 44pt, text that is an

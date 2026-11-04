@@ -106,6 +106,24 @@ success and the fallback paths:
 `lynkeus os biometrics --available FaceID --next success` (or `cancel`,
 `fail`).
 
+### Native SDKs with a screen of their own
+
+A native SDK that puts up its own screen (identity verification, a messenger) cannot run under jest. The cases
+config's `nativeMocks` stands in for it: the SDK's call puts up a page whose buttons (`#native-mock-<label>`) each
+resolve the call with a result, so a case presses Submit or Close as a person would. Sumsub's `launch` and
+Intercom's messenger have defaults.
+
+The stand-in answers the SDK's native module, so the SDK's JavaScript has to be the real one. An app whose jest
+setup stubs the package whole for its unit tests can leave it real for a host: `lynkeus headless start` sets
+`LYNKEUS_HEADLESS=1`.
+
+```js
+// jest.setup.js
+if (!process.env.LYNKEUS_HEADLESS) jest.mock('@sumsub/react-native-mobilesdk-module', () => ({}));
+```
+
+If the package ships untranspiled ES modules, list it in the app's `transformIgnorePatterns` as react-native is.
+
 ## What headless cannot tell you
 
 The host runs the app's JavaScript against a real backend, with the native

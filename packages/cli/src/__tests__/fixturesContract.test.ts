@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
-import { readDescription } from '../cases/fixtures.js';
+import { Fixtures, lastDescription, readDescription } from '../cases/fixtures.js';
 import { checkDescription } from '../commands/fixtures.js';
 
 test('a server that answers names only is still described', () => {
@@ -34,4 +37,19 @@ test('check fails a server that is down, repeats a name or speaks a newer protoc
   const fine = checkDescription(readDescription({ commands: ['a', { name: 'b', summary: 'B' }] }));
   assert.equal(fine.ok, true);
   assert.match(fine.lines.join('\n'), /1 without a summary \(a\)/);
+});
+
+test('what a server describes is kept for the next `fixtures describe`, under the command that answered', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fixtures-'));
+  const server = path.join(root, 'server.js');
+  fs.writeFileSync(
+    server,
+    "require('readline').createInterface({ input: process.stdin }).on('line', () => console.log(JSON.stringify({ commands: ['inspect', { name: 'create_user', summary: 'A user' }] })));",
+  );
+  const command = `"${process.execPath}" server.js`;
+  const fixtures = new Fixtures({ command }, root);
+  const d = await fixtures.describe().finally(() => fixtures.close());
+  assert.deepEqual(d?.commands, ['inspect', 'create_user']);
+  assert.deepEqual(lastDescription(root, command)?.description.commands, ['inspect', 'create_user']);
+  assert.equal(lastDescription(root, 'another'), undefined);
 });
