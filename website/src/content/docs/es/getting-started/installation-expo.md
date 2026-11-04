@@ -17,6 +17,21 @@ Son tres diferencias, y conviene conocerlas antes de empezar porque explican cad
 
 **El token viaja en otra variable.** Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con `EXPO_PUBLIC_`. La app y el CLI terminan leyendo dos variables distintas, que deben tener el mismo valor. A cambio, Expo no necesita el plugin de Babel `lynkeus-agent/babel` que usa una app de React Native CLI.
 
+## El arranque más rápido: sin compilar nada
+
+Antes de cualquier development build, el host headless corre la app en Node, y un primer caso pasa en alrededor de un minuto. Medido en una app Expo nueva: dos minutos desde `create-expo-app` hasta un caso en verde.
+
+```bash
+npx expo install lynkeus-agent
+npm install --save-dev lynkeus
+npx lynkeus init                          # monta el agente y crea el token
+npx lynkeus headless init                 # instala jest y escribe qa/headless.tsx
+npx lynkeus case here first-screen --host --write   # la app en Node: un caso con lo que hay en su pantalla
+npx lynkeus case run --host
+```
+
+`case here` escribe un caso que pasa tal como está: la ruta de la pantalla, si tiene una, y hasta tres de los elementos que muestra. `--host` levanta la app en Node para ese comando y la apaga al terminar. Por MCP, un agente hace lo mismo con las herramientas `init`, `headless_init`, `case_here` y `case_run`, con `host` activado. Los pasos de abajo agregan el development build, para el simulador, el emulador y el código nativo que headless no puede correr.
+
 ## Antes de empezar
 
 - Un proyecto de Expo que ya puedas compilar con `npx expo run:ios` o `npx expo run:android`.
