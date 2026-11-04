@@ -1,6 +1,7 @@
 package com.lynkeus
 
 import android.content.pm.ApplicationInfo
+import android.graphics.RectF
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -170,17 +171,37 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
     rootView()?.let { collect(it, wanted, found) }
     val density = reactApplicationContext.resources.displayMetrics.density.toDouble()
     val frames = JSONArray()
-    val location = IntArray(2)
     for (i in 0 until tags.size()) {
       val view = found[tags.getDouble(i).toInt()]
       if (view == null) {
         frames.put(JSONObject.NULL)
       } else {
-        view.getLocationInWindow(location)
-        frames.put(JSONArray(listOf(location[0] / density, location[1] / density, view.width / density, view.height / density)))
+        val box = boundsInWindow(view)
+        frames.put(JSONArray(listOf(box.left / density, box.top / density, box.width() / density, box.height() / density)))
       }
     }
     return frames.toString()
+  }
+
+  // The box a view covers in the window once every transform on the way up is
+  // applied, as iOS's convertRect gives it. getLocationInWindow maps only the
+  // view's own corner, which a rotated or flipped view moves to the other side.
+  private fun boundsInWindow(view: View): RectF {
+    val box = RectF(0f, 0f, view.width.toFloat(), view.height.toFloat())
+    var current = view
+    while (true) {
+      if (!current.matrix.isIdentity) current.matrix.mapRect(box)
+      val parent = current.parent as? View
+      if (parent == null) {
+        // The window's own offsets are getLocationInWindow's business; the top view has no transform.
+        val location = IntArray(2)
+        current.getLocationInWindow(location)
+        box.offset(location[0].toFloat(), location[1].toFloat())
+        return box
+      }
+      box.offset((current.left - parent.scrollX).toFloat(), (current.top - parent.scrollY).toFloat())
+      current = parent
+    }
   }
 
   // What each tag's field holds, null for a tag that is not a text field. Read like hitTest.
