@@ -28,7 +28,6 @@
     "@react-native/babel-preset": "0.86.2",
     "@react-native/jest-preset": "0.86.2",
     "@react-native/metro-config": "0.86.2",
-    "@react-native/typescript-config": "0.86.2",
     "@types/react": "^19.2.0",
     "react-native-builder-bob": "^0.43.1",
     "react-native-monorepo-config": "^0.4.0"
