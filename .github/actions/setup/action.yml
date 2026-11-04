@@ -1,5 +1,5 @@
 name: Setup
-description: Setup Node.js and install dependencies
+description: Setup Node.js and pnpm, and install dependencies
 
 runs:
   using: composite
@@ -9,28 +9,31 @@ runs:
       with:
         node-version-file: .nvmrc
 
+    # Node 26 ships without corepack: pnpm comes from npm, at the version package.json pins.
+    - name: Setup pnpm
+      run: npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+      shell: bash
+
     - name: Restore dependencies
-      id: yarn-cache
+      id: pnpm-cache
       uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
           **/node_modules
-          .yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}-${{ hashFiles('**/package.json', '!node_modules/**') }}
+        key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/package.json', '!node_modules/**') }}
         restore-keys: |
-          ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
-          ${{ runner.os }}-yarn-
+          ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          ${{ runner.os }}-pnpm-
 
     - name: Install dependencies
-      if: steps.yarn-cache.outputs.cache-hit != 'true'
-      run: yarn install --immutable
+      if: steps.pnpm-cache.outputs.cache-hit != 'true'
+      run: pnpm install --frozen-lockfile
       shell: bash
 
     - name: Cache dependencies
-      if: steps.yarn-cache.outputs.cache-hit != 'true'
+      if: steps.pnpm-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
         path: |
           **/node_modules
-          .yarn/install-state.gz
-        key: ${{ steps.yarn-cache.outputs.cache-primary-key }}
+        key: ${{ steps.pnpm-cache.outputs.cache-primary-key }}

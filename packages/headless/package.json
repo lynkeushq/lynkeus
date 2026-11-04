@@ -75,7 +75,7 @@
       "<rootDir>/lib/"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|yoga-layout)/)"
+      "node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?((jest-)?react-native|@react-native(-community)?|yoga-layout)/)"
     ]
   },
   "homepage": "https://github.com/lynkeushq/lynkeus#readme"

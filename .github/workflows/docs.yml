@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - 'website/**'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/docs.yml'
 
 permissions:
@@ -31,15 +32,19 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: website/package-lock.json
 
+      # Node 26 ships without corepack: pnpm comes from npm, at the version package.json pins.
+      - name: Setup pnpm
+        run: npm install -g "pnpm@$(node -p "require('../package.json').packageManager.split('@')[1]")"
+
+      # Only the site's dependencies, and none of the workspace's scripts: the root's prepare builds the
+      # packages, whose dependencies this install leaves out.
       - name: Install
-        run: npm ci
+        run: pnpm install --frozen-lockfile --filter website --ignore-scripts
 
       - name: Check the pages describe nothing later than this release
         if: github.ref_type == 'tag'
-        run: npm run check-versions
+        run: pnpm run check-versions
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
