@@ -1,7 +1,13 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import { coverageOf, impactOf, readSeen } from '../cases/coverage.js';
+import { draftCase } from '../cases/draft.js';
+import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
+import { edgesFile } from '../config.js';
+import * as edges from '../knowledge/edges.js';
+import { plan } from '../knowledge/plan.js';
 import { screensAffectedBy } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { caseFiles } from './cases.js';
@@ -31,7 +37,7 @@ export const coverageCommands = [
     },
     needs: 'graph',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
@@ -72,7 +78,7 @@ export const coverageCommands = [
     },
     needs: 'graph',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
@@ -89,6 +95,53 @@ export const coverageCommands = [
         ...(impact.untested.length ? [`reached, and touched by no case (${impact.untested.length}):`, ...impact.untested.map((r) => `  ${r}`)] : []),
       ];
       return { text: lines.join('\n'), json: { base, changed, ...impact } };
+    },
+  }),
+  define({
+    name: 'case new',
+    group: 'runs',
+    summary: 'Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write',
+    details:
+      'Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
+    positionals: [{ name: 'id', help: 'the case id, which is also its file name', required: true }],
+    flags: {
+      to: { type: 'string', help: 'the screen the case is about', value: 'Route' },
+      from: { type: 'string', help: 'where it begins (default: cases.start in lynkeus.config.json)', value: 'Route' },
+      title: { type: 'string', help: 'what a person can do there, as the report will title it', value: 'text' },
+      write: { type: 'boolean', help: 'save it in the cases folder instead of printing it' },
+    },
+    needs: 'graph',
+    session: false,
+    mcp: 'core',
+    run: async (ctx) => {
+      const config = ctx.config.cases ?? {};
+      const id = ctx.args[0]!;
+      if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) return { text: `${id}: an id is lower case letters, digits, dots, dashes and underscores`, code: 2 };
+      const to = ctx.flags.to as string | undefined;
+      const from = (ctx.flags.from as string | undefined) ?? config.start;
+      if (!to) return { text: 'case new needs --to <Route>, the screen the case is about', code: 2 };
+      if (!from) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json', code: 2 };
+      const graph = ctx.graph();
+      if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map routes lists them)`, code: 1 };
+      const server = config.fixtures ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
+      const described = server ? await server.describe().finally(() => server.close()) : undefined;
+      const text = draftCase({
+        id,
+        title: ctx.flags.title as string | undefined,
+        from,
+        to,
+        path: plan(graph, from, to, edges.load(edgesFile(ctx.root))) ?? undefined,
+        fixtures: described?.details,
+        fixturesSilent: !!server && !described,
+        macros: Object.keys(config.macros ?? {}),
+      });
+      if (!ctx.flags.write) return { text, json: { id, text } };
+      const dir = path.resolve(config.base ?? ctx.root, config.dir ?? 'cases');
+      const file = path.join(dir, `${id}.md`);
+      if (fs.existsSync(file)) return { text: `${path.relative(ctx.root, file)} is there already; pick another id or edit it`, code: 1 };
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, text);
+      return { text: `wrote ${path.relative(ctx.root, file)}`, json: { id, file } };
     },
   }),
 ];

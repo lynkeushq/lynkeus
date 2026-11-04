@@ -50,7 +50,7 @@ export const fixturesCommands = [
       'Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names.',
     needs: 'nothing',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       if (!config.fixtures) return { text: 'the project declares no fixtures (cases.fixtures in lynkeus.config.json)', code: 1 };
@@ -69,7 +69,7 @@ export const fixturesCommands = [
       'Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this lynkeus knows, and whether it is up. It changes nothing in the backend.',
     needs: 'nothing',
     session: false,
-    mcp: true,
+    mcp: 'core',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       if (!config.fixtures) return { text: 'the project declares no fixtures (cases.fixtures in lynkeus.config.json)', code: 1 };

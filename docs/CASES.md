@@ -131,7 +131,11 @@ different ones from the case beside it: what comparing two runs' screens needs.
 npx lynkeus case coverage                              # screens touched, untouched, and names the app lost
 npx lynkeus case coverage --route Pay.Main             # the cases that touch one screen
 npx lynkeus case run $(npx lynkeus case impact --files)   # only the cases a branch's changes reach
+npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: the way there and the setup to pick
 ```
+
+`case new` begins at `--from`, or at `cases.start` in the config. It never chooses the setup: it lists, commented out,
+what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and the author keeps what the case needs.
 
 A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
 screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
