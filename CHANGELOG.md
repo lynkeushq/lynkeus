@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- On Android the agent no longer lists an element whose view stands outside the window though the shadow tree puts it inside (a footer a native animation moved down, a pager's other page): `app.see` passed on a button nobody could see, where iOS and the hosts scrolled to it first.
+
 ## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
