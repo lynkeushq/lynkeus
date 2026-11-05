@@ -197,6 +197,27 @@ const placeAsViews = (elements: Element[]): void => {
   moveToViews(elements, (tag) => byTag.get(tag));
 };
 
+// What the shadow tree put on screen and whose view stands outside the window (a footer moved down by a native
+// animation, a pager's other page) is no more on screen than what the shadow tree put outside it: it goes too, and the
+// indexes that point at elements follow.
+const keepOnScreen = (elements: Element[], layers: Layer[], window: { w: number; h: number }): void => {
+  const index = new Map<number, number>();
+  const kept = elements.filter((e) => onScreen(e.frame, window));
+  if (kept.length === elements.length) return;
+  kept.forEach((e, i) => index.set(e.i, i));
+  for (const e of kept) {
+    e.i = index.get(e.i) as number;
+    if (e.parent !== undefined) e.parent = index.get(e.parent);
+  }
+  for (let k = layers.length - 1; k >= 0; k--) {
+    const layer = layers[k];
+    const to = layer && index.get(layer.i);
+    if (layer && to !== undefined) layer.i = to;
+    else layers.splice(k, 1);
+  }
+  elements.splice(0, elements.length, ...kept);
+};
+
 type Field = { element: Element; secure: boolean };
 
 // A field the app does not control keeps what was typed in its view, and one with a defaultValue goes on
@@ -323,6 +344,7 @@ export const snapshotElements = (): Snapshot => {
     walkChildren(root, { depth: 0, inButton: false, rootAttached: true });
   }
   placeAsViews(elements);
+  if (Platform.OS === 'android') keepOnScreen(elements, layers, window);
   readFields(fields);
   const presenting = resolvePresentation(elements, layers);
   markCovered(elements);
