@@ -204,7 +204,7 @@ const keepOnScreen = (elements: Element[], layers: Layer[], window: { w: number;
   const index = new Map<number, number>();
   const kept = elements.filter((e) => onScreen(e.frame, window));
   if (kept.length === elements.length) return;
-  kept.forEach((e, i) => index.set(e.i, i));
+  for (const [i, e] of kept.entries()) index.set(e.i, i);
   for (const e of kept) {
     e.i = index.get(e.i) as number;
     if (e.parent !== undefined) e.parent = index.get(e.parent);
