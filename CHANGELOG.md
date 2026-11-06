@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `lynkeus headless start` no longer stops a busy screen as a render loop: the guard counted every component's updates together and never cleared them on a reset, so a remount followed by a fast login (dozens of components, a few hundred updates each) crossed 2000 in 5 seconds and the case failed with "broke a render loop" in whichever component came last. It now counts each component on its own and starts again on every reset; a real loop, one component updating without end, still breaks.
+
 ## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
