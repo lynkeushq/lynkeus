@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- On Android, closing the keyboard (`dismissKeyboard`, and a press that has to close it first) takes the keyboard down: it only took the focus away, and the keyboard stayed up over the screen with no field focused.
+
 ## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
