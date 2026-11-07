@@ -489,6 +489,37 @@ steps:
   );
 });
 
+test('a device block goes on after a step that sends the app away', async () => {
+  const c = parseCase(
+    `---
+id: away
+---
+steps:
+  - on: device
+    do:
+      - app.press: "#refresh"
+      - app.press: "#refresh"
+`,
+    'away.md',
+  );
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const server = (device as unknown as { server: { hello: unknown } }).server;
+  server.hello = { native: true, commands: [] };
+  const press = device.press.bind(device);
+  // The first press stands for the app going to the background: it lets go of the driver.
+  (device as unknown as { press: typeof press }).press = async (params) => {
+    server.hello = null;
+    return press(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed'],
+  );
+  assert.equal(calls.filter((call) => call.method === 'press').length, 2);
+});
+
 test('a setup made ahead is where the case starts, and the backend is not asked again', async () => {
   const c = parseCase(
     `---
