@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- A `navigate` step (`app.nav`, a flow's `navigate`) right after a launch waits up to 10 s for the app to mount its navigation container: on an emulator it came a few hundred milliseconds after the launch returned, and the step failed with "Navigation container not found yet".
+
+- A case or flow that launches the app on an emulator no longer fails at once with `monkey` exiting on "SYS_KEYS has no physical keys": the launch turns system-key events off, as `os appstate active` already did.
+
 ## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
