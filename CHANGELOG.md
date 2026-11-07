@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `type` with a target waits for the field to stop moving after the tap before typing. A screen that makes room for the keyboard (a header collapsing) slides the field up meanwhile, and text that arrived mid-slide left the field's box sized where it was then: one pixel taller on a fast host than on an emulator, which types slower. On Android the P2P search box frames went from 0.11 % against fastsim to identical.
+
 ## 0.5.0
 
 - `os biometrics --available FaceID|TouchID|none` (and `app.biometrics` in a case) sets a simulator's enrollment, through `notifyutil`, when the app does not answer it itself. What the next prompts answer stays a host's: on a device the person in front answers them.
