@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android the agent no longer lists an element whose view stands outside the window though the shadow tree puts it inside (a footer a native animation moved down, a pager's other page): `app.see` passed on a button nobody could see, where iOS and the hosts scrolled to it first.
 - `lynkeus case here <id>` drafts a case from the screen the app shows now: its route (`app.nav`, when it has one) and up to three of what is on it, testIDs first, then texts. The case passes as it is, so a project's first case needs no template to fill. `--host` brings up the headless host for the read and stops it after, as `case run --host` does for a run; over MCP it is the `case_here` tool.
 - The headless entry `headless init` writes no longer refuses to start without a local backend: with `API_URL` unset, an app with no backend of its own runs, its network still fenced to local hosts. A set value that is not local is refused as before.
 - A command that reads the route graph (`case new`, `smoke`, the `map` commands) builds it the first time instead of asking for `lynkeus map build`.
