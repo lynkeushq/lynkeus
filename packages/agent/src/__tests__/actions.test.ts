@@ -60,3 +60,41 @@ describe('acting on what the platform does not present', () => {
     expect(swipeOn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('navigating right after a launch', () => {
+  it('waits for the app to mount its navigation container', async () => {
+    let ready = false;
+    const navigate = jest.fn();
+    const handlers = createHandlers({ ...noNavigation, isReady: () => ready, navigate }, fakeBackend([]).backend);
+    setTimeout(() => {
+      ready = true;
+    }, 120);
+
+    await dispatch(handlers, 'navigate', { name: 'Auth.FindAccount' });
+    expect(ready).toBe(true);
+    expect(navigate).toHaveBeenCalledWith('Auth.FindAccount', undefined);
+  });
+});
+
+describe('typing into a field the keyboard moves', () => {
+  it('types once the field has landed', async () => {
+    let pressedAt: number | undefined;
+    // The field slides from 600 to 200 over the 300 ms after the tap, as a screen collapsing for the keyboard.
+    const fieldY = () => (pressedAt === undefined ? 600 : Math.max(200, 600 - ((Date.now() - pressedAt) / 300) * 400));
+    const typedAt: number[] = [];
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      snapshot: () => ({ elements: [element({ kind: 'input', testId: 'search', frame: { x: 0, y: fieldY(), w: 300, h: 40 } })] }),
+      press: async () => {
+        pressedAt = Date.now();
+      },
+      typeText: async () => {
+        typedAt.push(fieldY());
+      },
+    });
+
+    await dispatch(handlers, 'type', { target: { testId: 'search' }, text: 'ab' });
+    expect(typedAt).toEqual([200, 200]);
+  });
+});

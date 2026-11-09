@@ -208,6 +208,9 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
         element = (await pressNative(params.target, 50)).element;
         // The keyboard needs a frame to attach to the field before it accepts input.
         await sleep(80);
+        // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
+        // field out where it was then, so wait it out like a person would.
+        await settled(params.target);
       }
     }
     if (params.clear) {
@@ -372,7 +375,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     press,
     type,
     swipe,
-    navigate: (params) => {
+    navigate: async (params) => {
+      // Right after a launch the app may not have mounted its navigation container yet (an emulator takes a few
+      // hundred milliseconds more than a host).
+      const deadline = Date.now() + 10_000;
+      while (!navigation.isReady() && Date.now() < deadline) await sleep(50);
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },

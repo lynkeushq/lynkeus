@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { View } from 'react-native';
 
 import { hostApp } from '../index.js';
+import { reset } from '../runtime.js';
 
 // hostApp installs the guard on console.error the moment it is called, before
 // the never-ending test it registers with `it` runs. Handing it a stub `it`
@@ -56,6 +57,19 @@ describe('render loop guard', () => {
     warnTimes(RENDER_LOOP.max - 1);
     jest.advanceTimersByTime(RENDER_LOOP.windowMs + 1);
     expect(() => warnTimes(RENDER_LOOP.max - 1)).not.toThrow();
+  });
+
+  it('lets a burst spread over many components through: a remount and a login render dozens of them', () => {
+    const components = Array.from({ length: 20 }, (_, i) => `Screen${i}`);
+    expect(() => {
+      for (let i = 0; i < RENDER_LOOP.max * 4; i++) actWarning(components[i % components.length] as string);
+    }).not.toThrow();
+  });
+
+  it('starts counting again when the host resets', () => {
+    warnTimes(RENDER_LOOP.max - 1, 'Loop');
+    reset();
+    expect(() => warnTimes(RENDER_LOOP.max - 1, 'Loop')).not.toThrow();
   });
 
   it('reads the component name out of a pre-formatted message', () => {

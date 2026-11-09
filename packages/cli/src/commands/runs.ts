@@ -215,6 +215,7 @@ export const runsCommands = [
       ...OVERLAY_FLAGS,
     },
     needs: 'app',
+    readsGraph: true,
     session: false,
     run: async (ctx) => {
       const graph = ctx.graph();
