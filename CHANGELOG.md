@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.1
 
 - An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.
 - `type` with a target waits for the field to stop moving after the tap before typing. A screen that makes room for the keyboard (a header collapsing) slides the field up meanwhile, and text that arrived mid-slide left the field's box sized where it was then: one pixel taller on a fast host than on an emulator, which types slower. On Android the P2P search box frames went from 0.11 % against fastsim to identical.
