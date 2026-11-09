@@ -87,8 +87,9 @@ import { installDefaultMocks } from 'lynkeus-headless/mocks'
 
 // Real network plus a hosted app is exactly what would let a driver act
 // against production if ${apiEnv} ever pointed there. Refuse anything not local.
+// Unset is an app with no backend of its own: the network stays fenced to local hosts.
 const apiUrl = process.env.${apiEnv} ?? ''
-if (!/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2)(:\\d+)?(\\/|$)/.test(apiUrl)) {
+if (apiUrl && !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2)(:\\d+)?(\\/|$)/.test(apiUrl)) {
   throw new Error(\`lynkeus headless only drives a local backend; ${apiEnv} is "\${apiUrl}"\`)
 }
 
@@ -228,9 +229,11 @@ export const init = (root: string, opts: InitOptions): string[] => {
     "jest: when the app has no jest configuration, `headless start` passes the preset it needs (jest-expo for Expo, React Native's otherwise) and the packages to transpile; an app that sets its own lets 'lynkeus-[^/]+' through, next to react-native",
   );
   notes.push(
-    `next: ${opts.apiEnv}=http://127.0.0.1:3000/ lynkeus headless start  (or put "apiUrl": "http://127.0.0.1:3000/" in lynkeus.config.json; the token is the project's, in .lynkeus/token)`,
+    `next: lynkeus headless start  (with ${opts.apiEnv}=http://127.0.0.1:3000/, or "apiUrl" in lynkeus.config.json, when the app has a local backend; the token is the project's, in .lynkeus/token)`,
   );
-  notes.push('      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)');
+  notes.push(
+    '      or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)',
+  );
   return notes;
 };
 

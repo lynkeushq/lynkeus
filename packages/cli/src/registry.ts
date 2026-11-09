@@ -55,6 +55,8 @@ export type Command = {
   /** Other spellings it answers to, left out of the usage. */
   aliases?: string[];
   needs: 'nothing' | 'graph' | 'app';
+  /** Needs the app and reads the route graph too (smoke): the graph is built first when the project has none. */
+  readsGraph?: boolean;
   /** `core` is served to every MCP client; other commands that need the app or the graph only with `mcp --full`. */
   mcp?: boolean | 'core';
   /** Flags a model has no use for (artifacts, timing knobs): left out of the MCP schema. */
