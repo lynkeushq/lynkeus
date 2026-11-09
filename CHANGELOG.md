@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- On Android, closing the keyboard (`dismissKeyboard`, and a press that has to close it first) takes the keyboard down: it only took the focus away, and the keyboard stayed up over the screen with no field focused.
 - A `navigate` step (`app.nav`, a flow's `navigate`) right after a launch waits up to 10 s for the app to mount its navigation container: on an emulator it came a few hundred milliseconds after the launch returned, and the step failed with "Navigation container not found yet".
 
 - A case or flow that launches the app on an emulator no longer fails at once with `monkey` exiting on "SYS_KEYS has no physical keys": the launch turns system-key events off, as `os appstate active` already did.
