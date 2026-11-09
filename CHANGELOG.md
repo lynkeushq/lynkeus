@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.
 - `type` with a target waits for the field to stop moving after the tap before typing. A screen that makes room for the keyboard (a header collapsing) slides the field up meanwhile, and text that arrived mid-slide left the field's box sized where it was then: one pixel taller on a fast host than on an emulator, which types slower. On Android the P2P search box frames went from 0.11 % against fastsim to identical.
 - `lynkeus headless start` no longer stops a busy screen as a render loop: the guard counted every component's updates together and never cleared them on a reset, so a remount followed by a fast login (dozens of components, a few hundred updates each) crossed 2000 in 5 seconds and the case failed with "broke a render loop" in whichever component came last. It now counts each component on its own and starts again on every reset; a real loop, one component updating without end, still breaks.
 - On Android, closing the keyboard (`dismissKeyboard`, and a press that has to close it first) takes the keyboard down: it only took the focus away, and the keyboard stayed up over the screen with no field focused.

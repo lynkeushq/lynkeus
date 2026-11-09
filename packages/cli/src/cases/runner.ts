@@ -674,7 +674,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // A host that keeps its own clock lets an animation finish before it answers. A phone runs on the
   // wall's and keeps moving after the last render, so only there is a pause worth its time; and a case's
   // `on: device` steps are written for that phone.
-  const onWallClock = (d: Device) => !!d.server.hello?.native && !d.server.hello.commands?.includes('clock');
+  // What the app said when it last attached: a phone's app sent to the background lets go of the driver, but the
+  // host is the same kind it was, and a block's steps after that one are still its own.
+  let lastHello: Device['server']['hello'] = null;
+  const helloOf = (d: Device) => {
+    lastHello = d.server.hello ?? lastHello;
+    return lastHello;
+  };
+  const onWallClock = (d: Device) => {
+    const hello = helloOf(d);
+    return !!hello?.native && !hello.commands?.includes('clock');
+  };
 
   let handling = false;
   const interrupted = async (value: StepValue): Promise<void> => {
@@ -854,7 +864,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
    */
   const runsHere = async (on: string): Promise<boolean> => {
     if (on.startsWith('!')) return !(await runsHere(on.slice(1)));
-    const hello = (await device()).server.hello;
+    const hello = helloOf(await device());
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
     if (on === 'headless') return !phone;
