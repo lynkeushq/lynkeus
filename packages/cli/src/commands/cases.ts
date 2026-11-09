@@ -22,7 +22,7 @@ import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
 import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 
-const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
+export const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
     cwd: root,
@@ -83,7 +83,7 @@ const stopGroup = (pid: number) => {
  * Stops a host and waits until it is gone. The next case's host dials the same port, and a host still on
  * its way out dials it too: whichever reaches the driver first is the one the case talks to.
  */
-const stopHost = async (host: ChildProcess): Promise<void> => {
+export const stopHost = async (host: ChildProcess): Promise<void> => {
   if (!host.pid || host.exitCode !== null || host.signalCode !== null) return;
   const gone = new Promise<void>((resolve) => host.once('exit', () => resolve()));
   host.stdin?.end();

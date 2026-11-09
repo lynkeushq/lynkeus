@@ -1,4 +1,4 @@
-import type { FixtureCommand } from 'lynkeus-protocol';
+import type { FixtureCommand, Screen } from 'lynkeus-protocol';
 
 import type { PlanStep } from '../knowledge/plan.js';
 
@@ -72,4 +72,30 @@ export const draftCase = (d: DraftInput): string => {
     '',
   );
   return lines.join('\n');
+};
+
+/** What a case can check on a screen at once: up to three of what is on it, testIDs first, then texts. */
+const sightsOf = (screen: Screen): string[] => {
+  const shown = screen.elements.filter((e) => !e.hidden && !e.covered);
+  const byId = shown.flatMap((e) => (e.testId ? [`#${e.testId}`] : []));
+  const byText = shown.flatMap((e) => (!e.testId && e.text && e.text.trim().length > 1 ? [e.text.trim()] : []));
+  return [...new Set([...byId, ...byText])].slice(0, 3);
+};
+
+/**
+ * A case that passes as it is, from the screen the app shows: it goes to that route when there is one and sees what
+ * is there. A project's first case, or the start of one for a screen, without a template to fill first.
+ */
+export const hereCase = (id: string, screen: Screen, title?: string): string => {
+  const sights = sightsOf(screen);
+  return [
+    '---',
+    `id: ${id}`,
+    `title: ${quote(title ?? (screen.route ? `${screen.route} shows what it should` : 'The app opens on its first screen'))}`,
+    '---',
+    ...(screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
+    'steps:',
+    ...(sights.length ? sights.map((s) => `  - app.see: ${quote(s)}`) : ['  # Nothing on this screen has a testID or text to check yet.']),
+    '',
+  ].join('\n');
 };
