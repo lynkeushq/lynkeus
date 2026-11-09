@@ -3,6 +3,16 @@
 ## Unreleased
 
 - `type` with a target waits for the field to stop moving after the tap before typing. A screen that makes room for the keyboard (a header collapsing) slides the field up meanwhile, and text that arrived mid-slide left the field's box sized where it was then: one pixel taller on a fast host than on an emulator, which types slower. On Android the P2P search box frames went from 0.11 % against fastsim to identical.
+- `lynkeus headless start` no longer stops a busy screen as a render loop: the guard counted every component's updates together and never cleared them on a reset, so a remount followed by a fast login (dozens of components, a few hundred updates each) crossed 2000 in 5 seconds and the case failed with "broke a render loop" in whichever component came last. It now counts each component on its own and starts again on every reset; a real loop, one component updating without end, still breaks.
+- On Android, closing the keyboard (`dismissKeyboard`, and a press that has to close it first) takes the keyboard down: it only took the focus away, and the keyboard stayed up over the screen with no field focused.
+- A `navigate` step (`app.nav`, a flow's `navigate`) right after a launch waits up to 10 s for the app to mount its navigation container: on an emulator it came a few hundred milliseconds after the launch returned, and the step failed with "Navigation container not found yet".
+
+- A case or flow that launches the app on an emulator no longer fails at once with `monkey` exiting on "SYS_KEYS has no physical keys": the launch turns system-key events off, as `os appstate active` already did.
+- On Android the agent no longer lists an element whose view stands outside the window though the shadow tree puts it inside (a footer a native animation moved down, a pager's other page): `app.see` passed on a button nobody could see, where iOS and the hosts scrolled to it first.
+- `lynkeus case here <id>` drafts a case from the screen the app shows now: its route (`app.nav`, when it has one) and up to three of what is on it, testIDs first, then texts. The case passes as it is, so a project's first case needs no template to fill. `--host` brings up the headless host for the read and stops it after, as `case run --host` does for a run; over MCP it is the `case_here` tool.
+- The headless entry `headless init` writes no longer refuses to start without a local backend: with `API_URL` unset, an app with no backend of its own runs, its network still fenced to local hosts. A set value that is not local is refused as before.
+- A command that reads the route graph (`case new`, `smoke`, the `map` commands) builds it the first time instead of asking for `lynkeus map build`.
+- `init` and `headless init` end with the way to a first green case with no native build: `headless init`, then `case here … --host --write` and `case run --host`. The Expo guide opens with that path; measured on a new Expo app, two minutes from `create-expo-app` to a passing case.
 
 ## 0.5.0
 

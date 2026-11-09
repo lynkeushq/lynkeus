@@ -145,6 +145,7 @@ export const headlessCommands = [
     run: async (ctx) => {
       const lines = [...(ctx.flags['no-install'] ? [] : [installAgent(ctx.root)]), ...mountAgent(ctx.root)];
       lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
+      lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
       return { text: lines.join('\n'), json: lines };
     },
   }),

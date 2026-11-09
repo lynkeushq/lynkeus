@@ -3,7 +3,12 @@
  * evidence. The terminal, session lines, a recording's stdin, cases and the
  * MCP server all come through here.
  */
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { UsageError } from './args.js';
+import { graphFile } from './config.js';
+import { writeJson } from './files.js';
 import { describeWhy, explain } from './knowledge/why.js';
 import { type Base, helpFor, parseFor, resolve } from './registry.js';
 import { type Expected, expectedOf } from './targets.js';
@@ -45,6 +50,16 @@ export const duringCommand = <R extends { startedAt: number }>(requests: R[], st
 
 const TARGET_ARG: Record<string, number> = { press: 0, see: 0, wait: 0, swipe: 1, nav: 0, type: 1 };
 
+/**
+ * A command that reads the route graph builds it the first time instead of failing: the first run of `case new` or
+ * `smoke` in a new project needs no `map build` before it. Only a React Native project (a tsconfig) gets one.
+ */
+const graphFirst = async (root: string): Promise<void> => {
+  if (fs.existsSync(graphFile(root)) || !fs.existsSync(path.join(root, 'tsconfig.json'))) return;
+  const { extractScreenGraph } = await import('./knowledge/extract.js');
+  writeJson(graphFile(root), extractScreenGraph({ root }));
+};
+
 export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
   const found = resolve(argv);
   if (!found) return { code: 2, error: `unknown command "${argv.slice(0, 2).join(' ')}"; \`lynkeus help\` lists them` };
@@ -59,6 +74,7 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
   if (parsed.flags.help) return { code: 0, text: helpFor(command) };
   const startedAt = Date.now();
   try {
+    if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root);
     const result = await command.run({ ...base, ...parsed });
     if (result === undefined) return { code: 0 };
     if (typeof result === 'string') return { code: 0, text: result };

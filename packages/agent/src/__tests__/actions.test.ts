@@ -61,6 +61,21 @@ describe('acting on what the platform does not present', () => {
   });
 });
 
+describe('navigating right after a launch', () => {
+  it('waits for the app to mount its navigation container', async () => {
+    let ready = false;
+    const navigate = jest.fn();
+    const handlers = createHandlers({ ...noNavigation, isReady: () => ready, navigate }, fakeBackend([]).backend);
+    setTimeout(() => {
+      ready = true;
+    }, 120);
+
+    await dispatch(handlers, 'navigate', { name: 'Auth.FindAccount' });
+    expect(ready).toBe(true);
+    expect(navigate).toHaveBeenCalledWith('Auth.FindAccount', undefined);
+  });
+});
+
 describe('typing into a field the keyboard moves', () => {
   it('types once the field has landed', async () => {
     let pressedAt: number | undefined;

@@ -1,5 +1,6 @@
 package com.lynkeus
 
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.graphics.RectF
 import android.os.Handler
@@ -10,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -121,7 +123,12 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
   }
 
   override fun dismissKeyboard(promise: Promise) = guarded(promise) {
-    rootView()?.findFocus()?.clearFocus()
+    rootView()?.let { root ->
+      // Losing the focus does not take Android's keyboard down: hide it too, as React Native's own blur does.
+      val keyboard = reactApplicationContext.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+      keyboard.hideSoftInputFromWindow(root.windowToken, 0)
+      root.findFocus()?.clearFocus()
+    }
     promise.resolve(true)
   }
 

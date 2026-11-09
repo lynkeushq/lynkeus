@@ -375,7 +375,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     press,
     type,
     swipe,
-    navigate: (params) => {
+    navigate: async (params) => {
+      // Right after a launch the app may not have mounted its navigation container yet (an emulator takes a few
+      // hundred milliseconds more than a host).
+      const deadline = Date.now() + 10_000;
+      while (!navigation.isReady() && Date.now() < deadline) await sleep(50);
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },

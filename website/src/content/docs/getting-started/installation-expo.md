@@ -13,6 +13,21 @@ Expo needs three things that a React Native CLI app does not, and each has a rea
 
 If your app does not use Expo, follow [Install in a React Native app](/getting-started/installation-react-native/) instead.
 
+## The fastest start: no native build
+
+Before any development build, the headless host runs the app in Node, so a first case passes in about a minute. Measured on a new Expo app: two minutes from `create-expo-app` to a green case.
+
+```bash
+npx expo install lynkeus-agent
+npm install --save-dev lynkeus
+npx lynkeus init                          # mounts the agent and makes the token
+npx lynkeus headless init                 # installs jest and writes qa/headless.tsx
+npx lynkeus case here first-screen --host --write   # the app in Node: a case from what is on its screen
+npx lynkeus case run --host
+```
+
+`case here` writes a case that passes as it is: the screen's route, when it has one, and up to three of what is on it. `--host` starts the app in Node for the command and stops it after. Over MCP, an agent does the same with the `init`, `headless_init`, `case_here` and `case_run` tools, `host` set. The steps below add the development build, for the simulator, the emulator and the native code headless cannot run.
+
 ## Before you start
 
 - An Expo project that you can build locally: Xcode for iOS, Android Studio for Android.

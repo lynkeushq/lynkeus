@@ -52,7 +52,8 @@ const adb = (deviceId: string, args: string[]) => run('adb', ['-s', deviceId, ..
 const android: PlatformLifecycle = {
   async launchApp(deviceId, appId, fresh) {
     if (fresh) await adb(deviceId, ['shell', 'am', 'force-stop', appId]);
-    await adb(deviceId, ['shell', 'monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1']);
+    // Monkey aborts on a device with no physical keys unless system-key events are turned off.
+    await adb(deviceId, ['shell', 'monkey', '--pct-syskeys', '0', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1']);
   },
 
   async screenshot(deviceId, destination) {
