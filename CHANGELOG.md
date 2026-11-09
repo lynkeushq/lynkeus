@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `lynkeus headless start` no longer stops a busy screen as a render loop: the guard counted every component's updates together and never cleared them on a reset, so a remount followed by a fast login (dozens of components, a few hundred updates each) crossed 2000 in 5 seconds and the case failed with "broke a render loop" in whichever component came last. It now counts each component on its own and starts again on every reset; a real loop, one component updating without end, still breaks.
 - On Android, closing the keyboard (`dismissKeyboard`, and a press that has to close it first) takes the keyboard down: it only took the focus away, and the keyboard stayed up over the screen with no field focused.
 - A `navigate` step (`app.nav`, a flow's `navigate`) right after a launch waits up to 10 s for the app to mount its navigation container: on an emulator it came a few hundred milliseconds after the launch returned, and the step failed with "Navigation container not found yet".
 

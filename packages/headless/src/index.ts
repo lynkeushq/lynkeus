@@ -11,7 +11,7 @@ import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
 import { listenerCounts } from './mocks/controls.js';
 import { NativeMockScreen } from './mocks/native.js';
-import { installRuntime, log, reset } from './runtime.js';
+import { installRuntime, log, onReset, reset } from './runtime.js';
 import type { ReactTestInstance } from './tree.js';
 
 // The host test imports this package before the app's entry.
@@ -115,25 +115,34 @@ const RENDER_LOOP = { max: 2000, windowMs: 5000 };
 // a frame lets the state settle, under jest nothing does, and React's depth
 // limit only trips when the updates nest. Each render logs "An update to X
 // inside a test"; past a rate no real screen reaches, throw from inside the
-// loop, the only place that still runs, and leave the host to `reset`.
+// loop, the only place that still runs, and leave the host to `reset`. The rate
+// is per component: a remount and a login re-render dozens of components a few
+// hundred times each in a second or two, which is busy but ends, and a loop
+// keeps one or two going.
 const guardConsole = () => {
-  let renders = 0;
+  const renders = new Map<string, number>();
   // Monotonic: `lynkeus clock` moves Date, and a window measured on it never
   // closes after a jump backwards.
   let windowStart = performance.now();
+  onReset(() => {
+    renders.clear();
+    windowStart = performance.now();
+  });
   const countRender = (message: string, formatArgs: unknown[]) => {
     const now = performance.now();
     if (now - windowStart > RENDER_LOOP.windowMs) {
-      renders = 0;
+      renders.clear();
       windowStart = now;
     }
-    if (++renders < RENDER_LOOP.max) return;
     // React passes the component name as the next argument; only a pre-formatted message carries it inline.
     const component = (typeof formatArgs[0] === 'string' ? formatArgs[0] : undefined) ?? /An update to (\S+) inside a test/.exec(message)?.[1];
+    const count = (renders.get(component ?? '') ?? 0) + 1;
+    renders.set(component ?? '', count);
+    if (count < RENDER_LOOP.max) return;
     const windowMs = Math.round(now - windowStart);
-    traceRecord({ kind: 'stall', renders, windowMs, component });
-    log(`render loop: ${renders} updates${component ? ` to ${component}` : ''} in ${windowMs}ms; breaking it (the screen is dead until reset)`);
-    renders = 0;
+    traceRecord({ kind: 'stall', renders: count, windowMs, component });
+    log(`render loop: ${count} updates${component ? ` to ${component}` : ''} in ${windowMs}ms; breaking it (the screen is dead until reset)`);
+    renders.clear();
     windowStart = now;
     throw new Error(`lynkeus headless broke a render loop${component ? ` in ${component}` : ''}`);
   };
