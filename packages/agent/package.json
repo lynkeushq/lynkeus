@@ -78,7 +78,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.7",
+    "@babel/core": "^8.1.0",
     "@jest/globals": "^29.7.0",
     "@react-native/babel-preset": "0.86.2",
     "@react-native/jest-preset": "0.86.2",
