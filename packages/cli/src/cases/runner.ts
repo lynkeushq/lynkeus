@@ -190,6 +190,36 @@ export const newSince = (before: AppEvent[], now: AppEvent[]): AppEvent[] => {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * A host on another machine (fastsim in a Linux VM or on a server) films there: the path it was given is this
+ * machine's. Its stop says how big the film is, and `record { read }` hands it over a piece at a time. Nothing here
+ * may fail the case: a film that does not arrive is left out of the report.
+ */
+export const fetchFilm = async (d: Pick<Device, 'command'>, film: string, bytes: number): Promise<boolean> => {
+  const part = `${film}.part`;
+  try {
+    const out = fs.openSync(part, 'w');
+    try {
+      for (let offset = 0; offset < bytes; ) {
+        const piece = (await d.command('record', { read: offset })) as { data?: unknown; done?: unknown } | undefined;
+        const data = typeof piece?.data === 'string' ? Buffer.from(piece.data, 'base64') : Buffer.alloc(0);
+        if (data.length === 0) break;
+        fs.writeSync(out, data);
+        offset += data.length;
+        if (piece?.done === true) break;
+      }
+    } finally {
+      fs.closeSync(out);
+    }
+    if (fs.statSync(part).size !== bytes) throw new Error('short film');
+    fs.renameSync(part, film);
+    return true;
+  } catch {
+    fs.rmSync(part, { force: true });
+    return false;
+  }
+};
 const run = promisify(exec);
 
 const label = (step: Step): string => {
@@ -1317,7 +1347,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     report.routes = [...new Set(walked)].sort();
   }
   if (filming) {
-    await (await device()).command('record', { stop: true }).catch(() => undefined);
+    const d = await device();
+    const stopped = (await d.command('record', { stop: true }).catch(() => undefined)) as { bytes?: unknown } | undefined;
+    if (film && !fs.existsSync(film) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, film, stopped.bytes);
     if (film && fs.existsSync(film)) report.video = film;
   }
   if (failed && !options.dry && !options.setupOnly) {
@@ -1329,7 +1361,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const events = await d.trace(mark).catch(() => undefined);
       report.evidence = {
         screen: screen ? describeScreen(screen, { limit: 40 }) : undefined,
-        requests: events?.events.flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}`] : [])).slice(-8),
+        requests: events?.events
+          .flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}${e.mocked ? ' (mocked)' : ''}`] : []))
+          .slice(-8),
         why,
       };
     }

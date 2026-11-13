@@ -15,6 +15,7 @@ import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
 import { RunFile } from '../cases/runfile.js';
+import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -23,6 +24,10 @@ import { megabytes, sizeOf } from '../cases/runDirs.js';
 import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 import { describeStatus, lastRunFile, PROGRESS_FILE, type ProgressEvent, RunState, statusLine, statusOf } from '../cases/progress.js';
 import { LiveLine } from '../cases/liveLine.js';
+
+/** Why a host that came up is gone: how it exited, what it printed last, where its log is. */
+const lastWords = new WeakMap<ChildProcess, () => string>();
+let started = 0;
 
 export const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -33,7 +38,9 @@ export const startHost = async (root: string, err: (line: string) => void): Prom
     detached: true,
   });
   // Everything the host prints, for the render errors and warnings a failed case points at; the console keeps the run's own lines.
-  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}.log`);
+  // A host started again after one died gets a log of its own: the dead one's says why it died.
+  started += 1;
+  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}${started > 1 ? `-${started}` : ''}.log`);
   const logStream = fs.createWriteStream(logFile);
   logStream.on('error', () => {});
   host.once('exit', () => logStream.end());
@@ -72,7 +79,44 @@ export const startHost = async (root: string, err: (line: string) => void): Prom
   });
   // The listeners above stay: the log takes all the host prints until it stops.
   err(`host: up (its log: ${logFile})`);
+  lastWords.set(host, () => `exited (${host.exitCode ?? host.signalCode}): ${why()} (its log: ${logFile})`);
   return host;
+};
+
+const exited = (host: ChildProcess) => host.exitCode !== null || host.signalCode !== null;
+
+/**
+ * What became of the run's host, worded to follow "the host": gone, or alive with no app attached; undefined while
+ * it serves. An app that reloads redials within moments, so `waitMs` gives it that long before the host counts as lost.
+ */
+export const hostLost = async (
+  host: ChildProcess,
+  server: { connected: boolean; waitForApp: (ms: number) => Promise<unknown> } | undefined,
+  waitMs = 0,
+): Promise<string | undefined> => {
+  if (exited(host)) return lastWords.get(host)?.() ?? `exited (${host.exitCode ?? host.signalCode})`;
+  if (!server || server.connected) return undefined;
+  if (
+    waitMs > 0 &&
+    (await server.waitForApp(waitMs).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return undefined;
+  return 'is running but its app is not attached';
+};
+
+export type HostMemory = { heapUsedMb?: number; heapLimitMb?: number };
+
+/**
+ * A host's heap past `percent` of where V8 gives up, as "<used> MB of <limit> MB"; undefined below it. A host that
+ * does not say its limit is taken at node's usual 4 GB.
+ */
+export const heapPast = (memory: HostMemory | undefined, percent: number): string | undefined => {
+  if (!memory?.heapUsedMb) return undefined;
+  const limit = memory.heapLimitMb ?? 4096;
+  return memory.heapUsedMb >= (limit * percent) / 100 ? `${memory.heapUsedMb} MB of ${limit} MB` : undefined;
 };
 
 const stopGroup = (pid: number) => {
@@ -209,7 +253,11 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
   return [
-    ...(fromApp ? [] : ['⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).']),
+    ...(fromApp
+      ? []
+      : [
+          '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
+        ]),
     ...(asked.video && !reports.some((r) => r.video)
       ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).']
       : []),
@@ -261,6 +309,12 @@ export const caseCommands = [
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       host: { type: 'boolean', help: 'start `headless start` for the run and stop it after' },
+      'host-heap': {
+        type: 'number',
+        help: 'with --host: start the host again before a case when its heap is past this percent of its limit',
+        value: 'percent',
+        default: 60,
+      },
       once: { type: 'boolean', help: 'no second chance for a case that fails' },
       continue: { type: 'boolean', help: "keep running a case's steps after one fails (a failed setup still stops it)" },
       seen: { type: 'string', help: 'write <dir>/<case id>.json with the screens each passing case went through, for a coverage map', value: 'dir' },
@@ -405,7 +459,7 @@ export const caseCommands = [
               : [portFromEnv(ctx.config) ?? 8123],
           );
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
-      const host = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
+      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
       const traces = ctx.flags.traces && !dry ? new TraceSink(Number(ctx.flags['traces-port'] ?? 4318)) : undefined;
       if (traces) {
@@ -442,7 +496,7 @@ export const caseCommands = [
         traces?.close();
         claimed?.release();
         fixtures?.close();
-        if (host?.pid) stopGroup(host.pid);
+        if (runHost?.pid) stopGroup(runHost.pid);
       };
       const interrupted = () => {
         stop();
@@ -450,6 +504,35 @@ export const caseCommands = [
       };
       process.once('SIGINT', interrupted);
       process.once('SIGTERM', interrupted);
+      // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
+      // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
+      // starts on a host started again. A host whose heap is near its limit would die in the middle of the next case,
+      // so it is asked before each one and started again past --host-heap percent of the limit.
+      const server = async () => (await ctx.device().catch(() => undefined))?.server;
+      const heapPercent = Number(ctx.flags['host-heap'] ?? 60);
+      let reviving: Promise<void> | undefined;
+      const hostUp = (log: (line: string) => void): Promise<void> => {
+        reviving ??= (async () => {
+          if (!runHost) return;
+          const dead = await hostLost(runHost, await server(), 5000);
+          const memory = dead ? undefined : await (await ctx.device().catch(() => undefined))?.command<HostMemory>('memory').catch(() => undefined);
+          if (memory?.heapUsedMb) log(`host: heap ${memory.heapUsedMb} MB of ${memory.heapLimitMb ?? '?'} MB`);
+          const full = heapPast(memory, heapPercent);
+          const why = dead ?? (full ? `its heap is at ${full}` : undefined);
+          if (!why) return;
+          log(`host: ${why}; starting it again`);
+          await stopHost(runHost);
+          try {
+            runHost = await startHost(ctx.root, ctx.err);
+            await (await server())?.waitForApp(30_000);
+          } catch (error) {
+            log(`host: did not come back: ${(error as Error).message}`);
+          }
+        })().finally(() => {
+          reviving = undefined;
+        });
+        return reviving;
+      };
       const reports: (CaseReport & { retried?: boolean })[] = [];
       try {
         // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
@@ -510,7 +593,8 @@ export const caseCommands = [
         const preparing =
           limit > 0 && declared && store && !dry
             ? prepareAhead(
-                cases.filter((c) => preparable(c, config)),
+                // An exclusive case's setup may be what changes the shared state: it is made in its own turn.
+                cases.filter((c) => preparable(c, config) && !c.exclusive),
                 {
                   base: ctx,
                   config,
@@ -523,6 +607,7 @@ export const caseCommands = [
               )
             : undefined;
         let next = 0;
+        const turns = new Turns();
         const job = async (index: number) => {
           // Each job keeps its own connection to the fixtures server, warm from one case to the next.
           const own = index === 0 ? fixtures : declared && !dry ? new Fixtures(declared, home) : undefined;
@@ -532,96 +617,111 @@ export const caseCommands = [
               const lines: string[] = [];
               // With several jobs a case's lines are held and printed together, not interleaved.
               const log = jobs > 1 ? (line: string) => lines.push(line) : ctx.err;
-              log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
-              store?.start(c);
-              const attempt = async (n: number, prepared?: Prepared) => {
-                const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
-                const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
-                const startedAt = new Date();
+              if (c.exclusive && turns.busy(true)) ctx.err(`… ${c.id} runs alone: waiting for the cases in flight to end`);
+              const release = await turns.take(!!c.exclusive);
+              try {
+                log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
+                store?.start(c);
+                const attempt = async (n: number, prepared?: Prepared) => {
+                  await hostUp(log);
+                  const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
+                  const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
+                  const startedAt = new Date();
+                  emit({
+                    type: 'case-start',
+                    at: startedAt.toISOString(),
+                    id: c.id,
+                    job: index,
+                    attempt: n,
+                    steps: (prepared ? 0 : c.setup.length) + c.steps.length,
+                    ...(port !== undefined ? { host: `port ${port}` } : ctx.flags.host ? { host: 'headless' } : {}),
+                  });
+                  try {
+                    // A host just started is still drawing its first screens; with the setup made ahead nothing
+                    // else gives it that moment before the first press.
+                    if (host)
+                      await scoped.base
+                        .device()
+                        .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
+                        .catch(() => undefined);
+                    const report = await runCase(c, {
+                      base: scoped.base,
+                      config,
+                      fixtures: own,
+                      dry,
+                      events,
+                      evidence: evidenceOf(c.id, n),
+                      log,
+                      prepared,
+                      continue: !!ctx.flags.continue,
+                      routes: seenDir ? (host ? 'fresh' : true) : false,
+                      traces,
+                      nativeLogs: native,
+                      onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
+                    });
+                    const lost = report.result === 'failed' && runHost ? await hostLost(runHost, await server()) : undefined;
+                    if (lost) {
+                      report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
+                      report.evidence = {
+                        ...report.evidence,
+                        why: [report.evidence?.why, `  • during this case the host ${lost}`].filter(Boolean).join('\n'),
+                      };
+                    }
+                    if (seenDir && report.result === 'passed' && report.routes?.length) {
+                      fs.mkdirSync(seenDir, { recursive: true });
+                      fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+                    }
+                    return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
+                  } finally {
+                    if (host) await stopHost(host);
+                    await scoped.stop();
+                  }
+                };
+                let {
+                  report,
+                  startedAt,
+                  hello,
+                }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } = await attempt(
+                  1,
+                  store?.take(c),
+                );
+                seen ??= hello;
+                const retry = report.result === 'failed' && !ctx.flags.once && !dry;
                 emit({
-                  type: 'case-start',
-                  at: startedAt.toISOString(),
+                  type: 'case-end',
+                  at: now(),
                   id: c.id,
                   job: index,
-                  attempt: n,
-                  steps: (prepared ? 0 : c.setup.length) + c.steps.length,
-                  ...(port !== undefined ? { host: `port ${port}` } : ctx.flags.host ? { host: 'headless' } : {}),
+                  attempt: 1,
+                  result: report.result,
+                  ms: report.ms,
+                  ...(retry ? { retrying: true } : {}),
                 });
-                try {
-                  // A host just started is still drawing its first screens; with the setup made ahead nothing
-                  // else gives it that moment before the first press.
-                  if (host)
-                    await scoped.base
-                      .device()
-                      .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
-                      .catch(() => undefined);
-                  const report = await runCase(c, {
-                    base: scoped.base,
-                    config,
-                    fixtures: own,
-                    dry,
-                    events,
-                    evidence: evidenceOf(c.id, n),
-                    log,
-                    prepared,
-                    continue: !!ctx.flags.continue,
-                    routes: seenDir ? (host ? 'fresh' : true) : false,
-                    traces,
-                    nativeLogs: native,
-                    onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
-                  });
-                  if (seenDir && report.result === 'passed' && report.routes?.length) {
-                    fs.mkdirSync(seenDir, { recursive: true });
-                    fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
-                  }
-                  return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
-                } finally {
-                  if (host) await stopHost(host);
-                  await scoped.stop();
-                }
-              };
-              let {
-                report,
-                startedAt,
-                hello,
-              }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } = await attempt(
-                1,
-                store?.take(c),
-              );
-              seen ??= hello;
-              const retry = report.result === 'failed' && !ctx.flags.once && !dry;
-              emit({
-                type: 'case-end',
-                at: now(),
-                id: c.id,
-                job: index,
-                attempt: 1,
-                result: report.result,
-                ms: report.ms,
-                ...(retry ? { retrying: true } : {}),
-              });
-              log(describe(report));
-              const first = out?.add(c, { report, attempt: 1, startedAt });
-              if (first) liveRun?.add(first);
-              if (retry) {
-                log(`  retrying ${c.id} once`);
-                const again = await attempt(2);
-                report = { ...again.report, retried: true };
-                startedAt = again.startedAt;
-                emit({ type: 'case-end', at: now(), id: c.id, job: index, attempt: 2, result: report.result, ms: report.ms });
                 log(describe(report));
-                const second = out?.add(c, { report, attempt: 2, startedAt });
-                if (second) liveRun?.add(second);
+                const first = out?.add(c, { report, attempt: 1, startedAt });
+                if (first) liveRun?.add(first);
+                if (retry) {
+                  log(`  retrying ${c.id} once`);
+                  const again = await attempt(2);
+                  report = { ...again.report, retried: true };
+                  startedAt = again.startedAt;
+                  emit({ type: 'case-end', at: now(), id: c.id, job: index, attempt: 2, result: report.result, ms: report.ms });
+                  log(describe(report));
+                  const second = out?.add(c, { report, attempt: 2, startedAt });
+                  if (second) liveRun?.add(second);
+                }
+                if (jobs > 1) ctx.err(lines.join('\n'));
+                ledger?.note(report);
+                if (typeof ctx.flags.events === 'string' && report.events) {
+                  const dir = path.resolve(ctx.flags.events as string, c.id);
+                  fs.mkdirSync(dir, { recursive: true });
+                  fs.writeFileSync(eventsFile(dir), report.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
+                }
+                reports.push(report);
+                if (ctx.flags.report) fs.appendFileSync(path.resolve(ctx.flags.report as string), `${JSON.stringify(report)}\n`);
+              } finally {
+                release();
               }
-              if (jobs > 1) ctx.err(lines.join('\n'));
-              ledger?.note(report);
-              if (typeof ctx.flags.events === 'string' && report.events) {
-                const dir = path.resolve(ctx.flags.events as string, c.id);
-                fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(eventsFile(dir), report.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
-              }
-              reports.push(report);
-              if (ctx.flags.report) fs.appendFileSync(path.resolve(ctx.flags.report as string), `${JSON.stringify(report)}\n`);
             }
           } finally {
             if (own !== fixtures) own?.close();

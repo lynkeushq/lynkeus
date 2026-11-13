@@ -1,8 +1,13 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
-import { answer, installNetmock, mockFor } from './netmock';
+import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
 
 const KEEP = 200;
+/**
+ * Set on an answer a mock gave instead of the server, by a layer below the app the agent cannot see into (the
+ * headless host's network fence, a host's own netmock): such a request is the case's doing, not the backend's.
+ */
+export const MOCKED_HEADER = 'x-lynkeus-mocked';
 const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
 
 const records: RequestRecord[] = [];
@@ -87,7 +92,16 @@ const track = (method: string, url: string) => {
     record.status = status;
     record.ms = Date.now() - record.startedAt;
     if (status === 0) record.error = error instanceof Error ? error.message : 'network error or aborted';
-    trace({ kind: 'request', method: record.method, url: record.url, status, ms: record.ms, error: record.error });
+    if ((error as { lynkeusMocked?: unknown } | null | undefined)?.lynkeusMocked === true) record.mocked = true;
+    trace({
+      kind: 'request',
+      method: record.method,
+      url: record.url,
+      status,
+      ms: record.ms,
+      error: record.error,
+      ...(record.mocked ? { mocked: true } : {}),
+    });
   };
   return { record, finish };
 };
@@ -116,6 +130,7 @@ const trackFetch = (): void => {
     }
     try {
       const response = await original(input, init);
+      if (response.headers?.get?.(MOCKED_HEADER)) record.mocked = true;
       finish(response.status);
       if (bodies) {
         const headers: Record<string, string> = {};
@@ -162,11 +177,14 @@ const trackXhr = (): void => {
   proto.send = function (this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>) {
     const request = opened.get(this);
     const rule = request ? mockFor(...request) : null;
+    let tracked: RequestRecord | undefined;
     if (request) {
       const { record, finish } = track(...request);
+      tracked = record;
       const bodies = keepBodies;
       if (bodies) record.request = exchange(sentHeaders.get(this) ?? {}, args[0]);
       this.addEventListener('loadend', () => {
+        if (this.getResponseHeader?.(MOCKED_HEADER)) record.mocked = true;
         finish(this.status);
         if (!bodies) return;
         let body: unknown;
@@ -190,7 +208,13 @@ const trackXhr = (): void => {
         }
       }
     }
-    if (rule && request && answer(this, rule, request[1])) return;
+    if (rule?.lost) {
+      loseAnswer(this);
+      if (tracked) tracked.mocked = true;
+    } else if (rule && request && answer(this, rule, request[1])) {
+      if (tracked) tracked.mocked = true;
+      return;
+    }
     return send.apply(this, args);
   } as typeof proto.send;
 };

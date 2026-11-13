@@ -16,6 +16,8 @@ export type Case = {
   file: string;
   id: string;
   title?: string;
+  /** Runs with no other case at the same time (`exclusive: true`): it changes state every case shares. */
+  exclusive?: true;
   meta: Record<string, unknown>;
   setup: Step[];
   steps: Step[];
@@ -92,6 +94,7 @@ export const parseCase = (text: string, file: string): Case => {
     file,
     id,
     title: typeof meta.title === 'string' ? meta.title : undefined,
+    ...(meta.exclusive === true ? { exclusive: true as const } : {}),
     meta,
     setup: stepsOf(body.setup, file, 'setup'),
     steps: stepsOf(body.steps, file, 'steps'),

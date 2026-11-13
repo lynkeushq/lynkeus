@@ -108,3 +108,10 @@ test('steps before any numbered comment have no section', () => {
   const c = parseCase(CASE, 'gift.md');
   assert.deepEqual(c.sections, [undefined, undefined, undefined]);
 });
+
+test('a case says in its frontmatter that it runs alone', () => {
+  assert.equal(parseCase(CASE.replace('id: gift', 'id: gift\nexclusive: true'), 'x.md').exclusive, true);
+  assert.equal(parseCase(CASE, 'x.md').exclusive, undefined);
+  // Only true itself: a string or a number is not read as a yes.
+  assert.equal(parseCase(CASE.replace('id: gift', 'id: gift\nexclusive: "yes"'), 'x.md').exclusive, undefined);
+});

@@ -45,6 +45,7 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 | `given` | texto | ninguno | Qué es cierto cuando empieza: quién es el usuario, qué está instalado. Aparece en el reporte. Desde 0.5.0. |
 | `ticket` | texto | ninguno | El ticket que cubre. Aparece en el reporte. Desde 0.5.0. |
 | `matrix` | objeto | ninguno | Ejecuta el caso una vez por cada combinación de valores. Ver [Matrices](#matrices). |
+| `exclusive` | booleano | `false` | Con `true`, `case run --jobs` lo ejecuta sin ningún otro caso al mismo tiempo: espera a que terminen los que están en curso y no empieza ninguno hasta que termina. Para un caso que cambia algo que comparten todos, como un flag global. Su preparación nunca se hace por adelantado. |
 
 ### Las secciones
 
