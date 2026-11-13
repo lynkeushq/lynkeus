@@ -104,6 +104,18 @@ export const hostLost = async (
   return 'is running but its app is not attached';
 };
 
+export type HostMemory = { heapUsedMb?: number; heapLimitMb?: number };
+
+/**
+ * A host's heap past `percent` of where V8 gives up, as "<used> MB of <limit> MB"; undefined below it. A host that
+ * does not say its limit is taken at node's usual 4 GB.
+ */
+export const heapPast = (memory: HostMemory | undefined, percent: number): string | undefined => {
+  if (!memory?.heapUsedMb) return undefined;
+  const limit = memory.heapLimitMb ?? 4096;
+  return memory.heapUsedMb >= (limit * percent) / 100 ? `${memory.heapUsedMb} MB of ${limit} MB` : undefined;
+};
+
 const stopGroup = (pid: number) => {
   try {
     process.kill(-pid, 'SIGTERM');
@@ -284,6 +296,12 @@ export const caseCommands = [
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       host: { type: 'boolean', help: 'start `headless start` for the run and stop it after' },
+      'host-heap': {
+        type: 'number',
+        help: 'with --host: start the host again before a case when its heap is past this percent of its limit',
+        value: 'percent',
+        default: 60,
+      },
       once: { type: 'boolean', help: 'no second chance for a case that fails' },
       continue: { type: 'boolean', help: "keep running a case's steps after one fails (a failed setup still stops it)" },
       seen: { type: 'string', help: 'write <dir>/<case id>.json with the screens each passing case went through, for a coverage map', value: 'dir' },
@@ -439,14 +457,21 @@ export const caseCommands = [
       process.once('SIGTERM', interrupted);
       // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
       // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
-      // starts on a host started again.
+      // starts on a host started again. A host whose heap is near its limit would die in the middle of the next case,
+      // so it is asked before each one and started again past --host-heap percent of the limit.
       const server = async () => (await ctx.device().catch(() => undefined))?.server;
+      const heapPercent = Number(ctx.flags['host-heap'] ?? 60);
       let reviving: Promise<void> | undefined;
       const hostUp = (log: (line: string) => void): Promise<void> => {
         reviving ??= (async () => {
-          const dead = runHost && (await hostLost(runHost, await server(), 5000));
-          if (!runHost || !dead) return;
-          log(`host: ${dead}; starting it again`);
+          if (!runHost) return;
+          const dead = await hostLost(runHost, await server(), 5000);
+          const memory = dead ? undefined : await (await ctx.device().catch(() => undefined))?.command<HostMemory>('memory').catch(() => undefined);
+          if (memory?.heapUsedMb) log(`host: heap ${memory.heapUsedMb} MB of ${memory.heapLimitMb ?? '?'} MB`);
+          const full = heapPast(memory, heapPercent);
+          const why = dead ?? (full ? `its heap is at ${full}` : undefined);
+          if (!why) return;
+          log(`host: ${why}; starting it again`);
           await stopHost(runHost);
           try {
             runHost = await startHost(ctx.root, ctx.err);

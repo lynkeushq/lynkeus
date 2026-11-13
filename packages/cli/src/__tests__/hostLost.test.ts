@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-import { hostLost } from '../commands/cases.js';
+import { heapPast, hostLost } from '../commands/cases.js';
 
 const server = (connected: boolean, attachesWithin?: number) => ({
   connected,
@@ -30,4 +30,15 @@ test('a running host is lost only when its app is not attached and does not come
   } finally {
     host.kill();
   }
+});
+
+test('a host past a share of its heap limit is named with how full it is', () => {
+  assert.equal(heapPast({ heapUsedMb: 2500, heapLimitMb: 4144 }, 60), '2500 MB of 4144 MB');
+  assert.equal(heapPast({ heapUsedMb: 2400, heapLimitMb: 4144 }, 60), undefined);
+  // A host that does not say its limit is taken at 4 GB.
+  assert.equal(heapPast({ heapUsedMb: 2500 }, 60), '2500 MB of 4096 MB');
+  assert.equal(heapPast({ heapUsedMb: 2400 }, 60), undefined);
+  // Nothing measured, nothing to say.
+  assert.equal(heapPast(undefined, 60), undefined);
+  assert.equal(heapPast({}, 60), undefined);
 });
