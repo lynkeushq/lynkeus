@@ -260,3 +260,32 @@ describe('network: real, to a backend that is not up', () => {
     expect(told[0]).toContain(`http://127.0.0.1:${port} did not answer (ECONNREFUSED)`);
   });
 });
+
+describe('network: real, a body that is not JSON', () => {
+  it("rejects json() with the sandbox's SyntaxError, as the app's own code knows it", async () => {
+    const { installDefaultMocks } = require('../mocks/install.js') as typeof import('../mocks/install.js');
+    const http = require('node:http') as typeof import('node:http');
+    const g = globalThis as { fetch?: unknown };
+    const before = g.fetch;
+    // An empty 404, as a Rails `head :not_found` answers.
+    const server = http.createServer((_req, res) => {
+      res.statusCode = 404;
+      res.end();
+    });
+    const port = await new Promise<number>((resolve) => server.listen(0, '127.0.0.1', () => resolve((server.address() as { port: number }).port)));
+    try {
+      installDefaultMocks({ network: 'real', networkHosts: ['127.0.0.1'] });
+      const fetch = g.fetch as (url: string) => Promise<{ status: number; json: () => Promise<unknown> }>;
+      const response = await fetch(`http://127.0.0.1:${port}/api/token`);
+      expect(response.status).toBe(404);
+      const error = await response.json().then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+      expect(error).toBeInstanceOf(SyntaxError);
+    } finally {
+      g.fetch = before;
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});

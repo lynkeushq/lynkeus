@@ -92,6 +92,22 @@ const unreachable = (error: unknown): string | undefined => {
   return code && ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ETIMEDOUT', 'ECONNRESET'].includes(code) ? code : undefined;
 };
 
+// Node's fetch parses a body in Node's own realm, so a body that is not JSON rejects with Node's SyntaxError, not
+// the SyntaxError of jest's sandbox the app runs in: an app's `error instanceof SyntaxError` (an empty 404, say)
+// failed here and holds on a phone. The answer's json() rethrows such an error as the sandbox's own.
+const ownErrors = (response: unknown): unknown => {
+  const r = response as { json?: () => Promise<unknown> } | null;
+  if (typeof r?.json !== 'function') return response;
+  const json = r.json.bind(r);
+  r.json = () =>
+    json().catch((error: unknown) => {
+      const outer = error as { name?: unknown; message?: unknown } | null;
+      if (error instanceof SyntaxError || outer?.name !== 'SyntaxError') throw error;
+      throw Object.assign(new SyntaxError(String(outer.message)), { cause: error });
+    });
+  return response;
+};
+
 const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
   const refuse = hostFence(hosts, 'network');
   // A backend that is not up, or an API base the app took from its default because the env var was not set,
@@ -128,8 +144,8 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       };
       return fetchImpl(input, init).then(lost, () => lost());
     }
-    if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response);
-    const result = fetchImpl(input, init).catch(told(url));
+    if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
+    const result = fetchImpl(input, init).then(ownErrors, told(url));
     if (!netControls.recording()) return result;
     return result.then(async (response) => {
       const r = response as { clone: () => { text: () => Promise<string> }; status: number };
