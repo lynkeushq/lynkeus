@@ -1,6 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
-import { answer, installNetmock, mockFor } from './netmock';
+import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
 
 const KEEP = 200;
 const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
@@ -190,7 +190,8 @@ const trackXhr = (): void => {
         }
       }
     }
-    if (rule && request && answer(this, rule, request[1])) return;
+    if (rule?.lost) loseAnswer(this);
+    else if (rule && request && answer(this, rule, request[1])) return;
     return send.apply(this, args);
   } as typeof proto.send;
 };
