@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import v8 from 'node:v8';
+import vm from 'node:vm';
 import { render } from '@testing-library/react-native';
 import { Component, createElement, Fragment, type ReactElement, type ReactNode } from 'react';
 import { host, noNavigation, qa, start, traceRecord, type ClientOptions, type NavigationAdapter, type Socket } from 'lynkeus-agent';
@@ -37,6 +38,24 @@ const FORGET_MOCK_CALLS_MS = 10_000;
  * reads them, so they only grow: in a real app some 20 MB for each sign-in and screen, and its 4 GB heap ran out after
  * about 30 cases. Clearing them keeps every mock's implementation and its once-queue; only the record goes.
  */
+// jest hands each module it runs its `jest` object as a module-scope binding, not as a global: `globalThis.jest` is
+// undefined in a host, and the clearing below looked there and never ran.
+declare const jest: { clearAllMocks?: () => unknown } | undefined;
+/** The `jest` of the test this host runs in; undefined outside jest. */
+export const hostJest = (): { clearAllMocks?: () => unknown } | undefined => (typeof jest === 'undefined' ? undefined : jest);
+
+// A heap reading worth comparing between cases is one taken after a collection. Node exposes gc only with
+// --expose-gc, which NODE_OPTIONS refuses; V8 still hands it to a new context once the flag is set.
+let collector: (() => void) | undefined;
+const collect = (): void => {
+  const g = globalThis as { gc?: () => void };
+  if (!collector && !g.gc) {
+    v8.setFlagsFromString('--expose_gc');
+    collector = vm.runInNewContext('gc') as () => void;
+  }
+  (g.gc ?? collector)?.();
+};
+
 export const forgetMockCalls = (j: { clearAllMocks?: () => unknown } | undefined, everyMs = FORGET_MOCK_CALLS_MS): (() => void) => {
   if (!j?.clearAllMocks) return () => undefined;
   const timer = setInterval(() => j.clearAllMocks?.(), everyMs);
@@ -211,8 +230,8 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
     log('reset: app re-rendered');
   });
   qa.register('memory', () => {
-    // With --expose-gc, measure what survives a collection.
-    (globalThis as { gc?: () => void }).gc?.();
+    // What survives a collection: the garbage of the last case says nothing about the next.
+    collect();
     const m = process.memoryUsage();
     // One fiber root per live tree; more than one after resets is a leak.
     const hook = (globalThis as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: { renderers: Map<number, unknown>; getFiberRoots: (id: number) => Set<unknown> } })
@@ -222,6 +241,8 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
     return {
       heapUsedMb: Math.round(m.heapUsed / 1048576),
       heapTotalMb: Math.round(m.heapTotal / 1048576),
+      // Where V8 gives up ("Reached heap limit"): about 4 GB on a 64-bit node unless --max-old-space-size says.
+      heapLimitMb: Math.round(v8.getHeapStatistics().heap_size_limit / 1048576),
       rssMb: Math.round(m.rss / 1048576),
       resets,
       roots,
@@ -232,7 +253,7 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   // V8 writes it; anything that reads .heapsnapshot can diff two of them.
   qa.register('heap', (params) => {
     const where = (params as { out?: string } | undefined)?.out ?? path.join(os.tmpdir(), `lynkeus-${Date.now()}.heapsnapshot`);
-    (globalThis as { gc?: () => void }).gc?.();
+    collect();
     const file = v8.writeHeapSnapshot(where);
     log(`heap snapshot: ${file}`);
     return { file };
@@ -315,7 +336,7 @@ export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}):
         throw error;
       }
       log('hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)');
-      const remember = forgetMockCalls(g.jest);
+      const remember = forgetMockCalls(hostJest() ?? g.jest);
       await done;
       remember();
       stop();

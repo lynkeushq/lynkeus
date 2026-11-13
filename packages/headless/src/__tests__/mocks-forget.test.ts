@@ -1,6 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
-import { forgetMockCalls } from '../index.js';
+import { forgetMockCalls, hostJest } from '../index.js';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -34,5 +34,12 @@ describe('a host forgets what its mocks were called with', () => {
     expect(calls).toBeGreaterThan(0);
     await wait(30);
     expect(clearAllMocks.mock.calls.length).toBe(calls);
+  });
+});
+
+describe('the host finds the jest it runs in', () => {
+  it('as the binding jest gives each module, where globalThis has none', () => {
+    expect((globalThis as { jest?: unknown }).jest).toBeUndefined();
+    expect(typeof hostJest()?.clearAllMocks).toBe('function');
   });
 });
