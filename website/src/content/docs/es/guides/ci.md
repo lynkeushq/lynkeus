@@ -200,7 +200,7 @@ npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --
 
 **El host no arranca y pide el token.** `headless start` se niega a correr sin `LYNKEUS_TOKEN`. Revisa que el secreto esté expuesto en ese paso.
 
-**La memoria crece en suites largas.** El host sin pantalla pierde unas decenas de MB por cada reinicio completo de la app. Una suite de cientos de casos debe reiniciar el host de vez en cuando; `npx lynkeus call memory` informa cuánto lleva.
+**La memoria en suites largas.** El host sin pantalla borra cada 10 segundos lo que los `jest.fn()` de los mocks registran de sus llamadas, que era casi todo lo que hacía crecer su heap. Lo que queda crece despacio: una suite de cientos de casos puede reiniciar el host de vez en cuando; `npx lynkeus call memory` informa cuánto lleva.
 
 **Dos ejecuciones pelean por el puerto.** En un runner compartido, fija `LYNKEUS_PORT` con un valor distinto en cada job, tanto para el host como para quien lo maneja.
 

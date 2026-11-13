@@ -38,3 +38,24 @@ test('backend and loading conditions', () => {
   assert.ok(rules(explain({ screen: s, requests: [], inFlight: 0, trace: [stall] })).includes('render-loop'));
   assert.deepEqual(rules(explain({ screen: s, requests: [req(200, 'http://x/a')], inFlight: 0 })), []);
 });
+
+test('an answer the case mocked is not blamed on the backend', () => {
+  const s = screen([el({}, 0)], 'Home');
+  const mocked = (status: number, url: string): RequestRecord => ({ ...req(status, url), mocked: true });
+  const blamed = ['backend-error', 'session-gone', 'forbidden', 'rate-limited'];
+  const found = rules(
+    explain({
+      screen: s,
+      requests: [mocked(500, 'http://x/api/limit'), mocked(403, 'http://x/a'), mocked(403, 'http://x/b'), mocked(429, 'http://x/c'), req(200, 'http://x/d')],
+      inFlight: 0,
+    }),
+  );
+  assert.deepEqual(
+    found.filter((r) => blamed.includes(r)),
+    [],
+  );
+  assert.ok(!rules(explain({ screen: s, requests: [mocked(401, 'http://x/a'), mocked(401, 'http://x/b')], inFlight: 0 })).includes('session-gone'));
+  // The server's own 500 next to a mocked one is still named, and it is the one named.
+  const both = explain({ screen: s, requests: [mocked(500, 'http://x/api/mocked'), req(502, 'http://x/api/real')], inFlight: 0 });
+  assert.match(both.find((f) => f.rule === 'backend-error')?.message ?? '', /502 on GET \/api\/real/);
+});

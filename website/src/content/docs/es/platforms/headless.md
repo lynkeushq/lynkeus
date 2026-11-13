@@ -250,7 +250,7 @@ El host renderiza sin `React.StrictMode`, porque en producción no existe y sus 
 
 ### La memoria crece en ejecuciones largas
 
-La memoria de Node crece unas decenas de MB por cada reinicio completo de la app. Un ejecutor que maneja cientos de casos debería reiniciar el host cuando `lynkeus call memory` informe demasiado.
+Cada `jest.fn()` de los mocks de la app guarda con qué se lo llamó, para que un test lo lea. Bajo el host nadie lo lee, así que el host borra ese registro cada 10 segundos y los mocks siguen haciendo lo mismo. Sin eso crecía unos 20 MB por inicio de sesión y pantalla en una app grande, y agotaba un heap de 4 GB en unos 30 casos. Lo que queda crece despacio; un ejecutor que maneja cientos de casos en un mismo host puede reiniciarlo cuando `lynkeus call memory` informe demasiado.
 
 ## Próximos pasos
 

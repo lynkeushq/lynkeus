@@ -140,3 +140,99 @@ describe('request and response bodies', () => {
     g.XMLHttpRequest = before;
   });
 });
+
+describe('a mocked answer', () => {
+  it("is marked when the agent's own rule answered it, or when the answer says a mock gave it", async () => {
+    // React Native's XMLHttpRequest as far as the agent touches it: the networking module's callbacks end in loadend.
+    class FakeXhr {
+      status = 0;
+      private listeners: (() => void)[] = [];
+      private headers: Record<string, string> = {};
+      open(_method: string, _url: string) {}
+      setRequestHeader() {}
+      addEventListener(_name: string, listener: () => void) {
+        this.listeners.push(listener);
+      }
+      getResponseHeader(name: string) {
+        return this.headers[name.toLowerCase()] ?? null;
+      }
+      send() {}
+      __didCreateRequest(_id: number) {}
+      __didReceiveResponse(_id: number, status: number, headers: Record<string, string> = {}) {
+        this.status = status;
+        this.headers = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]));
+      }
+      __didReceiveData(_id: number, _data: unknown) {}
+      __didCompleteResponse(_id: number, _error: string) {
+        for (const listener of this.listeners) listener();
+      }
+    }
+    const g = globalThis as unknown as { XMLHttpRequest?: unknown };
+    const before = g.XMLHttpRequest;
+    g.XMLHttpRequest = FakeXhr;
+    try {
+      await jest.isolateModulesAsync(async () => {
+        const { trackRequests, recentRequests } = require('../requests') as typeof import('../requests');
+        const { traceSince } = require('../trace') as typeof import('../trace');
+        const { host } = require('../registry') as typeof import('../registry');
+        trackRequests();
+        await host.get('netmock')!({ method: 'GET', path: '/v3/limit', status: 500, times: 1 });
+
+        const ours = new FakeXhr();
+        ours.open('GET', 'http://localhost:3000/api/mobile/v3/limit');
+        ours.send();
+        // A layer below the app (the headless fence, a host's netmock) says so on the answer.
+        const below = new FakeXhr();
+        below.open('GET', 'http://localhost:3000/api/mobile/v3/other');
+        below.send();
+        below.__didReceiveResponse(1, 500, { 'X-Lynkeus-Mocked': '1' });
+        below.__didCompleteResponse(1, '');
+        const server = new FakeXhr();
+        server.open('GET', 'http://localhost:3000/api/mobile/v3/real');
+        server.send();
+        server.__didReceiveResponse(2, 500);
+        server.__didCompleteResponse(2, '');
+        await new Promise((resolve) => setTimeout(resolve, 10));
+
+        const byPath = Object.fromEntries(recentRequests().map((r) => [r.url.split('/v3/')[1], [r.status, r.mocked ?? false]]));
+        expect(byPath).toEqual({ limit: [500, true], other: [500, true], real: [500, false] });
+        const traced = Object.fromEntries(traceSince().flatMap((e) => (e.kind === 'request' ? [[e.url.split('/v3/')[1], e.mocked ?? false]] : [])));
+        expect(traced).toEqual({ limit: true, other: true, real: false });
+      });
+    } finally {
+      g.XMLHttpRequest = before;
+    }
+  });
+
+  it('is marked on a Node host when the fence answered it or lost its answer', async () => {
+    const g = globalThis as unknown as { XMLHttpRequest?: unknown; fetch?: unknown };
+    const beforeXhr = g.XMLHttpRequest;
+    const beforeFetch = g.fetch;
+    delete g.XMLHttpRequest;
+    g.fetch = async (url: string) => {
+      if (url.endsWith('/lost')) throw Object.assign(new TypeError('Network request failed'), { lynkeusMocked: true });
+      if (url.endsWith('/down')) throw new TypeError('fetch failed');
+      return { status: 500, headers: new Headers(url.endsWith('/mocked') ? { 'x-lynkeus-mocked': '1' } : {}) };
+    };
+    try {
+      await jest.isolateModulesAsync(async () => {
+        const { trackRequests, recentRequests } = require('../requests') as typeof import('../requests');
+        trackRequests();
+        const fetch = g.fetch as (url: string) => Promise<unknown>;
+        await fetch('http://localhost:3000/mocked');
+        await fetch('http://localhost:3000/real');
+        await expect(fetch('http://localhost:3000/lost')).rejects.toThrow('Network request failed');
+        await expect(fetch('http://localhost:3000/down')).rejects.toThrow('fetch failed');
+        expect(recentRequests().map((r) => [r.url.split('3000/')[1], r.mocked ?? false])).toEqual([
+          ['mocked', true],
+          ['real', false],
+          ['lost', true],
+          ['down', false],
+        ]);
+      });
+    } finally {
+      g.XMLHttpRequest = beforeXhr;
+      g.fetch = beforeFetch;
+    }
+  });
+});

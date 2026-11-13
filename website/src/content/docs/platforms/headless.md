@@ -322,7 +322,7 @@ npx lynkeus headless doctor --explain "<first line of the error>"
 
 **Two hosts fight over the port.** The driver keeps whichever host dialed in last, so two hosts on one port take turns and a step can land on the wrong app (a command one has and the other lacks fails as `this host has no …`). The CLI warns once with `Another app attached on port …`, naming both. Stop the host you left running, or set `LYNKEUS_PORT` on both the host and the driver of each pair.
 
-**Memory grows over a long run.** Node's heap grows by a few dozen megabytes per full app reset. A runner that drives hundreds of cases on one host should restart the host when `lynkeus call memory` reports too much.
+**Memory over a long run.** Every `jest.fn()` the app's mocks are made of keeps what it was called with, for a test to read. Under the host nothing reads it, so the host clears those records every 10 seconds and the mocks keep what they do. Left alone, they grew by some 20 MB per sign-in and screen in a large app and ran a 4 GB heap out in about 30 cases. What is left grows slowly; a runner that drives hundreds of cases on one host can restart it when `lynkeus call memory` reports too much.
 
 ## Next steps
 
