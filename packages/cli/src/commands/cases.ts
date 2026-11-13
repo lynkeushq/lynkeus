@@ -22,6 +22,10 @@ import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
 import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
 
+/** Why a host that came up is gone: how it exited, what it printed last, where its log is. */
+const lastWords = new WeakMap<ChildProcess, () => string>();
+let started = 0;
+
 export const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
@@ -31,7 +35,9 @@ export const startHost = async (root: string, err: (line: string) => void): Prom
     detached: true,
   });
   // Everything the host prints, for the render errors and warnings a failed case points at; the console keeps the run's own lines.
-  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}.log`);
+  // A host started again after one died gets a log of its own: the dead one's says why it died.
+  started += 1;
+  const logFile = path.join(os.tmpdir(), `lynkeus-headless-${process.pid}${started > 1 ? `-${started}` : ''}.log`);
   const logStream = fs.createWriteStream(logFile);
   logStream.on('error', () => {});
   host.once('exit', () => logStream.end());
@@ -70,7 +76,32 @@ export const startHost = async (root: string, err: (line: string) => void): Prom
   });
   // The listeners above stay: the log takes all the host prints until it stops.
   err(`host: up (its log: ${logFile})`);
+  lastWords.set(host, () => `exited (${host.exitCode ?? host.signalCode}): ${why()} (its log: ${logFile})`);
   return host;
+};
+
+const exited = (host: ChildProcess) => host.exitCode !== null || host.signalCode !== null;
+
+/**
+ * What became of the run's host, worded to follow "the host": gone, or alive with no app attached; undefined while
+ * it serves. An app that reloads redials within moments, so `waitMs` gives it that long before the host counts as lost.
+ */
+export const hostLost = async (
+  host: ChildProcess,
+  server: { connected: boolean; waitForApp: (ms: number) => Promise<unknown> } | undefined,
+  waitMs = 0,
+): Promise<string | undefined> => {
+  if (exited(host)) return lastWords.get(host)?.() ?? `exited (${host.exitCode ?? host.signalCode})`;
+  if (!server || server.connected) return undefined;
+  if (
+    waitMs > 0 &&
+    (await server.waitForApp(waitMs).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return undefined;
+  return 'is running but its app is not attached';
 };
 
 const stopGroup = (pid: number) => {
@@ -382,7 +413,7 @@ export const caseCommands = [
               : [portFromEnv(ctx.config) ?? 8123],
           );
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
-      const host = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
+      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
       const traces = ctx.flags.traces && !dry ? new TraceSink(Number(ctx.flags['traces-port'] ?? 4318)) : undefined;
       if (traces) {
@@ -398,7 +429,7 @@ export const caseCommands = [
         traces?.close();
         claimed?.release();
         fixtures?.close();
-        if (host?.pid) stopGroup(host.pid);
+        if (runHost?.pid) stopGroup(runHost.pid);
       };
       const interrupted = () => {
         stop();
@@ -406,6 +437,28 @@ export const caseCommands = [
       };
       process.once('SIGINT', interrupted);
       process.once('SIGTERM', interrupted);
+      // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
+      // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
+      // starts on a host started again.
+      const server = async () => (await ctx.device().catch(() => undefined))?.server;
+      let reviving: Promise<void> | undefined;
+      const hostUp = (log: (line: string) => void): Promise<void> => {
+        reviving ??= (async () => {
+          const dead = runHost && (await hostLost(runHost, await server(), 5000));
+          if (!runHost || !dead) return;
+          log(`host: ${dead}; starting it again`);
+          await stopHost(runHost);
+          try {
+            runHost = await startHost(ctx.root, ctx.err);
+            await (await server())?.waitForApp(30_000);
+          } catch (error) {
+            log(`host: did not come back: ${(error as Error).message}`);
+          }
+        })().finally(() => {
+          reviving = undefined;
+        });
+        return reviving;
+      };
       const reports: (CaseReport & { retried?: boolean })[] = [];
       try {
         // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
@@ -468,6 +521,7 @@ export const caseCommands = [
               log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
               store?.start(c);
               const attempt = async (n: number, prepared?: Prepared) => {
+                await hostUp(log);
                 const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
                 const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                 const startedAt = new Date();
@@ -493,6 +547,14 @@ export const caseCommands = [
                     traces,
                     nativeLogs: native,
                   });
+                  const lost = report.result === 'failed' && runHost ? await hostLost(runHost, await server()) : undefined;
+                  if (lost) {
+                    report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
+                    report.evidence = {
+                      ...report.evidence,
+                      why: [report.evidence?.why, `  • during this case the host ${lost}`].filter(Boolean).join('\n'),
+                    };
+                  }
                   if (seenDir && report.result === 'passed' && report.routes?.length) {
                     fs.mkdirSync(seenDir, { recursive: true });
                     fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);

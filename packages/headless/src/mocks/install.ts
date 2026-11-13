@@ -123,7 +123,8 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
     if (rule?.lost) {
       const lost = (response?: unknown) => {
         log(`network: lost the answer to ${method} ${url} (${(response as { status?: number } | undefined)?.status ?? 'no answer'})`);
-        throw new TypeError('Network request failed');
+        // Marked for the agent: a lost answer is the case's doing, not the backend's.
+        throw Object.assign(new TypeError('Network request failed'), { lynkeusMocked: true });
       };
       return fetchImpl(input, init).then(lost, () => lost());
     }

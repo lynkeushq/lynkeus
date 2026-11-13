@@ -127,7 +127,8 @@ export const netControls = {
   },
   async respond(rule: NetRule, ResponseCtor: new (body: string | null, init: { status: number; headers?: Record<string, string> }) => unknown) {
     if (rule.delayMs) await new Promise((resolve) => setTimeout(resolve, rule.delayMs));
-    const headers = { 'content-type': 'application/json', ...rule.headers };
+    // The agent reads this to tell a mocked answer from the server's (lynkeus-agent requests.ts, MOCKED_HEADER).
+    const headers = { 'content-type': 'application/json', ...rule.headers, 'x-lynkeus-mocked': '1' };
     return new ResponseCtor(rule.body ?? (rule.status === 204 ? null : '{}'), { status: rule.status, headers });
   },
   recording: () => net.recording,

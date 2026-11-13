@@ -1301,7 +1301,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const events = await d.trace(mark).catch(() => undefined);
       report.evidence = {
         screen: screen ? describeScreen(screen, { limit: 40 }) : undefined,
-        requests: events?.events.flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}`] : [])).slice(-8),
+        requests: events?.events
+          .flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}${e.mocked ? ' (mocked)' : ''}`] : []))
+          .slice(-8),
         why,
       };
     }

@@ -117,7 +117,8 @@ describe('netmock responses', () => {
     const res = (await netControls.respond(rule({ status: 418, body: '{"tea":true}', headers: { 'x-mock': '1' } }), FakeResponse)) as FakeResponse;
     expect(res.body).toBe('{"tea":true}');
     expect(res.init.status).toBe(418);
-    expect(res.init.headers).toEqual({ 'content-type': 'application/json', 'x-mock': '1' });
+    // x-lynkeus-mocked tells the agent the answer is the case's, not the server's.
+    expect(res.init.headers).toEqual({ 'content-type': 'application/json', 'x-mock': '1', 'x-lynkeus-mocked': '1' });
   });
 
   it('defaults the body to an empty object, or nothing for 204', async () => {
