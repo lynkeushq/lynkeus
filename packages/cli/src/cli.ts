@@ -18,7 +18,7 @@ import { reportCommands } from './commands/report.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
-import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice } from './device/devices.js';
+import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reversePhones } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
@@ -99,6 +99,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     // Asking the OS which simulators are up takes longer than the app takes to dial in, so listen first.
     picking.catch(() => undefined);
     await server.listen();
+    if (!ownHost) void reversePhones(server.port);
     const hello = await server
       .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? config.attachTimeout ?? 15000))
       .catch(async (error) => {

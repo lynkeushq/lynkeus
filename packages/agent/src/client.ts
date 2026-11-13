@@ -71,7 +71,10 @@ export const start = (options: ClientOptions): (() => void) => {
   const { navigation } = options;
   const backend = options.backend ?? fabricBackend();
   const handlers = createHandlers(navigation, backend);
-  const url = `ws://${options.host ?? (Platform.OS === 'android' ? '10.0.2.2' : 'localhost')}:${options.port ?? 8123}`;
+  // The computer is 10.0.2.2 from the Android emulator, and localhost from a phone on USB once the CLI has run
+  // `adb reverse`: with no host given, an Android app tries one, then the other, until one answers.
+  const hosts = options.host ? [options.host] : Platform.OS === 'android' ? ['10.0.2.2', 'localhost'] : ['localhost'];
+  let at = 0;
   const maxDelay = options.reconnectMs ?? 1500;
   const eager = Math.min(100, maxDelay);
   let delay = eager;
@@ -128,11 +131,13 @@ export const start = (options: ClientOptions): (() => void) => {
 
   const connect = () => {
     if (stopped) return;
-    const ws = (options.createSocket ?? openSocket)(url);
+    const ws = (options.createSocket ?? openSocket)(`ws://${hosts[at]}:${options.port ?? 8123}`);
     socket = ws;
+    let opened = false;
     let authenticated = options.token === undefined;
     // hello goes out on the driver's auth event, which always arrives first.
     ws.onopen = () => {
+      opened = true;
       delay = eager;
       eagerUntil = Number.POSITIVE_INFINITY;
       try {
@@ -170,6 +175,7 @@ export const start = (options: ClientOptions): (() => void) => {
     ws.onclose = () => {
       if (socket === ws) socket = null;
       if (stopped) return;
+      if (!opened) at = (at + 1) % hosts.length;
       if (eagerUntil === Number.POSITIVE_INFINITY) eagerUntil = Date.now() + EAGER_MS;
       timer = setTimeout(connect, delay);
       if (Date.now() >= eagerUntil) delay = Math.min(delay * 2, maxDelay);

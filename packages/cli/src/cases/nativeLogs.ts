@@ -60,11 +60,12 @@ const androidUid = async (serial: string, appId: string): Promise<string | undef
 };
 
 /**
- * Streams the app's native log on a simulator or an emulator. A device lynkeus cannot read a log from, or an app it
- * cannot find there, gives none: the run goes on without it.
+ * Streams the app's native log on a simulator, an emulator or an Android phone (logcat reads a phone as it reads an
+ * emulator). A device lynkeus cannot read a log from, or an app it cannot find there, gives none: the run goes on
+ * without it.
  */
 export const startNativeLogs = async (device: DeviceInfo, appId: string): Promise<NativeLogs | undefined> => {
-  if (device.type === 'physical' || device.id === 'headless') return undefined;
+  if ((device.type === 'physical' && device.platform === 'ios') || device.id === 'headless') return undefined;
   const lines: LogLine[] = [];
   let child: ChildProcess;
   let parse: (line: string) => LogLine | undefined;

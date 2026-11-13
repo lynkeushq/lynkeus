@@ -94,3 +94,13 @@ test('what MCP leaves out of a tool is still a flag of the command', () => {
     for (const flag of c.mcpOmit ?? []) assert.ok(c.flags?.[flag], `${c.name} omits --${flag}, which it does not have`);
   }
 });
+
+test('mock --lost refuses a status, a body or a delay, which a lost answer would drop', async () => {
+  const mock = osCommands.find((c) => c.name === 'mock')!;
+  const ctx = (flags: Record<string, unknown>) =>
+    ({ args: ['GET /x'], flags: { status: 200, ...flags }, device: () => Promise.reject(new Error('no app')) }) as unknown as Parameters<typeof mock.run>[0];
+  const refused = (await mock.run(ctx({ lost: true, status: 500, delay: 100 }))) as { code?: number; text?: string };
+  assert.equal(refused.code, 2);
+  assert.match(refused.text ?? '', /--status, --delay/);
+  await assert.rejects(Promise.resolve(mock.run(ctx({ lost: true }))), /no app/);
+});

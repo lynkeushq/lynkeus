@@ -15,14 +15,16 @@ const backend = {
 const dialer = () => {
   const dials: number[] = [];
   const sockets: Socket[] = [];
-  const createSocket = (): Socket => {
+  const urls: string[] = [];
+  const createSocket = (url: string): Socket => {
     dials.push(Date.now());
+    urls.push(url);
     const socket: Socket = { readyState: 0, send: () => undefined, close: () => undefined, onopen: null, onmessage: null, onclose: null, onerror: null };
     sockets.push(socket);
     return socket;
   };
   const refuse = () => sockets[sockets.length - 1]?.onclose?.();
-  return { dials, sockets, createSocket, refuse };
+  return { dials, urls, sockets, createSocket, refuse };
 };
 
 describe('a token that did not arrive', () => {
@@ -58,6 +60,27 @@ describe('dialing the driver', () => {
     expect(gaps.slice(0, 30)).toEqual(Array(30).fill(100));
     expect(gaps.slice(30)).toEqual([100, 200, 400, 800, 1500, 1500]);
     stop();
+  });
+
+  it("on Android tries the emulator's address and then localhost (a phone over adb reverse), and keeps the one that answered", () => {
+    const { Platform } = jest.requireActual<typeof import('react-native')>('react-native');
+    const os = Platform.OS;
+    Platform.OS = 'android';
+    try {
+      const d = dialer();
+      const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+      d.refuse();
+      jest.runOnlyPendingTimers();
+      d.refuse();
+      jest.runOnlyPendingTimers();
+      d.sockets[d.sockets.length - 1]?.onopen?.();
+      d.refuse();
+      jest.runOnlyPendingTimers();
+      expect(d.urls).toEqual(['ws://10.0.2.2:8123', 'ws://localhost:8123', 'ws://10.0.2.2:8123', 'ws://10.0.2.2:8123']);
+      stop();
+    } finally {
+      Platform.OS = os;
+    }
   });
 
   it('starts fast again after a link that was up drops', () => {

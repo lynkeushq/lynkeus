@@ -18,6 +18,10 @@
 - Over MCP, `case_run` takes `video` and `traces`, which the server's instructions told a model to pass and the tool refused, and `jobs`, `ports`, `host_command` and `in_order`, so a client can run a suite side by side and `exclusive` cases mean something there. The instructions a client gets on connecting cover numbered sections, long suites (`case_status`, progress notifications) and mocked answers.
 - `lynkeus requests` and `lynkeus trace` mark a request a mock answered `(mocked)`, as the evidence of a failed case does.
 - The format `case init` writes explains numbered sections and `app.mock` (with `lost: true`), and its example case uses sections.
+- An Android phone on USB works as an emulator does. The CLI runs `adb reverse` for each phone it finds when it starts listening, and an Android app with no `host` set tries the emulator's address (10.0.2.2) and then localhost until one answers, so a phone reaches the driver with no setup; its native log (logcat) is kept as an emulator's is. An iPhone is not supported yet: simctl drives only simulators.
+- `case run --keep-hosts` with `--host-command` starts each job's host once and keeps it for the job's cases, starting it again before a case when it exited, its app stopped answering, or its heap is past `--host-heap` percent; `--host-timeout` is how long a host may take to attach. A case that failed because its host died says so.
+- `lynkeus ci` runs its hosts that way, so a host that dies takes one case with it, not every case after it; it reads the first port from `LYNKEUS_PORT` or `port` in the config (8123 unless told) instead of always 8123. `--keep-up` now leaves the backend up; the hosts end with the run.
+- `lynkeus mock --lost` refuses `--status`, `--body` and `--delay`: a lost request gets no answer to shape, and they were dropped without a word.
 
 ## 0.5.1
 

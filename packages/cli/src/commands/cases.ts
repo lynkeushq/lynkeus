@@ -311,7 +311,7 @@ export const caseCommands = [
       host: { type: 'boolean', help: 'start `headless start` for the run and stop it after' },
       'host-heap': {
         type: 'number',
-        help: 'with --host: start the host again before a case when its heap is past this percent of its limit',
+        help: 'with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit',
         value: 'percent',
         default: 60,
       },
@@ -369,6 +369,11 @@ export const caseCommands = [
         help: 'starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job',
         value: 'command',
       },
+      'keep-hosts': {
+        type: 'boolean',
+        help: 'with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent',
+      },
+      'host-timeout': { type: 'number', help: 'with --keep-hosts: how long a host may take to attach (it builds the app first)', default: 600000, value: 'ms' },
       'in-order': { type: 'boolean', help: 'with --jobs: take the cases in the order given, not the longest first' },
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
@@ -454,6 +459,8 @@ export const caseCommands = [
           );
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
       let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
+      // With --keep-hosts, each job's own long-lived host, by job.
+      const kept: (ChildProcess | undefined)[] = [];
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
       const traces = ctx.flags.traces && !dry ? new TraceSink(Number(ctx.flags['traces-port'] ?? 4318)) : undefined;
       if (traces) {
@@ -491,6 +498,7 @@ export const caseCommands = [
         claimed?.release();
         fixtures?.close();
         if (runHost?.pid) stopGroup(runHost.pid);
+        for (const h of kept) if (h?.pid) stopGroup(h.pid);
       };
       const interrupted = () => {
         stop();
@@ -539,6 +547,37 @@ export const caseCommands = [
         const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
         const ports = typeof ctx.flags.ports === 'string' ? ctx.flags.ports.split(',').map(Number) : [];
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
+        const keepHosts = !!ctx.flags['keep-hosts'] && hostCommand !== undefined;
+        // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
+        // would fail every case after it, so it is checked before each case and started again.
+        const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
+          const host = kept[index];
+          if (host && !exited(host)) {
+            const probe = ctx.forPort!(port);
+            const memory = await probe.base.device().then(
+              (d) => d.command<HostMemory>('memory').catch(() => ({})),
+              () => undefined,
+            );
+            await probe.stop();
+            const full = memory ? heapPast(memory, heapPercent) : undefined;
+            if (memory && !full) return;
+            log(`host on port ${port}: ${full ? `its heap is at ${full}` : 'is running but its app is not attached'}; starting it again`);
+            await stopHost(host);
+          } else if (host) log(`host on port ${port}: exited (${host.exitCode ?? host.signalCode}); starting it again`);
+          const started = spawnHost(hostCommand!, port, index, ctx.root);
+          kept[index] = started;
+          const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
+          while (!exited(started) && Date.now() < until) {
+            const probe = ctx.forPort!(port);
+            const attached = await probe.base.device().then(
+              () => true,
+              () => false,
+            );
+            await probe.stop();
+            if (attached) return;
+          }
+          log(`host on port ${port}: ${exited(started) ? `exited (${started.exitCode ?? started.signalCode})` : 'did not attach in time'}`);
+        };
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
           return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
         // One simulator or emulator, one log: with several jobs a line could not be told to its case.
@@ -618,7 +657,8 @@ export const caseCommands = [
                 store?.start(c);
                 const attempt = async (n: number, prepared?: Prepared) => {
                   await hostUp(log);
-                  const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
+                  if (keepHosts && port !== undefined) await keptUp(index, port, log);
+                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({
@@ -653,7 +693,8 @@ export const caseCommands = [
                       nativeLogs: native,
                       onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
-                    const lost = report.result === 'failed' && runHost ? await hostLost(runHost, await server()) : undefined;
+                    const mine = keepHosts ? kept[index] : runHost;
+                    const lost = report.result === 'failed' && mine ? await hostLost(mine, mine === runHost ? await server() : undefined) : undefined;
                     if (lost) {
                       report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
                       report.evidence = {
