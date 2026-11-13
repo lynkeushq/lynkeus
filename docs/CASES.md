@@ -59,6 +59,16 @@ matrix: { locale: [en, fr], login: [phone, email] }
 
 `{{matrix.locale}}` anywhere in the file is that run's value.
 
+Cases run side by side (`case run --jobs N`) share one backend. A case that
+changes what every case sees, such as a global feature flag or a setting for all
+users, says so in its frontmatter and runs alone: it waits for the cases in
+flight to end, and no other starts until it has ended. Its setup is never made
+ahead (`--ahead`), since that may be what changes the shared state.
+
+```yaml
+exclusive: true
+```
+
 On a device, and on a host that lists only what its window shows, `app.see`
 and `app.press` look further down the page by themselves: a short wait in case
 the target is arriving, a scroll in case it is below the fold (never one that

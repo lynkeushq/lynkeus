@@ -115,6 +115,8 @@ npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 
 The longest cases start first, so the jobs finish together. Hosts scale with the machine's cores.
 
+The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, and the others wait for it.
+
 A long-lived host grows: Node's heap gains a few dozen MB per full app reset. A runner that drives hundreds of cases on one host should restart it when `npx lynkeus call memory` reports too much.
 
 ## Run on a simulator or an emulator

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A case can say it runs alone: `exclusive: true` in its frontmatter. Under `case run --jobs` it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. Cases side by side share one backend, and one that changes what every case sees (a global feature flag, a setting for all users) broke the cases running beside it: a sign-in that should have been refused was let in while another case had the flag on. A case waiting to run alone goes before the cases asked for after it.
+
 ## 0.5.1
 
 - An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.

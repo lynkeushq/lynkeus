@@ -15,6 +15,7 @@ import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
 import { RunFile } from '../cases/runfile.js';
+import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { describeChanges, pushRun, service } from './report.js';
@@ -443,7 +444,8 @@ export const caseCommands = [
         const preparing =
           limit > 0 && declared && store && !dry
             ? prepareAhead(
-                cases.filter((c) => preparable(c, config)),
+                // An exclusive case's setup may be what changes the shared state: it is made in its own turn.
+                cases.filter((c) => preparable(c, config) && !c.exclusive),
                 {
                   base: ctx,
                   config,
@@ -456,6 +458,7 @@ export const caseCommands = [
               )
             : undefined;
         let next = 0;
+        const turns = new Turns();
         const job = async (index: number) => {
           // Each job keeps its own connection to the fixtures server, warm from one case to the next.
           const own = index === 0 ? fixtures : declared && !dry ? new Fixtures(declared, home) : undefined;
@@ -465,72 +468,78 @@ export const caseCommands = [
               const lines: string[] = [];
               // With several jobs a case's lines are held and printed together, not interleaved.
               const log = jobs > 1 ? (line: string) => lines.push(line) : ctx.err;
-              log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
-              store?.start(c);
-              const attempt = async (n: number, prepared?: Prepared) => {
-                const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
-                const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
-                const startedAt = new Date();
-                try {
-                  // A host just started is still drawing its first screens; with the setup made ahead nothing
-                  // else gives it that moment before the first press.
-                  if (host)
-                    await scoped.base
-                      .device()
-                      .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
-                      .catch(() => undefined);
-                  const report = await runCase(c, {
-                    base: scoped.base,
-                    config,
-                    fixtures: own,
-                    dry,
-                    events,
-                    evidence: evidenceOf(c.id, n),
-                    log,
-                    prepared,
-                    continue: !!ctx.flags.continue,
-                    routes: seenDir ? (host ? 'fresh' : true) : false,
-                    traces,
-                    nativeLogs: native,
-                  });
-                  if (seenDir && report.result === 'passed' && report.routes?.length) {
-                    fs.mkdirSync(seenDir, { recursive: true });
-                    fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+              if (c.exclusive && turns.busy(true)) ctx.err(`… ${c.id} runs alone: waiting for the cases in flight to end`);
+              const release = await turns.take(!!c.exclusive);
+              try {
+                log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
+                store?.start(c);
+                const attempt = async (n: number, prepared?: Prepared) => {
+                  const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
+                  const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
+                  const startedAt = new Date();
+                  try {
+                    // A host just started is still drawing its first screens; with the setup made ahead nothing
+                    // else gives it that moment before the first press.
+                    if (host)
+                      await scoped.base
+                        .device()
+                        .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
+                        .catch(() => undefined);
+                    const report = await runCase(c, {
+                      base: scoped.base,
+                      config,
+                      fixtures: own,
+                      dry,
+                      events,
+                      evidence: evidenceOf(c.id, n),
+                      log,
+                      prepared,
+                      continue: !!ctx.flags.continue,
+                      routes: seenDir ? (host ? 'fresh' : true) : false,
+                      traces,
+                      nativeLogs: native,
+                    });
+                    if (seenDir && report.result === 'passed' && report.routes?.length) {
+                      fs.mkdirSync(seenDir, { recursive: true });
+                      fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+                    }
+                    return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
+                  } finally {
+                    if (host) await stopHost(host);
+                    await scoped.stop();
                   }
-                  return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
-                } finally {
-                  if (host) await stopHost(host);
-                  await scoped.stop();
-                }
-              };
-              let {
-                report,
-                startedAt,
-                hello,
-              }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } = await attempt(
-                1,
-                store?.take(c),
-              );
-              seen ??= hello;
-              log(describe(report));
-              out?.add(c, { report, attempt: 1, startedAt });
-              if (report.result === 'failed' && !ctx.flags.once && !dry) {
-                log(`  retrying ${c.id} once`);
-                const again = await attempt(2);
-                report = { ...again.report, retried: true };
-                startedAt = again.startedAt;
+                };
+                let {
+                  report,
+                  startedAt,
+                  hello,
+                }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } = await attempt(
+                  1,
+                  store?.take(c),
+                );
+                seen ??= hello;
                 log(describe(report));
-                out?.add(c, { report, attempt: 2, startedAt });
+                out?.add(c, { report, attempt: 1, startedAt });
+                if (report.result === 'failed' && !ctx.flags.once && !dry) {
+                  log(`  retrying ${c.id} once`);
+                  const again = await attempt(2);
+                  report = { ...again.report, retried: true };
+                  startedAt = again.startedAt;
+                  log(describe(report));
+                  out?.add(c, { report, attempt: 2, startedAt });
+                }
+                if (jobs > 1) ctx.err(lines.join('\n'));
+                ledger?.note(report);
+                if (typeof ctx.flags.events === 'string' && report.events) {
+                  const dir = path.resolve(ctx.flags.events as string, c.id);
+                  fs.mkdirSync(dir, { recursive: true });
+                  fs.writeFileSync(eventsFile(dir), report.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
+                }
+                reports.push(report);
+                if (ctx.flags.report) fs.appendFileSync(path.resolve(ctx.flags.report as string), `${JSON.stringify(report)}\n`);
+              } finally {
+                release();
               }
-              if (jobs > 1) ctx.err(lines.join('\n'));
-              ledger?.note(report);
-              if (typeof ctx.flags.events === 'string' && report.events) {
-                const dir = path.resolve(ctx.flags.events as string, c.id);
-                fs.mkdirSync(dir, { recursive: true });
-                fs.writeFileSync(eventsFile(dir), report.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
-              }
-              reports.push(report);
-              if (ctx.flags.report) fs.appendFileSync(path.resolve(ctx.flags.report as string), `${JSON.stringify(report)}\n`);
             }
           } finally {
             if (own !== fixtures) own?.close();
