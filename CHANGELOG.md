@@ -15,6 +15,9 @@
 - `lynkeus case status [dir]` reads where a run is, during or after it, from any terminal (`--json` for a program); a run whose process is gone without finishing says so. Over MCP it is the `case_status` tool, and `case_run` sends MCP progress notifications to a client that passes a progress token.
 - With `--push`, the report is made when the run starts and fills case by case, so its address works from the first case; a send that fails is tried again at the end. A reports service from before this gets the whole run at the end, as it did.
 - A report says which numbered section of the case each step is in: a run file's step carries `heading` (`3 A wrong PIN`) from the comment that opens the section (`# 3 A wrong PIN` in the case's steps), so a report can group a long case's steps the way the case does. A step before the first numbered comment, and every setup step, has none.
+- Over MCP, `case_run` takes `video` and `traces`, which the server's instructions told a model to pass and the tool refused, and `jobs`, `ports`, `host_command` and `in_order`, so a client can run a suite side by side and `exclusive` cases mean something there. The instructions a client gets on connecting cover numbered sections, long suites (`case_status`, progress notifications) and mocked answers.
+- `lynkeus requests` and `lynkeus trace` mark a request a mock answered `(mocked)`, as the evidence of a failed case does.
+- The format `case init` writes explains numbered sections and `app.mock` (with `lost: true`), and its example case uses sections.
 
 ## 0.5.1
 
