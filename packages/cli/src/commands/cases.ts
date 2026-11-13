@@ -207,7 +207,11 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
   return [
-    ...(fromApp ? [] : ['⚠ no case kept an analytics event from the app (the agent keeps the calls that reach Mixpanel, AppsFlyer and Firebase Analytics).']),
+    ...(fromApp
+      ? []
+      : [
+          '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
+        ]),
     ...(asked.video && !reports.some((r) => r.video)
       ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).']
       : []),

@@ -69,9 +69,13 @@ existing entry.
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 
-Long runs leak: node's heap grows a few dozen MB per full app reset, so a
-runner that drives hundreds of cases should restart the host when
-`lynkeus call memory` reports too much.
+Long runs: every `jest.fn()` the app's mocks are made of keeps what it was
+called with, for a test to read. Nothing reads it under the host, so the host
+clears those records every 10 s (the mocks keep what they do); left alone they
+grew some 20 MB per sign-in and screen and ran a 4 GB heap out in about 30
+cases. What is left grows slowly; `lynkeus call memory` reports the heap, and a
+runner that drives hundreds of cases on one host can restart it when that is
+too much.
 
 ## Controls: what the OS would hand the app
 
