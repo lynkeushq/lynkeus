@@ -36,7 +36,7 @@ steps:
 
 ## What each role gets
 
-**A developer installing it** adds one package to the app and one line to its entry file. Nothing ships in a release build: the native module compiles to no-ops outside debug builds, and the agent's JavaScript is never evaluated when it is disabled. Start with [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
+**A developer installing it** adds one package to the app and one line to its entry file; `npx lynkeus init` does both and makes the token the app and the CLI share. Nothing ships in a release build: the native module compiles to no-ops outside debug builds, and the agent's JavaScript is never evaluated when it is disabled. Start with [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
 
 **A QA engineer writing and running tests** gets a terminal command for every action (`lynkeus screen`, `lynkeus press`, `lynkeus wait`), a case format a person can read, and, when a step fails, the evidence: the screen as it was, the requests the app had made, and the reason (the target is covered, disabled, hidden behind a sheet, or a wording away). Start with [Your first test](/getting-started/first-test/).
 
@@ -59,7 +59,7 @@ steps:
 - **The agent** (`lynkeus-agent`) is the code inside your app. In a debug build it opens a WebSocket to your machine and answers requests: what is on screen, press this, type that, wait for a route. Nothing listens inside the app; the app dials out.
 - **The CLI** (`lynkeus`) is the driver: the program at the other end of that socket. It drives the app one command at a time, runs cases, and can serve the same commands to an AI agent over MCP.
 - **The host** is where the app runs during a test. That can be an iOS simulator, an Android emulator, or the **headless host**: `lynkeus headless start` renders your app in Node under Jest and React Native Testing Library, and the agent inside it dials out exactly as it does on a device. See [iOS](/platforms/ios/), [Android](/platforms/android/), [Expo](/platforms/expo/) and [Headless](/platforms/headless/).
-- **The report** is what a run leaves behind. `lynkeus case run --out` writes the run as a directory of plain files. `--push` uploads it to the hosted reports service at [lynkeus.io](https://lynkeus.io), a paid service with a free plan, which shows each case step by step with its screenshots, video and failure reasons. The hosted service is optional; the run directory is yours either way. See [Reports](/guides/reports/).
+- **The report** is what a run leaves behind. `lynkeus case run --out` writes the run as a directory of plain files. `--push` uploads it, case by case as the run goes, to the hosted reports service at [lynkeus.io](https://lynkeus.io), a paid service with a free plan, which shows each case step by step with its screenshots, video and failure reasons. The hosted service is optional; the run directory is yours either way. See [Reports](/guides/reports/).
 
 The npm packages are:
 
@@ -74,7 +74,7 @@ The npm packages are:
 ## Requirements
 
 - React Native 0.76 or newer, with the New Architecture.
-- A debug build of the app, for iOS, Android, or both, running on a simulator or an emulator. Expo apps need a development build; Expo Go does not work.
+- A debug build of the app, for iOS, Android, or both, running on a simulator, an emulator or an Android phone over USB. Expo apps need a development build; Expo Go does not work.
 - Node 22 or newer for the CLI and the headless host.
 
 ## What lynkeus does not do
@@ -83,7 +83,7 @@ It does not know your product. It has no list of your screens, no idea what your
 
 It does not run on release builds. See [Security](/security/) for what the agent exposes and why it is limited to debug builds.
 
-It does not run on physical devices. The app runs on an iOS simulator, an Android emulator or the headless host.
+It does not run on an iPhone yet. The app runs on an iOS simulator, an Android emulator or phone (over USB), or the headless host.
 
 ## Where to go next
 

@@ -54,7 +54,25 @@ To run without a simulator, ask it to set the app up headless: `headless_init` i
 Write a test for the sign-in screen, run it and push the run.
 ```
 
-The agent calls `case_init` the first time, which writes an example case and the format beside it, drives the app to the screen with `press`, `type` and `wait`, writes the case as a markdown file and runs it with `case_run`. A case that fails comes back with the screen it failed on and the reason, so the agent fixes the case or reports the app's bug. With `push`, the run goes to lynkeus.io and the agent prints its address.
+The agent calls `case_init` the first time, which writes an example case and the format beside it, drives the app to the screen with `press`, `type` and `wait`, writes the case as a markdown file and runs it with `case_run`. A case that fails comes back with the screen it failed on and the reason, so the agent fixes the case or reports the app's bug. With `push`, the run goes to lynkeus.io and the agent prints its address as soon as the run starts; the report fills in case by case.
+
+To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the presses to get there and the setup the fixtures server offers. `fixtures_describe` lists what that server can prepare in the backend.
+
+A long case is easier to read in parts. The format `case_init` writes tells the agent to open each part of `steps` with a numbered comment (`# 3 A wrong PIN`), numbered like the `expected` list; reports group the steps by those sections.
+
+When a case mocks an answer (`app.mock`), `requests`, `trace` and the evidence of a failure mark it `(mocked)`, and a failure is never put down to the backend for an answer the case made. The agent can tell its own mock from a real server error.
+
+### A long suite
+
+For a suite that takes minutes, ask the agent to run it side by side:
+
+```text
+Run every case headless, three at a time, and tell me how it goes.
+```
+
+`case_run` takes `jobs`, `ports` and `host_command`: each job gets its own host, which `host_command` starts for every case. A case that changes something every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone. With `host`, the run starts the headless host again when it dies during a case or its heap passes `host_heap` percent of its limit, so one crash does not fail every case after it.
+
+While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` also gets MCP progress notifications, with the same line as the message.
 
 ## Step 4: Choose the tool set
 
@@ -62,8 +80,8 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 15 core tools | About 1,750 tokens |
-| `npx lynkeus mcp --full` | All 48 commands | About 5,400 tokens |
+| `npx lynkeus mcp` | The 22 core tools | About 3,500 tokens |
+| `npx lynkeus mcp --full` | All 56 commands | About 7,300 tokens |
 
 Start with the core. Add `--full` for an agent whose job is crawling, recording or snapshots.
 
@@ -76,7 +94,14 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
 | `case_init` | Writes an example case and the reference of the format. |
-| `case_run` | Runs cases; a failure comes back with its screen and reason. |
+| `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
+| `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
+| `case_here` | Drafts a case from the screen the app shows now, with checks that pass as it is. |
+| `case_new` | Drafts a case for a screen: the way there, the setup to pick from, the checks left to write. |
+| `case_coverage` | Which screens the cases reach, which none does, and which a case names that the app no longer has. |
+| `case_impact` | The cases a branch's changes reach, to run only those. |
+| `fixtures_describe` | What the project's fixtures server can prepare and read, with each command's parameters. |
+| `fixtures_check` | Whether the fixtures server keeps the fixtures protocol. |
 | `screen` | The route, the navigator path and every element on screen. |
 | `press` | A finger on an element. |
 | `type` | Types into the focused input, or taps a target first. |
@@ -156,13 +181,11 @@ As an illustration, here is one way an agent with the core tools can carry out t
 
 An agent that reviews a branch can use lynkeus to decide what to test, not only to run it.
 
-1. `npx lynkeus map check --base main` on the branch lists the screens the diff reaches.
-2. Crossed with which cases touch which routes, that gives the cases to run.
-3. Run them. For each failure, call `why`.
-4. Fix the case when the app changed on purpose, or the code when it did not.
-5. The pull request carries the fix, the case and the screens the run recorded (`LYNKEUS_RECORD_SCREENS=1`), so the reviewer reads one diff.
-
-`map check` is not one of the core tools. An agent with a shell can run it as a command.
+1. `case_impact` with `base: main` crosses the screens the diff reaches with the screens each case covers. It answers the cases to run, and the reached screens no case covers yet.
+2. Run those cases with `case_run`. For each failure, call `why`.
+3. Fix the case when the app changed on purpose, or the code when it did not.
+4. Write a case for each reached screen no case covers (`case_new` drafts one).
+5. The pull request carries the fix, the cases and the screens the run recorded (`LYNKEUS_RECORD_SCREENS=1`), so the reviewer reads one diff.
 
 ## Reading reports from an AI client
 

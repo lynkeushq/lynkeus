@@ -11,7 +11,7 @@ Hay tres lectores posibles. El **CLI** es el proceso `lynkeus` que ejecutas en l
 
 | Variable | Quién la lee | Para qué |
 |---|---|---|
-| [`LYNKEUS_TOKEN`](#lynkeus_token) | CLI, host sin pantalla, app | El secreto compartido entre la app y su driver. |
+| [`LYNKEUS_TOKEN`](#lynkeus_token) | CLI, host sin pantalla, app | El secreto compartido entre la app y su driver. Si no está, se usa `.lynkeus/token`. |
 | [`LYNKEUS_PORT`](#lynkeus_port) | CLI, host sin pantalla | El puerto donde se encuentran el driver y la app. |
 | [`LYNKEUS_HOST`](#lynkeus_host) | host sin pantalla | Dónde escucha el driver, cuando no está en la misma máquina. |
 | [`LYNKEUS_DEVICE`](#lynkeus_device) | CLI | Qué simulador usar. |
@@ -31,12 +31,14 @@ Cuando un valor se puede dar por varios caminos, la opción de la línea de coma
 
 El secreto que comparten la app y su driver. Cuando la app se monta con un token, solo atiende al driver que lo presenta; así, ningún otro proceso de la máquina puede manejarla.
 
-La leen tres partes, y las tres tienen que ver el mismo valor:
+No hace falta definir la variable a mano. `lynkeus init` crea un token para el proyecto en `.lynkeus/token` (fuera de git), y el CLI, el servidor MCP, `headless start` y el plugin de Babel lo leen de ahí. Cuando `LYNKEUS_TOKEN` está definida, gana sobre el archivo. Las páginas de instalación muestran el camino sin variables; lo que sigue describe cómo se usa la variable cuando quieres un valor distinto del archivo.
+
+La leen estas partes, y todas tienen que ver el mismo valor:
 
 | Quién | Cómo la usa |
 |---|---|
 | El CLI | La presenta a la app en su primer mensaje, en cada comando que se conecta. |
-| `lynkeus headless start` | La exige: sin ella se niega a arrancar. Se la pasa a la app alojada como su token. |
+| `lynkeus headless start` | La exige, de la variable o del archivo: sin token se niega a arrancar. Se la pasa a la app alojada como su token. |
 | Tu app | La lee donde montas el agente: `auto({ token: process.env.LYNKEUS_TOKEN })`. |
 | Metro, en una app de React Native | El plugin `lynkeus-agent/babel` lee la variable del entorno de Metro y escribe su valor en el bundle de desarrollo, donde la app lo encuentra. |
 
@@ -61,7 +63,7 @@ Con el plugin puesto, lo que cuenta es el entorno de Metro:
 LYNKEUS_TOKEN=un-secreto-por-maquina npx react-native start --reset-cache
 ```
 
-- **Arranca Metro con `LYNKEUS_TOKEN` definida**, con el mismo valor que lee el CLI.
+- **Si usas la variable, arranca Metro con `LYNKEUS_TOKEN` definida**, con el mismo valor que lee el CLI. Sin ella, el plugin toma el de `.lynkeus/token`.
 - **Después de cambiar el valor, arranca Metro una vez con `--reset-cache`.** Metro guarda lo que ya transformó, y sin eso la app sigue con el valor anterior.
 - **El plugin solo escribe en un bundle de desarrollo.** En un bundle de producción el token nunca se escribe.
 
@@ -201,7 +203,8 @@ Estas variables no son de lynkeus, pero influyen en lo que hace.
 |---|---|---|
 | `GITHUB_HEAD_REF`, `GITHUB_REF_NAME` | CLI | `case run --out` anota en `run.json` la rama desde la que se hizo la ejecución. En GitHub Actions la toma de estas variables, en ese orden; fuera de ahí, se la pregunta a git. |
 | `NODE_OPTIONS` | `headless start` | Le agrega `--dns-result-order=ipv4first` antes de arrancar jest, y conserva lo que ya tuviera. Node resuelve `localhost` primero como IPv6, y un backend local suele escuchar solo en IPv4. |
-| `CI` | `headless start` | La define como `1` para el proceso de jest que aloja la app. |
+| `CI` | `headless start`, `case run` | `headless start` la define como `1` para el proceso de jest que aloja la app. `case run` no dibuja su línea de estado en la terminal cuando `CI` está definida. |
+| `LYNKEUS_HEADLESS` | `headless start` la define | Vale `1` en el proceso de jest que aloja la app. La configuración de jest de tu app puede leerla para saber que arranca un host y no sus tests unitarios: un `setup` que reemplaza por completo un SDK nativo puede dejarlo real ahí, para que la llamada llegue al sustituto de lynkeus. |
 | la que nombre `apiEnv` (por defecto `API_URL`) | host sin pantalla | La entrada que genera `headless init` comprueba que apunte a un backend local antes de renderizar la app. Si no, se detiene con `lynkeus headless only drives a local backend; API_URL is "…"`. |
 | `EXPO_PUBLIC_LYNKEUS_TOKEN` | tu app en Expo | El token, con el prefijo que Expo exige para incorporarlo al bundle. Si llega vacío, el agente queda apagado. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | tu backend | No la lee lynkeus. Es la variable estándar de OpenTelemetry con la que tu backend sabe adónde exportar sus trazas. Con `case run --traces`, apúntala a `http://localhost:4318`, o al puerto de `--traces-port`. Ver [Trazas del backend](/es/guides/backend-traces/). |

@@ -137,6 +137,10 @@ Un caso roto tiene un commit culpable: `report history` te lo señala y se arreg
 
 **Datos que chocan.** Dos casos que usan el mismo usuario se pisan cuando corren en paralelo. Crea los datos en cada caso, con `{{random.letters}}` donde algo deba ser único.
 
+**Un cambio global que afecta a los casos de al lado.** Con `--jobs`, los casos comparten el backend. Uno que enciende un flag global o cambia un ajuste de todos los usuarios hace fallar, a veces sí y a veces no, a los que corren a su lado: un inicio de sesión que debía rechazarse entra porque otro caso tenía el flag encendido. Marca ese caso con `exclusive: true` en su encabezado y corre solo.
+
+**Un host que se quedó sin memoria.** Si varios casos seguidos fallan con `No app attached` y el primero de ellos dice cómo terminó el host, el problema es el host, no los casos. `case run --host` ya lo arranca de nuevo antes del caso siguiente, y también cuando su heap pasa del 60 % de su límite (`--host-heap`).
+
 ## Ver todo lo que falla de una vez
 
 Por defecto un caso se detiene en el primer paso que falla. Mientras investigas puede convenir lo contrario:

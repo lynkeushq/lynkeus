@@ -53,10 +53,10 @@ If the app has a token and the driver's does not match, the app does not answer 
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.4.0",
+  "agentVersion": "0.6.0",
   "platform": "ios",
   "native": true,
-  "commands": ["busy", "events", "profile", "reset", "stores", "traceContext"],
+  "commands": ["busy", "events", "netmock", "networkBodies", "profile", "reset", "stores", "traceContext"],
   "route": "Settings.Main",
   "app": { "name": "example" }
 }
@@ -158,7 +158,7 @@ Elements that are hidden are never matched, with one exception: an `inert` eleme
 | [`swipe`](#swipe) | `{ direction?, target?, distance?, from?, to?, durationMs? }` | `{ from, to }` |
 | [`navigate`](#navigate-and-back) | `{ name, params? }` | `{ route }` |
 | [`back`](#navigate-and-back) | none | `{ route? }` |
-| [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs? }` | `{ route?, matched?, waitedMs }` |
+| [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | [`idle`](#idle) | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | [`deepLink`](#deeplink) | `{ url }` | `{ opened }` |
 | [`requests`](#requests) | `{ since? }` | `{ inFlight, requests }` |
@@ -252,6 +252,9 @@ Waits until every condition given holds.
 | `gone` | boolean | `false` | Turn `target` around: wait until nothing matches it. |
 | `scroll` | boolean | `false` | Swipe the nearest scrolling container toward the target until it is in the window. |
 | `timeoutMs` | number | `5000` | Give up after this long. |
+| `since` | number | | A trace sequence number, such as `last` from an earlier `trace`. With `route` alone, a route the app reached after it counts as arrived even if the app has already left it. The answer then has `passed: true`. |
+
+`since` is for a screen that closes itself, such as a success screen that goes back after a second: it can come and go before the wait begins.
 
 The app checks every 40 ms, inside the app, and answers the moment the conditions hold with `{ route, matched, waitedMs }`. On timeout it fails with `Timed out waiting for …`, naming the route the app was on.
 
@@ -279,7 +282,7 @@ Takes `{ url }` and opens it in the app as the OS would hand it over. It answers
 
 Answers `{ inFlight, requests }`: how many HTTP requests are in flight, and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
 
-The app keeps the last 200 requests. It never records headers or bodies. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`.
+The app keeps the last 200 requests. It records no headers and no bodies, unless a driver turned on the `networkBodies` command; then the requests that follow keep both, with secret-looking values replaced by `…` and each body cut at 16,000 characters. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`.
 
 ### `trace`
 
@@ -309,9 +312,29 @@ Answers what the agent's tree walker can see. It is for diagnosing the agent its
 
 ### App commands
 
-Any method name that is not a core method is looked up among the app's commands: the ones it registered with `qa.register`, and four built-in ones (`events`, `stores`, `profile`, `traceContext`). See the [Agent API](/reference/agent-api/#qa).
+Any method name that is not a core method is looked up among the app's commands: the ones it registered with `qa.register`, and the agent's own (`events`, `stores`, `profile`, `traceContext`, `networkBodies`, `netmock`, and `analytics` and `logs` where the agent can serve them). See the [Agent API](/reference/agent-api/#commands-every-app-answers).
 
 `reset` is special. The app runs its own `reset` command if it registered one, and then the agent returns the navigation to its initial route. `reset` therefore never answers `Unknown method`.
+
+### Host commands
+
+A host that stands in for the device (the headless host, or a host of your own) registers commands of its own, and `hello` lists them. A driver looks for a command in `commands` before it calls it. These are the ones `lynkeus case run` uses when they are there.
+
+| Command | Params | Answer |
+|---|---|---|
+| `record` | `{ path, fps, scale? }` | Starts filming the case to `path`, an MP4. `scale` is pixels per point, for a host that films at more than one size. |
+| `record` | `{ frames: true }` | `{ frames }`: how many frames the film has so far. The runner divides by `fps` to say at what second each step began. |
+| `record` | `{ stop: true }` | Stops filming. `{ bytes }`: the size of the film. |
+| `record` | `{ read: offset }` | `{ data, done }`: the next piece of the film from `offset`, base64-encoded. `done` is true on the last piece. |
+| `memory` | none | On the headless host: `{ heapUsedMb, heapTotalMb, heapLimitMb, rssMb, … }`, read after a garbage collection. `heapLimitMb` is where Node gives up. |
+
+`record { read }` exists for a host on another machine, such as fastsim in a Linux VM or on a server. The path the driver gave is a path on the driver's machine, so the host films where it can and hands the film over a piece at a time once `stop` has said how big it is. A film that does not arrive whole is left out of the report; it never fails the case. Since 0.6.0.
+
+### Mocked answers
+
+A request that a rule answered instead of the server, or whose answer a rule lost, is marked `mocked: true` in its [`RequestRecord`](#requestrecord) and its trace entry. A driver reading why a case failed should not blame the backend for it: the case made that answer.
+
+The agent marks what its own `netmock` answers. A layer below the agent, which the agent cannot see into (the headless host's network fence, a host's own `netmock`), marks its answers by adding the response header `x-lynkeus-mocked` with any value, and the agent records the request as mocked when it sees the header. A host of your own that answers requests should do the same. Since 0.6.0.
 
 ## Data types
 
@@ -356,6 +379,7 @@ type Element = {
   accessibilityLabel?: string;
   value?: string;
   placeholder?: string;
+  font?: { size: number; bold?: boolean };
   focused?: boolean;
   parent?: number;
   tag?: number;
@@ -374,6 +398,7 @@ type Element = {
 | `depth` | Its nesting among the listed elements. |
 | `text` | The rendered text of a `text` element, or the label of a button or input. |
 | `value` | An input's value: what its native field holds. Masked with `•` when the field is a secure entry. |
+| `font` | The size the text is set in, in points, and whether it is bold. `lint` uses it to tell large text from ordinary text when it judges contrast. |
 | `parent` | The index of the nearest listed ancestor. |
 | `tag` | The React native tag of the host view. |
 | `covered` | A touch at its center would not reach it: something is on top. |
@@ -410,10 +435,15 @@ type RequestRecord = {
   startedAt: number;
   ms?: number;
   error?: string;
+  mocked?: boolean;
+  request?: Exchange;
+  response?: Exchange;
 };
+
+type Exchange = { headers?: Record<string, string>; body?: string; truncated?: boolean };
 ```
 
-`id` counts up from 1 as requests start, and starts again at 1 when the app restarts. `status` and `ms` are absent while the request is in flight. A request that failed before it got an answer has `status: 0` and an `error`.
+`id` rises as requests start, and keeps rising when the app reloads its JavaScript, so a driver that asks for the requests after the last `id` it saw still gets the new ones. Compare ids; do not count on them starting at 1. `status` and `ms` are absent while the request is in flight. A request that failed before it got an answer has `status: 0` and an `error`. `mocked` is true when a rule answered or lost it (see [Mocked answers](#mocked-answers)). `request` and `response` are there only while `networkBodies` is on.
 
 ### `TraceEvent`
 
@@ -422,7 +452,7 @@ Every entry has `seq` (a sequence number) and `t` (a timestamp in milliseconds),
 | `kind` | Fields | Recorded when |
 |---|---|---|
 | `route` | `route?`, `path` | The focused route changed. |
-| `request` | `method`, `url`, `status?`, `ms?`, `error?` | A request finished. |
+| `request` | `method`, `url`, `status?`, `ms?`, `error?`, `mocked?` | A request finished. |
 | `store` | `store`, `changed` | A store observed with `qa.observe` changed. `changed` maps each top-level key that changed to `{ from, to }`. The two values are kept short: an object as its number of keys (`{3}`), an array as its length (`[12]`), a string over 80 characters cut, and the value of a key named like a secret (`token`, `password`, `session`, …) as `…`. The `stores` command returns the state in full. |
 | `event` | `name`, `props?`, `route?` | The app reported an analytics event through `qa.event`. |
 | `command` | `method`, `ms`, `error?` | The driver ran a method that acts. Reads such as `screen`, `find` and `waitFor` are left out, unless they fail. |
@@ -438,6 +468,7 @@ The protocol package also defines what `lynkeus case run --out <dir>` writes, so
 |---|---|
 | `run.json` | A `RunManifest`: when the run started and ended, what the app ran on, the git branch and commit, the totals. |
 | `cases.jsonl` | One `RunCase` per line, one line per attempt, in the order they ran. |
+| `progress.ndjson` | One event per line as the run goes: the run with its cases, each case as it starts and ends, each step. `lynkeus case status` reads it. It is not part of `RUN_SCHEMA`. |
 | `<case id>/…` | What a case's steps point at: frames and a film. |
 
 The types are `RunManifest`, `RunCase`, `RunStep`, `RunEvent` and `RunBackendSpan`, exported by `lynkeus-protocol` together with `RUN_SCHEMA`, which is `1` and is written to `run.json` as `schema`.
@@ -446,6 +477,8 @@ Two rules protect readers:
 
 - A field is only ever added. Anything that would change the meaning of an existing field raises `RUN_SCHEMA`. A reader should refuse a schema it does not know.
 - `run.json` is written when the run starts and again when it ends. A run that was cut short has no `finishedAt` and no `totals`.
+
+A step (`RunStep`) carries `section` (`setup` or `steps`) and, since 0.6.0, `heading`: the numbered section of the case's steps it falls under, read from the comment that opens it. `# 3 A wrong PIN` in the case gives `heading: "3 A wrong PIN"`. A step before the first numbered comment, and every setup step, has none.
 
 See [Reports](/guides/reports/) for what each file is used for.
 

@@ -1,10 +1,11 @@
-import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 import { coverageOf, impactOf, readSeen } from '../cases/coverage.js';
 import { readCases } from '../cases/format.js';
 import { screensAffectedBy } from '../knowledge/query.js';
+import { portFromEnv } from '../config.js';
 import { define } from '../registry.js';
 import { caseFiles } from './cases.js';
 import { changedSources } from './map.js';
@@ -59,7 +60,7 @@ export const ciCommands = [
       base: { type: 'string', help: 'git ref --affected diffs against', default: 'origin/main', value: 'ref' },
       jobs: { type: 'number', help: 'how many hosts and jobs (default ci.hosts.count, else 2)', value: 'n' },
       out: { type: 'string', help: 'where the run goes', default: 'lynkeus-run', value: 'dir' },
-      'keep-up': { type: 'boolean', help: 'leave the backend and the hosts up afterwards' },
+      'keep-up': { type: 'boolean', help: 'leave the backend up afterwards (the hosts end with the run)' },
       'dry-run': { type: 'boolean', help: 'say what it would do and run nothing' },
     },
     needs: 'nothing',
@@ -94,8 +95,10 @@ export const ciCommands = [
           return { text: `no case to run: ${picked}`, json: { files } };
         }
       }
-      const ports = Array.from({ length: jobs }, (_, i) => 8123 + i);
+      const first = portFromEnv(ctx.config) ?? 8123;
+      const ports = Array.from({ length: jobs }, (_, i) => first + i);
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
+      // The run keeps one host per job and starts it again when it dies or runs short of heap.
       const runArgs = [
         'case',
         'run',
@@ -104,6 +107,10 @@ export const ciCommands = [
         String(jobs),
         '--ports',
         ports.join(','),
+        '--host-command',
+        hostCommand,
+        '--keep-hosts',
+        ...(ci.hosts?.timeoutMs ? ['--host-timeout', String(ci.hosts.timeoutMs)] : []),
         '--out',
         out,
         '--screenshots',
@@ -120,14 +127,8 @@ export const ciCommands = [
         return { text: plan.join('\n'), json: { files, ports, hostCommand, runArgs } };
       }
 
-      const hosts: ChildProcess[] = [];
       const down = () => {
         if (ctx.flags['keep-up']) return say('left up (--keep-up)');
-        for (const h of hosts)
-          if (h.pid)
-            try {
-              process.kill(-h.pid, 'SIGTERM');
-            } catch {}
         if (ci.backend?.down) {
           say('backend down');
           spawnSync('/bin/sh', ['-c', ci.backend.down], { cwd: ctx.root, stdio: 'inherit' });
@@ -152,24 +153,7 @@ export const ciCommands = [
             if (!ready) return { text: `${url} never answered`, code: 1 };
           }
         }
-        say(`${jobs} host${jobs === 1 ? '' : 's'}: ${hostCommand}`);
-        for (const port of ports)
-          hosts.push(
-            spawn('/bin/sh', ['-c', hostCommand.replaceAll('{port}', String(port))], { cwd: ctx.root, stdio: ['pipe', 'ignore', 'ignore'], detached: true }),
-          );
-        // A host compiles the app before it answers: the slow part.
-        for (const port of ports) {
-          const answered = () =>
-            spawnSync(process.execPath, [self, 'screen'], {
-              cwd: ctx.root,
-              env: { ...process.env, LYNKEUS_PORT: String(port) },
-              stdio: 'ignore',
-              timeout: 20_000,
-            }).status === 0;
-          if (!(await waitFor(answered, ci.hosts?.timeoutMs ?? 600_000, 5000))) return { text: `the host on ${port} never attached`, code: 1 };
-          say(`host on ${port} ready`);
-        }
-        say(`running ${files.length} case file(s) on ${jobs} host(s)`);
+        say(`running ${files.length} case file(s) on ${jobs} host(s): ${hostCommand}`);
         const run = spawnSync(process.execPath, [self, ...runArgs], {
           cwd: ctx.root,
           encoding: 'utf8',

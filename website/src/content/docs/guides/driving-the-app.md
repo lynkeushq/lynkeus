@@ -10,7 +10,7 @@ This guide covers the commands you will use most (`screen`, `press`, `type`, `sw
 ## Before you start
 
 - The agent is mounted in your app and the app is running as a debug build on a simulator or an emulator. See [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
-- `LYNKEUS_TOKEN` in your terminal holds the same value the app received when it was bundled.
+- The CLI and the app share the project's token: the one `lynkeus init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` when you set it yourself, with the same value in the shell that started Metro.
 - You run the commands from the app's folder.
 
 ## Read the screen
@@ -25,15 +25,17 @@ You should see something like this:
 
 ```text
 Settings.Main (Tabs > Settings.Main) +overlay#account-sheet · 12 hidden: 12 behind-overlay
-4 button #close-sheet "Close"
-5 button #delete-account-button "Delete account" !disabled
-6 text "Are you sure?"
-7 button #slide-to-confirm ~inert
+button #close-sheet "Close"
+button #delete-account-button "Delete account" !disabled
+text "Are you sure?"
+button #slide-to-confirm ~inert
+9 button "Learn more"
+11 button "Learn more"
 ```
 
 The header is the **route** (the screen's name, as your navigation library reports it), the path of navigators that leads to it, and the layer on top if a sheet or dialog is open. Elements the platform is not presenting, such as another tab or the screen under a sheet, are left out and counted.
 
-Each line is an element: its index, its kind (`button`, `input`, `text`, `scroll`, `switch`, `image`, `view`), its `#testId`, its label, and its state.
+Each line is an element: its kind (`button`, `input`, `text`, `scroll`, `switch`, `image`, `view`), its `#testId`, its label, and its state. An element that has no name of its own, or shares its name with another, starts with its index, because the index is then the only way to point at it. An input also shows its `value=`, its placeholder and whether it has focus.
 
 | State | Meaning |
 |---|---|
@@ -66,7 +68,7 @@ Add `[n]` to a `#testId` or a text to pick among several matches, counting from 
 
 Prefer `#testId`. Text changes with copy and language, an index changes whenever the screen does, and a point changes with the device.
 
-Covered elements are never matched. When two elements tie, the later one wins, because it draws on top.
+An element a touch can reach wins over a covered one, which is matched only when nothing reachable is. When two elements tie, the later one wins, because it draws on top.
 
 In a shell, quote targets that start with `#` so the shell does not read them as a comment:
 
@@ -136,6 +138,8 @@ npx lynkeus wait 800                        # a plain pause, in ms
 
 `wait` gives up after 10 seconds by default. Change that with `--timeout <ms>`.
 
+Some screens close themselves: a success screen that goes back after a second. By the time `wait` asks, it may be gone. `--since <seq>` takes a trace sequence number from before the action (`npx lynkeus trace --last 1` prints it as `last seq <n>`), and a route the app reached after it counts as arrived even if the app has already left it.
+
 `wait` and `see` take a route or a target in the same position. A word that starts with a capital letter (`Settings.Main`, `Next`) is a route. To wait for a text that looks like one, quote it: `'"Next"'`. A route that does not start with a capital, as expo-router's do, takes the `route:` prefix: `npx lynkeus wait route:index`.
 
 `idle` waits for something different: for the app to stop committing renders, which means data arrived and animations finished.
@@ -163,6 +167,30 @@ For the backend half of a check, `requests` lists the HTTP requests the app made
 
 ```bash
 npx lynkeus requests --last 10
+```
+
+A request a mock answered ends in `(mocked)`: see the next section.
+
+## Change what the app sees: mock and os
+
+`mock` answers a request before it reaches the network. Use it to see how a screen handles an error, a slow answer or an empty list without changing the backend.
+
+```bash
+npx lynkeus mock 'GET /v3/accounts' --status 500
+npx lynkeus mock '/v3/accounts' --body '[]' --times 1
+npx lynkeus mock 'POST /v3/links' --lost        # the server gets it; the app sees the connection drop
+npx lynkeus mock --clear
+```
+
+It works on the headless host, where the host stands in for the network, and on a simulator, an emulator or a phone, where the agent answers inside the app. With `--lost` the request is sent and only its answer is lost, so the server acts on it while the app thinks it failed. That is the case worth testing: a payment that went through and a screen that says it did not. Before 0.6.0 a device failed the request without sending it.
+
+A mocked request is marked `(mocked)` in `requests`, in `trace` and in a failed case's evidence, and `why` never blames the backend for an answer a mock gave.
+
+The `os` commands hand the app what the outside world would. Most of them need the headless host or a simulator; [the CLI reference](/reference/cli/#os) says which. Two work on both: `os appstate` sends the app to the background and brings it back (on a simulator or an emulator, by opening another app and then the app again), and `os biometrics --available` enrolls Face ID or Touch ID on an iOS simulator.
+
+```bash
+npx lynkeus os appstate background
+npx lynkeus os appstate active
 ```
 
 ## Move without touching: nav and back
@@ -212,7 +240,7 @@ The agent inside your app walks React's own tree, keeps the components a user co
 
 Touches and keystrokes are synthesized natively inside the app's process, so they travel the same path as a real finger and a real keyboard. Waits end on the render that satisfies them.
 
-An input's `value` is what its native field holds, not what React was told to put there. A field the app does not control (one with no `value` prop) therefore reads as what was typed into it. Values of `secureTextEntry` fields are masked. The request log keeps method, path, status and duration, never headers or bodies.
+An input's `value` is what its native field holds, not what React was told to put there. A field the app does not control (one with no `value` prop) therefore reads as what was typed into it. Values of `secureTextEntry` fields are masked. The request log keeps method, path, status and duration. It keeps headers and bodies only while a driver asks for them, as `case run` does for a run that keeps evidence, and then with secret-looking values hidden.
 
 :::note[Since 0.3.0]
 Reading the value from the native field needs the native module of `lynkeus-agent` 0.3.0, so rebuild the app after updating the package. Until then the agent reads React's props as before: an uncontrolled field reads as empty after typing, and one with a `defaultValue` keeps reading as that. The same rebuild gives Android its corrected `~covered`; see [Android](/platforms/android/).

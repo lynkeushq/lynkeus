@@ -122,7 +122,7 @@ export const coverageCommands = [
       if (!to) return { text: 'case new needs --to <Route>, the screen the case is about; `case here` drafts one from the screen the app shows now', code: 2 };
       if (!from) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json', code: 2 };
       const graph = ctx.graph();
-      if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map routes lists them)`, code: 1 };
+      if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map screens lists them)`, code: 1 };
       const server = config.fixtures ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
       const described = server ? await server.describe().finally(() => server.close()) : undefined;
       const text = draftCase({

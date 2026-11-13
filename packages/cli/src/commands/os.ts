@@ -150,6 +150,9 @@ export const osCommands = [
     example: "mock 'GET /path' [--status 500] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] | --clear | --list",
     needs: 'app',
     run: async (ctx) => {
+      // A lost request never gets an answer to shape: a status, a body or a delay would be dropped without a word.
+      const shaped = (['status', 'body', 'delay'] as const).filter((f) => ctx.flags[f] !== undefined && !(f === 'status' && ctx.flags[f] === 200));
+      if (ctx.flags.lost && shaped.length) return { text: `--lost loses the server's answer: --${shaped.join(', --')} would have nothing to shape`, code: 2 };
       const device = await ctx.device();
       if (ctx.flags.clear) return { json: await device.command('netmock', { action: 'clear' }) };
       if (ctx.flags.list) {

@@ -32,6 +32,15 @@ next: `lynkeus case run cases/example.md --dry-run`, then make fixtures.mjs talk
 
 `example.md` is a case to copy from. `README.md` is a short reference of the format. `fixtures.mjs` is a small server that prepares backend data, explained in [Fixtures](/guides/fixtures/).
 
+Two other commands draft a case for you to finish:
+
+```bash
+npx lynkeus case here first-screen --host --write    # from the screen the app shows now, with checks that pass as it is
+npx lynkeus case new settings-dark-mode --to Settings.Main --from Home.Main --write    # for a screen: the way there, the setup to pick from, the checks to write
+```
+
+`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the presses from `--from` (default `cases.start`) to the screen as `map plan` knows them, and offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
+
 ## The shape of a case
 
 ```md title="cases/settings-dark-mode.md"
@@ -67,6 +76,24 @@ The **body** is YAML with three keys:
 Each step is one key and one value: `verb: value`. A step that fails stops the case.
 
 The setup above calls `reset`, a command your app registers with `qa.register` to log out and clear its storage and caches. Starting every case from a clean app avoids the most common bug between tests: state left by the one before.
+
+## Sections
+
+A long case reads better in parts. Open each part of `steps` with a comment that starts with a number:
+
+```yaml
+steps:
+  # 1 The right PIN opens Home
+  - app.type: { text: "1234", testId: pin }
+  - app.see: { route: Home.Main }
+
+  # 2 A wrong PIN is refused
+  - app.back
+  - app.type: { text: "0000", testId: pin }
+  - app.see: { text: "Wrong PIN" }
+```
+
+Every step after `# 2 A wrong PIN is refused`, up to the next numbered comment, is in section `2 A wrong PIN is refused`. Other comments are notes. A report groups the steps of the case that way, and a run's live status says which section each case is in. Number the sections the way `expected` numbers what must be true, so a reader can match one to the other. `case init`'s example is written this way.
 
 ## Steps that drive the app
 
@@ -119,6 +146,19 @@ A few behaviors are worth knowing before you write many cases:
 - `app.call` runs a command the app registered with `qa.register`. `expect` checks fields of its answer.
 
 Any other lynkeus command is also a step, with its arguments by name: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
+
+`app.mock` answers a request in place of the server, so an error state is one line:
+
+```yaml
+steps:
+  - app.mock: { route: "GET /v3/accounts", status: 500 }
+  - app.press: "#refresh"
+  - app.see: { testId: error-banner }
+  - app.mock: clear
+  - app.mock: { route: "POST /v3/payments", lost: true }    # sent; only the answer is lost
+```
+
+With `lost: true` the request reaches the server, which acts on it, and only the answer is lost: the app sees a failed request, as after a dropped connection. That is the case to test when the app cannot know whether a payment went through. A request that a mock answered or lost reads `(mocked)` in the evidence of a failed case, in `lynkeus requests` and in `lynkeus trace`, and a failure is never blamed on the backend for an answer your own step made.
 
 ```yaml
 steps:
@@ -273,7 +313,7 @@ A failed case runs once more before it counts as failed. One that passes the sec
 
 ### Unsupported is not failed
 
-A step the host cannot do, such as a mocked response on a simulator or an emulator, is `unsupported`. The case stops there and is reported as one that cannot run on this host. It does not fail the run:
+A step the host cannot do, such as `app.network` or `app.clock` on a simulator or an emulator, is `unsupported`. The case stops there and is reported as one that cannot run on this host. It does not fail the run:
 
 ```text
 3/5 passed, 2 cannot run on this host
@@ -288,6 +328,32 @@ npx lynkeus case run --jobs 3 --ports 8123,8124,8125
 ```
 
 The app or host of each job must dial its own port. With several jobs the longest cases start first, so the jobs finish together; `--in-order` keeps the order you gave. `--host-command` starts a fresh host for every case and stops it afterward. In the command, `{port}` is replaced by the port the host must dial and `{job}` by the job's number.
+
+The jobs share one backend. A case that changes what every case sees, such as a global feature flag or a setting for all users, would break the cases running beside it: a sign-in that should have been refused is let in while another case has the flag on. Give such a case `exclusive: true` in its frontmatter:
+
+```md
+---
+id: signup-closed
+title: "Sign-up is refused while registrations are closed"
+exclusive: true
+---
+```
+
+It waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
+
+### Watch a long run
+
+A run of many cases says where it is. In a terminal a status line stays under the output: cases done and failed, the time spent and left, and what each job is running and in which numbered section. From another terminal, or after the run, `npx lynkeus case status` says the same; `--progress json` prints the events on stdout and `--progress none` turns the line off. See [Progress](/reference/cli/#progress).
+
+### Run only the cases a change reaches
+
+```bash
+npx lynkeus map build
+npx lynkeus case coverage                          # which screens the cases touch, which none does
+npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
+```
+
+`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers.
 
 ## How it works
 

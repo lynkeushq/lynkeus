@@ -122,7 +122,7 @@ export const describeTrace = (events: TraceEvent[]): string => {
     .map((e) => {
       if (e.kind === 'route') return `${rel(e.t)}  route    ${e.route ?? '?'}  (${e.path.join(' > ')})`;
       if (e.kind === 'request')
-        return `${rel(e.t)}  request  ${String(e.status ?? '…').padStart(3)} ${e.method.padEnd(5)} ${withoutHost(e.url)}${e.error ? `  (${e.error})` : ''}`;
+        return `${rel(e.t)}  request  ${String(e.status ?? '…').padStart(3)} ${e.method.padEnd(5)} ${withoutHost(e.url)}${e.error ? `  (${e.error})` : ''}${e.mocked ? '  (mocked)' : ''}`;
       if (e.kind === 'stall')
         return `${rel(e.t)}  stall    render loop broken: ${e.renders} updates${e.component ? ` to ${e.component}` : ''} in ${e.windowMs}ms`;
       if (e.kind === 'touch')

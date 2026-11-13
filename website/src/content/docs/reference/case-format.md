@@ -88,7 +88,7 @@ The verb decides who performs the step:
 
 ### What happens when a step fails
 
-A failed step stops the case. The remaining steps are reported as skipped, unless `case run --continue` was given. The report keeps the screen as it was, the requests the app had made, and why the step failed.
+A failed step stops the case. The remaining steps are reported as skipped, unless `case run --continue` was given. The report keeps the screen as it was, the requests the app had made, and why the step failed. A request that one of the case's own mocks answered is marked `(mocked)` in that evidence, and the reasons never blame the backend for it. See [Mocked answers](#mocked-answers).
 
 A step has one of four results:
 
@@ -97,7 +97,7 @@ A step has one of four results:
 | `passed` | It did what it says. |
 | `failed` | It did not. The case fails. |
 | `skipped` | It was not run: an `on:` condition did not hold, an `optional` press found nothing, or an earlier step failed. |
-| `unsupported` | The host has no way to do it, such as a mocked response on a simulator or an emulator. The case stops there with result `unsupported`. It is not retried and does not fail the run. |
+| `unsupported` | The host has no way to do it: it answers `Unknown method` for the command, as a simulator does for `app.network` or `app.clock`, which only the headless host has. The case stops there with result `unsupported`. It is not retried and does not fail the run. |
 
 ## Targets
 
@@ -405,6 +405,21 @@ A key that names neither an argument nor a flag of the command fails the step wi
 
 The arguments and flags of each command are in the [CLI reference](/reference/cli/). Commands marked headless there work only on the headless host; on a device the step is reported as `unsupported`.
 
+### Mocked answers
+
+`app.mock` answers a request in place of the server, on the headless host and on a device alike. The same keys as the command's flags apply: `route`, `status`, `body`, `delay`, `times`, `sticky`, `lost`.
+
+```yaml
+- app.mock: { route: "GET /v3/accounts", status: 500 }
+- app.mock: { route: "GET /v3/accounts", body: "[]", times: 1 }
+- app.mock: { route: "POST /v3/payments", lost: true }
+- app.mock: clear
+```
+
+With `lost: true` the request is sent and reaches the server, and only its answer is lost: the app sees a failed request, as after a dropped connection, and the server has acted on it. Use it to check what the app does when it cannot know whether a payment went through.
+
+A request that a mock answered, or lost, is marked `mocked`. The app's request log and trace carry the mark, `lynkeus requests` and `lynkeus trace` print `(mocked)`, and the evidence of a failed case says `(mocked)` on that request. The reasons a failed case prints read only what the server answered, so a 500 your own step made is not reported as a backend error. The agent marks the answers of its own mocks; a layer below it, such as the headless host's network, marks its answers with the response header `x-lynkeus-mocked`.
+
 ## Steps that prepare and read the backend
 
 ### Fixtures
@@ -470,6 +485,26 @@ Runs a shell command, in the folder of the configuration file that declares `cas
 |---|---|---|
 | `run` | string | The command. A plain string value is the command. |
 | `as` | string | Optional. Keep the command's output under this alias. If the output contains a JSON object, the alias holds that object. Otherwise it holds `{ out: "<the output>" }`. |
+
+## Sections
+
+A long case can open each part of its `steps` with a comment that starts with a number:
+
+```yaml
+steps:
+  # 1 Sign in with the right PIN
+  - app.type: { text: "1234", testId: pin }
+  - app.see: { route: Home.Main }
+
+  # 2 A wrong PIN
+  - app.back
+  - app.type: { text: "0000", testId: pin }
+  - app.see: { text: "Wrong PIN" }
+```
+
+The comment is the section's name: `3 A wrong PIN`, or `2b …` for a part of section 2. Every step after it, up to the next numbered comment, belongs to that section. Other comments are notes and do not open one. A step before the first numbered comment has no section, and neither has any step of `setup`.
+
+Nothing about how a step runs changes. A report groups the steps of the case by section, and `lynkeus case status` and the status line of `case run` say which section each case is in. In the run file, each step carries it as `heading` (`3 A wrong PIN`). Number the sections the way `expected` numbers what must be true, so a reader can match one to the other.
 
 ## Conditions with `on:`
 

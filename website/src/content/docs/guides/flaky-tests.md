@@ -66,7 +66,7 @@ The rule is simple. A case is called flaky when some, but not all, of its record
 
 `--flakes <file>` puts the ledger somewhere else. The ledger is local to the machine that ran the cases, so on CI it only accumulates if you keep the file between jobs.
 
-The ledger also remembers how long each case took. With `--jobs`, the runner uses that to start the longest cases first.
+The ledger also remembers how long each case took when it last passed. With `--jobs`, the runner uses that to start the longest cases first, and a run's status line and `lynkeus case status` use it to say how much time is left.
 
 ## Measure a flaky flow with `flake`
 

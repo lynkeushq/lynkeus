@@ -12,7 +12,7 @@ It exists for speed and scale. A host starts in about 40 seconds, several run si
 | | Headless host | Simulator or emulator |
 |---|---|---|
 | Your JavaScript: screens, state, navigation | Real | Real |
-| Requests to your backend | Real, limited to local addresses by default | Real |
+| Requests to your backend | Real, limited to local addresses by default. A body that is not JSON reaches the app as its own `SyntaxError`, as on a phone | Real |
 | Layout: frames, what is covered, scrolling | Computed with Yoga | Real |
 | Native modules: storage, keychain, camera, biometrics | Mocked | Real |
 | WebView contents | An empty box | Real |
@@ -23,11 +23,7 @@ It exists for speed and scale. A host starts in about 40 seconds, several run si
 
 - The agent is mounted in the app. See [Install in a React Native app](/getting-started/installation-react-native/).
 - Jest works in the project, with the React Native preset and the app's own Babel transform. The host runs the app through your Jest configuration.
-- `lynkeus-headless` and `@testing-library/react-native` are installed as development dependencies:
-
-  ```bash
-  yarn add -D lynkeus-headless @testing-library/react-native
-  ```
+- jest, `@testing-library/react-native` and `lynkeus-headless` are installed as development dependencies. `lynkeus headless init` adds what is missing, with the jest preset the app needs (`jest-expo` for Expo), using the package manager of the project. `--no-install` leaves that to you.
 
 - Node 22 or newer.
 - An app with a root component the host can import (`App.tsx` and the like), or an Expo Router app (since 0.4.0; see [An Expo Router app](#an-expo-router-app)).
@@ -43,14 +39,18 @@ The **entry** is one file that tells the host how to load your app. It is the on
 npx lynkeus headless init --api-env API_URL
 ```
 
-You should see what it wrote and what to do next:
+You should see what it did and what to do next:
 
 ```text
+installed jest, @testing-library/react-native, lynkeus-headless (npm install --save-dev …)
 wrote qa/headless.tsx (app: src/App.tsx)
-jest: make sure transformIgnorePatterns lets 'lynkeus-[^/]+' through, next to react-native (lynkeus headless doctor checks it)
-next: LYNKEUS_TOKEN=<token> API_URL=http://127.0.0.1:3000/ lynkeus headless start
-      then, in another shell: lynkeus screen  (or lynkeus headless doctor to see what still needs a mock)
+made a token for this project in .lynkeus/token (kept out of git); the CLI and the MCP server read it
+jest: when the app has no jest configuration, `headless start` passes the preset it needs …
+next: lynkeus headless start  (with API_URL=http://127.0.0.1:3000/, or "apiUrl" in lynkeus.config.json, when the app has a local backend; the token is the project's, in .lynkeus/token)
+      or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)
 ```
+
+`init` also makes the project's token in `.lynkeus/token` when there is none, because `headless start` refuses to run without one and an app tested only headless never runs `lynkeus init`.
 
 `--api-env` names the environment variable your app reads its API base URL from; it defaults to `API_URL`. `init` finds the root component when it is in a standard place (`App.tsx`, `App.jsx` or `App.js`, at the root or under `src/`, or `app/App.tsx`); otherwise pass `--component <path>`. When it finds none, it stops with `no App component found`. Add `--auto` to also insert the `auto()` call into `index.js` if you have not mounted the agent yet. `--force` overwrites an existing entry.
 
@@ -59,14 +59,15 @@ The generated file looks like this:
 ```tsx title="qa/headless.tsx"
 import { installDefaultMocks } from 'lynkeus-headless/mocks'
 
-// Refuse anything that is not a local backend.
+// Refuse anything that is not a local backend. Unset is an app with no backend of its own.
 const apiUrl = process.env.API_URL ?? ''
-if (!/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/.test(apiUrl)) {
+if (apiUrl && !/^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?(\/|$)/.test(apiUrl)) {
   throw new Error(`lynkeus headless only drives a local backend; API_URL is "${apiUrl}"`)
 }
 
 installDefaultMocks({
   network: 'real',
+  // locale: { country: 'DE', languageTag: 'de-DE', languageCode: 'de' },
 })
 
 // App-specific mocks go here, before the app is required:
@@ -79,7 +80,7 @@ export { App }
 
 It has three parts:
 
-- **The guard** stops the host before the app renders if the API URL does not point at a local address. A hosted app with real network access is exactly what would let an automated run act against production by accident.
+- **The guard** stops the host before the app renders if the API URL is set and does not point at a local address. A hosted app with real network access is exactly what would let an automated run act against production by accident. With the variable unset, the network stays fenced to local hosts.
 - **`installDefaultMocks`** replaces the native modules that would fail in Node. `network: 'real'` lets the app reach your backend; without it, Jest's default ban on network requests stays in place.
 - **The export.** The entry must export `App`. It may also export `navigation`, an adapter, for an app whose router the agent cannot find by itself.
 
@@ -131,11 +132,13 @@ The scan is a heuristic. A module it flags may already be covered by a wrapper y
 
 ### 4. Start the host
 
-`headless start` needs the token in the environment and refuses to run without it:
+`headless start` needs the project's token and refuses to run without it. It reads `.lynkeus/token`, which `init` made, or `LYNKEUS_TOKEN` in the environment, which wins:
 
 ```bash
-LYNKEUS_TOKEN=some-local-secret API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
+API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
 ```
+
+When the app has a local backend, give its address either in the variable `apiEnv` names (`API_URL` here) or as `apiUrl` in `lynkeus.config.json`; the variable wins.
 
 You should see Jest start, the host's log lines, and finally:
 
@@ -147,10 +150,9 @@ The host stays in the foreground until you stop it. Arguments after `--` are pas
 
 ### 5. Drive it
 
-In another shell, with the same token:
+In another shell, in the same project, so that it reads the same token:
 
 ```bash
-export LYNKEUS_TOKEN=some-local-secret
 npx lynkeus screen
 ```
 
@@ -161,10 +163,12 @@ You should see `attached in …ms (headless host)` on standard error, then your 
 With the host running, `npx lynkeus case run` uses it like any other host. To have the run start a host and stop it afterwards, add `--host`:
 
 ```bash
-LYNKEUS_TOKEN=some-local-secret API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
+API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-You should see `host: up` once the host is ready, then the cases. The run waits up to 180 seconds for the host to come up, and reports the last lines of its output if it does not.
+You should see `host: up (its log: …)` once the host is ready, then the cases. The run waits up to 180 seconds for the host to come up, and reports the last lines of its output if it does not.
+
+With `--host`, the run also looks after the host. If it dies during a case (out of memory, a crash) or its app stops answering, the run starts it again before the next case, so the cases after it do not all fail with `No app attached`. The case that lost the host still fails, and its reasons say how the host ended, with its last words and its log; the host started again writes a log of its own. Before each case, the run reads the host's heap (one line in the log) and starts it again past `--host-heap` percent of its limit, 60 unless told. See [Hosts that die](/reference/cli/#hosts-that-die).
 
 ## How it works
 
@@ -211,12 +215,12 @@ The entry's path and the API variable can live in the configuration, so you do n
 
 ## Commands that stand in for the operating system
 
-Under the host, what a device would receive from the outside world is a command. These work only on the headless host, except `os deeplink`, which works everywhere. On a device you get the real thing instead.
+Under the host, what a device would receive from the outside world is a command. These work only on the headless host, except `os deeplink`, `os appstate` and `mock`, which also work on a simulator or an emulator. On a device you get the real thing instead.
 
 | Command | What the app experiences |
 |---|---|
 | `lynkeus os deeplink <url>` | Its `Linking` listeners receive the URL, React Navigation's included. |
-| `lynkeus os appstate <active\|background\|inactive>` | `AppState` listeners see the change. Send `background`, then `active`, to test what refetches or locks again on return. |
+| `lynkeus os appstate <active\|background\|inactive>` | `AppState` listeners see the change. Send `background`, then `active`, to test what refetches or locks again on return. On a simulator or an emulator the OS does it for real, and `inactive` does not exist. |
 | `lynkeus os network <off\|on>` | Airplane mode: requests fail, open sockets drop, NetInfo listeners are told. |
 | `lynkeus os clock --now <iso>` | What `Date` answers. Timers stay real. `--advance <ms>` moves it forward; `--reset` returns to the real clock. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none> --next <outcomes>` | The sensor the device has, and what the next prompts answer, in order: `success`, `fail`, `cancel`. `--fallback <outcome>` sets what a fallback prompt answers. |
@@ -225,12 +229,13 @@ Under the host, what a device would receive from the outside world is a command.
 
 ### Mocking the network
 
-`lynkeus mock` answers a request before it reaches the network. Error states, timeouts and empty states become one line each, with no backend fixture:
+`lynkeus mock` answers a request before it reaches the network: on the headless host the host answers, and on a device the agent does, inside the app. Error states, timeouts and empty states become one line each, with no backend fixture:
 
 ```bash
 npx lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000   # a slow failure
 npx lynkeus mock '/v3/accounts' --body '[]' --times 1           # any method; only once
 npx lynkeus mock 'GET /v3/session' --status 401 --sticky        # survives an app reset
+npx lynkeus mock 'POST /v3/payments' --lost                     # sent; only the answer is lost
 npx lynkeus mock --list
 npx lynkeus mock --clear
 ```
@@ -242,18 +247,20 @@ npx lynkeus mock --clear
 | `--delay <ms>` | none | Answer after this long. |
 | `--times <n>` | every time | Apply the rule only this many times. |
 | `--sticky` | off | Keep the rule across an app reset. Without it, the app's `reset` command drops the rule. |
-| `--lost` | off | Let the request reach the server, and fail it on the way back. |
+| `--lost` | off | Send the request to the server and lose only its answer. The app sees a failed request and the server has acted on it, as after a dropped connection. |
 | `--list`, `--clear` | | Show the rules, or drop them all. |
 
-In a case these are steps: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`, with the same arguments by name. A case that uses one and runs on a device does not fail there: the step is reported as unsupported on that host, the case stops, and the run does not fail because of it. Use `on: headless` to keep such a step to the host that can do it.
+A request that a rule answered or lost is marked `mocked`. `lynkeus requests` and `lynkeus trace` print `(mocked)` on it, and so does the evidence of a failed case, whose reasons never blame the backend for an answer the case made. The host's network marks its answers with the response header `x-lynkeus-mocked`; that is how the agent tells them from the server's.
+
+In a case these are steps: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`, with the same arguments by name. A step that the host the case runs on cannot do, such as `app.network` on a simulator, is reported as unsupported there: the case stops, and the run does not fail because of it. Use `on: headless` to keep such a step to the host that can do it.
 
 ## Running several hosts
 
 Each host and its driver are a pair on one port. `LYNKEUS_PORT` moves both, so pairs do not collide:
 
 ```bash
-LYNKEUS_PORT=8201 LYNKEUS_TOKEN=secret npx lynkeus headless start
-LYNKEUS_PORT=8201 LYNKEUS_TOKEN=secret npx lynkeus screen
+LYNKEUS_PORT=8201 npx lynkeus headless start
+LYNKEUS_PORT=8201 npx lynkeus screen
 ```
 
 `LYNKEUS_HOST` tells a host where its driver is listening, for a host that does not run in the same place as its driver, such as a container dialing out.
@@ -262,7 +269,7 @@ LYNKEUS_PORT=8201 LYNKEUS_TOKEN=secret npx lynkeus screen
 
 ## Security
 
-- `headless start` refuses to run without `LYNKEUS_TOKEN`. A hosted app talks to a real backend, and without a token any local process could drive it.
+- `headless start` refuses to run without a token, from `.lynkeus/token` or `LYNKEUS_TOKEN`. A hosted app talks to a real backend, and without a token any local process could drive it.
 - With `network: 'real'`, the host refuses any address outside `networkHosts`, which defaults to loopback.
 - The guard in the generated entry checks that the API URL is local before the app is rendered.
 
@@ -318,11 +325,11 @@ npx lynkeus headless doctor --explain "<first line of the error>"
 
 **A screen never settles.** A screen that keeps re-rendering, such as a countdown or a spinner, never goes idle, and `lynkeus idle` answers `idle: false`. That is information about the screen, not a fault in the host. If the cause is one control whose content changes on its own, list its `testID` pattern under `live` in `lynkeus.config.json` and its text stops counting.
 
-**Screens never load and the host says `did not answer (ECONNREFUSED)`.** The backend is not up at that address, or the app is not using the one you meant: it reads its API base from the env var `apiEnv` names, and falls back to its own default when that variable is not set in the shell that ran `headless start`.
+**Screens never load and the host says `did not answer (ECONNREFUSED)`.** The backend is not up at that address, or the app is not using the one you meant: it reads its API base from the env var `apiEnv` names (or `apiUrl` in `lynkeus.config.json`), and falls back to its own default when neither is set where `headless start` runs.
 
 **Two hosts fight over the port.** The driver keeps whichever host dialed in last, so two hosts on one port take turns and a step can land on the wrong app (a command one has and the other lacks fails as `this host has no …`). The CLI warns once with `Another app attached on port …`, naming both. Stop the host you left running, or set `LYNKEUS_PORT` on both the host and the driver of each pair.
 
-**Memory over a long run.** Every `jest.fn()` the app's mocks are made of keeps what it was called with, for a test to read. Under the host nothing reads it, so the host clears those records every 10 seconds and the mocks keep what they do. Left alone, they grew by some 20 MB per sign-in and screen in a large app and ran a 4 GB heap out in about 30 cases. What is left grows slowly; a runner that drives hundreds of cases on one host can restart it when `lynkeus call memory` reports too much.
+**Memory over a long run.** Every `jest.fn()` the app's mocks are made of keeps what it was called with, for a test to read. Under the host nothing reads it, so the host clears those records every 10 seconds and the mocks keep what they do. Left alone, they grew by some 20 MB per sign-in and screen in a large app and ran a 4 GB heap out in about 30 cases. What is left grows slowly. `lynkeus call memory` reads the heap after a collection, with no `--expose-gc` (which `NODE_OPTIONS` refuses), and says where the heap stops (`heapLimitMb`), so a runner can compare a reading with the next case's and with the limit. `case run --host` does this itself: it starts the host again past `--host-heap` percent of the limit (60 by default). A runner of your own that drives hundreds of cases on one host can do the same.
 
 ## Next steps
 

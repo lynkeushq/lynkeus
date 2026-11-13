@@ -16,7 +16,7 @@ Expo funciona en las dos plataformas. En Android, con un development build, el a
 - **Un development build.** No funciona en Expo Go.
 - **Los proyectos nativos generados**, con `npx expo prebuild`.
 - **Node 22 o posterior** para el CLI.
-- **Un simulador de iOS o un emulador de Android.** Los dispositivos físicos no están soportados.
+- **Un simulador de iOS o un emulador de Android.** Un teléfono Android por USB también sirve; un iPhone físico no está soportado.
 
 No hace falta un *config plugin*. El módulo nativo se enlaza automáticamente al compilar.
 
@@ -80,7 +80,7 @@ Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con 
 | La app, dentro del bundle | `EXPO_PUBLIC_LYNKEUS_TOKEN` |
 | El CLI, en tu terminal | `LYNKEUS_TOKEN` |
 
-Las dos deben tener el mismo valor. Arranca el servidor de desarrollo con `EXPO_PUBLIC_LYNKEUS_TOKEN` ya definida.
+Las dos deben tener el mismo valor. No tienes que escribirlo a mano: `lynkeus init` crea el token del proyecto en `.lynkeus/token`, que lee el CLI, y lo escribe en `.env.local` como `EXPO_PUBLIC_LYNKEUS_TOKEN`, el archivo que Expo lee y que su plantilla deja fuera de git. Reinicia el servidor de desarrollo para que lo tome. Si defines las variables en el entorno, ganan sobre los archivos.
 
 Una app de React Native CLI recibe el token por el plugin de Babel `lynkeus-agent/babel`. Expo no lo necesita: incorpora la variable al bundle por su cuenta.
 

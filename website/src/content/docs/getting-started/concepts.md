@@ -23,13 +23,13 @@ The **driver** is whatever holds the other end of that socket and tells the agen
 
 A driver listens on a port (8123 unless you change it) and waits for the app to dial in. Only one driver can hold a port at a time.
 
-The agent and the driver share a **token**: a secret the app is given when it is bundled and the driver presents. The CLI reads it from `LYNKEUS_TOKEN`. An agent with a token ignores a driver that does not present the same one. An app that passes a token whose value turns out to be empty keeps its agent off and says so in its log; it does not serve without one.
+The agent and the driver share a **token**: a secret the app is given when it is bundled and the driver presents. `lynkeus init` makes one for the project in `.lynkeus/token`, kept out of git; the CLI reads it from there, or from `LYNKEUS_TOKEN` when that is set. An agent with a token ignores a driver that does not present the same one. An app that passes a token whose value turns out to be empty keeps its agent off and says so in its log; it does not serve without one.
 
 ### Host
 
 The **host** is where the app runs during a test. There are two kinds, and they differ in what is real.
 
-On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels. In this documentation "device" always means a simulator or an emulator. Physical phones are not supported.
+On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels. In this documentation "device" means a simulator, an emulator or an Android phone over USB. An iPhone is not supported yet.
 
 On the **headless host** the app runs in Node, with no simulator. `lynkeus headless start` renders the app under Jest and React Native Testing Library, with the native modules mocked, and the agent inside dials out exactly as it does on a device. It starts in about 40 seconds with no build, and several can run at once, which is what makes it suited to CI. What the operating system would hand the app (a deep link, the clock, a biometric prompt, a network failure) becomes a command instead.
 
@@ -47,13 +47,13 @@ The **screen** is the app as React rendered it, read at one moment. `lynkeus scr
 
 ```text
 Settings.Main (Tabs > Settings.Main) +overlay#account-sheet · 12 hidden: 12 behind-overlay
-4 button #close-sheet "Close"
-5 button #delete-account-button "Delete account" !disabled
-6 text "Are you sure?"
-7 button #slide-to-confirm ~inert
+button #close-sheet "Close"
+button #delete-account-button "Delete account" !disabled
+text "Are you sure?"
+button #slide-to-confirm ~inert
 ```
 
-The first line is the header: the route, the path of navigators that leads to it, the layer on top if there is one (here a sheet), and a count of what is mounted but not presented. The lines after it are the elements.
+The first line is the header: the route, the path of navigators that leads to it, the layer on top if there is one (here a sheet), and a count of what is mounted but not presented. The lines after it are the elements. An element whose name (its `testID`, else its text) no other element shares is listed without a number; the others carry their index, the number to point at them with.
 
 An app keeps far more mounted than it shows: the other tabs, the screen under a sheet. The screen lists only what the platform is presenting, because only that can be seen or touched. `lynkeus screen --all` lists the rest.
 
@@ -64,7 +64,7 @@ An app keeps far more mounted than it shows: the other tabs, the screen under a 
 An **element** is one thing on the screen that a user could see or touch. Each has:
 
 - A **kind**: `button`, `input`, `text`, `scroll`, `switch`, `image` or `view`.
-- What identifies it: a `testID` (printed as `#name`), a text or accessibility label, and an index in the listing.
+- What identifies it: a `testID` (printed as `#name`), a text or accessibility label, and an index in the listing (printed when the name is not enough).
 - What it carries: an input's **value** (what its native field holds, masked for password fields), its placeholder, whether it has focus.
 - Its **state**, which says whether a touch would work.
 
@@ -142,13 +142,13 @@ A **step** is one line of a case: a verb and its value. There are three families
 - **Fixture steps** are any other name: `create_user`, `give_points`. They go to your backend tooling (see below).
 - **Built-in backend steps**: `assert` reads the backend and checks one value of the answer, and `exec` runs a shell command.
 
-A step that fails stops the case. A step the current host has no way to perform, such as a mocked network response on a simulator or an emulator, is reported as **unsupported** rather than failed: the case stops there and does not fail the run.
+A step that fails stops the case. A step the current host has no way to perform, such as moving the app's clock on a simulator or an emulator, is reported as **unsupported** rather than failed: the case stops there and does not fail the run.
 
 ### Fixtures
 
 **Fixtures** are the backend data a case needs before it can run: a user that exists, a balance, a feature flag. lynkeus does not know your backend, so it does not create that data. It asks a program of yours to.
 
-You declare a fixtures command in `lynkeus.config.json`. lynkeus starts it once per run and exchanges one line of JSON per step with it: the step's name and parameters go in, the result comes back.
+You declare a fixtures command in `lynkeus.config.json`. lynkeus starts it once per run (once per job when cases run side by side) and exchanges one line of JSON per step with it: the step's name and parameters go in, the result comes back.
 
 ```text
 → {"command": "create_user", "params": {"name": "Ana"}, "env": {"NAME": "Ana"}}
@@ -163,19 +163,21 @@ A **run** is one execution of `lynkeus case run`: a set of cases, on one host, a
 
 Each case ends with one of three results: passed, failed, or unsupported on this host. Only a failed case fails the run.
 
+As it goes, a run writes where it stands to `progress.ndjson`: in the `--out` directory, else as `.lynkeus/last-run.progress.ndjson`. `lynkeus case status` reads it from another terminal, during the run or after it.
+
 With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case where the host offers a `record` command; the headless host and a simulator or emulator session offer none.
 
 ### Report
 
 A **report** is a run presented for people: each case step by step, the video in step with the steps, the analytics events each step sent, and why a failed case failed.
 
-`lynkeus case run --out <dir> --push` uploads the run directory to the hosted reports service at [lynkeus.io](https://lynkeus.io) and prints the report's address. The service is paid, with a free plan, and it is optional: the run directory holds the same information and belongs to you. See [Reports](/guides/reports/).
+`lynkeus case run --out <dir> --push` uploads the run directory to the hosted reports service at [lynkeus.io](https://lynkeus.io). The report is made when the run starts and fills case by case, so the address it prints at the start works from the first case. The service is paid, with a free plan, and it is optional: the run directory holds the same information and belongs to you. See [Reports](/guides/reports/).
 
 ## Two more words you will meet
 
 **Flow.** A JSON file of steps that `lynkeus run` replays and `lynkeus record` writes from what a person does in the app. Flows came before cases; a case can run one with `app.run`.
 
-**`.lynkeus/`.** The folder in your app where lynkeus keeps what it produces: runs, recorded screens, snapshots, the map of your app's routes. All of it can be deleted and regenerated.
+**`.lynkeus/`.** The folder in your app where lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits; the token is kept out of git by `.lynkeus/.gitignore`.
 
 ## Next steps
 

@@ -27,7 +27,7 @@ El agente no sabe ni le importa cuál es. Todos hablan el mismo protocolo, descr
 
 El **host** es el lugar donde corre la app durante el test. Puede ser:
 
-- un simulador de iOS o un emulador de Android, donde la capa nativa es real (los dispositivos físicos no están soportados);
+- un simulador de iOS o un emulador de Android, donde la capa nativa es real (un teléfono Android por USB cuenta como un emulador; un iPhone físico no está soportado);
 - el **host sin pantalla** (*headless*), que `lynkeus headless start` levanta en Node: renderiza la app bajo Jest y React Native Testing Library, con la capa nativa reemplazada por mocks.
 
 En los tres, el agente se conecta de la misma manera, así que los mismos comandos y los mismos casos sirven en cualquiera. Lo que cambia es qué es real. La comparación completa está en [Sin pantalla (headless)](/es/platforms/headless/).
@@ -124,7 +124,7 @@ Un **paso** es cada línea de `setup` o de `steps`. Hay dos familias, y se disti
 - Los que empiezan con `app.` manejan la app: `app.press`, `app.type`, `app.wait`, `app.see`, `app.nav`. Son los comandos del CLI con otro prefijo.
 - Cualquier otro nombre es un fixture (más abajo), salvo `assert`, que lee el backend, y `exec`, que ejecuta un comando de la terminal.
 
-Un paso termina de una de cuatro maneras: pasó, falló, se omitió, o **no es compatible** con este host. Este último caso ocurre cuando el host no tiene forma de hacer lo que se pide, por ejemplo simular una respuesta de red en un dispositivo real. No cuenta como fallo: el caso se detiene ahí y se informa como uno que no puede ejecutarse en este host.
+Un paso termina de una de cuatro maneras: pasó, falló, se omitió, o **no es compatible** con este host. Este último caso ocurre cuando el host no tiene forma de hacer lo que se pide, por ejemplo cambiar el reloj o poner el modo avión en un simulador, que son del host sin pantalla. No cuenta como fallo: el caso se detiene ahí y se informa como uno que no puede ejecutarse en este host.
 
 ### Fixtures
 
@@ -172,7 +172,7 @@ Cuando el mismo valor está en más de un lugar, el orden de prioridad es: la op
 
 ### El token y el puerto
 
-`LYNKEUS_TOKEN` es el secreto compartido entre la app y su driver. El agente solo atiende a quien lo presenta. El driver lo lee del entorno; a la app hay que hacérselo llegar, y si le llega vacío el agente queda apagado en lugar de atender a cualquiera. Cómo llega está en la instalación en [React Native](/es/getting-started/installation-react-native/) y en [Expo](/es/getting-started/installation-expo/).
+`LYNKEUS_TOKEN` es el secreto compartido entre la app y su driver. El agente solo atiende a quien lo presenta. El driver lo lee del entorno o, si no está, de `.lynkeus/token`, el archivo que crea `lynkeus init`; a la app hay que hacérselo llegar, y si le llega vacío el agente queda apagado en lugar de atender a cualquiera. Cómo llega está en la instalación en [React Native](/es/getting-started/installation-react-native/) y en [Expo](/es/getting-started/installation-expo/).
 
 `LYNKEUS_PORT` mueve juntos a la app, al host y al driver. Sirve para tener varias parejas en la misma máquina sin que se crucen. El puerto por defecto es 8123.
 

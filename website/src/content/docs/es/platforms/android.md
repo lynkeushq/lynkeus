@@ -19,7 +19,7 @@ El agente trae código nativo. Después de instalar o actualizar `lynkeus-agent`
 
 ## Cómo se conecta la app
 
-Desde dentro del emulador, `localhost` es el propio emulador, no tu máquina. Por eso en Android el agente se conecta por defecto a `10.0.2.2:8123`: es la dirección con la que el emulador alcanza a la computadora que lo aloja.
+Desde dentro del emulador, `localhost` es el propio emulador, no tu máquina. Por eso en Android el agente se conecta por defecto a `10.0.2.2:8123`: es la dirección con la que el emulador alcanza a la computadora que lo aloja. Si no se le da `host`, el agente prueba además `localhost` cuando `10.0.2.2` no responde, que es lo que alcanza el puerto de un teléfono por USB.
 
 No tienes que configurar nada. El agente elige la dirección según la plataforma.
 
@@ -31,6 +31,15 @@ import { auto } from 'lynkeus-agent/auto';
 // Solo si el CLI no está en la dirección por defecto.
 auto({ token: process.env.LYNKEUS_TOKEN, host: '10.0.2.2', port: 8123 });
 ```
+
+## Un teléfono por USB
+
+Un teléfono Android conectado por USB (o por la red de `adb`) funciona como un emulador, sin configurar nada. Desde el teléfono, `10.0.2.2` no llega a tu máquina, así que el CLI hace dos cosas:
+
+- Al empezar a escuchar, ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` para cada teléfono que `adb devices` lista con un número de serie que no empieza con `emulator-`. Eso le da al teléfono el puerto del driver en su propio `localhost`. Sin `adb` o sin teléfonos, no hace nada.
+- Una app Android que no recibió la opción `host` prueba primero `10.0.2.2` y después `localhost`, hasta que una responde. Con `host` explícito, usa ese.
+
+El registro nativo del teléfono (`logcat`) se guarda en la evidencia de un caso igual que el de un emulador. Hace falta un build de depuración, como siempre. Un iPhone físico, en cambio, no está soportado: `simctl` solo maneja simuladores.
 
 ## Cómo se elige el dispositivo
 
@@ -86,13 +95,14 @@ Del lado de JavaScript, además, el cliente del agente solo se carga cuando `ena
 `lynkeus launch` y los comandos `os` de esta sección no se ejecutaron en Android durante la verificación de esta documentación. Lo que sigue describe lo que hace el código. En el emulador se comprobaron la conexión del agente, la lectura de la pantalla y `lynkeus screenshot`.
 :::
 
-Los comandos del grupo `os` actúan sobre el emulador desde afuera, a través de `adb`. En Android hay tres disponibles, además de `os deeplink`:
+Los comandos del grupo `os` actúan sobre el emulador desde afuera, a través de `adb`. En Android hay cuatro disponibles, además de `os deeplink`:
 
 | Comando | Qué hace |
 |---|---|
 | `lynkeus os permissions <grant\|revoke> <permiso>` | Concede o revoca un permiso. |
 | `lynkeus os appearance <light\|dark>` | Cambia entre modo claro y oscuro. |
 | `lynkeus os location <lat>,<lon>` | Fija la ubicación del emulador. |
+| `lynkeus os appstate <background\|active>` | Manda la app al fondo (la tecla de inicio) y la trae de vuelta (su ícono del lanzador, la misma tarea). Con `active` espera a que el agente se conecte otra vez. `--app` nombra la app. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. Lo resuelve el agente, no `adb`. |
 
 Dos diferencias con iOS en los permisos. No existe `reset`: solo `grant` y `revoke`. Y el permiso se nombra como en Android. Puedes escribir el nombre completo o solo la última parte, que lynkeus completa:
@@ -107,7 +117,7 @@ En el primer ejemplo, `camera` se convierte en `android.permission.CAMERA`.
 Los comandos `os push` y `os language` no están disponibles en Android. Si los ejecutas, el mensaje es:
 
 ```
-"push" is not available on Android through lynkeus; permissions, appearance and location are
+"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
 ```
 
 ## Capturas de pantalla y píxeles
@@ -152,7 +162,7 @@ La app intenta conectarse a `10.0.2.2:8123` apenas arranca. Si el CLI no la ve, 
 1. Que la app sea un build de depuración.
 2. Que `enabled` sea verdadero en este entorno.
 3. Que el log de la app no diga `lynkeus: the app passed a token and it is empty`. Si lo dice, el token no llegó a la app y el agente quedó apagado; el arreglo está en [Solución de problemas](/es/troubleshooting/).
-4. Que el token que recibió la app sea el `LYNKEUS_TOKEN` que lee el CLI.
+4. Que el token que recibió la app sea el que lee el CLI (`LYNKEUS_TOKEN` o `.lynkeus/token`).
 
 Si la app tarda en arrancar, `--attach-timeout <ms>` le da más tiempo.
 
@@ -162,9 +172,10 @@ Si actualizaste el CLI sin recompilar la app, lynkeus avisa que las versiones di
 
 ## Límites
 
-- **Dispositivos físicos.** No están soportados. El CLI busca un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `adb` sobre un emulador.
+- **Un teléfono por USB** funciona como un emulador (ver [Un teléfono por USB](#un-teléfono-por-usb)). Lo que el CLI hace desde afuera pasa por `adb` sobre el dispositivo.
 - **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Notificaciones push e idioma.** No hay comando para entregarlas o cambiarlo en Android.
+- **Respuestas simuladas.** `lynkeus mock` y el paso `app.mock` funcionan en un emulador: contesta el agente dentro de la app (con `lost` incluido, y sin `--sticky`).
 - **Builds de producción.** El agente no funciona en uno, y es intencional.
 
 ## Próximos pasos

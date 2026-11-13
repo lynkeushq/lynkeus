@@ -35,6 +35,7 @@ For a value that can come from three places, flags win over the environment, and
 {
   "entry": "qa/headless.tsx",
   "apiEnv": "API_URL",
+  "apiUrl": "http://127.0.0.1:3000/",
   "port": 8123,
   "device": "iPhone 16",
   "app": "com.example.myapp",
@@ -55,9 +56,17 @@ For a value that can come from three places, flags win over the environment, and
     "close": ["^close-button$"],
     "back": ["^header-back$"]
   },
+  "report": { "afterPush": "keep" },
+  "ci": {
+    "backend": { "up": "docker compose up -d", "down": "docker compose down", "ready": "http://127.0.0.1:3000/up" },
+    "hosts": { "count": 2 },
+    "push": true,
+    "run": ["--video"]
+  },
   "cases": {
     "dir": "cases",
     "flows": "flows",
+    "start": "Home.Main",
     "fixtures": {
       "command": "node cases/fixtures.mjs",
       "cwd": ".",
@@ -90,13 +99,13 @@ The values above are examples. `app.unlock` and `IdScanner.start` stand for a ma
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `port` | number | `8123` | The port the driver listens on and the app dials. `LYNKEUS_PORT` overrides it. |
-| `device` | string | the first booted simulator | The simulator to use, by udid or by name. A name matches when the simulator's name contains it. |
+| `device` | string | the first booted simulator | The simulator to use, by udid or by name, or an Android emulator by its `adb` serial (`emulator-5554`). A simulator's name matches when it contains the value. |
 | `app` | string | none | The app's bundle id (iOS) or application id (Android), for `launch`, `--launch` and the simulator commands. |
 | `attachTimeout` | number (ms) | `15000` | How long a command waits for the app to attach before it gives up. |
 
-When no simulator is booted and no device was asked for, the CLI assumes a headless host will dial in. Physical devices are not supported: `device` names a simulator or an emulator.
+When no simulator is booted and no device was asked for, the CLI assumes a headless host will dial in. An app on Android says so when it attaches, and the CLI then looks for its device among what `adb devices` lists.
 
-The token is not a configuration key. It is a secret, so the CLI reads it only from the `LYNKEUS_TOKEN` environment variable. See [Environment variables](/reference/environment-variables/#lynkeus_token).
+The token is not a configuration key, because it is a secret and the config file is committed. `lynkeus init` makes one for the project in `.lynkeus/token` and keeps it out of git; `LYNKEUS_TOKEN` in the environment wins over that file. See [Environment variables](/reference/environment-variables/#lynkeus_token).
 
 ## Headless host
 
@@ -154,6 +163,30 @@ The three `crawl` lists are regular expressions matched, without regard to case,
 `crawl.never` starts empty. A read-only crawl already stops at the first press that makes the app write, but a control that does something irreversible without a request, or one you never want pressed, has to be listed here.
 :::
 
+## Reports
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `report.afterPush` | `"keep"` or `"delete"` | `"keep"` | What happens to the local run folder once `case run --push` or `report push` has uploaded it. `"delete"` removes it, but only when the service took every file; a folder with a film the plan does not keep stays. `lynkeus report prune` deletes old run folders either way. |
+
+## CI
+
+Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), which brings the backend and the hosts up around a suite, runs it and tears it all down. lynkeus knows nothing about your backend, so it only runs the commands you give it.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `ci.backend.up` | string | none | A shell command that starts the backend. A non-zero exit stops the run. Without `ci.backend`, `lynkeus ci` assumes the backend is already up. |
+| `ci.backend.down` | string | none | A shell command that stops it, run at the end unless `--keep-up`. |
+| `ci.backend.ready` | string | none | A URL to poll until it answers with a 2xx status, before the hosts start. |
+| `ci.backend.timeoutMs` | number (ms) | `300000` | How long to wait for `ready`. |
+| `ci.hosts.count` | number | `2` | How many hosts, and so how many cases run at once. `--jobs` overrides it. |
+| `ci.hosts.command` | string | a headless host | The shell command that starts one host. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
+| `ci.hosts.timeoutMs` | number (ms) | `600000` | How long a host may take to attach, passed to `case run` as `--host-timeout`. A host builds the app first, which is the slow part. |
+| `ci.push` | boolean | `false` | Upload the run to the report service. Needs `LYNKEUS_REPORTS_KEY`. |
+| `ci.run` | string[] | none | More `case run` flags, as on the command line: `["--video", "--once"]`. |
+
+`lynkeus ci` always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`; `ci.run` adds to them.
+
 ## Cases
 
 Everything under `cases` configures `lynkeus case run`. The file format itself is in the [Case format reference](/reference/case-format/). `lynkeus case init` writes a starting `cases` section.
@@ -169,6 +202,7 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | `cases.fixtures.timeoutMs` | number (ms) | `120000` | How long to wait for an answer to one step. |
 | `cases.inspect` | string | `inspect` | The fixture that an `assert` step reads the backend through. |
 | `cases.refs` | object of strings | none | Which step parameters point at what an earlier step made. See below. |
+| `cases.start` | string | none | The route a case begins on, such as the first screen a signed-in person sees. `lynkeus case new` draws its way to the case's screen from here when `--from` is not given. |
 | `cases.macros` | object | none | Steps of your own: a name, and the list of steps it stands for. |
 | `cases.interruptions` | array | none | What the app may put in the way of any step, and the steps that get past it. |
 | `cases.nativeMocks` | object | none | What native SDKs answer on a host that cannot run them. |

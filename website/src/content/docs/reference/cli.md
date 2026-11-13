@@ -70,7 +70,7 @@ A failed `press`, `wait`, `type`, `swipe`, `see` or `nav` prints the error and t
 
 ## Drive
 
-Commands that act on the app that is running, through the agent inside it. All of them need the app running with the agent mounted.
+Commands that act on the app that is running, through the agent inside it. They need the app running with the agent mounted, except `init` and `status`, which read the project's files.
 
 ### `lynkeus screen`
 
@@ -193,7 +193,7 @@ lynkeus nav Checkout.Confirm '{"id":"abc"}'
 ### `lynkeus wait`
 
 ```bash
-lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>]
+lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]
 ```
 
 Waits until a route or an element appears (or leaves), or for a number of milliseconds.
@@ -209,6 +209,7 @@ Waits until a route or an element appears (or leaves), or for a number of millis
 | `--gone` | | Wait until it leaves the screen. |
 | `--scroll` | | Scroll until the target is in the window. |
 | `--timeout <ms>` | `10000` | Give up after this long. |
+| `--since <seq>` | | A trace mark, taken from `lynkeus trace`. A route the app reached after it counts, even if the app has already left it. |
 
 ```bash
 lynkeus wait Settings.Main
@@ -223,7 +224,7 @@ lynkeus wait '"Next"'
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. It needs a simulator or an emulator: the headless host renders nothing to capture.
+Writes what the screen looks like right now to a PNG file. It needs a device, a simulator or an emulator: the headless host renders nothing to capture.
 
 | Argument | Meaning |
 |---|---|
@@ -268,7 +269,7 @@ A screen that has not started looks exactly like one that has finished, because 
 lynkeus requests [--last <n>]
 ```
 
-Lists the HTTP requests the app made: method, path, status and duration. Headers and bodies are never recorded.
+Lists the HTTP requests the app made: method, path, status and duration. A request that a rule answered in place of the server, or lost (see [`lynkeus mock`](#lynkeus-mock)), ends in `(mocked)`. Headers and bodies are kept only while a driver asks for them, as `case run` does for a run that keeps evidence, with secret-looking values hidden.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -280,7 +281,7 @@ Lists the HTTP requests the app made: method, path, status and duration. Headers
 lynkeus trace [--since <seq>] [--last <n>]
 ```
 
-Lists what happened in the app, in order: routes, requests, store changes, touches and commands.
+Lists what happened in the app, in order: routes, requests, store changes, touches and commands. A request that a mock answered or lost ends in `(mocked)`, as in `lynkeus requests`.
 
 A store change names the top-level keys that changed and keeps their values short: an object as its size, a string over 80 characters cut, and a key named like a secret (`token`, `password`, `session` and the like) as `…`. `lynkeus call stores '{"name":"…"}'` returns a store's state in full.
 
@@ -407,28 +408,57 @@ Reports what React spent rendering, per route, as measured by the Profiler that 
 ### `lynkeus init`
 
 ```bash
-lynkeus init
+lynkeus init [--no-install]
 ```
 
-Mounts the agent from the app's entry file, in a React Native or an Expo app. Run it from the app's folder. It does not need the app to be running. Since 0.3.0.
+Sets lynkeus up in the app, in a React Native or an Expo app: it installs `lynkeus-agent`, mounts the agent from the app's entry file and makes the project's token. Run it from the app's folder. It does not need the app to be running.
 
-What it changes depends on the project:
+| Flag | Meaning |
+|---|---|
+| `--no-install` | Do not add `lynkeus-agent` to the app. Mount it only. |
+
+What it does, in order:
+
+1. **Installs `lynkeus-agent`** when it is not a dependency yet: `npx expo install lynkeus-agent` in an Expo app, otherwise the package manager whose lockfile is in the app's folder or above it (`npm`, `pnpm`, `yarn` or `bun`). When the install fails, it says why and what to run yourself.
+2. **Mounts the agent.** What changes depends on the project:
 
 | Project | What `init` does |
 |---|---|
 | React Native CLI | Adds the `auto()` call to `index.js`, `index.tsx` or `index.ts`, after the last import, reading the token from `process.env.LYNKEUS_TOKEN`. Adds the `lynkeus-agent/babel` plugin to `babel.config.js` or `babel.config.cjs`, so that the value reaches the bundle. |
-| Expo with an entry file | Adds the `auto()` call to that file, reading the token from `process.env.EXPO_PUBLIC_LYNKEUS_TOKEN`. No Babel plugin. |
-| Expo Router (`"main": "expo-router/entry"`, no entry file) | Writes an `index.js` that mounts the agent and then loads the router, and points `main` in `package.json` at it. No Babel plugin. |
+| Expo with an entry file | Adds the `auto()` call to that file, reading the token from `process.env.EXPO_PUBLIC_LYNKEUS_TOKEN`. Writes `EXPO_PUBLIC_LYNKEUS_TOKEN` to `.env.local`. No Babel plugin. |
+| Expo Router (`"main": "expo-router/entry"`, no entry file) | Writes an `index.js` that mounts the agent and then loads the router, and points `main` in `package.json` at it. Writes the token to `.env.local` as above. No Babel plugin. |
 
-It prints one line per change, and a reminder of what is left to you: in a React Native CLI app, to start Metro with `LYNKEUS_TOKEN` set and once with `--reset-cache` after the value changes; in an Expo app, to use a development build and to start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set.
+3. **Makes the project's token** in `.lynkeus/token`, kept out of git. The CLI, `lynkeus mcp`, the Babel plugin and the headless host all read that file, so nobody has to set `LYNKEUS_TOKEN`. See [Environment variables](/reference/environment-variables/#lynkeus_token).
 
-Running it again changes nothing: it answers that the entry already mounts the agent and that the Babel configuration already has the plugin. When it cannot edit the Babel configuration, it prints the line to add by hand.
+It prints one line per change. The agent has native code, so afterward build the app again (`npx react-native run-ios`, `npx expo run:ios`) and restart Metro once with `--reset-cache`. An Expo app needs a development build, not Expo Go. Run [`lynkeus status`](#lynkeus-status) to see what is left.
+
+Running it again changes only what is missing: it answers that the entry already mounts the agent and that the Babel configuration already has the plugin. When it cannot edit the Babel configuration, it prints the line to add by hand.
+
+### `lynkeus status`
+
+```bash
+lynkeus status [--offline]
+```
+
+Says what the project has of lynkeus and what is missing. It is the first command to run in a project you do not know. Each line starts with `✓` or `✗`, and each `✗` says what fixes it:
+
+- `lynkeus-agent` is a dependency and is installed.
+- The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
+- The project has a token, and in an Expo app Expo is given it.
+- An app is attached. This is the only check that waits, and it runs only when everything above holds.
+- The app can run headless: jest, Testing Library and `lynkeus-headless` are installed, and the entry exists. Optional.
+- There are cases to run. `lynkeus case init` writes an example.
+- Runs can be pushed to the report service: `LYNKEUS_REPORTS_KEY` is set. Optional.
+
+| Flag | Meaning |
+|---|---|
+| `--offline` | Check the files only. Do not wait for a running app. |
 
 ## os
 
 Commands for what the outside world hands the app: links, the clock, sensors, the network and the simulator.
 
-Commands marked **Headless** work only when the app runs under the headless host. Commands marked **Simulator** reach a simulator from outside. `os deeplink` works on both.
+Commands marked **Headless** work only when the app runs under the headless host. Commands marked **Simulator** reach a simulator from outside, through `xcrun simctl`, and some of them an Android emulator through `adb`; each says which. They need the app's bundle id or application id, from `--app` or `app` in `lynkeus.config.json`. `os deeplink`, `os appstate` and `mock` work on both.
 
 Most of these commands also answer to a short alias without `os`; the grouped names are the documented ones.
 
@@ -447,14 +477,18 @@ Opens a URL in the app, as the OS would hand it over. Alias: `deeplink`.
 ### `lynkeus os appstate`
 
 ```bash
-lynkeus os appstate <state>
+lynkeus os appstate <state> [--app <bundleId>]
 ```
 
-**Headless.** Makes `AppState` listeners see a change. Send `background` and then `active` to test what refetches or locks again on return. Alias: `appstate`.
+Makes `AppState` listeners see a change. Send `background` and then `active` to test what refetches or locks again on return. On the headless host, the host answers it. On a simulator or an emulator, the OS moves the app for real, and the CLI waits for the app to attach again after `active`. Alias: `appstate`.
 
 | Argument | Meaning |
 |---|---|
-| `state` | `active`, `background` or `inactive`. |
+| `state` | `active`, `background` or `inactive`. `inactive` works on the headless host only. |
+
+| Flag | Meaning |
+|---|---|
+| `--app <bundleId>` | On a simulator or an emulator: the app to bring back. Default: `app` in `lynkeus.config.json`. |
 
 ### `lynkeus os network`
 
@@ -492,7 +526,7 @@ lynkeus os clock --now 2027-01-01T00:00:00Z
 lynkeus os biometrics [--available <kind>] [--next <success,fail,cancel>] [--fallback <outcome>]
 ```
 
-**Headless.** Sets the biometric sensor and what the next prompts answer. Alias: `biometrics`.
+Sets the biometric sensor and what the next prompts answer. **Headless** for all of it. On an iOS simulator, only `--available` works: it enrolls Face ID or Touch ID, or none. A device's prompts answer the person in front of it. Alias: `biometrics`.
 
 | Flag | Meaning |
 |---|---|
@@ -548,11 +582,13 @@ lynkeus os gallery ./fixtures/id.jpg --name id.jpg --mime image/jpeg
 lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]
 ```
 
-**Headless.** Answers a request before it reaches the network. A rule without `--sticky` is dropped by the app's `reset` command.
+Answers a request before it reaches the network. On the headless host, the host stands in for the network. On a device, a simulator or an emulator, the agent answers inside the app. A rule without `--sticky` is dropped by the app's `reset` command.
+
+A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` and `lynkeus trace` show `(mocked)`, and so does a failed case's evidence. The reasons a failed case prints read only what the server answered, so a 500 your own rule made is never blamed on the backend. The agent marks the answers of its own mocks. A layer below it, such as the headless host's network, marks its answers with the response header `x-lynkeus-mocked`.
 
 | Argument | Meaning |
 |---|---|
-| `route` | Optional. `'GET /path'`. A bare path matches any method. |
+| `route` | Optional. `'GET /path'`. A bare path matches any method. The path matches when the request's path contains it, or as a regular expression when it starts with `^`. |
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -560,14 +596,15 @@ lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <
 | `--body <json>` | | The JSON body to answer. |
 | `--delay <ms>` | | Answer after this long. |
 | `--times <n>` | | Apply the rule only this many times. |
-| `--sticky` | | Keep the rule across an app reset. |
-| `--lost` | | Let the request reach the server, then fail it on the way back. |
+| `--sticky` | | Keep the rule across an app reset. The headless host honors it; on a device the agent keeps no sticky rules. |
+| `--lost` | | Send the request to the server and lose only its answer: the app sees a failed request, and the server has acted on it, as after a dropped connection. A lost request gets no answer to shape, so `--status`, `--body` and `--delay` with it are refused (exit 2). |
 | `--clear` | | Drop every rule. |
 | `--list` | | Show the rules. |
 
 ```bash
 lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000
 lynkeus mock '/v3/accounts' --body '[]' --times 1
+lynkeus mock 'POST /v3/payments' --lost
 lynkeus mock --clear
 ```
 
@@ -577,12 +614,12 @@ lynkeus mock --clear
 lynkeus os permissions <action> <service>
 ```
 
-**Simulator.** Grants, revokes or resets a permission for the app.
+**Simulator and emulator.** Grants, revokes or resets a permission for the app. On an Android emulator only `grant` and `revoke` exist, and the service is an Android permission: `CAMERA` or `android.permission.CAMERA`.
 
 | Argument | Meaning |
 |---|---|
 | `action` | `grant`, `revoke` or `reset`. |
-| `service` | `camera`, `photos`, `location`, `microphone`, `contacts`, and so on. |
+| `service` | On iOS: `camera`, `photos`, `photos-add`, `location`, `location-always`, `microphone`, `contacts`, `contacts-limited`, `calendar`, `reminders`, `media-library`, `motion`, `siri` or `all`. On Android: a permission name. |
 
 ### `lynkeus os push`
 
@@ -590,7 +627,7 @@ lynkeus os permissions <action> <service>
 lynkeus os push <payload>
 ```
 
-**Simulator.** Delivers a push notification to the app.
+**Simulator (iOS only).** Delivers a push notification to the app. A bare notification such as `{"alert":"…"}` is wrapped under `aps` for you.
 
 | Argument | Meaning |
 |---|---|
@@ -602,7 +639,7 @@ lynkeus os push <payload>
 lynkeus os appearance <mode>
 ```
 
-**Simulator.** Switches between light and dark.
+**Simulator and emulator.** Switches between light and dark.
 
 | Argument | Meaning |
 |---|---|
@@ -614,7 +651,7 @@ lynkeus os appearance <mode>
 lynkeus os location <where>
 ```
 
-**Simulator.** Sets where the device is.
+**Simulator and emulator.** Sets where the device is. `clear` works on iOS only.
 
 | Argument | Meaning |
 |---|---|
@@ -626,7 +663,7 @@ lynkeus os location <where>
 lynkeus os language [tag]
 ```
 
-**Simulator.** Relaunches the app in a locale.
+**Simulator (iOS only).** Relaunches the app in a locale.
 
 | Argument | Meaning |
 |---|---|
@@ -755,7 +792,7 @@ Lists the `testID`s that appeared, disappeared or moved on a recorded screen sin
 
 ## Runs
 
-Commands that run something from start to end: flows, cases, smokes, crawls and recordings, and the commands that send a run to the hosted report service.
+Commands that run something from start to end: flows, cases, smokes, crawls and recordings, `lynkeus ci`, the fixtures commands, and the commands that send a run to the hosted report service or tidy the runs on disk.
 
 ### `lynkeus run`
 
@@ -961,50 +998,99 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--screenshots] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]
+lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
 
-Without files, it runs every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. The command exits with 1 when any case failed. A case that cannot run on this host is not a failure.
+Without files, it runs every case in `cases.dir`. A directory stands for every case under it. A failed case runs once more before it counts as failed, unless `--once`. The command exits with 1 when any case failed. A case that cannot run on this host is not a failure.
 
 | Argument | Meaning |
 |---|---|
-| `files` | Optional. The case files. Without them, every `.md` under `cases.dir`. |
+| `files` | Optional. The case files, or folders: a folder stands for every case under it. Without them, every `.md` under `cases.dir`. `README.md`, `FORMAT.md` and `CATALOG.md` are never taken for cases. |
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. |
+| `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
+| `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
 | `--once` | | No second chance for a case that fails. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
 | `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
 | `--report <file>` | | Append one JSON line per case to this file. |
 | `--events <dir>` | | Keep what the app told its analytics, per case, as `<dir>/<case id>/events.jsonl`. |
-| `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt. |
+| `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt, and `progress.ndjson`. |
+| `--no-app-events` | | With `--out`: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen, and frames that two runs compare should not have it. |
 | `--screenshots` | | With `--out`: a frame of the screen after every app step. |
-| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. Each step says at what second it began. |
+| `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. |
+| `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
+| `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
+| `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (fastsim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
+| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as fastsim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
 | `--traces` | | Listen for the backend's OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it. Point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:<traces-port>`. |
 | `--traces-port <port>` | `4318` | Where `--traces` listens. |
-| `--push` | | With `--out`: upload the run to the report service when it ends and print the report's address. |
+| `--push` | | With `--out`: upload the run to the report service and print the report's address. The report is made when the run starts and fills case by case, so the address works from the first case. See [Reports](/guides/reports/). |
 | `--project <name>` | the app's folder name | With `--push`: the project the run is filed under. |
 | `--video-fps <n>` | `30` | Frames per second of the film. |
+| `--video-scale <n>` | | Pixels per point of the film, where the host can choose one. fastsim takes 1 to 3 and uses 2 unless told. |
 | `--flakes <file>` | `.lynkeus/flakes.json` | The ledger of how each case did across runs. |
 | `--prepared <dir>` | | Where `case prepare` leaves setups made ahead. A case found there skips its setup. |
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
 | `--host-command <command>` | | A command that starts a fresh host for every case; lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
+| `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
+| `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
-| `--dry-run` | | Parse the cases and list their steps without running them. |
+| `--dry-run` | | Parse the cases and list their steps without running them. Nothing is written. |
+| `--progress <json\|none>` | | How the run says where it is, besides `progress.ndjson`. `json` prints one event per line on stdout, and the summary then goes to stderr. `none` leaves out the live status line. See [Progress](#progress). |
 
-`--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`.
+`--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`. A case with `exclusive: true` in its frontmatter runs alone under `--jobs`: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases that were asked for after it, and the run prints `… <id> runs alone: waiting for the cases in flight to end`.
 
 ```bash
 lynkeus case run cases/gift.md --host
 lynkeus case run --out run --screenshots --video --push
 lynkeus case run --jobs 2 --ports 8123,8124 --host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'
 ```
+
+#### Progress
+
+A long run says where it is, in three places.
+
+- **`progress.ndjson`.** The run writes one JSON object per line as it goes, in the `--out` directory, or in `.lynkeus/last-run.progress.ndjson` when there is none. The first event, `run-start`, names every case in the order the jobs take them, with how long each took when it last passed. Then each case has a `case-start` (its job, attempt and host) and a `case-end` (its result and time), each step has a `step` event with its place in the case, and `run-end` says how it ended. A `report` event carries the report's address when `--push` made one. A step event also carries `heading`, the numbered section the step is in (`# 3 A wrong PIN` in the case: see [Sections](/reference/case-format/#sections)).
+- **A status line.** In a terminal, the run keeps one line under its output: cases done and failed, the time spent and the time left, and what each job is running and in which section. The time left comes from how long each case took when it last passed, else from the cases this run has finished. The line is left out when stderr is not a terminal, when `CI` is set, and with `--progress json` or `--progress none`.
+- **`--progress json`.** The same events, one per line, on stdout. The run's summary goes to stderr instead, so a program reads stdout as events alone.
+
+[`lynkeus case status`](#lynkeus-case-status) reads the file from any terminal. Over MCP, [`case_run`](/guides/ai-agents/) sends progress notifications to a client that passes a progress token.
+
+#### Hosts that die
+
+A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, or with `--host-command` and `--keep-hosts` (one host per job), the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own (`lynkeus-headless-<pid>-2.log` in the temporary folder, the first being `lynkeus-headless-<pid>.log`), so the one that died keeps what explains it.
+
+Before each case the run also asks the host how full its heap is, and writes one line (`host: heap 1240 MB of 4096 MB`). Past `--host-heap` percent of the limit, it starts the host again, so a case does not begin on a host about to run out. `lynkeus call memory` gives the same reading by hand.
+
+### `lynkeus case status`
+
+```bash
+lynkeus case status [dir]
+```
+
+Says where a run of cases is: how many are done, what each job is running and in which section, the failures so far and the time left.
+
+It reads `progress.ndjson`, which `case run` writes as it goes. It works while the run goes on, from another terminal, and after it ends. A run whose process is gone without finishing says so. The time left comes from how long each case took when it last passed, else from the cases the run has finished.
+
+| Argument | Meaning |
+|---|---|
+| `dir` | Optional. The run directory (the `--out` of `case run`), or its `progress.ndjson`. Without it, the last run of this project. |
+
+With `--json`, it prints the same as an object: `state` (`running`, `finished` or `stopped`), the counts, `failures`, `running` (each job's case and step), `etaMs` and the report's address.
+
+```bash
+lynkeus case run --out run &
+lynkeus case status run
+```
+
+Without any run to read, it prints `no run here yet` and exits with 1. Over MCP it is the `case_status` tool.
 
 ### `lynkeus case prepare`
 
@@ -1038,6 +1124,135 @@ Writes an example case (`example.md`), the reference of the format (`README.md`)
 | Flag | Meaning |
 |---|---|
 | `--force` | Overwrite what is there. |
+
+### `lynkeus case coverage`
+
+```bash
+lynkeus case coverage [--route <Route>] [--seen <dir>]
+```
+
+Says which of the app's screens the cases touch, which none does, and which screens a case names that the app no longer has.
+
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`). The screens come from the route graph, so run `lynkeus map build` first.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--route <Route>` | | Only this screen: the cases that touch it. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+
+### `lynkeus case impact`
+
+```bash
+lynkeus case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]
+```
+
+Lists the cases a branch's changes reach, so that you can run only those, and the reached screens that no case covers.
+
+It takes the screens that the diff against `--base` touches or imports, as [`map check`](#lynkeus-map-check) finds them, and crosses them with what each case covers, as [`case coverage`](#lynkeus-case-coverage) finds it.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--base <ref>` | `main` | The git ref to diff against. |
+| `--depth <n>` | `4` | How many imports away a change still reaches a screen. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+| `--files` | | Print only the case files, one per line. |
+
+```bash
+lynkeus case run $(lynkeus case impact --files)
+```
+
+### `lynkeus case new`
+
+```bash
+lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
+```
+
+Drafts a case for a screen, for you to finish. It prints:
+
+- the frontmatter, with the questions a reader needs answered;
+- the setup that the project's fixtures server offers (from `lynkeus.describe`), commented out, because what state the case needs is your call;
+- the presses from `--from` to the screen, as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
+- the checks left to write.
+
+| Argument | Meaning |
+|---|---|
+| `id` | The case id, which is also its file name: lower case letters, digits, dots, dashes and underscores. |
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--to <Route>` | | Required. The screen the case is about. It must be in the route graph, so run `lynkeus map build` first. |
+| `--from <Route>` | `cases.start` | Where the case begins. One of the two is required. |
+| `--title <text>` | | What a person can do there, as the report will title it. |
+| `--write` | | Save it as `<cases dir>/<id>.md` instead of printing it. It never overwrites a file that is there. |
+
+### `lynkeus case here`
+
+```bash
+lynkeus case here <id> [--title <text>] [--write] [--host]
+```
+
+Drafts a case from the screen the app shows now, with checks that pass as it is. It reads the attached app's screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three things on it, `testID`s first and then texts. Use it for a project's first case that runs green at once, or as the start of one for a screen.
+
+| Argument | Meaning |
+|---|---|
+| `id` | The case id, which is also its file name: lower case letters, digits, dots, dashes and underscores. |
+
+| Flag | Meaning |
+|---|---|
+| `--title <text>` | What the case shows, as the report will title it. |
+| `--write` | Save it as `<cases dir>/<id>.md` instead of printing it. It never overwrites a file that is there. |
+| `--host` | Start `lynkeus headless start` for the read and stop it afterwards. |
+
+```bash
+lynkeus case here first-screen --host --write
+lynkeus case run --host
+```
+
+### `lynkeus ci`
+
+```bash
+lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
+```
+
+Runs the suite the way a CI job does: it brings the backend up, runs the cases across N headless hosts, reports, and tears everything down. It runs `case run` with `--host-command` and `--keep-hosts`, so a host that dies takes one case with it, not every case after it. The exit code is the suite's.
+
+It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/reference/configuration/#ci)): the commands that start and stop your backend, a URL to wait for, how many hosts to run and the command that starts one, whether to push, and more `case run` flags. lynkeus knows no backend, so it runs only what you give it. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told) and count up by one per host. It always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`. When `GITHUB_STEP_SUMMARY` is set, it appends the run's summary there.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--affected` | | Run only the cases that the changes against `--base` reach, as `case impact` finds them. It builds the route graph first if there is none. With no case to run, it says so and exits with 0. |
+| `--base <ref>` | `origin/main` | The git ref `--affected` diffs against. |
+| `--jobs <n>` | `ci.hosts.count`, else `2` | How many hosts, and so how many cases at once. |
+| `--out <dir>` | `lynkeus-run` | Where the run goes. |
+| `--keep-up` | | Leave the backend up afterwards. The hosts end with the run. |
+| `--dry-run` | | Say what it would do and run nothing. |
+
+```bash
+lynkeus ci --dry-run
+lynkeus ci --affected --base origin/main
+```
+
+### `lynkeus fixtures describe`
+
+```bash
+lynkeus fixtures describe [--fresh]
+```
+
+Lists what the project's fixtures server can do: each command, what it makes or reads, and its parameters. It is for whoever writes a case.
+
+It starts the command that `cases.fixtures` names and asks `lynkeus.describe`. A server that answers with names only shows names. What the server answered is kept in `.lynkeus` and shown for a day without starting the server again.
+
+| Flag | Meaning |
+|---|---|
+| `--fresh` | Ask the server even when it described itself in the last day. |
+
+### `lynkeus fixtures check`
+
+```bash
+lynkeus fixtures check
+```
+
+Tells whether the project's fixtures server keeps the fixtures protocol. It starts the server, asks `lynkeus.describe` and checks the answer: a list of commands, no name twice, a protocol version this lynkeus knows, and whether the server says it is up. It changes nothing in the backend. See [Fixtures](/guides/fixtures/).
 
 ### `lynkeus report push`
 
@@ -1112,6 +1327,27 @@ Shows how one case came out in each of the project's last runs, newest first: �
 | `--project <name>` | the app's folder name | The project. |
 | `--runs <n>` | `50` | How many of the latest runs to read. |
 
+### `lynkeus report prune`
+
+```bash
+lynkeus report prune [dir] [--older <age>] [--dry-run]
+```
+
+Deletes the run folders that `case run --out` left, when they ended more than a while ago. It looks at the folder given, or at each folder right under it, and deletes those that hold a run (`run.json` and `cases.jsonl`) older than `--older`. Nothing else is touched. Pushed reports stay on the service: this only frees the disk. It does not need a reports key.
+
+| Argument | Meaning |
+|---|---|
+| `dir` | Optional. A run folder, or the folder that holds them. |
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--older <age>` | `7d` | How old a run must be: `7d`, `12h` or `30m`. |
+| `--dry-run` | | List what would go and delete nothing. |
+
+```bash
+lynkeus report prune runs --older 3d --dry-run
+```
+
 ## headless
 
 Commands for the headless host: the app hosted in Node under jest, with no simulator. See [Headless](/platforms/headless/).
@@ -1124,23 +1360,24 @@ lynkeus headless start [--entry <file>] [-- <jest arguments>]
 
 Hosts the app in Node (jest and React Native Testing Library) and waits for a driver. It speaks the same protocol as a device. Alias: `headless`.
 
-It needs `LYNKEUS_TOKEN` in the environment, with the value the app reads for its token, and refuses to start without it. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
+It needs the project's token and refuses to start without it: the one `lynkeus init` or `lynkeus headless init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` in the environment, which wins. The app's API base comes from the environment variable that `apiEnv` names (default `API_URL`), or else from `apiUrl` in `lynkeus.config.json`. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
 
 ```bash
-LYNKEUS_TOKEN=secret lynkeus headless start
+lynkeus headless start
+API_URL=http://127.0.0.1:3000/ lynkeus headless start
 ```
 
 ### `lynkeus headless init`
 
 ```bash
-lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force]
+lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]
 ```
 
-Writes the headless entry: the default mocks, a guard that refuses a backend that is not local, and your `App`.
+Writes the headless entry: the default mocks, a guard that refuses a backend that is not local, and your `App`. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
 
 It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app has none, so it cannot run on the headless host.
 
@@ -1151,6 +1388,7 @@ It stops with `no App component found` when it finds no root component and `--co
 | `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else `API_URL` | The environment variable the app reads its API base from. |
 | `--auto` | | Also mount the agent from `index.js` with `auto()`, as [`lynkeus init`](#lynkeus-init) does. |
 | `--force` | | Overwrite an existing entry. |
+| `--no-install` | | Do not add jest, Testing Library and `lynkeus-headless` to the project. |
 
 ### `lynkeus headless doctor`
 
@@ -1191,7 +1429,7 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 | `{"ok": true, "out": "…", "json": …}` | The command succeeded. `out` is what the terminal would print. `json` is present when the command has machine-readable output. |
 | `{"ok": false, "error": "…", "why": "…"}` | The command failed. `why` is present when lynkeus could read a reason from the app. |
 
-The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the app has attached. The line `["exit"]` ends the session. Some commands are not available in a session, among them `case run`, the `report` commands and `headless start`; `lynkeus help <command>` says whether one is.
+The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the app has attached. The line `["exit"]` ends the session. A session is for commands that act on the attached app, so a command that needs no app is not available in it: `init`, `status`, `map build`, `map ci`, `map changes`, `events`, `funnel`, `headless start`, `headless init`, `headless doctor`, and the `report` and `fixtures` commands. Others are left out on purpose: `case run`, `case status`, `case prepare`, `case init`, `case coverage`, `case impact`, `case new`, `ci`, `flake`, `smoke`, `crawl` and `record`. `case here` works in a session. `lynkeus help <command>` says whether a command is.
 
 ### `lynkeus mcp`
 
@@ -1199,7 +1437,7 @@ The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the
 lynkeus mcp [--full]
 ```
 
-Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show` and `map plan`. See [AI agents](/guides/ai-agents/).
+Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
 
 | Flag | Meaning |
 |---|---|
@@ -1223,7 +1461,7 @@ Every command accepts these.
 | Flag | Default | Meaning |
 |---|---|---|
 | `--root <dir>` | the current folder | The app's folder: where `lynkeus.config.json` and `.lynkeus/` live. |
-| `--device <udid\|name>` | | The simulator to use, by udid or by name. |
+| `--device <udid\|name>` | | The simulator to use, by udid or by name, or an Android emulator by its `adb` serial. |
 | `--app <bundleId>` | | The app's bundle id, for launching and for simulator commands. |
 | `--launch` | | Relaunch the app before attaching. Needs `--app`. |
 | `--attach-timeout <ms>` | `15000` | How long to wait for the app to attach. |

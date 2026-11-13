@@ -47,6 +47,15 @@ export const androidDevices = async (): Promise<DeviceInfo[]> => {
   }
 };
 
+/**
+ * A phone on USB (or over adb's network) cannot reach this machine at 10.0.2.2 as the emulator can: `adb reverse`
+ * gives it the driver's port at its own localhost, which the agent dials next. Quietly nothing without adb or a phone.
+ */
+export const reversePhones = async (port: number): Promise<void> => {
+  const phones = (await androidDevices().catch(() => [])).filter((d) => d.type === 'physical');
+  await Promise.all(phones.map((d) => run('adb', ['-s', d.id, 'reverse', `tcp:${port}`, `tcp:${port}`]).catch(() => undefined)));
+};
+
 /** The Android device an app that said it runs on Android is on: the one asked for, or the first that is up. */
 export const pickAndroidDevice = async (wanted?: string): Promise<DeviceInfo> => {
   const devices = await androidDevices();

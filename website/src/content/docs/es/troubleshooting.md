@@ -38,6 +38,8 @@ Cada línea de su respuesta corresponde a una regla. Esta tabla dice qué signif
 | `the last command that failed was …` | Ninguna otra regla explicó el fallo; este es el último error registrado. | Parte de ese error. |
 | `nothing in the evidence explains it` | La pantalla, las peticiones y la traza se ven normales. | Lee la pantalla con `lynkeus screen` y compárala con lo que esperabas. |
 
+Las reglas sobre el backend (`401`, `403`, `5xx` y `429`) leen solo lo que respondió el servidor. Una petición a la que contestó un `app.mock`, o cuya respuesta perdió, está marcada `mocked` (en `lynkeus requests` y en `lynkeus trace` se lee `(mocked)`), y `why` no la usa: un 500 que puso el propio caso ya no se lee como «un error del servidor, no de la app», ni te manda a reproducir con `curl` lo que el caso mismo hizo.
+
 En `lynkeus session`, el mismo diagnóstico viaja en el campo `why` de la respuesta. En un caso, queda en el reporte bajo el paso que falló.
 
 ## El driver no se conecta con la app
@@ -53,7 +55,7 @@ En `lynkeus session`, el mismo diagnóstico viaja en el campo `why` de la respue
 1. **El build no es de depuración.** El agente solo existe en builds de depuración. Un build de producción no lo contiene.
 2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: __DEV__ && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo.
 3. **El token llegó vacío a la app.** El agente queda apagado y la app lo dice en su log. Está más abajo: [el log dice que el token está vacío](#la-app-registra-lynkeus-the-app-passed-a-token-and-it-is-empty).
-4. **El token no coincide.** El token que recibió la app tiene que ser el valor de `LYNKEUS_TOKEN` que lee el CLI. En una app de React Native es el valor con el que arrancó Metro. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
+4. **El token no coincide.** El token que recibió la app tiene que ser el que lee el CLI: `LYNKEUS_TOKEN` si está definida y, si no, el de `.lynkeus/token`. En una app de React Native es el valor con el que se empaquetó el bundle, y Metro necesita `--reset-cache` después de un cambio. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
 5. **Los puertos no coinciden.** Si definiste `LYNKEUS_PORT` o `port` en la configuración, la app tiene que haber recibido el mismo puerto al montar el agente.
 6. **La app tarda en arrancar.** Dale más tiempo con `--attach-timeout 60000`, o con `attachTimeout` en la configuración.
 
@@ -68,7 +70,7 @@ Hay dos causas propias de Expo. El agente no funciona en Expo Go, porque tiene c
 :::
 
 :::note[Dispositivos físicos]
-Un teléfono real no está soportado. El CLI busca un simulador o un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` y `adb` sobre uno de ellos.
+Un teléfono Android por USB funciona como un emulador (ver [Android](/es/platforms/android/)). Un iPhone físico no está soportado: el CLI busca un simulador encendido, y todo lo que hace desde afuera pasa por `simctl`.
 :::
 
 ### La app registra `lynkeus: the app passed a token and it is empty`
@@ -325,14 +327,14 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 **Qué ves.** El paso aparece con `this host has no <comando>`, y el caso se detiene sin contar como fallido.
 
-**Por qué pasa.** El host donde corre el caso no puede hacer ese paso. Los dos motivos habituales son pedir una respuesta simulada con `app.mock` en un dispositivo real, y llamar a un comando que la app no registra en ese build.
+**Por qué pasa.** El host donde corre el caso no puede hacer ese paso. Los dos motivos habituales son pedir algo que solo tiene el host sin pantalla (`app.network`, `app.clock`, `app.scan`, `app.gallery`, o las respuestas de `app.biometrics --next`) en un simulador o un emulador, y llamar a un comando que la app no registra en ese build.
 
 **Cómo se arregla.** No es un fallo de la app. Si el paso solo tiene sentido en un tipo de host, ponlo dentro de un bloque `on:`, para que en los demás se omita y el caso continúe:
 
 ```yaml
 - on: headless
   do:
-    - app.mock: { route: "GET /v3/accounts", status: 500 }
+    - app.network: "off"
 ```
 
 ### Un caso pasa solo al segundo intento
@@ -342,6 +344,34 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 **Por qué pasa.** Un caso que falla se ejecuta una vez más antes de darse por fallido. Que pase al reintentar quiere decir que es intermitente: hay una condición de carrera en el test o en la app.
 
 **Cómo se arregla.** No lo ignores. Ejecuta con `--once` para ver el primer fallo sin reintento, y sigue la guía de [tests intermitentes](/es/guides/flaky-tests/).
+
+## Problemas con una ejecución larga
+
+### `lynkeus case status` dice `stopped`
+
+**Qué ves.** `stopped: its process (1234) is gone without finishing; 12 of 40 cases done …`
+
+**Por qué pasa.** `case status` lee `progress.ndjson`, y la ejecución escribió eventos pero nunca `run-end`: su proceso ya no existe. Se cortó con un `kill`, se cerró la terminal o el runner la mató.
+
+**Cómo se arregla.** Vuelve a ejecutar lo que faltó. Los casos que terminaron están en `cases.jsonl` de la carpeta de la ejecución.
+
+### `no run here yet`
+
+**Por qué pasa.** `case status` sin argumentos busca la última ejecución de este proyecto en `.lynkeus/last-run.json`, y todavía no hay ninguna (o estás en otra carpeta). Con una carpeta como argumento, el mensaje es `no progress.ndjson at <dir>: is it a directory case run --out wrote?`.
+
+**Cómo se arregla.** Ejecuta `case run`, o dale a `case status` el `--out` de la ejecución que quieres ver.
+
+### La línea de estado no aparece
+
+**Por qué pasa.** Solo se dibuja cuando la salida de error es una terminal y la variable `CI` no está definida, y no con `--progress json` ni con `--progress none`.
+
+**Cómo se arregla.** Sin terminal, lee `progress.ndjson` con `lynkeus case status`, o pide los eventos con `--progress json`.
+
+### Un caso `exclusive` parece colgado
+
+**Qué ves.** `… <id> runs alone: waiting for the cases in flight to end`.
+
+**Por qué pasa.** Es lo esperado: con `exclusive: true`, el caso espera a que terminen los que están en curso, y mientras tanto no empieza ningún otro. Cuando termina, sigue la ejecución.
 
 ## Problemas con los reportes
 
@@ -356,6 +386,14 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 **Por qué pasa.** `--push` sube un directorio, y sin `--out` la ejecución no escribe ninguno. Lo mismo ocurre con `--screenshots` y `--video`, que avisan con `--screenshots and --video keep what they take in the run directory: add --out <dir>`.
 
 **Cómo se arregla.** Agrega `--out <dir>`.
+
+### Una ejecución con `--video` no tiene película
+
+**Qué ves.** `⚠ --video kept no film: this host does not film …`, o un reporte sin película.
+
+**Por qué pasa.** `--video` filma solo donde el host ofrece un comando `record`, y el host sin pantalla incluido, un simulador y un emulador no lo ofrecen. Si el host que filma está en otra máquina, la película se hace allá y el CLI la trae en trozos al terminar cada caso; si no llega, el caso no falla, y la película queda fuera.
+
+**Cómo se arregla.** Usa un host que filme. Con la película en un host remoto, confirma que el host sigue conectado hasta que termina el caso.
 
 ### `not kept on this plan: …`
 
@@ -391,11 +429,11 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 ## Problemas del host sin pantalla
 
-### `lynkeus headless needs LYNKEUS_TOKEN in the environment`
+### `lynkeus headless needs a token`
 
-**Por qué pasa.** `headless start` se niega a arrancar sin token. Una app alojada habla con un backend real, y sin token cualquier proceso de la máquina podría manejarla.
+**Por qué pasa.** `headless start` se niega a arrancar sin token. Una app alojada habla con un backend real, y sin token cualquier proceso de la máquina podría manejarla. El mensaje completo es `lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): …`.
 
-**Cómo se arregla.** Define la variable, con el mismo valor que usa tu driver:
+**Cómo se arregla.** Ejecuta `npx lynkeus init` (o `npx lynkeus headless init`), que crea el token del proyecto en `.lynkeus/token`. En un entorno donde ese archivo no existe, como un job de CI con una copia limpia del repositorio, define la variable:
 
 ```bash
 LYNKEUS_TOKEN=secreto npx lynkeus headless start
@@ -446,9 +484,17 @@ Estas son las causas que reconoce:
 
 ### El host consume cada vez más memoria
 
-**Por qué pasa.** En ejecuciones largas, el heap de Node crece unas decenas de MB con cada reinicio completo de la app.
+**Por qué pasa.** En ejecuciones largas, el heap de Node crece. Hasta 0.5 crecía unos 20 MB por inicio de sesión y pantalla en una app grande, porque cada `jest.fn()` de los mocks de la app guarda con qué se lo llamó; desde 0.6.0 el host borra ese registro cada 10 segundos y el crecimiento que queda es lento.
 
-**Cómo se arregla.** Un runner que maneja cientos de casos tiene que reiniciar el host cuando `lynkeus call memory` informe un valor demasiado alto. Una forma de hacerlo es `case run --host-command`, que arranca un host nuevo para cada caso.
+**Cómo se arregla.** `lynkeus case run --host` ya vigila el heap: antes de cada caso le pregunta al host cuánto usa (una línea `host: heap … MB of … MB` en el log) y lo arranca de nuevo si pasó del 60 % de su límite; `--host-heap <percent>` cambia ese porcentaje. Si manejas el host tú mismo, `lynkeus call memory` lee el heap después de una recolección y dice dónde se detiene (`heapLimitMb`). `case run --host-command` arranca un host nuevo para cada caso.
+
+### Los casos siguientes fallan con `No app attached`
+
+**Qué ves.** Un caso falla porque el host se cayó (sin memoria, un fallo) y todos los siguientes fallan con `No app attached`, sin haber llegado a la app.
+
+**Por qué pasa.** Con un host que arrancaste tú, no hay nadie que lo reinicie. Con `case run --host` sí lo hay: desde 0.6.0 revisa el host antes de cada caso y, si murió o su app dejó de contestar, arranca otro. El caso que lo perdió sigue fallando, y sus razones dicen cómo terminó el host: `during this case the host exited (…)`, con sus últimas palabras y la ruta de su log. Un host arrancado de nuevo escribe un log propio (`lynkeus-headless-<pid>-2.log` en la carpeta temporal), así que el del host muerto conserva por qué murió.
+
+**Cómo se arregla.** Lee la razón del primer caso fallido y el log de ese host. Si es memoria, baja `--host-heap` para reiniciarlo antes.
 
 ## Notas por plataforma
 
@@ -456,12 +502,12 @@ Estas son las causas que reconoce:
 
 - **Hace falta la New Architecture.** El agente no funciona con la arquitectura anterior.
 - **Solo builds de depuración.** La síntesis de toques usa una API privada de UIKit, envuelta en `#if DEBUG`. En un build de producción esos símbolos no existen.
-- **Solo el simulador.** Un iPhone físico no está soportado.
+- **Solo el simulador.** Un iPhone físico no está soportado: `simctl` solo maneja simuladores.
 
 ### Android
 
 - **La app tiene que ser depurable.** El agente se niega a correr si la app no tiene `FLAG_DEBUGGABLE`.
-- **Solo el emulador.** Un teléfono físico no está soportado.
+- **Emulador o teléfono por USB.** Un teléfono que aparece en `adb devices` funciona como un emulador, sin más configuración.
 - **En el emulador, la app busca al driver en `10.0.2.2`.** Es la dirección con la que el emulador llega a tu máquina. Si el driver escucha en otro lado, pásale la opción `host` al montar el agente.
 
 ### Expo
@@ -474,8 +520,9 @@ Estas son las causas que reconoce:
 ### Host sin pantalla
 
 - **Requiere Node 22 o posterior**, y usa la configuración de jest y la transformación de Babel de tu propia app.
-- **Una app con expo-router no puede correr aquí.** No tiene un componente raíz que exportar, y `headless init` se detiene con `no App component found`. Corre en un simulador o en un emulador.
+- **Una app con expo-router** corre aquí desde 0.4.0: la entrada renderiza el enrutador con `expo-router/testing-library`. `headless init` la escribe cuando encuentra `expo-router` y una carpeta `app/` o `src/app/`; si no encuentra ni un componente `App` ni esas rutas, se detiene con `no App component found`.
 - **No hay video.** `case run --video` filma solo donde el host ofrece un comando `record`, y este host no lo ofrece.
+- **Una app que lee un cuerpo que no es JSON.** El host entrega ese cuerpo como un `SyntaxError` de la propia app (`error instanceof SyntaxError` es verdadero dentro del sandbox de jest), como lo haría un teléfono. Una app que lee así un 404 vacío (un `head :not_found` de Rails) ve el mismo error que en un dispositivo y no se queda reintentando la petición con la pantalla de carga.
 - **No hay píxeles.** `lynkeus screenshot` y `lynkeus snapshot --pixels` necesitan un simulador. La comparación por árbol de `snapshot` sí funciona.
 - **Todo lo nativo está simulado.** La cámara, la biometría y las integraciones con el sistema son mocks. Un WebView se renderiza como una caja vacía. Para probar eso, los mismos casos corren en un simulador.
 

@@ -9,8 +9,8 @@ Esta guía recorre los comandos que actúan sobre la app en ejecución: `screen`
 
 ## Antes de empezar
 
-- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Los dispositivos físicos no están soportados. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
-- La variable `LYNKEUS_TOKEN` de tu terminal tiene el mismo valor que el token que recibió la app. En React Native, es el valor con el que arrancó Metro.
+- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Un teléfono Android por USB cuenta como un emulador; un iPhone físico no está soportado. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
+- El CLI y la app comparten el mismo token. Con `lynkeus init` es el de `.lynkeus/token` y no hay nada que hacer; si lo defines con `LYNKEUS_TOKEN`, la variable de tu terminal tiene que valer lo mismo que recibió la app (en React Native, lo que tenía Metro al arrancar).
 - Estás en la carpeta de la app. Si no, agrega `--root <dir>` a cada comando.
 
 ## Leer la pantalla
@@ -155,7 +155,7 @@ npx lynkeus wait '#row-25' --scroll     # desliza la lista hasta que entre en la
 npx lynkeus wait 800                    # milisegundos, cuando de verdad no hay otra señal
 ```
 
-Por defecto se rinde a los 10 000 ms; `--timeout <ms>` lo cambia.
+Por defecto se rinde a los 10 000 ms; `--timeout <ms>` lo cambia. Con `--since <seq>`, una ruta que la app alcanzó después de esa marca de `lynkeus trace` cuenta como alcanzada aunque ya se haya ido de ella: sirve para una pantalla que se cierra sola.
 
 **`idle`** espera hasta que la app deja de hacer commits, es decir, hasta que llegaron los datos y terminaron las animaciones:
 
@@ -192,13 +192,13 @@ Cada comando suelto paga por arrancar un proceso y conectarse: cerca de 1,5 s. C
 printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]' | npx lynkeus session
 ```
 
-Lee un arreglo JSON de argumentos por línea y responde un objeto JSON por línea: `{ok, out, json?}` si salió bien, `{ok:false, error, why?}` si no. La línea `exit` la termina. Los comandos que ejecutan un flujo completo o alojan la app no están disponibles dentro de una sesión.
+Lee un arreglo JSON de argumentos por línea y responde un objeto JSON por línea: `{ok, out, json?}` si salió bien, `{ok:false, error, why?}` si no. La línea `exit` la termina. Los comandos que no necesitan una app conectada o que llevan un recorrido entero por su cuenta (`smoke`, `crawl`, `record`, `case run`, `headless start`, `report`…) no están disponibles dentro de una sesión.
 
 ## Cómo funciona
 
 El agente vive dentro de la app. Recorre el árbol de React, se queda con los componentes que un usuario podría ver o tocar, mide cada uno y le pregunta a la plataforma cuál recibiría realmente un toque. Por eso sabe qué está cubierto sin adivinar a partir de una imagen. Toda la lectura ocurre en un solo tick de JavaScript.
 
-Dos cosas quedan fuera a propósito. Los valores de los campos con `secureTextEntry` se enmascaran. Y el registro de peticiones guarda método, ruta, estado y duración, nunca encabezados ni cuerpos.
+Dos cosas quedan fuera a propósito. Los valores de los campos con `secureTextEntry` se enmascaran. Y el registro de peticiones guarda método, ruta, estado y duración; las cabeceras y los cuerpos solo los guarda mientras una ejecución de casos con evidencia (`case run --out`) los pide, con los secretos reemplazados. Una petición que contestó un mock (`lynkeus mock`) lleva `(mocked)` en `requests` y en `trace`.
 
 ## Problemas frecuentes
 

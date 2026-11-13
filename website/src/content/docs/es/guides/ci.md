@@ -152,6 +152,53 @@ Cada trabajo en paralelo necesita su propio host, y cada host marca a su propio 
 
 Con trabajos en paralelo, asegúrate de que cada caso cree sus propios datos. Dos casos que comparten un usuario se pisan.
 
+Los casos que corren a la vez comparten el backend. Un caso que cambia lo que ven todos (un flag global, un ajuste para todos los usuarios) rompería a los que corren a su lado, así que márcalo con `exclusive: true` en su encabezado: `case run --jobs` lo ejecuta solo, esperando a que terminen los que están en curso y sin dejar empezar a ningún otro hasta que termina. Su `setup` nunca se prepara por adelantado.
+
+## `lynkeus ci`: todo en un comando
+
+El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, repartir los casos, subir el reporte y bajarlo todo) se puede declarar una vez en `lynkeus.config.json` y ejecutar con un solo comando:
+
+```json title="lynkeus.config.json"
+{
+  "ci": {
+    "backend": {
+      "up": "docker compose up -d",
+      "down": "docker compose down",
+      "ready": "http://127.0.0.1:3000/health"
+    },
+    "hosts": { "count": 4 },
+    "push": true
+  }
+}
+```
+
+```yaml
+      - run: npx lynkeus ci
+        env:
+          LYNKEUS_TOKEN: ${{ secrets.LYNKEUS_TOKEN }}
+          LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
+```
+
+`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Su código de salida es el de la suite. lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
+
+Dos opciones útiles:
+
+- `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`).
+- `--dry-run` imprime lo que haría (qué casos, qué backend, cuántos hosts) sin ejecutar nada. `--keep-up` deja el backend levantado al terminar, para investigar un fallo; los hosts terminan con la ejecución.
+
+Cuando existe `$GITHUB_STEP_SUMMARY`, `lynkeus ci` escribe ahí el resumen del job: cuántos casos pasaron, una tabla con los que fallaron y el enlace al reporte.
+
+El token no sale de `.lynkeus/token`, porque ese archivo no está en un checkout limpio: en CI, `LYNKEUS_TOKEN` tiene que estar definida.
+
+## Seguir la ejecución
+
+En un job de CI la salida no es una terminal (y `CI` está definida), así que `case run` no dibuja su línea de estado. Dos alternativas:
+
+- `--progress json` imprime un evento por línea en la salida estándar (el resumen pasa a la salida de error), que un script puede leer.
+- `progress.ndjson` queda en la carpeta de `--out` y `lynkeus case status <carpeta>` lo resume desde cualquier terminal que tenga acceso a ella: cuántos casos van, qué corre cada trabajo, en qué sección y cuánto falta, calculado con lo que tardó cada caso la última vez que pasó.
+
+Con `--push`, el reporte se crea al empezar la ejecución y se llena caso por caso, así que su dirección sirve desde el primer caso: puedes dejarla en el pull request mientras la suite sigue corriendo.
+
 ## Saber qué pantallas toca un pull request
 
 Hay una pieza que sí viene lista. Este comando escribe un flujo de trabajo en tu repositorio:
@@ -171,7 +218,7 @@ En cada pull request, ese flujo construye el mapa de la app a partir del código
 El job tiene más trabajo antes de llegar a lynkeus: compilar el build de depuración, encender el dispositivo virtual, instalar la app y abrirla. Eso depende de tu proyecto y de tu sistema de CI. Lo que lynkeus necesita saber es poco:
 
 - **Solo builds de depuración.** En iOS, además, la Nueva Arquitectura. En Android, la app debe ser depurable; de lo contrario el agente se niega a funcionar.
-- **Un dispositivo virtual, no uno físico.** El CLI busca un simulador o un emulador encendido. Los dispositivos físicos no están soportados.
+- **Un dispositivo virtual, o un teléfono Android.** El CLI busca un simulador o un emulador encendido; un teléfono Android que `adb devices` lista funciona igual. Un iPhone físico no está soportado.
 - **La app es quien se conecta.** Marca a `localhost:8123` en el simulador de iOS y a `10.0.2.2:8123` en el emulador de Android. Durante los primeros 3 segundos reintenta cada 100 ms; después espacia los intentos hasta un máximo de 1,5 segundos. No hay que abrir ningún puerto hacia la app.
 - **El token se escribe en el bundle.** En una app de React Native lo escribe el plugin `lynkeus-agent/babel` cuando Metro transforma el código, así que el paso que arranca Metro necesita `LYNKEUS_TOKEN` con el mismo valor que el paso que ejecuta los casos. En Expo, la variable de la app es `EXPO_PUBLIC_LYNKEUS_TOKEN`. Un bundle de producción nunca recibe el token.
 - **Un token vacío apaga el agente.** Si la app pasa un token y le llega vacío, el agente no arranca y lo dice en el log de la app: `lynkeus: the app passed a token and it is empty`. En el job se ve como una app que nunca se conecta.
@@ -200,7 +247,9 @@ npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --
 
 **El host no arranca y pide el token.** `headless start` se niega a correr sin `LYNKEUS_TOKEN`. Revisa que el secreto esté expuesto en ese paso.
 
-**La memoria en suites largas.** El host sin pantalla borra cada 10 segundos lo que los `jest.fn()` de los mocks registran de sus llamadas, que era casi todo lo que hacía crecer su heap. Lo que queda crece despacio: una suite de cientos de casos puede reiniciar el host de vez en cuando; `npx lynkeus call memory` informa cuánto lleva.
+**La memoria en suites largas.** El host sin pantalla borra cada 10 segundos lo que los `jest.fn()` de los mocks registran de sus llamadas, que era casi todo lo que hacía crecer su heap. Lo que queda crece despacio, y `case run --host` lo vigila: antes de cada caso le pregunta al host cuánto heap usa y lo arranca de nuevo pasado el 60 % de su límite (`--host-heap` cambia el porcentaje). Si el host muere en un caso, también se arranca otro para el siguiente: ese caso falla, con la causa en sus razones, pero no arrastra a todos los demás con `No app attached`. `npx lynkeus call memory` informa cuánto lleva.
+
+**Un caso falla porque otro cambió algo global.** Con `--jobs`, los casos comparten el backend. Márcalo con `exclusive: true`.
 
 **Dos ejecuciones pelean por el puerto.** En un runner compartido, fija `LYNKEUS_PORT` con un valor distinto en cada job, tanto para el host como para quien lo maneja.
 

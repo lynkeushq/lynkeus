@@ -48,7 +48,7 @@ export const progressNotifier = (send: (params: { progress: number; total?: numb
 };
 
 // Written by hand: a schema library adds fields to every tool that a model pays for on every turn.
-const schemaFor = (c: Command) => {
+export const schemaFor = (c: Command) => {
   const properties: Record<string, Property> = {};
   const required: string[] = [];
   for (const p of c.positionals ?? []) {
@@ -94,7 +94,13 @@ To test without a simulator: call headless_init (it installs what the Node host 
 
 To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
 
-For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs fastsim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.`;
+For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs fastsim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.
+
+A long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.
+
+For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.
+
+A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

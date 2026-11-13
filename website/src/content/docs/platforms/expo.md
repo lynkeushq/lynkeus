@@ -14,10 +14,10 @@ The facts here were verified on a new Expo SDK 57 project, with React Native 0.8
 | Expo Go | Not supported. |
 | Development build | Required. |
 | Config plugin | None needed. The native module is autolinked. |
-| Mounting the agent | `npx lynkeus init` (since 0.3.0). In an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
-| Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN`. The `lynkeus-agent/babel` plugin of React Native CLI apps is not needed. |
+| Mounting the agent | `npx lynkeus init` (since 0.3.0). It installs `lynkeus-agent` with `npx expo install`, and in an expo-router app it writes an `index.js` that calls `auto()` and then loads `expo-router/entry`. |
+| Token in the app | `EXPO_PUBLIC_LYNKEUS_TOKEN`, which `lynkeus init` writes to `.env.local`. The `lynkeus-agent/babel` plugin of React Native CLI apps is not needed. |
 | Headless host | Since 0.4.0, an expo-router app runs on it: `lynkeus headless init` writes an entry that renders the router. See [Headless](/platforms/headless/#an-expo-router-app). |
-| Token in the CLI | `LYNKEUS_TOKEN` |
+| Token in the CLI | `.lynkeus/token`, which `lynkeus init` makes; `LYNKEUS_TOKEN` overrides it. |
 | Routes | Recognized, with expo-router's names (`index`, not `Home`). In `wait` and `see`, written `route:index` (since 0.3.0). |
 | Native tab bar | Not listed as elements. Navigate with `lynkeus nav`. |
 
@@ -28,13 +28,12 @@ The facts here were verified on a new Expo SDK 57 project, with React Native 0.8
 The agent has native code: the part that synthesizes touches and keystrokes and asks the platform which view a touch would reach. Expo Go is a prebuilt app that contains a fixed set of native modules, and the agent is not one of them. A development build is your own app, compiled with the native modules your project depends on.
 
 ```bash
-npx expo install lynkeus-agent
 npx lynkeus init
 npx expo prebuild
 npx expo run:ios
 ```
 
-Use `npx expo run:android` for Android. No config plugin is needed. `lynkeus init` mounts the agent; it is described in the next section.
+Use `npx expo run:android` for Android. No config plugin is needed. `lynkeus init` installs the agent with `npx expo install lynkeus-agent`, mounts it and gives the app its token; `--no-install` skips the install when you add the package yourself. The mounting is described in the next section.
 
 Rebuild whenever `lynkeus-agent` changes version. Its JavaScript reloads through the development server, but its native half is in the binary.
 
@@ -64,7 +63,9 @@ import 'expo-router/entry';
 
 Keep the order: the `auto()` call first, the router import after it.
 
-`npx lynkeus init` makes both changes. It recognizes an Expo project by the `expo` dependency in `package.json`, and an expo-router project by `"main": "expo-router/entry"` with no entry file present. In an Expo project that already has an `index.js`, `index.tsx` or `index.ts`, it adds the `auto()` call to that file, after the last import. In every Expo project it reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, and it prints two reminders: that the agent needs a development build, and that the development server must be started with that variable set.
+`npx lynkeus init` makes both changes. It recognizes an Expo project by the `expo` dependency in `package.json`, and an expo-router project by `"main": "expo-router/entry"` with no entry file present. In an Expo project that already has an `index.js`, `index.tsx` or `index.ts`, it adds the `auto()` call to that file, after the last import. In every Expo project the mount reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`. `init` then writes that variable to `.env.local` and prints two reminders: that the agent needs a development build, and that the development server must be restarted so it reads `.env.local`.
+
+Running it again changes only what is missing. `npx lynkeus status` lists what the project has and what it still lacks, the token in `.env.local` included.
 
 :::note[Since 0.3.0]
 `lynkeus init` arrived in version 0.3.0. On an earlier version, create the file and change `"main"` by hand; the result is the same.
@@ -74,9 +75,11 @@ Keep the order: the `auto()` call first, the router import after it.
 
 Expo inlines an environment variable into the app's JavaScript only when its name starts with `EXPO_PUBLIC_`. Any other `process.env` value is `undefined` in the bundle.
 
-The CLI, on the other hand, is a Node program and always reads `LYNKEUS_TOKEN`.
+The CLI, on the other hand, is a Node program. It reads `LYNKEUS_TOKEN` when it is set, and otherwise the project's token in `.lynkeus/token`.
 
-So the same secret is set under two names:
+So the same secret lives under two names. `lynkeus init` makes the token, keeps it in `.lynkeus/token` (out of git), and writes it to `.env.local` as `EXPO_PUBLIC_LYNKEUS_TOKEN`, which the development server reads when it bundles the app. Restart the development server after `init`.
+
+To use a token of your own instead, set both, with the same value; a variable in the environment wins over each file:
 
 ```bash
 export EXPO_PUBLIC_LYNKEUS_TOKEN=some-local-secret
@@ -92,7 +95,7 @@ A token that the app passes and that arrives empty keeps the agent off. If you c
 lynkeus: the app passed a token and it is empty, so the agent stays off. …
 ```
 
-The same happens when the development server was started without `EXPO_PUBLIC_LYNKEUS_TOKEN`. Before 0.3.0 the agent served any driver in that case, and everything appeared to work while the app ran unprotected.
+The same happens when the development server was started without `EXPO_PUBLIC_LYNKEUS_TOKEN`, in the environment or in `.env.local`. Before 0.3.0 the agent served any driver in that case, and everything appeared to work while the app ran unprotected.
 :::
 
 An Expo app does not use the `lynkeus-agent/babel` plugin that a React Native CLI app needs. Expo's own inlining of `EXPO_PUBLIC_` variables does that job, and nothing about it changed.
@@ -178,12 +181,12 @@ steps:
 - **Native tab bars** cannot be inspected or pressed.
 - **Lowercase route names** need the `route:` prefix in `lynkeus wait` and `lynkeus see`.
 - **The headless host** runs an expo-router app since 0.4.0, through the router itself; before, it could not. See [Headless](/platforms/headless/#an-expo-router-app).
-- **Physical devices** are not supported, as in any React Native app.
+- **Physical devices.** An Android phone over USB works like an emulator. An iPhone is not supported yet.
 - **Versions tested**: Expo SDK 57, React Native 0.86, expo-router, on the iOS simulator and the Android emulator. Other SDK versions need React Native 0.76 or newer with the New Architecture.
 
 ## Common problems
 
-**The app runs but the CLI never attaches.** Confirm you are in a development build and not Expo Go, that `"main"` is `index.js` and that file calls `auto()` before it loads the router, that the development server was started with `EXPO_PUBLIC_LYNKEUS_TOKEN` set, and that the two token variables hold the same value. A token mismatch, or an empty token in the app, produces the same message as no app at all: `No app attached on 127.0.0.1:8123 within 15000ms`. For the empty token, the app's log has the line `lynkeus: the app passed a token and it is empty`.
+**The app runs but the CLI never attaches.** Confirm you are in a development build and not Expo Go, that `"main"` is `index.js` and that file calls `auto()` before it loads the router, that the development server was restarted after `EXPO_PUBLIC_LYNKEUS_TOKEN` was set (in `.env.local` or the environment), and that it holds the same value as the CLI's token. An empty token in the app produces the same message as no app at all: `No app attached on 127.0.0.1:8123 within 15000ms`, and the app's log has the line `lynkeus: the app passed a token and it is empty`. A token that does not match makes the message end in `An app connected but did not answer: its token is not this one`.
 
 **`lynkeus screen` works but `lynkeus press` fails with `Lynkeus native module unavailable`.** The binary on the device was built before the agent was added. Run `npx expo prebuild` and `npx expo run:ios` or `npx expo run:android` again.
 

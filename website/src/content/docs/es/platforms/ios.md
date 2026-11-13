@@ -73,6 +73,10 @@ En un simulador, la capa nativa es real. Los comandos del grupo `os` actúan sob
 | `lynkeus os location <lat>,<lon>` | Fija la ubicación del dispositivo. Con `clear` la borra. |
 | `lynkeus os language [tag]` | Reinicia la app en otro idioma, por ejemplo `de-DE`. Sin argumento usa el de `lynkeus.config.json`. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. |
+| `lynkeus os appstate <active\|background>` | Manda la app al fondo o la trae de vuelta, de verdad: quienes escuchan `AppState` se enteran, y con `active` el comando espera a que el agente se conecte otra vez. `--app` nombra la app que se trae de vuelta. |
+| `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Inscribe o quita Face ID o Touch ID en el simulador. Lo que responde cada solicitud (`--next`, `--fallback`) lo decide la persona frente al dispositivo, así que un caso que lo pide queda como no compatible. |
+
+`lynkeus mock` también funciona en un simulador: responde el agente dentro de la app, antes de que la petición salga, con las mismas reglas que el host sin pantalla (salvo `--sticky`). Con `--lost` la petición sale y el servidor actúa, y a la app le llega un fallo de red. Un caso las usa con `app.mock`.
 
 Ejemplos:
 
@@ -128,7 +132,7 @@ La app intenta conectarse a `localhost:8123` apenas arranca. Si el CLI no la ve,
 1. Que sea un build de depuración.
 2. Que `enabled` sea verdadero en este entorno.
 3. Que el log de la app no diga `lynkeus: the app passed a token and it is empty`. Si lo dice, el token no llegó a la app y el agente quedó apagado; el arreglo está en [Solución de problemas](/es/troubleshooting/).
-4. Que el token que recibió la app sea el `LYNKEUS_TOKEN` del CLI.
+4. Que el token que recibió la app sea el que lee el CLI (`LYNKEUS_TOKEN` o `.lynkeus/token`).
 
 ### Un campo se lee vacío después de escribir en él
 
@@ -142,7 +146,7 @@ Si actualizaste el CLI pero no recompilaste la app, lynkeus avisa que las versio
 
 ## Límites
 
-- **Dispositivos físicos.** No están soportados. El CLI busca un simulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` sobre un simulador.
+- **Un iPhone físico no está soportado.** El CLI busca un simulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl`, que solo maneja simuladores.
 - **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de simulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Builds de producción.** No hay forma de activar el agente en uno, y es intencional.
 

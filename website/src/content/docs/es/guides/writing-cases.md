@@ -94,6 +94,16 @@ Deberías ver cada paso con su duración y, al final, el resumen (los tiempos so
 
 Un paso que falla detiene el caso. La salida muestra entonces la pantalla en el momento del fallo, las últimas peticiones de la app y el porqué: cubierto, oculto tras una capa, deshabilitado, desaparecido.
 
+### Si no quieres empezar de una página en blanco
+
+Hay tres comandos que redactan un caso por ti, y los tres lo imprimen para que lo termines (con `--write` lo guardan en la carpeta de casos, sin pisar un archivo que ya exista):
+
+- **`lynkeus case here <id>`** lee la pantalla que la app muestra ahora y escribe un caso que va a su ruta y comprueba hasta tres de las cosas que hay en ella. Pasa tal como queda, así que sirve de primer caso verde de un proyecto. Con `--host` levanta la app en Node para leerla.
+- **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: las pulsaciones desde donde empieza (`--from`, o `cases.start` de la configuración) hasta ella, según `map plan`; el `setup` que ofrece tu servidor de fixtures, comentado, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
+- **`lynkeus fixtures describe`** lista lo que sabe hacer tu servidor de fixtures, con sus parámetros, para elegir el `setup`. `lynkeus fixtures check` verifica que cumple el protocolo.
+
+Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama.
+
 ## Los pasos que manejan la app
 
 Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son los que usarás a diario:
@@ -110,6 +120,32 @@ Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son l
 | `app.call` | `{ command, params?, expect?, as? }` | Un comando que la app registró con `qa.register`. |
 
 Cualquier otro comando de lynkeus también es un paso, con sus argumentos por nombre: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
+
+### Probar lo que responde (o no) el servidor
+
+`app.mock` contesta una petición antes de que llegue a la red, y sirve en el host sin pantalla y también en un simulador o un emulador:
+
+```yaml
+steps:
+  - app.mock: { route: "GET /v3/accounts", status: 500 }
+  - app.press: "#refresh-button"
+  - app.see: { text: "No pudimos cargar tus cuentas" }
+  - app.mock: clear
+```
+
+Con `lost: true`, la petición sale y el servidor la recibe y actúa, y lo que se pierde es la respuesta: a la app le llega un fallo de red, como si la conexión se hubiera caído a medio camino. Es la forma de probar qué hace la app cuando cree que algo falló y en el backend ya ocurrió (un pago, una vinculación):
+
+```yaml
+steps:
+  - app.mock: { route: "POST /v1/transfers", lost: true, times: 1 }
+  - app.press: "#confirm-transfer"
+  - app.see: { text: "No pudimos confirmar la transferencia" }
+  - assert: { user: u, path: transfers.0.status, equals: created }
+```
+
+Antes de 0.6.0, en un dispositivo `lost: true` hacía fallar la petición sin enviarla, de modo que el servidor nunca actuaba y el mismo caso se comportaba distinto en un teléfono que en el host sin pantalla.
+
+Una petición que contestó un mock queda marcada `(mocked)` en la evidencia del caso, en `lynkeus requests` y en `lynkeus trace`. Y si el caso falla, las razones no culpan al backend por esa respuesta: un 500 que puso el propio caso no se lee como «el backend respondió 500, es un error del servidor, no de la app».
 
 Un objetivo se escribe como en la terminal: `#testId`, un texto, un índice o `x,y`. Dos detalles son propios de los casos:
 
@@ -188,7 +224,27 @@ steps:
 
 `on` acepta `device`, `headless`, `ios`, `android` y `has:<comando>` (el host cuya app registró ese comando). Un `!` adelante lo invierte: `on: "!ios"`. En los demás hosts el paso se omite.
 
-Hay un tercer resultado además de pasar o fallar. Si un paso pide algo que el host no puede hacer, como una respuesta simulada en un dispositivo real, el caso se detiene ahí y se cuenta como `unsupported`: no falla la ejecución, y el mismo caso pasa donde el host sí puede.
+Hay un tercer resultado además de pasar o fallar. Si un paso pide algo que el host no puede hacer, como `app.network` o `app.clock` en un simulador (son del host sin pantalla), el caso se detiene ahí y se cuenta como `unsupported`: no falla la ejecución, y el mismo caso pasa donde el host sí puede.
+
+## Secciones numeradas
+
+En un caso largo, numera sus partes con comentarios que empiezan con un número:
+
+```yaml
+steps:
+  # 1 La primera pantalla saluda
+  - app.see: { text: "Hola" }
+
+  # 2 Un PIN equivocado
+  - app.type: { text: "0000", target: "#pin-input" }
+  - app.see: { text: "PIN incorrecto" }
+
+  # 3 Un PIN correcto
+  - app.type: { text: "1234", target: "#pin-input", clear: true }
+  - app.see: { route: Home.Main }
+```
+
+Cada paso pertenece a la sección del último comentario numerado que tiene encima (`# 3 Un PIN correcto`, o `# 2b …`). No cambian lo que hace ningún paso: sirven para leer. El reporte agrupa los pasos de un caso largo por sección, como el caso, y la línea de estado de `case run` y `lynkeus case status` dicen en qué sección está cada caso. Un paso anterior al primer comentario numerado y todos los de `setup` no tienen sección. Conviene numerarlas como numera `expected` lo que tiene que ser cierto, para casar una cosa con la otra.
 
 ## Pasos propios: macros
 
@@ -254,17 +310,34 @@ Un caso que falla se ejecuta una vez más antes de contarse como fallido. Si pas
 Cada trabajo en paralelo necesita su propio host, y cada host marca a su propio puerto. Arranca un host por puerto y dile a `case run` cuáles son:
 
 ```bash
-# En dos terminales (el token es el mismo que lee la app)
-LYNKEUS_TOKEN=secret LYNKEUS_PORT=8123 npx lynkeus headless start
-LYNKEUS_TOKEN=secret LYNKEUS_PORT=8124 npx lynkeus headless start
+# En dos terminales (el token del proyecto está en .lynkeus/token)
+LYNKEUS_PORT=8123 npx lynkeus headless start
+LYNKEUS_PORT=8124 npx lynkeus headless start
 
 # En una tercera
-LYNKEUS_TOKEN=secret npx lynkeus case run --jobs 2 --ports 8123,8124
+npx lynkeus case run --jobs 2 --ports 8123,8124
 ```
 
 Los casos más largos empiezan primero, para que los trabajos terminen juntos; `--in-order` respeta el orden dado. Si faltan puertos verás `--jobs and --host-command need a driver port per job: --ports with 2`.
 
+Los casos que corren uno al lado del otro comparten el backend. Un caso que cambia lo que ven todos (un flag global, un ajuste para todos los usuarios) rompería a los que corren a su lado: un inicio de sesión que debía rechazarse entra porque otro caso encendió el flag. Márcalo con `exclusive: true` en su encabezado y corre solo: espera a que terminen los que están en curso, ningún otro empieza hasta que termina, y su `setup` nunca se prepara por adelantado.
+
+```yaml
+---
+id: login-blocked-by-flag
+exclusive: true
+---
+```
+
 `--host-command <comando>` va un paso más allá: arranca un host nuevo para cada caso y lo detiene al terminar. En el comando, `{port}` es el puerto al que debe marcar el host y `{job}` el número de trabajo.
+
+### Seguir una ejecución larga
+
+Una suite grande tarda. Mientras corre, `case run` mantiene en la terminal una línea de estado con los casos hechos y fallidos, el tiempo transcurrido y el que falta, y qué corre cada trabajo y en qué sección. Escribe además `progress.ndjson` (en `--out`, o en `.lynkeus/last-run.progress.ndjson`), y desde otra terminal `lynkeus case status` dice dónde va, durante la ejecución o después. Los detalles están en la [referencia de `case run`](/es/reference/cli/#seguir-una-ejecución-larga).
+
+### Si el host se cae
+
+Con `--host`, si el host muere a mitad de la ejecución o su app deja de contestar, `case run` arranca otro antes del caso siguiente. El caso que lo perdió sigue fallando, y sus razones dicen cómo terminó el host, con sus últimas líneas y su registro. Antes de cada caso, además, lo reinicia si su heap pasó del 60 % de su límite (`--host-heap` cambia ese porcentaje).
 
 ## Cómo funciona
 

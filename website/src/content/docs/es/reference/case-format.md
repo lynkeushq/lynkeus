@@ -57,6 +57,25 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 
 `setup` y `steps` son listas de pasos y aceptan los mismos verbos. La diferencia está en lo que pasa cuando algo falla: un paso de `setup` que falla detiene el caso siempre, incluso con `--continue`, porque los pasos siguientes no tendrían sobre qué apoyarse.
 
+### Secciones numeradas
+
+Un comentario de `steps` cuyo texto empieza con un número abre una sección: `# 3 Un PIN equivocado`, o `# 2b …`. Cada paso que viene después, hasta el próximo comentario así, pertenece a ella. Los demás comentarios son notas y no abren nada.
+
+```yaml
+steps:
+  # 1 El PIN correcto entra
+  - app.type: { text: "1234", target: "#pin-input" }
+  - app.see: { route: Home.Main }
+
+  # 2 Un PIN equivocado
+  - app.type: { text: "0000", target: "#pin-input" }
+  - app.see: { text: "PIN incorrecto" }
+```
+
+Una sección no cambia lo que hace ningún paso; sirve para leer y para informar. En la ejecución guardada con `--out`, cada paso de `steps` lleva `heading` (`2 Un PIN equivocado`), y el reporte agrupa los pasos de un caso largo por sección. Los eventos `step` de `progress.ndjson` y la línea de estado de `case run` la nombran. Un paso anterior al primer comentario numerado, y todos los de `setup`, no tienen `heading`. Un bloque `on:`/`do:` cuenta como tantos pasos como contiene, todos de la misma sección.
+
+Conviene numerar las secciones como numera `expected` lo que debe ser cierto, para que quien lee pueda casar una cosa con la otra.
+
 ### Cómo se escribe un paso
 
 Cada paso es una sola clave: el **verbo**, seguido de su valor. Un verbo sin valor se puede escribir solo.
@@ -345,6 +364,20 @@ Algunas opciones tienen un nombre alternativo, más claro dentro de un caso:
 | `durationMs` | `--duration` |
 | `advanceMs` | `--advance` |
 
+#### `app.mock`: respuestas simuladas y respuestas perdidas
+
+`app.mock` responde una petición antes de que llegue a la red. La ruta se escribe `MÉTODO /ruta`; sin método coincide con cualquiera, y se compara por contenido (con `^` al principio, como expresión regular).
+
+```yaml
+- app.mock: { route: "GET /v3/accounts", status: 500, delayMs: 3000 }
+- app.mock: { route: "POST /v1/transfers", lost: true, times: 1 }
+- app.mock: clear
+```
+
+Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se pierde es solo la respuesta, y a la app le llega un fallo de red. Es lo mismo en el host sin pantalla y en un simulador, un emulador o un teléfono. Hasta 0.5 un dispositivo hacía fallar la petición sin enviarla.
+
+Una petición que contestó un mock (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y la evidencia de un caso fallido la lista con `(mocked)`. Las reglas que explican un fallo, como «el backend respondió 500 (error del servidor, no de la app)», leen solo lo que respondió el servidor: un 500 que puso el propio caso no se le atribuye al backend.
+
 Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <clave>`. Un verbo que no corresponde a ningún comando ni a ningún macro falla con `app.<nombre> is not a step: lynkeus has no command <nombre>, and the project declares no macro for it`.
 
 ## Verbos que preparan y leen el backend
@@ -592,7 +625,7 @@ Cada paso termina en uno de cuatro estados:
 | `skipped` | No se ejecutó: su condición `on:` no se cumplía, era un `app.press` opcional sin nada que pulsar, o un paso anterior ya había fallado. |
 | `unsupported` | El host donde corre el caso no puede hacerlo. |
 
-Un paso queda `unsupported` cuando pide algo que ese host no tiene: una respuesta simulada con `app.mock` en un dispositivo real, o un comando que la app no registra en ese build. En el reporte se lee `this host has no <comando>`. No es un fallo de la app. El caso se detiene ahí, cuenta como uno que no puede ejecutarse en este host y no hace fallar la ejecución.
+Un paso queda `unsupported` cuando pide algo que ese host no tiene: un comando del host sin pantalla (`app.network`, `app.clock`, `app.scan`) en un simulador, o un comando que la app no registra en ese build. En el reporte se lee `this host has no <comando>`. No es un fallo de la app. El caso se detiene ahí, cuenta como uno que no puede ejecutarse en este host y no hace fallar la ejecución.
 
 Un caso termina como `passed`, `failed` o `unsupported`. Uno que falla se ejecuta una vez más antes de darse por fallido; si pasa en el segundo intento, el reporte lo marca como aprobado al reintentar. La opción `--once` desactiva ese segundo intento.
 

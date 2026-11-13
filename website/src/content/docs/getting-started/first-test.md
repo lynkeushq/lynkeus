@@ -11,7 +11,7 @@ Driving by hand first is not a detour. A case is made of the same commands, so a
 
 - The agent is installed and `npx lynkeus screen` prints your app's screen. If not, follow [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
 - The app is running on a simulator or emulator.
-- `LYNKEUS_TOKEN` is exported in your shell, with the value the app received when it was bundled.
+- The CLI has the token the app was bundled with: the project's `.lynkeus/token`, which `lynkeus init` made, or `LYNKEUS_TOKEN` in your shell when you set a value of your own.
 
 The examples use a small app with two screens. `Home` has a title, a text input and a button; the button opens `Details`. Substitute your own `testID`s and routes as you go.
 
@@ -209,9 +209,11 @@ You should see one line per step as it runs, then a verdict for the case and a t
 1/1 passed
 ```
 
-Your timings will differ. The command exits with code 0 when no case failed, and 1 otherwise, so a CI job can use it directly.
+Your timings will differ. The step lines go to standard error and the summary at the end to standard output. The command exits with code 0 when no case failed, and 1 otherwise, so a CI job can use it directly.
 
-Without a file argument, `npx lynkeus case run` runs every `.md` file in the `cases` folder.
+In a terminal, the run also keeps a status line at the bottom while it goes: cases done and failed, time spent and, once it can tell, time left, and the case and step running. It is gone when the run ends. `--progress none` leaves it out. [`lynkeus case status`](/reference/cli/#lynkeus-case-status) reads the same from another terminal, during the run or after it.
+
+Without a file argument, `npx lynkeus case run` runs every `.md` file under the `cases` folder, subfolders included, except a `README.md`. A folder given as the argument stands for every case under it.
 
 ### 3. Make it fail, and read the failure
 
@@ -259,7 +261,7 @@ A step whose name does not start with `app.` is not sent to the app. It is a **f
 
 ## Common problems
 
-**`case run` answers that there are no cases under `cases`.** You ran `case run` with no file and there is no `cases` folder, or it holds no `.md` files. Pass the file, or create the folder.
+**`case run` answers `no cases under cases`.** You ran `case run` with no file and there is no `cases` folder, or it holds no `.md` files. Pass the file, create the folder, or point `cases.dir` in `lynkeus.config.json` at where your cases are.
 
 **A step fails with `No app attached …`.** The driver could not reach the app. See the common problems in [the installation page](/getting-started/installation-react-native/#the-cli-never-attaches).
 

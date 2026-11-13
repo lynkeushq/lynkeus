@@ -37,10 +37,13 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 | `--screenshots` | Una imagen de la pantalla después de cada paso de la app, y a su lado un `.json` con lo que la pantalla contenía. |
 | `--video` | Una película de cada caso, donde el host ofrece un comando `record`. Cada paso anota en qué segundo empezó. |
 | `--video-fps <n>` | Los cuadros por segundo de la película. Por defecto, 30. |
+| `--video-scale <n>` | Los píxeles por punto de la película, donde el host lo permite (fastsim: de 1 a 3, y 2 si no lo indicas). |
 
-Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
+La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
-La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película.
+La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
+
+Si el host que filma está en otra máquina (fastsim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
 
 Si un caso falla y se reintenta, el segundo intento deja su evidencia en una carpeta aparte con el sufijo `.2`.
 
@@ -58,7 +61,9 @@ Si un caso falla y se reintenta, el segundo intento deja su evidencia en una car
 
 El archivo se escribe al empezar y otra vez al terminar. Una ejecución interrumpida se reconoce porque no tiene `finishedAt` ni `totals`.
 
-Cada línea de `cases.jsonl` es un intento de un caso: su `id`, título, descripción y archivo, el número de intento (1, o 2 para la segunda oportunidad), el resultado, cuándo empezó, cuánto duró y sus pasos. Cada paso dice a qué parte pertenece (`setup` o `steps`), si pasó, falló, se omitió o no se pudo hacer en este host, cuánto tardó, su error, y los eventos que la app envió a su analítica mientras corría. Un intento fallido conserva su evidencia: la pantalla, las peticiones y el diagnóstico.
+Cada línea de `cases.jsonl` es un intento de un caso: su `id`, título, descripción y archivo, el número de intento (1, o 2 para la segunda oportunidad), el resultado, cuándo empezó, cuánto duró y sus pasos. Cada paso dice a qué parte pertenece (`setup` o `steps`), si pasó, falló, se omitió o no se pudo hacer en este host, cuánto tardó, su error, y los eventos que la app envió a su analítica mientras corría. Si el caso numera sus pasos (`# 3 Un PIN equivocado`), un paso de `steps` lleva además `heading` con esa sección (`3 Un PIN equivocado`); uno anterior al primer comentario numerado, y todos los de `setup`, no lo tienen. Un intento fallido conserva su evidencia: la pantalla, las peticiones y el diagnóstico.
+
+Junto a `run.json` y `cases.jsonl`, el directorio guarda `progress.ndjson`: un evento por línea con el avance de la ejecución (cada caso al empezar y al terminar, y cada paso con su sección). `lynkeus case status run` lo lee durante la ejecución y después. No es parte del formato de la ejecución que lee el servicio.
 
 Ese formato es un contrato. Los tipos (`RunManifest`, `RunCase`, `RunStep`, `RunEvent`) y la constante `RUN_SCHEMA` están en el paquete `lynkeus-protocol`. A un campo solo se le agregan cosas; si cambia el significado de uno existente, sube el `schema`. Un programa que lee estos archivos debe rechazar un `schema` que no conoce.
 
@@ -78,18 +83,21 @@ export LYNKEUS_REPORTS_KEY=lk_…
 npx lynkeus case run --out run --screenshots --push
 ```
 
-`--push` sube el directorio cuando la ejecución termina. Deberías ver, al final del resumen, la dirección del reporte y qué cambió respecto de la ejecución anterior:
+Con `--push`, el reporte se crea cuando la ejecución empieza y se va llenando caso por caso, así que su dirección funciona desde el primer caso: la CLI la imprime al empezar (`report: https://lynkeus.io/r/… (it fills as the cases run)`) y tu equipo puede abrirla mientras la suite corre. Si algún envío falla a mitad de camino, se reintenta al final. Un servicio de reportes anterior a esto no admite el llenado progresivo: recibe la ejecución entera al terminar, como antes. Al final del resumen verás la dirección y qué cambió respecto de la ejecución anterior:
 
 ```text
 3/4 passed
 report: https://lynkeus.io/r/…
 newly failing (1): checkout-gift
 fixed since the run before (1): settings-dark-mode
+run folder: 48.2 MB on disk · `lynkeus report prune . --older 7d` frees old ones
 ```
 
 La CLI habla con `https://lynkeus.io` salvo que `LYNKEUS_REPORTS_URL` nombre otro servicio.
 
 La presencia de la clave se comprueba antes de ejecutar nada, para que una clave faltante no aparezca recién cuando ya corrieron todos los casos. En cambio, si la subida falla al final, la ejecución no se pierde ni cambia su resultado: verás `the report was not uploaded: <motivo>` y el directorio sigue en tu disco.
+
+La última línea dice cuánto ocupa la carpeta de la ejecución. Las carpetas se acumulan: `lynkeus report prune <carpeta> --older 7d` borra las que terminaron hace más de lo que le digas (`--dry-run` lista sin borrar), y la clave `report.afterPush: "delete"` de la [configuración](/es/reference/configuration/#reportes-report) borra la carpeta apenas el servicio tiene todos sus archivos. Los reportes ya subidos no se tocan.
 
 Una ejecución que ya tienes guardada se sube después con:
 
@@ -101,7 +109,7 @@ npx lynkeus report push run --project mi-app
 
 ## Qué muestra el reporte
 
-El reporte presenta cada caso con sus pasos. Junto a ellos corre la película, sincronizada con el paso que se está viendo, o la captura de pantalla de cada paso. Desde 0.5.0, un host que puede (fastsim en una Mac) guarda las capturas en AVIF, cerca de un quinto de lo que pesa un PNG; `--frames png` las deja en PNG, para comparar píxel por píxel. Arriba de los pasos va de qué se trata el caso: `description`, `why`, `given`, `ticket` y `expected`. Cada paso lista los eventos de analítica que envió, con el servicio al que fueron (más de 40 servicios: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase y Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly y otros), y las peticiones que mandó la app, con encabezados y cuerpos de ida y de vuelta. Los secretos (contraseñas, códigos, tokens, números de tarjeta, `Authorization` y cookies) se reemplazan por `…` y un cuerpo se corta a los 16 KB; desde 0.5.0, en toda ejecución con `--out`. Un caso fallido muestra por qué falló. La ejecución aparece en **Runs** con su rama y su commit.
+El reporte presenta cada caso con sus pasos. Junto a ellos corre la película, sincronizada con el paso que se está viendo, o la captura de pantalla de cada paso. Desde 0.5.0, un host que puede (fastsim en una Mac) guarda las capturas en AVIF, cerca de un quinto de lo que pesa un PNG. Las de un simulador o un emulador llegan como PNG y la CLI las vuelve a codificar en AVIF, con lo que quedan en un 4 % de su peso; `--frames png` las deja en PNG, para comparar píxel por píxel. Arriba de los pasos va de qué se trata el caso: `description`, `why`, `given`, `ticket` y `expected`. Los pasos de un caso largo se agrupan por las secciones numeradas del caso (`# 3 Un PIN equivocado`), como están escritos en él. Una petición que contestó un mock del caso lleva la marca `mocked`, y los motivos de un fallo no culpan al backend por esa respuesta. Cada paso lista los eventos de analítica que envió, con el servicio al que fueron (más de 40 servicios: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase y Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly y otros), y las peticiones que mandó la app, con encabezados y cuerpos de ida y de vuelta. Los secretos (contraseñas, códigos, tokens, números de tarjeta, `Authorization` y cookies) se reemplazan por `…` y un cuerpo se corta a los 16 KB; desde 0.5.0, en toda ejecución con `--out`. Un caso fallido muestra por qué falló. La ejecución aparece en **Runs** con su rama y su commit.
 
 Si ejecutaste con `--traces`, cada paso muestra además las peticiones que envió la app, con lo que mandó y lo que recibió, y los jobs y llamadas que el backend disparó por cada una. Las consultas a la base nunca se guardan ni se muestran, porque nombran tus tablas. Está en [trazas del backend](/es/guides/backend-traces/). Si `cases.serverEvents` nombra un fixture que los lee, también aparecen los eventos que tu backend mandó a su analítica, marcados BACKEND.
 
