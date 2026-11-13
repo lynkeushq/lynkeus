@@ -14,6 +14,7 @@
 - In a terminal, a run keeps a status line under its output: cases done and failed, time spent and left, and what each job runs and in which section. The time left comes from the cases' past times, else from this run's. `--progress none` leaves it out.
 - `lynkeus case status [dir]` reads where a run is, during or after it, from any terminal (`--json` for a program); a run whose process is gone without finishing says so. Over MCP it is the `case_status` tool, and `case_run` sends MCP progress notifications to a client that passes a progress token.
 - With `--push`, the report is made when the run starts and fills case by case, so its address works from the first case; a send that fails is tried again at the end. A reports service from before this gets the whole run at the end, as it did.
+- A report says which numbered section of the case each step is in: a run file's step carries `heading` (`3 A wrong PIN`) from the comment that opens the section (`# 3 A wrong PIN` in the case's steps), so a report can group a long case's steps the way the case does. A step before the first numbered comment, and every setup step, has none.
 
 ## 0.5.1
 

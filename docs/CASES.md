@@ -215,6 +215,10 @@ it took, and its steps. Each step says which part of the case it is (`setup` or
 `steps`), whether it passed, failed, was skipped or is unsupported on this host, how long it took, its error, and the events the
 app sent to its analytics while it ran. A failed attempt keeps its evidence.
 
+A long case can number its parts with a comment over the step that opens each one
+(`# 3 A wrong PIN`, or `# 3b …`); every step after it, up to the next one, carries
+that `heading`, and a report groups the steps by it. Any other comment is a note.
+
 ### What the backend did
 
 `--traces` shows, under each step, what the backend did for it: every request

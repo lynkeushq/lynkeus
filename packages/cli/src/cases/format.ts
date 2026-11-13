@@ -23,7 +23,7 @@ export type Case = {
   steps: Step[];
   /**
    * The numbered section each of `steps` belongs to, from the comment that opens it (`# 3 A wrong PIN`), as
-   * `3 A wrong PIN`; a step before the first one has none. Read for progress, never for what a step does.
+   * `3 A wrong PIN`; a step before the first one has none. Read for reports and progress, never for what a step does.
    */
   sections?: (string | undefined)[];
   expected?: string;
