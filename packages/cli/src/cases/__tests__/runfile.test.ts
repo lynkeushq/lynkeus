@@ -105,3 +105,47 @@ test('a remote becomes a web address with no credentials in it', () => {
   assert.equal(webOf('/local/path/app.git'), undefined);
   assert.equal(webOf(undefined), undefined);
 });
+
+test('a step carries the numbered section of the case it is in, and a step before any section none', () => {
+  const sectioned = parseCase(
+    [
+      '---',
+      'id: pin',
+      '---',
+      'setup:',
+      '  - create_user: { as: a }',
+      'steps:',
+      '  - app.login: { as: a }',
+      '  # 1 A phone sign-in',
+      '  - app.press: "#phone"',
+      '  # Not a section: a note about the next step.',
+      '  - app.see: Code',
+      '  # 2b The keypad, wrong twice',
+      '  - on: device',
+      '    do:',
+      '      - app.press: "#numpad-1-button"',
+      '      - app.press: "#numpad-2-button"',
+      '',
+    ].join('\n'),
+    path.join(root, 'cases', 'pin.md'),
+  );
+  const stepsRun: CaseReport['steps'] = [
+    'create_user as: a',
+    'app.login as: a',
+    'app.press #phone',
+    'app.see Code',
+    'app.press #numpad-1-button',
+    'app.press #numpad-2-button',
+  ].map((step) => ({ step, status: 'passed', ms: 1 }));
+  const line = toRunCase(
+    sectioned,
+    { report: { id: 'pin', file: path.join(root, 'cases', 'pin.md'), result: 'passed', ms: 6, steps: stepsRun }, attempt: 1, startedAt: new Date(0) },
+    root,
+  );
+  assert.deepEqual(
+    line.steps.map((s) => s.heading),
+    [undefined, undefined, '1 A phone sign-in', '1 A phone sign-in', '2b The keypad, wrong twice', '2b The keypad, wrong twice'],
+  );
+  // A case with no numbered comments says nothing more than before.
+  assert.ok(toRunCase(c, { report: report('passed'), attempt: 1, startedAt: new Date(0) }, root).steps.every((s) => !('heading' in s)));
+});

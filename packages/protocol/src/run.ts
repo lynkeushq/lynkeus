@@ -61,6 +61,8 @@ export type RunStep = {
   error?: string;
   /** Which part of the case it belongs to. */
   section?: 'setup' | 'steps';
+  /** The numbered section of the case's steps it falls under, from the comment that opens it (`# 3 A wrong PIN` reads `3 A wrong PIN`). */
+  heading?: string;
   events?: RunEvent[];
   /** A frame taken once the step was done, relative to the run directory. */
   screenshot?: string;

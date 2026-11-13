@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A report says which numbered section of the case each step is in: a run file's step carries `heading` (`3 A wrong PIN`) from the comment that opens the section (`# 3 A wrong PIN` in the case's steps), so a report can group a long case's steps the way the case does. A step before the first numbered comment, and every setup step, has none.
+
 ## 0.5.1
 
 - An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.
