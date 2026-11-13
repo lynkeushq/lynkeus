@@ -18,10 +18,12 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
-import { describeChanges, pushRun, service } from './report.js';
+import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
 import { type NativeLogs, startNativeLogs } from '../cases/nativeLogs.js';
+import { describeStatus, lastRunFile, PROGRESS_FILE, type ProgressEvent, RunState, statusLine, statusOf } from '../cases/progress.js';
+import { LiveLine } from '../cases/liveLine.js';
 
 /** Why a host that came up is gone: how it exited, what it printed last, where its log is. */
 const lastWords = new WeakMap<ChildProcess, () => string>();
@@ -268,16 +270,22 @@ const pushed = async (
   project: string,
   err: (line: string) => void,
   afterPush: 'keep' | 'delete' = 'keep',
+  live?: { run: LiveRun; manifest: unknown },
 ) => {
   try {
-    const run = await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
-    return [
-      `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`,
-      ...describeChanges(run.changes),
-      keptOrDeleted(dir, afterPush, run.refused.length === 0),
-    ].join('\n');
+    const run = live
+      ? await live.run.finish(live.manifest)
+      : await pushRun(dir, { ...to, project, onReady: (url) => err(`report: ${url} (its frames are on their way)`), onProgress: err });
+    return {
+      url: run.url,
+      text: [
+        `report: ${run.url}${run.refused.length ? ` (not kept on this plan: ${run.refused.join(', ')})` : ''}`,
+        ...describeChanges(run.changes),
+        keptOrDeleted(dir, afterPush, run.refused.length === 0),
+      ].join('\n'),
+    };
   } catch (error) {
-    return `the report was not uploaded: ${(error as Error).message}`;
+    return { text: `the report was not uploaded: ${(error as Error).message}` };
   }
 };
 
@@ -345,7 +353,10 @@ export const caseCommands = [
         help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',
       },
       'traces-port': { type: 'number', help: 'where --traces listens', default: 4318, value: 'port' },
-      push: { type: 'boolean', help: 'with --out: upload the run to the reports service when it ends and print the report’s address' },
+      push: {
+        type: 'boolean',
+        help: 'with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case',
+      },
       project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
       'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told)', value: 'n' },
@@ -362,11 +373,17 @@ export const caseCommands = [
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
       'dry-run': { type: 'boolean', help: 'parse and list the steps without running them' },
+      progress: {
+        type: 'string',
+        help: `how the run says where it is, besides <out>/${PROGRESS_FILE} (\`case status\` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal`,
+        value: 'json|none',
+      },
     },
     needs: 'nothing',
     session: false,
     mcp: 'core',
     mcpOmit: [
+      'progress',
       'seen',
       'report',
       'events',
@@ -407,6 +424,12 @@ export const caseCommands = [
       const reportsTo = ctx.flags.push && out ? service() : undefined;
       if (ctx.flags.push && !out) return { text: '--push uploads the run directory: add --out <dir>', code: 2 };
       if (typeof reportsTo === 'string') return { text: reportsTo, code: 2 };
+      const progressMode = typeof ctx.flags.progress === 'string' ? ctx.flags.progress : undefined;
+      if (progressMode !== undefined && progressMode !== 'json' && progressMode !== 'none')
+        return { text: `--progress ${progressMode}: json or none`, code: 2 };
+      // Over MCP or in a session stdout is the protocol's: the events go to the caller's progress instead.
+      const jsonProgress = progressMode === 'json' && !ctx.attached;
+      const project = typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root);
       const evidenceOf = (id: string, attempt: number) =>
         out && (ctx.flags.screenshots || ctx.flags.video)
           ? {
@@ -448,7 +471,28 @@ export const caseCommands = [
         }
         ctx.err(`backend traces: listening on http://localhost:${traces.port} (the backend's OTEL_EXPORTER_OTLP_ENDPOINT)`);
       }
+      // Where the run stands, as events: in the run directory (or the project's .lynkeus when there is none), on
+      // stdout with --progress json, to an MCP caller, and on the live line in a terminal.
+      const progressFile = dry ? undefined : out ? path.join(out.directory, PROGRESS_FILE) : path.join(ctx.root, '.lynkeus', `last-run.${PROGRESS_FILE}`);
+      if (progressFile) {
+        fs.mkdirSync(path.dirname(progressFile), { recursive: true });
+        fs.writeFileSync(progressFile, '');
+        fs.mkdirSync(path.dirname(lastRunFile(ctx.root)), { recursive: true });
+        fs.writeFileSync(lastRunFile(ctx.root), `${JSON.stringify({ progress: progressFile, pid: process.pid, startedAt: new Date().toISOString() })}\n`);
+      }
+      const state = new RunState();
+      let live: LiveLine | undefined;
+      const emit = (e: ProgressEvent) => {
+        state.apply(e);
+        if (progressFile) fs.appendFileSync(progressFile, `${JSON.stringify(e)}\n`);
+        if (jsonProgress) process.stdout.write(`${JSON.stringify(e)}\n`);
+        ctx.progress?.(e);
+        live?.refresh();
+      };
+      const now = () => new Date().toISOString();
+      let liveRun: LiveRun | undefined;
       const stop = () => {
+        live?.stop();
         traces?.close();
         claimed?.release();
         fixtures?.close();
@@ -518,6 +562,29 @@ export const caseCommands = [
           const took = (id: string) => ledger.lastMs(id) ?? Number.POSITIVE_INFINITY;
           cases.sort((a, b) => took(b.id) - took(a.id));
         }
+        emit({
+          type: 'run-start',
+          at: now(),
+          pid: process.pid,
+          total: cases.length,
+          jobs,
+          cases: cases.map((c) => {
+            const expectedMs = ledger?.lastMs(c.id);
+            return { id: c.id, ...(c.title ? { title: c.title } : {}), ...(expectedMs !== undefined ? { expectedMs } : {}) };
+          }),
+          ...(out ? { out: out.directory } : {}),
+        });
+        if (!dry && !jsonProgress && progressMode !== 'none' && !ctx.attached && process.stderr.isTTY && !process.env.CI)
+          live = new LiveLine(process.stderr, () => statusLine(state.status()));
+        // The report is made now and filled case by case; a service that cannot gets the whole run at the end.
+        if (reportsTo && out)
+          try {
+            liveRun = await startLiveRun(out.directory, { ...reportsTo, project, planned: cases.length, onError: ctx.err });
+            emit({ type: 'report', at: now(), url: liveRun.url });
+            ctx.err(`report: ${liveRun.url} (it fills as the cases run)`);
+          } catch (error) {
+            ctx.err(`the report will be uploaded when the run ends: ${(error as Error).message}`);
+          }
         const limit = Number(ctx.flags.ahead ?? 0);
         const store: Store | undefined =
           typeof ctx.flags.prepared === 'string' && !dry ? new Ahead(path.resolve(ctx.flags.prepared)) : limit > 0 && fixtures ? new InMemory() : undefined;
@@ -560,6 +627,15 @@ export const caseCommands = [
                   const host = hostCommand && port !== undefined ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
+                  emit({
+                    type: 'case-start',
+                    at: startedAt.toISOString(),
+                    id: c.id,
+                    job: index,
+                    attempt: n,
+                    steps: (prepared ? 0 : c.setup.length) + c.steps.length,
+                    ...(port !== undefined ? { host: `port ${port}` } : ctx.flags.host ? { host: 'headless' } : {}),
+                  });
                   try {
                     // A host just started is still drawing its first screens; with the setup made ahead nothing
                     // else gives it that moment before the first press.
@@ -581,6 +657,7 @@ export const caseCommands = [
                       routes: seenDir ? (host ? 'fresh' : true) : false,
                       traces,
                       nativeLogs: native,
+                      onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
                     const lost = report.result === 'failed' && runHost ? await hostLost(runHost, await server()) : undefined;
                     if (lost) {
@@ -609,15 +686,29 @@ export const caseCommands = [
                   store?.take(c),
                 );
                 seen ??= hello;
+                const retry = report.result === 'failed' && !ctx.flags.once && !dry;
+                emit({
+                  type: 'case-end',
+                  at: now(),
+                  id: c.id,
+                  job: index,
+                  attempt: 1,
+                  result: report.result,
+                  ms: report.ms,
+                  ...(retry ? { retrying: true } : {}),
+                });
                 log(describe(report));
-                out?.add(c, { report, attempt: 1, startedAt });
-                if (report.result === 'failed' && !ctx.flags.once && !dry) {
+                const first = out?.add(c, { report, attempt: 1, startedAt });
+                if (first) liveRun?.add(first);
+                if (retry) {
                   log(`  retrying ${c.id} once`);
                   const again = await attempt(2);
                   report = { ...again.report, retried: true };
                   startedAt = again.startedAt;
+                  emit({ type: 'case-end', at: now(), id: c.id, job: index, attempt: 2, result: report.result, ms: report.ms });
                   log(describe(report));
-                  out?.add(c, { report, attempt: 2, startedAt });
+                  const second = out?.add(c, { report, attempt: 2, startedAt });
+                  if (second) liveRun?.add(second);
                 }
                 if (jobs > 1) ctx.err(lines.join('\n'));
                 ledger?.note(report);
@@ -646,6 +737,26 @@ export const caseCommands = [
       }
       const count = (result: CaseReport['result']) => reports.filter((r) => r.result === result).length;
       const unsupported = count('unsupported');
+      const uploaded =
+        reportsTo && out
+          ? await pushed(
+              path.resolve(ctx.flags.out as string),
+              reportsTo,
+              project,
+              ctx.err,
+              ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep',
+              liveRun ? { run: liveRun, manifest: out.current } : undefined,
+            )
+          : undefined;
+      emit({
+        type: 'run-end',
+        at: now(),
+        passed: count('passed'),
+        failed: count('failed'),
+        unsupported,
+        ms: state.status().elapsedMs,
+        ...(uploaded?.url ? { report: uploaded.url } : {}),
+      });
       const summary = [
         ...reports.map(
           (r) =>
@@ -658,21 +769,51 @@ export const caseCommands = [
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
         ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
-        ...(reportsTo && out
-          ? [
-              await pushed(
-                path.resolve(ctx.flags.out as string),
-                reportsTo,
-                typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
-                ctx.err,
-                ctx.config.report?.afterPush === 'delete' ? 'delete' : 'keep',
-              ),
-            ]
-          : []),
+        ...(uploaded ? [uploaded.text] : []),
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.
-      return { text: summary, json: reports, code: count('failed') === 0 ? 0 : 1 };
+      const code = count('failed') === 0 ? 0 : 1;
+      // stdout holds the events alone: the summary goes where the run's lines went.
+      if (jsonProgress) {
+        ctx.err(summary);
+        return { code };
+      }
+      return { text: summary, json: reports, code };
+    },
+  }),
+  define({
+    name: 'case status',
+    group: 'runs',
+    summary: 'Where a run of cases is: how many are done, what each job is running and in which section, and the time left',
+    details: `Reads ${PROGRESS_FILE}, which \`case run\` writes as it goes: in the run directory given (its --out), or the last run of this project. It works while the run goes on, from another terminal or an MCP client, and after it: a run whose process is gone without finishing says so. The time left comes from how long each case took when it last passed, else from the run's own cases. --json gives the same as an object.`,
+    positionals: [{ name: 'dir', help: `the run directory (case run --out), or its ${PROGRESS_FILE}; default: the last run here` }],
+    needs: 'nothing',
+    session: false,
+    mcp: 'core',
+    mcpDetails: `Where a case run stands: cases done, what each job runs and in which section, failures so far and the time left. Give the run's out directory, or nothing for the project's last run. Call it while case_run runs (from here or from a terminal) to follow a long suite.`,
+    run: async (ctx) => {
+      const given = ctx.args[0];
+      let file: string | undefined;
+      if (given) {
+        const full = path.resolve(given);
+        file = fs.existsSync(full) && fs.statSync(full).isDirectory() ? path.join(full, PROGRESS_FILE) : full;
+      } else {
+        try {
+          file = (JSON.parse(fs.readFileSync(lastRunFile(ctx.root), 'utf8')) as { progress?: string }).progress;
+        } catch {
+          file = undefined;
+        }
+      }
+      if (!file || !fs.existsSync(file))
+        return {
+          text: given
+            ? `no ${PROGRESS_FILE} at ${given}: is it a directory \`case run --out\` wrote?`
+            : 'no run here yet: `case run` keeps where it is as it goes',
+          code: 1,
+        };
+      const status = statusOf(file);
+      return { text: describeStatus(status, file), json: status };
     },
   }),
   define({

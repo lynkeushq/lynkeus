@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { describeChanges, flakes, listRuns, plan, pushRun, tarOf } from '../commands/report.js';
+import { describeChanges, flakes, listRuns, plan, pushRun, startLiveRun, tarOf } from '../commands/report.js';
 
 const runDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-push-'));
@@ -130,4 +130,57 @@ test('says what a pushed run broke and fixed, and nothing for a first run', () =
   ]);
   assert.deepEqual(describeChanges({ newFailures: [], fixed: [] }), []);
   assert.deepEqual(describeChanges(undefined), []);
+});
+
+test('a live report is made when the run starts, gets each attempt as it ends, and closes with the final manifest', async () => {
+  const asked: { method: string; path: string; part: string | null; body?: string }[] = [];
+  const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const body = typeof init?.body === 'string' ? init.body : init?.body instanceof Uint8Array ? Buffer.from(init.body).toString() : undefined;
+    asked.push({ method: init?.method ?? 'GET', path: url.pathname, part: url.searchParams.get('part'), ...(body !== undefined ? { body } : {}) });
+    if (url.pathname === '/v1/runs') return new Response(JSON.stringify({ id: 'r1', url: 'https://reports.test/r/abc' }), { status: 201 });
+    if (url.searchParams.has('part')) return new Response(JSON.stringify({ cases: 1, part: Number(url.searchParams.get('part')) }));
+    if (url.pathname.endsWith('/finish')) return new Response(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    return new Response('{}');
+  }) as typeof fetch;
+  const dir = runDir();
+  const live = await startLiveRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'hermes', planned: 2, fetch: fake });
+  assert.equal(live.url, 'https://reports.test/r/abc');
+  const created = JSON.parse(asked[0]!.body!) as { project: string; live: boolean; planned: number; run: { schema: number } };
+  assert.deepEqual([created.project, created.live, created.planned, created.run.schema], ['hermes', true, 2, 1]);
+  live.add({ steps: [{ screenshot: 'home/01-app-login.png' }], video: 'home/video.mp4' });
+  live.add({ steps: [] });
+  const pushed = await live.finish({ schema: 1, startedAt: '2026-10-10T00:00:00Z', finishedAt: '2026-10-10T00:05:00Z' });
+  assert.equal(pushed.url, 'https://reports.test/r/abc');
+  assert.equal(pushed.files, 2);
+  assert.deepEqual(
+    asked.slice(1).map((a) => `${a.method} ${a.path}${a.part !== null ? ` part ${a.part}` : ''}`),
+    [
+      'PUT /v1/runs/r1/cases part 0',
+      'PUT /v1/runs/r1/bundle',
+      'PUT /v1/runs/r1/files/home/video.mp4',
+      'PUT /v1/runs/r1/cases part 1',
+      'POST /v1/runs/r1/finish',
+    ],
+  );
+  assert.match(asked.at(-1)!.body!, /"finishedAt":"2026-10-10T00:05:00Z"/);
+});
+
+test('a service from before parts gets the whole run file when the run ends', async () => {
+  const asked: string[] = [];
+  const older = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    asked.push(`${init?.method ?? 'GET'} ${url.pathname}${url.search}`);
+    if (url.pathname === '/v1/runs') return new Response(JSON.stringify({ id: 'r1', url: 'https://reports.test/r/abc' }), { status: 201 });
+    if (url.pathname.endsWith('/finish')) return new Response(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    return new Response(JSON.stringify({ cases: 1 }));
+  }) as typeof fetch;
+  const live = await startLiveRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', planned: 2, fetch: older });
+  live.add({ steps: [] });
+  live.add({ steps: [] });
+  await live.finish({ schema: 1 });
+  assert.deepEqual(
+    asked.filter((a) => a.includes('/cases')),
+    ['PUT /v1/runs/r1/cases?part=0', 'PUT /v1/runs/r1/cases'],
+  );
 });

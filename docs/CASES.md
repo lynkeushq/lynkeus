@@ -204,8 +204,9 @@ run. The same case then passes where the host can do it.
 script can read without knowing how the run was made:
 
 ```
-run.json      when it started and ended, what the app ran on, the totals
-cases.jsonl   one line per attempt of a case, in the order they ran
+run.json         when it started and ended, what the app ran on, the totals
+cases.jsonl      one line per attempt of a case, in the order they ran
+progress.ndjson  where the run is, an event per line, written as it goes
 ```
 
 A line of `cases.jsonl` carries the case's id, title, description and file, the
@@ -239,6 +240,37 @@ backend's spans that no step's request caused, such as a scheduler's, are left
 out. Turn
 the backend's exporter on only for test runs: it costs a little on every
 request.
+
+### Following a long run
+
+A run says where it is as it goes, in `progress.ndjson` (in the `--out`
+directory; without one, in `.lynkeus/last-run.progress.ndjson`):
+
+```
+{"type":"run-start","total":52,"jobs":4,"cases":[{"id":"login-sign-in-pin","expectedMs":81993}, …]}
+{"type":"case-start","id":"login-sign-in-pin","job":0,"attempt":1,"steps":176,"host":"port 8201"}
+{"type":"step","id":"login-sign-in-pin","job":0,"index":87,"steps":176,"section":"steps","heading":"4 A forgotten PIN","step":"app.press #security-forgot-passcode-button"}
+{"type":"case-end","id":"login-sign-in-pin","job":0,"attempt":1,"result":"passed","ms":81122}
+{"type":"run-end","passed":50,"failed":2,"unsupported":0,"ms":1520400}
+```
+
+A `step` event comes when the step starts, and again with its `status` and `ms`
+when it ends. Its `heading` is the numbered comment above it in the case
+(`# 4 A forgotten PIN`). Every event has `at`, an ISO time. `--progress json`
+also writes the events to stdout, one per line, and the run's summary to stderr.
+
+In a terminal the run keeps a status line under its output: cases done and
+failed, the time spent and the time left, and what each job is running and in
+which section. The time left comes from how long each case took when it last
+passed (the ledger `--flakes` keeps), else from the run's own cases.
+`--progress none` leaves the line out.
+
+`lynkeus case status [dir]` reads the file from another terminal, during the run
+or after it, and `--json` gives the same as an object; an MCP client calls the
+`case_status` tool, and hears `case_run`'s progress as MCP progress
+notifications when it passes a progress token. With `--push` the report is made
+when the run starts and fills case by case, so its address works from the first
+case.
 
 ### A run with everything
 
