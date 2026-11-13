@@ -269,7 +269,7 @@ A screen that has not started looks exactly like one that has finished, because 
 lynkeus requests [--last <n>]
 ```
 
-Lists the HTTP requests the app made: method, path, status and duration. A request that a rule answered in place of the server, or lost (see [`lynkeus mock`](#lynkeus-mock)), ends in `(mocked)`. Headers and bodies are never recorded.
+Lists the HTTP requests the app made: method, path, status and duration. A request that a rule answered in place of the server, or lost (see [`lynkeus mock`](#lynkeus-mock)), ends in `(mocked)`. Headers and bodies are kept only while a driver asks for them, as `case run` does for a run that keeps evidence, with secret-looking values hidden.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -588,7 +588,7 @@ A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` 
 
 | Argument | Meaning |
 |---|---|
-| `route` | Optional. `'GET /path'`. A bare path matches any method. The path matches when the request's path contains it. |
+| `route` | Optional. `'GET /path'`. A bare path matches any method. The path matches when the request's path contains it, or as a regular expression when it starts with `^`. |
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -596,8 +596,8 @@ A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` 
 | `--body <json>` | | The JSON body to answer. |
 | `--delay <ms>` | | Answer after this long. |
 | `--times <n>` | | Apply the rule only this many times. |
-| `--sticky` | | Keep the rule across an app reset. |
-| `--lost` | | Send the request to the server and lose only its answer: the app sees a failed request, and the server has acted on it, as after a dropped connection. |
+| `--sticky` | | Keep the rule across an app reset. The headless host honors it; on a device the agent keeps no sticky rules. |
+| `--lost` | | Send the request to the server and lose only its answer: the app sees a failed request, and the server has acted on it, as after a dropped connection. A lost request gets no answer to shape, so `--status`, `--body` and `--delay` with it are refused (exit 2). |
 | `--clear` | | Drop every rule. |
 | `--list` | | Show the rules. |
 
@@ -998,7 +998,7 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]
+lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
@@ -1007,12 +1007,12 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 
 | Argument | Meaning |
 |---|---|
-| `files` | Optional. The case files. Without them, every `.md` under `cases.dir`. |
+| `files` | Optional. The case files, or folders: a folder stands for every case under it. Without them, every `.md` under `cases.dir`. `README.md`, `FORMAT.md` and `CATALOG.md` are never taken for cases. |
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
-| `--host-heap <percent>` | `60` | With `--host`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
+| `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
 | `--once` | | No second chance for a case that fails. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
 | `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
@@ -1037,13 +1037,15 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
 | `--host-command <command>` | | A command that starts a fresh host for every case; lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
+| `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
+| `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
 | `--dry-run` | | Parse the cases and list their steps without running them. Nothing is written. |
 | `--progress <json\|none>` | | How the run says where it is, besides `progress.ndjson`. `json` prints one event per line on stdout, and the summary then goes to stderr. `none` leaves out the live status line. See [Progress](#progress). |
 
-`--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`. A case with `exclusive: true` in its frontmatter runs alone under `--jobs`: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases that were asked for after it.
+`--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`. A case with `exclusive: true` in its frontmatter runs alone under `--jobs`: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases that were asked for after it, and the run prints `… <id> runs alone: waiting for the cases in flight to end`.
 
 ```bash
 lynkeus case run cases/gift.md --host
@@ -1063,7 +1065,7 @@ A long run says where it is, in three places.
 
 #### Hosts that die
 
-A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own, so the one that died keeps what explains it.
+A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, or with `--host-command` and `--keep-hosts` (one host per job), the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own (`lynkeus-headless-<pid>-2.log` in the temporary folder, the first being `lynkeus-headless-<pid>.log`), so the one that died keeps what explains it.
 
 Before each case the run also asks the host how full its heap is, and writes one line (`host: heap 1240 MB of 4096 MB`). Past `--host-heap` percent of the limit, it starts the host again, so a case does not begin on a host about to run out. `lynkeus call memory` gives the same reading by hand.
 
@@ -1088,7 +1090,7 @@ lynkeus case run --out run &
 lynkeus case status run
 ```
 
-Over MCP it is the `case_status` tool.
+Without any run to read, it prints `no run here yet` and exits with 1. Over MCP it is the `case_status` tool.
 
 ### `lynkeus case prepare`
 
@@ -1212,9 +1214,9 @@ lynkeus case run --host
 lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
 ```
 
-Runs the suite the way a CI job does: it brings the backend and N headless hosts up, runs the cases across them, reports, and tears everything down. The exit code is the suite's.
+Runs the suite the way a CI job does: it brings the backend up, runs the cases across N headless hosts, reports, and tears everything down. It runs `case run` with `--host-command` and `--keep-hosts`, so a host that dies takes one case with it, not every case after it. The exit code is the suite's.
 
-It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/reference/configuration/#ci)): the commands that start and stop your backend, a URL to wait for, how many hosts to run and the command that starts one, whether to push, and more `case run` flags. lynkeus knows no backend, so it runs only what you give it. It always runs `case run` with `--jobs`, `--ports`, `--out` and `--screenshots`. When `GITHUB_STEP_SUMMARY` is set, it appends the run's summary there.
+It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/reference/configuration/#ci)): the commands that start and stop your backend, a URL to wait for, how many hosts to run and the command that starts one, whether to push, and more `case run` flags. lynkeus knows no backend, so it runs only what you give it. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told) and count up by one per host. It always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`. When `GITHUB_STEP_SUMMARY` is set, it appends the run's summary there.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -1222,7 +1224,7 @@ It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/refe
 | `--base <ref>` | `origin/main` | The git ref `--affected` diffs against. |
 | `--jobs <n>` | `ci.hosts.count`, else `2` | How many hosts, and so how many cases at once. |
 | `--out <dir>` | `lynkeus-run` | Where the run goes. |
-| `--keep-up` | | Leave the backend and the hosts up afterwards. |
+| `--keep-up` | | Leave the backend up afterwards. The hosts end with the run. |
 | `--dry-run` | | Say what it would do and run nothing. |
 
 ```bash
@@ -1427,7 +1429,7 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 | `{"ok": true, "out": "…", "json": …}` | The command succeeded. `out` is what the terminal would print. `json` is present when the command has machine-readable output. |
 | `{"ok": false, "error": "…", "why": "…"}` | The command failed. `why` is present when lynkeus could read a reason from the app. |
 
-The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the app has attached. The line `["exit"]` ends the session. Some commands are not available in a session, among them `case run`, the `report` commands and `headless start`; `lynkeus help <command>` says whether one is.
+The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the app has attached. The line `["exit"]` ends the session. A session is for commands that act on the attached app, so a command that needs no app is not available in it: `init`, `status`, `map build`, `map ci`, `map changes`, `events`, `funnel`, `headless start`, `headless init`, `headless doctor`, and the `report` and `fixtures` commands. Others are left out on purpose: `case run`, `case status`, `case prepare`, `case init`, `case coverage`, `case impact`, `case new`, `ci`, `flake`, `smoke`, `crawl` and `record`. `case here` works in a session. `lynkeus help <command>` says whether a command is.
 
 ### `lynkeus mcp`
 

@@ -12,7 +12,7 @@ Everything that goes through the agent (reading the screen, pressing, typing, wa
 - **The New Architecture.** On iOS the agent requires it. It measures elements through the Fabric shadow tree and its native module is a Turbo Module.
 - **A debug build.** The native code that synthesizes touches is wrapped in `#if DEBUG`. In a release build those symbols do not exist, and the module's methods are no-ops.
 - **React Native 0.76 or newer.**
-- **Xcode and a booted simulator.** The CLI uses `xcrun simctl` for everything it does to the simulator from outside. A physical iPhone is not supported.
+- **Xcode and a booted simulator.** The CLI uses `xcrun simctl` for everything it does to the simulator from outside. A physical iPhone is not supported yet (an Android phone over USB is).
 - **Node 22 or newer** for the CLI.
 
 After adding `lynkeus-agent`, install its pod and build the app once:
@@ -162,7 +162,7 @@ npx lynkeus screenshot home.png
 - **System UI is not part of the screen.** Permission dialogs, the share sheet, the system keyboard and anything else drawn by iOS rather than by React Native are not listed as elements. Use `lynkeus os permissions` for permissions, and expect a native screen your app opens to need a press at a point (`lynkeus press 100,200`).
 - **Tabs and bars drawn by the system are not elements.** A tab bar rendered natively, as in the newest Expo template, cannot be pressed by name. Navigate with `lynkeus nav <route>`.
 - **Debug builds only.** lynkeus cannot drive a release build or a build from TestFlight or the App Store.
-- **Physical devices are not supported.** The CLI looks for a booted simulator, and launching, screenshots and the `os` commands go through `simctl` on one. The agent dials `localhost`, which on a simulator is the Mac, and the driver listens on the Mac's loopback address only.
+- **A physical iPhone is not supported.** The CLI looks for a booted simulator, and launching, screenshots and the `os` commands go through `simctl` on one. The agent dials `localhost`, which on a simulator is the Mac, and the driver listens on the Mac's loopback address only.
 - **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. A simulator session offers none, so a run keeps its screenshots and no video.
 
 ## Known problems

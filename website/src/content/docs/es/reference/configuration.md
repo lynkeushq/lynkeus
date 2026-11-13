@@ -144,8 +144,8 @@ Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y l
 | `ci.backend.ready` | texto | ninguno | Una URL que responde con éxito cuando el backend ya puede servir. `lynkeus ci` la consulta hasta que responde. |
 | `ci.backend.timeoutMs` | número (ms) | `300000` | Cuánto espera a esa URL. |
 | `ci.hosts.count` | número | `2` | Cuántos hosts y jobs. `--jobs` lo reemplaza. |
-| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. `{port}` es el puerto donde se conecta, empezando en `8123`. Por defecto, `headless start` con ese puerto. |
-| `ci.hosts.timeoutMs` | número (ms) | `600000` | Cuánto espera a que cada host se conecte; compilar la app es lo lento. |
+| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. `{port}` es el puerto donde se conecta; el primero sale de `LYNKEUS_PORT` o de `port` (`8123` si no hay ninguno) y los demás lo siguen. Por defecto, `headless start` con ese puerto. |
+| `ci.hosts.timeoutMs` | número (ms) | `600000` | Cuánto puede tardar cada host en conectarse; compilar la app es lo lento. Se pasa a `case run` como `--host-timeout`. |
 | `ci.push` | booleano | `false` | Sube la ejecución al servicio de reportes. Necesita `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | lista de textos | ninguno | Opciones extra de `case run`, tal como las escribirías en la línea de comandos. |
 

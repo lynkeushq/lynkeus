@@ -35,8 +35,10 @@ host) and the driver; each pair is independent. `port` in `lynkeus.config.json`
 sets the driver's default.
 
 **The driver never attaches.** The app dials out to `localhost:8123` on iOS
-and `10.0.2.2:8123` on the Android emulator, every 100 ms for the first 3 s
-and then at growing intervals up to 1.5 s. Check that
+and, on Android, `10.0.2.2:8123` (the emulator) and then `localhost:8123` (a phone on
+USB, where the CLI's `adb reverse` forwards the port), every 100 ms for the first 3 s
+and then at growing intervals up to 1.5 s. A phone needs `adb` and the CLI listening
+before the app starts dialing; an iPhone is not supported. Check that
 the build is a debug build, that `enabled` is true for this environment, and
 that the token the app was built with is the `LYNKEUS_TOKEN` the driver reads.
 `--attach-timeout <ms>` (or `attachTimeout` in the config) gives it longer;

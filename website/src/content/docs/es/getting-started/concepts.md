@@ -27,7 +27,7 @@ El agente no sabe ni le importa cuál es. Todos hablan el mismo protocolo, descr
 
 El **host** es el lugar donde corre la app durante el test. Puede ser:
 
-- un simulador de iOS o un emulador de Android, donde la capa nativa es real (los dispositivos físicos no están soportados);
+- un simulador de iOS o un emulador de Android, donde la capa nativa es real (un teléfono Android por USB cuenta como un emulador; un iPhone físico no está soportado);
 - el **host sin pantalla** (*headless*), que `lynkeus headless start` levanta en Node: renderiza la app bajo Jest y React Native Testing Library, con la capa nativa reemplazada por mocks.
 
 En los tres, el agente se conecta de la misma manera, así que los mismos comandos y los mismos casos sirven en cualquiera. Lo que cambia es qué es real. La comparación completa está en [Sin pantalla (headless)](/es/platforms/headless/).

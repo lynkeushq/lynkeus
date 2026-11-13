@@ -154,10 +154,16 @@ npx lynkeus case run --jobs 4 --ports 8201,8202,8203,8204 --host-command 'LYNKEU
 job's port from `--ports`; `--host-command` starts a fresh host for every case
 and stops it after (`{port}` is where it dials, `{job}` the job). The longest
 cases, from the ledger `--flakes` keeps, go first so the jobs end together;
-`--in-order` keeps the order given. `--ahead N` makes up to N setups while other
+`--in-order` keeps the order given. With `--keep-hosts`, each job's host starts
+once and serves the job's cases; it starts again before a case when it exited,
+its app stopped answering or its heap is past `--host-heap` percent, so a host
+that dies takes one case with it, not every case after. `--host-timeout` is how
+long a host may take to attach (600000 ms: it builds the app first). `--ahead N` makes up to N setups while other
 cases run (`case prepare` does the same into `--prepared`), and only starts one
 while `--idle` of the CPU is free. A case that is `exclusive` waits for the others
-(above). `lynkeus ci` does all of this from the config.
+(above). `lynkeus ci` does all of this from the config, with `--keep-hosts`;
+its first port is `LYNKEUS_PORT`, else `port` in the config, else 8123, and
+`--keep-up` leaves only the backend up (the hosts end with the run).
 
 ## Coverage and impact
 
@@ -332,7 +338,7 @@ at the end. A reports service from before this gets the whole run at the end.
 
 ### A host that dies
 
-With `--host`, the run owns the host. When it died during a case (out of
+With `--host` (or `--keep-hosts`, per job: below), the run owns the host. When it died during a case (out of
 memory, a crash) or its app stopped answering, the case that lost it still
 fails, and its reasons say how the host ended, with its last words and its log;
 the next case starts on a host started again, which writes a log of its own.
@@ -340,7 +346,7 @@ Before each case the run also asks the host how full its heap is (one line in
 the log) and starts it again past `--host-heap` percent of its limit
 (`heapLimitMb`, 60 percent unless told), so a case does not begin on a host
 about to run out. Without this, every case after a crash failed with "No app
-attached".
+attached". With `--host-command` alone, each case gets a fresh host anyway.
 
 ### A run with everything
 

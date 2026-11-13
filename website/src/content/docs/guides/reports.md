@@ -137,7 +137,7 @@ npx lynkeus report push run --project myapp
 
 `--push` checks for the key before the run starts, so a missing key stops the command at once instead of after every case has run. If the upload itself fails, the run still counts: the summary says `the report was not uploaded: …` and the exit code reflects the cases.
 
-What happens to the run folder afterward is up to `report.afterPush` in `lynkeus.config.json`: `"keep"` (the default) leaves it, `"delete"` removes it once the service took every file. `npx lynkeus report prune <dir> --older 7d` deletes old run folders either way.
+After a push the output ends with a line such as `run folder: 48 MB on disk` and the `report prune` command that frees old ones. What happens to the run folder afterward is up to `report.afterPush` in `lynkeus.config.json`: `"keep"` (the default) leaves it, `"delete"` removes it once the service took every file. `npx lynkeus report prune <dir> --older 7d` deletes old run folders either way.
 
 ## What the hosted report shows
 

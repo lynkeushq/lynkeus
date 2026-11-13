@@ -40,7 +40,7 @@ The same app can also run **with no simulator at all**: `lynkeus headless start`
 ## Requirements
 
 - React Native 0.76 or newer with the New Architecture
-- iOS and Android development builds, on a simulator or an emulator
+- iOS and Android development builds, on a simulator, an emulator or (Android only) a phone on USB
 - Node 22 or newer for the CLI and the headless host
 
 ## Installation

@@ -20,7 +20,7 @@ The agent only runs in debug builds. Its native module compiles to no-ops outsid
 
 - React Native 0.76 or newer, with the New Architecture enabled. On iOS the agent requires it.
 - Node 22 or newer.
-- A debug build of the app that already runs on an iOS simulator or an Android emulator.
+- A debug build of the app that already runs on an iOS simulator, an Android emulator or an Android phone over USB.
 
 ## Steps
 

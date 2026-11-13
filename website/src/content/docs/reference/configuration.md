@@ -180,12 +180,12 @@ Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), whi
 | `ci.backend.ready` | string | none | A URL to poll until it answers with a 2xx status, before the hosts start. |
 | `ci.backend.timeoutMs` | number (ms) | `300000` | How long to wait for `ready`. |
 | `ci.hosts.count` | number | `2` | How many hosts, and so how many cases run at once. `--jobs` overrides it. |
-| `ci.hosts.command` | string | a headless host | The shell command that starts one host. `{port}` is replaced by the port it must dial: 8123 for the first, 8124 for the second, and so on. |
-| `ci.hosts.timeoutMs` | number (ms) | `600000` | How long to wait for each host to attach. A host builds the app first, which is the slow part. |
+| `ci.hosts.command` | string | a headless host | The shell command that starts one host. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
+| `ci.hosts.timeoutMs` | number (ms) | `600000` | How long a host may take to attach, passed to `case run` as `--host-timeout`. A host builds the app first, which is the slow part. |
 | `ci.push` | boolean | `false` | Upload the run to the report service. Needs `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | string[] | none | More `case run` flags, as on the command line: `["--video", "--once"]`. |
 
-`lynkeus ci` always runs `case run` with `--jobs`, `--ports`, `--out` and `--screenshots`; `ci.run` adds to them.
+`lynkeus ci` always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`; `ci.run` adds to them.
 
 ## Cases
 

@@ -39,7 +39,7 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 | `--video-fps <n>` | Los cuadros por segundo de la película. Por defecto, 30. |
 | `--video-scale <n>` | Los píxeles por punto de la película, donde el host lo permite (fastsim: de 1 a 3, y 2 si no lo indicas). |
 
-Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
+La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
 La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
 

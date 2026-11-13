@@ -78,7 +78,7 @@ hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 Dos cosas intervienen:
 
 - El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.
-- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección no es local.
+- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección está definida y no es local (`localhost`, `127.0.0.1` o `10.0.2.2`); una variable sin definir se deja pasar, y la red queda limitada a los hosts locales.
 
 ### 4. Maneja la app
 

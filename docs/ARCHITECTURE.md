@@ -31,7 +31,7 @@ A piece that would only work for one app does not belong in this repository.
 | Layer | Knows | Lives in |
 |---|---|---|
 | Agent | The running React Native app: its tree, touches, keys, requests, SDK calls, console | `packages/agent` |
-| Hosts | How to run the app: a simulator or emulator, fastsim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
+| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, fastsim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
 | CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration | `packages/cli` |
 | Cloud | Runs over time, reports, people, the forge (GitHub) | lynkeus-cloud |
 | Product | Its cases and flows, what its screens mean, its backend's state | the product's repositories |

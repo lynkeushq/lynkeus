@@ -34,7 +34,7 @@ Todos los comandos terminan con código de salida `0` si salieron bien. Cuando u
 
 ## Manejar la app
 
-Estos comandos hablan con la app que está corriendo, a través del agente que lleva dentro. Necesitan una app conectada: un build de depuración en un simulador o un emulador, o el host sin pantalla. Los dispositivos físicos no están soportados.
+Estos comandos hablan con la app que está corriendo, a través del agente que lleva dentro. Necesitan una app conectada: un build de depuración en un simulador o un emulador, o el host sin pantalla. Un teléfono Android por USB funciona como un emulador; un iPhone físico no está soportado.
 
 ### `lynkeus screen`
 
@@ -546,7 +546,7 @@ La ruta se compara por contenido: `/v3/accounts` coincide con cualquier ruta que
 | `--delay <ms>` | Responde después de ese tiempo. |
 | `--times <n>` | Aplica la regla solo esa cantidad de veces. |
 | `--sticky` | Conserva la regla cuando la app se reinicia con `reset`. Sin esta opción, `reset` la borra. |
-| `--lost` | Pierde la respuesta, no la petición: la petición sale y el servidor la recibe y actúa, y a la app le llega un fallo de red. Así se prueba lo que pasa cuando la app cree que algo falló y en el servidor ya ocurrió. Con `--lost`, `--status` y `--body` no cuentan. |
+| `--lost` | Pierde la respuesta, no la petición: la petición sale y el servidor la recibe y actúa, y a la app le llega un fallo de red. Así se prueba lo que pasa cuando la app cree que algo falló y en el servidor ya ocurrió. No se combina con `--status`, `--body` ni `--delay`: una petición perdida no tiene respuesta que moldear, y el comando termina con código `2` y lo dice. |
 | `--clear` | Borra todas las reglas. |
 | `--list` | Muestra las reglas vigentes. |
 
@@ -955,7 +955,7 @@ Opciones que deciden qué se ejecuta y cómo:
 | Opción | Qué hace |
 |---|---|
 | `--host` | Arranca `headless start` para la ejecución y lo detiene al terminar. Si el host muere en medio de un caso, o su app deja de contestar, se arranca otro antes del caso siguiente (ver [Si el host se cae](#si-el-host-se-cae)). |
-| `--host-heap <percent>` | Con `--host`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |
+| `--host-heap <percent>` | Con `--host` o `--keep-hosts`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |
 | `--once` | No da una segunda oportunidad al caso que falla. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
@@ -1002,6 +1002,8 @@ Opciones para ejecutar en paralelo:
 | `--jobs <n>` | Cuántos casos a la vez, cada uno en su propio host. Requiere `--ports`. Por defecto `1`. Un caso con `exclusive: true` en su encabezado corre solo: [más abajo](#casos-que-corren-solos). |
 | `--ports <list>` | El puerto del driver para cada job, separados por comas: es adonde se conecta su host. |
 | `--host-command <command>` | Un comando que arranca un host nuevo para cada caso y lo detiene después. `{port}` se reemplaza por el puerto al que se conecta el host y `{job}` por el número de job. |
+| `--keep-hosts` | Con `--host-command`: en lugar de un host por caso, arranca el host de cada job una sola vez y lo conserva para todos los casos del job. Antes de cada caso lo revisa y lo arranca de nuevo si terminó, si su app dejó de contestar o si su heap pasó de `--host-heap`. Un caso que falló porque su host murió lo dice. |
+| `--host-timeout <ms>` | Con `--keep-hosts`: cuánto puede tardar un host en conectarse (primero compila la app). Por defecto `600000`. |
 | `--in-order` | Con `--jobs`: toma los casos en el orden dado, en lugar de empezar por los más largos. |
 | `--ahead <n>` | Prepara hasta esa cantidad de `setup` por adelantado mientras otros casos corren. `0` significa ninguno. Por defecto `0`. |
 | `--idle <share>` | Con `--ahead`: empieza un `setup` solo mientras esa fracción de la CPU esté libre. Por defecto `0.25`. |
@@ -1065,7 +1067,7 @@ Con `--host`, el host de la ejecución puede morir en un caso (se quedó sin mem
 - Un host arrancado de nuevo escribe un log propio, de modo que el del host muerto conserva por qué murió.
 - Antes de cada caso se le pregunta además cuánto heap usa (aparece una línea `host: heap 1520 MB of 4096 MB` en el log). Si pasa de `--host-heap` por ciento de su límite (60 si no dices otra cosa), se arranca de nuevo antes de empezar el caso, para que ninguno empiece en un host a punto de quedarse sin memoria.
 
-Con `--jobs` y `--host-command`, cada caso ya tiene un host nuevo, y esto no aplica.
+Con `--jobs` y `--host-command` sin `--keep-hosts`, cada caso ya tiene un host nuevo, y esto no aplica. Con `--keep-hosts`, la misma revisión se hace por job: el host de un job que murió se arranca de nuevo antes del caso siguiente, y solo se pierde el caso que lo tenía, no todos los que venían después.
 
 ### `lynkeus case status`
 
@@ -1178,12 +1180,12 @@ Imprime un caso para terminar a mano: el encabezado con las preguntas que un lec
 
 | Argumento | Qué es |
 |---|---|
-| `id` | El id del caso, que también es el nombre del archivo. |
+| `id` | El id del caso, que también es el nombre del archivo: minúsculas, dígitos, puntos, guiones y guiones bajos. |
 
 | Opción | Qué hace |
 |---|---|
-| `--to <Route>` | La pantalla de la que trata el caso. |
-| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`. |
+| `--to <Route>` | La pantalla de la que trata el caso. Obligatoria (sin ella, `case here` redacta uno desde la pantalla actual). |
+| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`; si no hay ninguno de los dos, el comando se detiene y lo pide. |
 | `--title <text>` | Qué puede hacer una persona ahí, como lo titulará el reporte. |
 | `--write` | Lo guarda como `<carpeta de casos>/<id>.md` en lugar de imprimirlo. Nunca pisa un archivo que ya existe. |
 
@@ -1215,7 +1217,7 @@ lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [-
 
 Ejecuta la suite como lo hace un job de CI: levanta el backend y N hosts, reparte los casos entre ellos, genera el reporte y lo desmonta todo. El código de salida es el de la suite.
 
-Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en los puertos desde `8123`, y cada ejecución va con `--screenshots` y con `--out`.
+Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en puertos consecutivos a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno), y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
 
 | Opción | Qué hace |
 |---|---|
@@ -1223,7 +1225,7 @@ Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/confi
 | `--base <ref>` | La referencia de git contra la que compara `--affected`. Por defecto `origin/main`. |
 | `--jobs <n>` | Cuántos hosts y jobs. Por defecto `ci.hosts.count` y, si no está, `2`. |
 | `--out <dir>` | Dónde queda la ejecución. Por defecto `lynkeus-run`. |
-| `--keep-up` | Deja el backend y los hosts levantados al terminar. |
+| `--keep-up` | Deja el backend levantado al terminar. Los hosts terminan con la ejecución. |
 | `--dry-run` | Dice lo que haría y no ejecuta nada. |
 
 Cuando existe `$GITHUB_STEP_SUMMARY`, escribe allí el resumen del job: cuántos casos pasaron, cuáles fallaron y el enlace al reporte. La guía de [CI](/es/guides/ci/#lynkeus-ci-todo-en-un-comando) lo muestra completo.

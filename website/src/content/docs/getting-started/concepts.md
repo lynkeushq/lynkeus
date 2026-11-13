@@ -29,7 +29,7 @@ The agent and the driver share a **token**: a secret the app is given when it is
 
 The **host** is where the app runs during a test. There are two kinds, and they differ in what is real.
 
-On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels. In this documentation "device" always means a simulator or an emulator. Physical phones are not supported.
+On a **device** (an iOS simulator, an Android emulator) the native layer is real: gestures, the keyboard, the camera, push delivery, WebViews, native crashes and pixels. In this documentation "device" means a simulator, an emulator or an Android phone over USB. An iPhone is not supported yet.
 
 On the **headless host** the app runs in Node, with no simulator. `lynkeus headless start` renders the app under Jest and React Native Testing Library, with the native modules mocked, and the agent inside dials out exactly as it does on a device. It starts in about 40 seconds with no build, and several can run at once, which is what makes it suited to CI. What the operating system would hand the app (a deep link, the clock, a biometric prompt, a network failure) becomes a command instead.
 

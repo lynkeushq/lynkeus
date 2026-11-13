@@ -621,7 +621,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -634,7 +634,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | Flag | |
 |---|---|
 | `--host` | start `headless start` for the run and stop it after |
-| `--host-heap <percent>` | with --host: start the host again before a case when its heap is past this percent of its limit (default `60`) |
+| `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
 | `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
@@ -659,6 +659,8 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
 | `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
+| `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
+| `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |
 | `--in-order` | with --jobs: take the cases in the order given, not the longest first |
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
 | `--idle <share>` | with --ahead: start a setup only while this share of the CPU is idle (default `0.25`) |
@@ -769,7 +771,7 @@ Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’
 | `--base <ref>` | git ref --affected diffs against (default `origin/main`) |
 | `--jobs <n>` | how many hosts and jobs (default ci.hosts.count, else 2) |
 | `--out <dir>` | where the run goes (default `lynkeus-run`) |
-| `--keep-up` | leave the backend and the hosts up afterwards |
+| `--keep-up` | leave the backend up afterwards (the hosts end with the run) |
 | `--dry-run` | say what it would do and run nothing |
 
 ### `lynkeus fixtures describe [--fresh]`

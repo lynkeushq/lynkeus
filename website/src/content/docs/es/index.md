@@ -69,7 +69,7 @@ Una ejecución puede escribirse como un directorio (`lynkeus case run --out`) y 
 ## Requisitos
 
 - React Native 0.76 o posterior, con la Nueva Arquitectura.
-- Builds de depuración de iOS y de Android, en un simulador o un emulador. lynkeus no funciona en builds de producción, a propósito, y los dispositivos físicos no están soportados.
+- Builds de depuración de iOS y de Android, en un simulador o un emulador. lynkeus no funciona en builds de producción, a propósito. Un teléfono Android por USB funciona como un emulador; un iPhone físico no está soportado.
 - Node 22 o posterior para el CLI y para el host sin pantalla.
 
 ## Por dónde seguir

@@ -80,7 +80,7 @@ collection (no `--expose-gc`, which `NODE_OPTIONS` refuses) and answers
 `heapUsedMb`, `heapTotalMb`, `heapLimitMb` (where V8 gives up, about 4096 by
 default), `rssMb`, `resets`, `roots`, `listeners` and `commands`, so a runner
 can compare a reading with the next case's and with the limit. `case run
---host` does: it starts the host again past `--host-heap` percent of
+--host` and `--keep-hosts` do: they start the host again past `--host-heap` percent of
 `heapLimitMb` ([CASES.md](CASES.md)).
 
 The host's real network (`network: 'real'`) hands the app a body that is not

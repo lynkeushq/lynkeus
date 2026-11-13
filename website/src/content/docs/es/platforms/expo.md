@@ -16,7 +16,7 @@ Expo funciona en las dos plataformas. En Android, con un development build, el a
 - **Un development build.** No funciona en Expo Go.
 - **Los proyectos nativos generados**, con `npx expo prebuild`.
 - **Node 22 o posterior** para el CLI.
-- **Un simulador de iOS o un emulador de Android.** Los dispositivos físicos no están soportados.
+- **Un simulador de iOS o un emulador de Android.** Un teléfono Android por USB también sirve; un iPhone físico no está soportado.
 
 No hace falta un *config plugin*. El módulo nativo se enlaza automáticamente al compilar.
 

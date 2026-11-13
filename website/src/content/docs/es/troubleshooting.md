@@ -70,7 +70,7 @@ Hay dos causas propias de Expo. El agente no funciona en Expo Go, porque tiene c
 :::
 
 :::note[Dispositivos físicos]
-Un teléfono real no está soportado. El CLI busca un simulador o un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` y `adb` sobre uno de ellos.
+Un teléfono Android por USB funciona como un emulador (ver [Android](/es/platforms/android/)). Un iPhone físico no está soportado: el CLI busca un simulador encendido, y todo lo que hace desde afuera pasa por `simctl`.
 :::
 
 ### La app registra `lynkeus: the app passed a token and it is empty`
@@ -502,12 +502,12 @@ Estas son las causas que reconoce:
 
 - **Hace falta la New Architecture.** El agente no funciona con la arquitectura anterior.
 - **Solo builds de depuración.** La síntesis de toques usa una API privada de UIKit, envuelta en `#if DEBUG`. En un build de producción esos símbolos no existen.
-- **Solo el simulador.** Un iPhone físico no está soportado.
+- **Solo el simulador.** Un iPhone físico no está soportado: `simctl` solo maneja simuladores.
 
 ### Android
 
 - **La app tiene que ser depurable.** El agente se niega a correr si la app no tiene `FLAG_DEBUGGABLE`.
-- **Solo el emulador.** Un teléfono físico no está soportado.
+- **Emulador o teléfono por USB.** Un teléfono que aparece en `adb devices` funciona como un emulador, sin más configuración.
 - **En el emulador, la app busca al driver en `10.0.2.2`.** Es la dirección con la que el emulador llega a tu máquina. Si el driver escucha en otro lado, pásale la opción `host` al montar el agente.
 
 ### Expo

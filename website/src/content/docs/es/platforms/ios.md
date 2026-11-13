@@ -146,7 +146,7 @@ Si actualizaste el CLI pero no recompilaste la app, lynkeus avisa que las versio
 
 ## Límites
 
-- **Dispositivos físicos.** No están soportados. El CLI busca un simulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` sobre un simulador.
+- **Un iPhone físico no está soportado.** El CLI busca un simulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl`, que solo maneja simuladores.
 - **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de simulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Builds de producción.** No hay forma de activar el agente en uno, y es intencional.
 

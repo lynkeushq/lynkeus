@@ -22,7 +22,7 @@ El sentido de la conexión importa para diagnosticar problemas: es la app la que
 - React Native 0.76 o posterior.
 - La Nueva Arquitectura activada. En iOS es obligatoria.
 - Node 22 o posterior.
-- Un simulador de iOS o un emulador de Android donde ya puedas correr tu app en modo de depuración. Los dispositivos físicos no están soportados.
+- Un simulador de iOS o un emulador de Android donde ya puedas correr tu app en modo de depuración. Un teléfono Android por USB también sirve; un iPhone físico no está soportado.
 
 ## Pasos
 

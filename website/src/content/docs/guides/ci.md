@@ -107,7 +107,7 @@ The headless host refuses to reach any network host other than `127.0.0.1` and `
 
 ### Run cases in parallel
 
-Each job in `case run --jobs` needs its own host on its own port. `LYNKEUS_PORT` moves a host and its driver together, so start one host per port and give the ports to the run:
+Each job in `case run --jobs` needs its own host on its own port. Let the run start them with `--host-command` and `--keep-hosts` (below), or start them yourself. `LYNKEUS_PORT` moves a host and its driver together, so start one host per port and give the ports to the run:
 
 ```bash
 LYNKEUS_PORT=8123 npx lynkeus headless start &
@@ -117,7 +117,7 @@ LYNKEUS_PORT=8125 npx lynkeus headless start &
 npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 ```
 
-The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have lynkeus start a fresh host for every case instead, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'`.
+The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have lynkeus start the hosts, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'` starts a fresh host for every case. Add `--keep-hosts` to start each job's host once and keep it for the job's cases: it is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. `--host-timeout <ms>` (600000 by default) is how long a host may take to attach.
 
 The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
 
@@ -125,7 +125,7 @@ A long-lived host clears what the app's jest mocks record about their calls ever
 
 ## Run the suite with `lynkeus ci`
 
-`lynkeus ci` does what the plain workflow does by hand: it starts your backend, starts N headless hosts, runs the cases across them, and tears everything down. It reads a `ci` section of `lynkeus.config.json`:
+`lynkeus ci` does what the plain workflow does by hand: it starts your backend, runs the cases across N headless hosts, and tears everything down. It keeps one host per job and starts it again when it dies or runs short of heap, so a host that dies takes one case with it, not every case after it. It reads a `ci` section of `lynkeus.config.json`:
 
 ```json title="lynkeus.config.json"
 {
@@ -143,7 +143,7 @@ npx lynkeus ci
 
 lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
 
-`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend and the hosts up afterward, to look at what a failed run left.
+`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The first host's port is `LYNKEUS_PORT` or `port` in the configuration (8123 unless told).
 
 `--affected` runs only the cases that a branch's changes reach:
 
@@ -155,7 +155,7 @@ It diffs against `--base` (`origin/main` by default), finds the screens the chan
 
 ## Run on a simulator or an emulator
 
-Use this for what the headless host cannot show: screenshots, contrast, and anything native. The device here is a simulator or an emulator; physical devices are not supported.
+Use this for what the headless host cannot show: screenshots, contrast, and anything native. The device here is a simulator or an emulator; an Android phone over USB also works, an iPhone does not.
 
 The job has more to prepare, and those steps are your platform's, not lynkeus's:
 
@@ -176,7 +176,7 @@ Three global flags are useful here. `--app <bundleId>` names the app for command
 How the app reaches the CLI differs by platform:
 
 - On the iOS simulator, the app dials `localhost:8123`.
-- On the Android emulator, the app dials `10.0.2.2:8123`, the emulator's address for the machine that runs it.
+- On the Android emulator, the app dials `10.0.2.2:8123`, the emulator's address for the machine that runs it. On an Android phone over USB, the CLI runs `adb reverse` and the app dials `localhost:8123`.
 
 Nothing listens inside the app. It dials out and retries every 1.5 seconds, so the order in which the app and the CLI start does not matter.
 
@@ -262,7 +262,7 @@ Each of these acts on the screen the app is showing or on a recorded run, so the
 
 **An environment variable change has no effect under the headless host.** If your Babel configuration inlines environment variables, Jest's transform cache keeps the first value it saw. Remove the cache directory your Jest configuration points at.
 
-**Every case after one fails with `No app attached`.** The host died with that case, out of memory or from a crash, and the run was not using `--host`, so nothing started it again. With `--host`, the run starts the host again before the next case. When you start the hosts yourself, find out why the first one died: the failed case's reasons say how it ended, and `lynkeus call memory` reads a host's heap.
+**Every case after one fails with `No app attached`.** The host died with that case, out of memory or from a crash, and the run was not using `--host`, so nothing started it again. With `--host`, the run starts the host again before the next case. When you start the hosts yourself, use `--host-command` with `--keep-hosts` instead, or find out why the first one died: the failed case's reasons say how it ended, and `lynkeus call memory` reads a host's heap.
 
 **`port 8123 is held by another lynkeus case run`.** Two runs share a machine and a port. Give each run its own `--ports`, or its own `LYNKEUS_PORT`.
 

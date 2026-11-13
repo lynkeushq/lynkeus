@@ -36,7 +36,7 @@ npx lynkeus case run --host
 
 - Un proyecto de Expo que ya puedas compilar con `npx expo run:ios` o `npx expo run:android`.
 - Node 22 o posterior.
-- Un simulador de iOS o un emulador de Android. Los dispositivos físicos no están soportados.
+- Un simulador de iOS o un emulador de Android. Un teléfono Android por USB también sirve; un iPhone físico no está soportado.
 
 No hace falta ningún *config plugin*: el módulo nativo se enlaza solo.
 

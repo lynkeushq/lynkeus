@@ -71,7 +71,7 @@ socket and the second stays quiet.
 |---|---|---|
 | `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
-| `host`, `port` | `localhost` / `10.0.2.2`, `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
+| `host`, `port` | `localhost` (Android: `10.0.2.2`, then `localhost`), `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
 | `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
 | `app` | — | Free-form, sent in `hello` (name, version, environment). |
 
@@ -180,6 +180,8 @@ and `os deeplink` work on a simulator or an emulator too (the agent answers the
 mock inside the app; simctl and adb move the app); `os clock` is a host's only.
 `--lost` sends the request and loses only the answer, the same on a host and on
 a simulator or an emulator: the server acts on it and the app sees a failure.
+It takes no `--status`, `--body` or `--delay` (a lost request has no answer to
+shape) and refuses them.
 A request a rule answered (or whose answer it lost) is marked `mocked`: `lynkeus
 requests` and `lynkeus trace` print `(mocked)` after it, and a failed case's
 evidence does too, so a 500 the case asked for is not read as the backend's.
@@ -298,9 +300,12 @@ and a histogram of where it died and with what.
   transform. `headless init` looks for the app's root component (`App.tsx`
   and the like, or `--component <path>`); an Expo Router app has none, so it
   runs on a simulator or an emulator and not on the headless host.
-- **Physical devices**: not supported. The CLI looks for a booted simulator
-  or emulator, and launching, screenshots and the `os` commands go through
-  `simctl` and `adb` on one.
+- **Physical devices**: an Android phone on USB works as an emulator does. The
+  CLI runs `adb reverse` for each phone it finds when it starts listening, and
+  an agent with no `host` set tries 10.0.2.2 and then localhost until one
+  answers, so nothing needs setting up; the phone's logcat is kept as an
+  emulator's is. An iPhone is not supported: simctl drives only simulators, so
+  iOS needs a booted simulator.
 - **Film**: `case run --video` films a case where the host offers a `record`
   command, which it names in `hello`. The built-in headless host draws
   nothing and a simulator or emulator session offers none, so there a run

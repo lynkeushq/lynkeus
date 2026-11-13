@@ -179,12 +179,12 @@ El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, rep
           LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
 ```
 
-`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, arranca los hosts (por defecto, un `headless start` por puerto desde el `8123`; `hosts.command` lo cambia), espera a que cada uno se conecte, ejecuta `case run --jobs <n> --ports … --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, baja los hosts y ejecuta `backend.down`. Su código de salida es el de la suite. lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
+`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Su código de salida es el de la suite. lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
 
 Dos opciones útiles:
 
 - `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`).
-- `--dry-run` imprime lo que haría (qué casos, qué backend, cuántos hosts) sin ejecutar nada. `--keep-up` deja el backend y los hosts levantados al terminar, para investigar un fallo.
+- `--dry-run` imprime lo que haría (qué casos, qué backend, cuántos hosts) sin ejecutar nada. `--keep-up` deja el backend levantado al terminar, para investigar un fallo; los hosts terminan con la ejecución.
 
 Cuando existe `$GITHUB_STEP_SUMMARY`, `lynkeus ci` escribe ahí el resumen del job: cuántos casos pasaron, una tabla con los que fallaron y el enlace al reporte.
 
@@ -218,7 +218,7 @@ En cada pull request, ese flujo construye el mapa de la app a partir del código
 El job tiene más trabajo antes de llegar a lynkeus: compilar el build de depuración, encender el dispositivo virtual, instalar la app y abrirla. Eso depende de tu proyecto y de tu sistema de CI. Lo que lynkeus necesita saber es poco:
 
 - **Solo builds de depuración.** En iOS, además, la Nueva Arquitectura. En Android, la app debe ser depurable; de lo contrario el agente se niega a funcionar.
-- **Un dispositivo virtual, no uno físico.** El CLI busca un simulador o un emulador encendido. Los dispositivos físicos no están soportados.
+- **Un dispositivo virtual, o un teléfono Android.** El CLI busca un simulador o un emulador encendido; un teléfono Android que `adb devices` lista funciona igual. Un iPhone físico no está soportado.
 - **La app es quien se conecta.** Marca a `localhost:8123` en el simulador de iOS y a `10.0.2.2:8123` en el emulador de Android. Durante los primeros 3 segundos reintenta cada 100 ms; después espacia los intentos hasta un máximo de 1,5 segundos. No hay que abrir ningún puerto hacia la app.
 - **El token se escribe en el bundle.** En una app de React Native lo escribe el plugin `lynkeus-agent/babel` cuando Metro transforma el código, así que el paso que arranca Metro necesita `LYNKEUS_TOKEN` con el mismo valor que el paso que ejecuta los casos. En Expo, la variable de la app es `EXPO_PUBLIC_LYNKEUS_TOKEN`. Un bundle de producción nunca recibe el token.
 - **Un token vacío apaga el agente.** Si la app pasa un token y le llega vacío, el agente no arranca y lo dice en el log de la app: `lynkeus: the app passed a token and it is empty`. En el job se ve como una app que nunca se conecta.

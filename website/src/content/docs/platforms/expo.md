@@ -181,7 +181,7 @@ steps:
 - **Native tab bars** cannot be inspected or pressed.
 - **Lowercase route names** need the `route:` prefix in `lynkeus wait` and `lynkeus see`.
 - **The headless host** runs an expo-router app since 0.4.0, through the router itself; before, it could not. See [Headless](/platforms/headless/#an-expo-router-app).
-- **Physical devices** are not supported, as in any React Native app.
+- **Physical devices.** An Android phone over USB works like an emulator. An iPhone is not supported yet.
 - **Versions tested**: Expo SDK 57, React Native 0.86, expo-router, on the iOS simulator and the Android emulator. Other SDK versions need React Native 0.76 or newer with the New Architecture.
 
 ## Common problems

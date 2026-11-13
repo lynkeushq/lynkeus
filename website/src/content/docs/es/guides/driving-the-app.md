@@ -9,7 +9,7 @@ Esta guía recorre los comandos que actúan sobre la app en ejecución: `screen`
 
 ## Antes de empezar
 
-- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Los dispositivos físicos no están soportados. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
+- La app tiene el agente montado y corre en un build de depuración, en un simulador, un emulador o un host sin pantalla. Un teléfono Android por USB cuenta como un emulador; un iPhone físico no está soportado. Si falta ese paso, sigue [la instalación en React Native](/es/getting-started/installation-react-native/) o [en Expo](/es/getting-started/installation-expo/).
 - El CLI y la app comparten el mismo token. Con `lynkeus init` es el de `.lynkeus/token` y no hay nada que hacer; si lo defines con `LYNKEUS_TOKEN`, la variable de tu terminal tiene que valer lo mismo que recibió la app (en React Native, lo que tenía Metro al arrancar).
 - Estás en la carpeta de la app. Si no, agrega `--root <dir>` a cada comando.
 

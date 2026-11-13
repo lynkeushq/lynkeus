@@ -36,7 +36,7 @@ The [last section](#what-why-tells-you) lists every answer `why` can give.
 2. **`enabled` is true for this environment.** If you gate it, as in `enabled: __DEV__ && config.ENV !== 'prod'`, check what the expression gives in the build you are running.
 3. **The token reached the app.** Look in the app's log for `lynkeus: the app passed a token and it is empty`. If the line is there, the agent is off; see [the next entry](#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
 4. **The tokens match.** The token the app received when it was bundled must be the one the CLI reads: `LYNKEUS_TOKEN` in the terminal, else the project's `.lynkeus/token`. A mismatch looks like no app at all, with one difference: the error then ends with `An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.`
-5. **The app runs on a simulator or an emulator.** Physical devices are not supported: the CLI looks for a booted simulator or emulator.
+5. **The app runs on a simulator, an emulator or an Android phone over USB.** An iPhone is not supported: the CLI looks for a booted simulator, or a device `adb devices` lists. For a phone, `adb` must be on your `PATH`, because the CLI runs `adb reverse` to give it the driver's port.
 6. **The ports match.** If you set `LYNKEUS_PORT` or `port` in `lynkeus.config.json`, the app's `port` option must be the same number.
 7. **The app was rebuilt after you added the package.** The native module is compiled into the app.
 8. **The app is running.** `--launch --app <bundleId>` relaunches it before attaching.
@@ -425,9 +425,9 @@ The errors it recognizes:
 
 ### Every case after one fails with `No app attached`
 
-**Why.** The host died during that case, usually out of memory (node stops at about 4 GB), or its app stopped answering. Without `--host`, nothing starts it again, so each case after it finds no app.
+**Why.** The host died during that case, usually out of memory (node stops at about 4 GB), or its app stopped answering. Unless the run starts the host itself, nothing starts it again, so each case after it finds no app.
 
-**Fix.** Run with `--host`: the run starts the host again before the next case, and the case that lost it fails with its reasons saying how the host ended, with its last words and the path of its log (`during this case the host exited (…)`). A host started again writes a log of its own, so the one that died keeps what explains it. To avoid the failure instead of recovering from it, the run reads the host's heap before each case and starts it again past `--host-heap` percent of its limit (60 by default); lower it for a leaky app. When you start the hosts yourself, restart one when `lynkeus call memory` reports a heap near `heapLimitMb`. See [Hosts that die](/reference/cli/#hosts-that-die).
+**Fix.** Run with `--host` (one host) or `--host-command` with `--keep-hosts` (one per job, as `lynkeus ci` does): the run starts the host again before the next case, and the case that lost it fails with its reasons saying how the host ended, with its last words and the path of its log (`during this case the host exited (…)`). A host started again writes a log of its own, so the one that died keeps what explains it. To avoid the failure instead of recovering from it, the run reads the host's heap before each case and starts it again past `--host-heap` percent of its limit (60 by default); lower it for a leaky app. When you start the hosts yourself, restart one when `lynkeus call memory` reports a heap near `heapLimitMb`. See [Hosts that die](/reference/cli/#hosts-that-die).
 
 ### An environment variable change has no effect
 

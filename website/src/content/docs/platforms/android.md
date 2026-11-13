@@ -11,7 +11,7 @@ Everything that goes through the agent (reading the screen, pressing, typing, wa
 
 - **A debuggable build.** The agent's native module checks the application's `FLAG_DEBUGGABLE` flag and refuses to run without it. A standard debug build has it; a release build does not.
 - **React Native 0.76 or newer with the New Architecture.**
-- **An Android emulator** with the app installed and running, and `adb` on your `PATH` for the commands that act on the device from outside the app. A physical phone is not supported.
+- **An Android emulator** with the app installed and running, and `adb` on your `PATH` for the commands that act on the device from outside the app. An Android phone connected over USB works the same way; see [A phone on USB](#a-phone-on-usb).
 - **Node 22 or newer** for the CLI.
 
 The native module is linked automatically. After adding `lynkeus-agent`, build the app once:
@@ -46,7 +46,7 @@ This matters in every development build, because React Native lays an invisible 
 
 The app is the side that connects, and the driver listens on your machine's loopback address. From inside an Android emulator, `localhost` is the emulator itself, not your machine. The emulator provides the address `10.0.2.2` as an alias for the machine it runs on.
 
-The agent uses that address by default on Android: it dials `ws://10.0.2.2:8123`. You do not configure anything for an emulator.
+The agent uses that address by default on Android: it tries `10.0.2.2` and then `localhost` until one answers. You do not configure anything for an emulator or for a phone on USB.
 
 To dial somewhere else, pass `host` and `port` to the agent:
 
@@ -158,11 +158,17 @@ Of the commands that act from outside the app, `lynkeus screenshot` is the one t
 
 `lynkeus os deeplink <url>` is not in that group. It goes through the agent and works on Android as it does everywhere.
 
+## A phone on USB
+
+An Android phone that `adb devices` lists works as an emulator does. The address `10.0.2.2` exists only inside an emulator, so when the CLI starts listening it runs `adb reverse tcp:<port> tcp:<port>` for every device whose serial does not start with `emulator-`. That gives the phone the driver's port at its own `localhost`, which the agent dials after `10.0.2.2`. The app's log (logcat) is kept for a phone as for an emulator. Nothing to configure, as long as `adb` is on your `PATH` and USB debugging is on. With several devices attached, name the serial with `--device`.
+
+An `adb reverse` that fails is ignored, so if the app never attaches, run `adb -s <serial> reverse tcp:8123 tcp:8123` yourself.
+
 ## Limits
 
 - **System UI is not part of the screen.** Permission dialogs, the system keyboard, the notification shade and anything else drawn by Android rather than by React Native are not listed as elements.
 - **Debuggable builds only.** lynkeus cannot drive a release build or a build installed from Google Play.
-- **Physical devices are not supported.** The CLI looks for a booted emulator, and launching, screenshots and the `os` commands go through `adb` on one. The default address, `10.0.2.2`, exists only inside an emulator, and the driver listens on your machine's loopback address only.
+- **An iPhone is not supported.** Android phones over USB work (see [A phone on USB](#a-phone-on-usb)), but iOS commands go through `simctl`, which drives only simulators.
 - **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. An emulator session offers none, so a run keeps its screenshots and no video.
 
 ## Known problems

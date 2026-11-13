@@ -19,7 +19,7 @@ El agente trae código nativo. Después de instalar o actualizar `lynkeus-agent`
 
 ## Cómo se conecta la app
 
-Desde dentro del emulador, `localhost` es el propio emulador, no tu máquina. Por eso en Android el agente se conecta por defecto a `10.0.2.2:8123`: es la dirección con la que el emulador alcanza a la computadora que lo aloja.
+Desde dentro del emulador, `localhost` es el propio emulador, no tu máquina. Por eso en Android el agente se conecta por defecto a `10.0.2.2:8123`: es la dirección con la que el emulador alcanza a la computadora que lo aloja. Si no se le da `host`, el agente prueba además `localhost` cuando `10.0.2.2` no responde, que es lo que alcanza el puerto de un teléfono por USB.
 
 No tienes que configurar nada. El agente elige la dirección según la plataforma.
 
@@ -31,6 +31,15 @@ import { auto } from 'lynkeus-agent/auto';
 // Solo si el CLI no está en la dirección por defecto.
 auto({ token: process.env.LYNKEUS_TOKEN, host: '10.0.2.2', port: 8123 });
 ```
+
+## Un teléfono por USB
+
+Un teléfono Android conectado por USB (o por la red de `adb`) funciona como un emulador, sin configurar nada. Desde el teléfono, `10.0.2.2` no llega a tu máquina, así que el CLI hace dos cosas:
+
+- Al empezar a escuchar, ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` para cada teléfono que `adb devices` lista con un número de serie que no empieza con `emulator-`. Eso le da al teléfono el puerto del driver en su propio `localhost`. Sin `adb` o sin teléfonos, no hace nada.
+- Una app Android que no recibió la opción `host` prueba primero `10.0.2.2` y después `localhost`, hasta que una responde. Con `host` explícito, usa ese.
+
+El registro nativo del teléfono (`logcat`) se guarda en la evidencia de un caso igual que el de un emulador. Hace falta un build de depuración, como siempre. Un iPhone físico, en cambio, no está soportado: `simctl` solo maneja simuladores.
 
 ## Cómo se elige el dispositivo
 
@@ -163,7 +172,7 @@ Si actualizaste el CLI sin recompilar la app, lynkeus avisa que las versiones di
 
 ## Límites
 
-- **Dispositivos físicos.** No están soportados. El CLI busca un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `adb` sobre un emulador.
+- **Un teléfono por USB** funciona como un emulador (ver [Un teléfono por USB](#un-teléfono-por-usb)). Lo que el CLI hace desde afuera pasa por `adb` sobre el dispositivo.
 - **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Notificaciones push e idioma.** No hay comando para entregarlas o cambiarlo en Android.
 - **Respuestas simuladas.** `lynkeus mock` y el paso `app.mock` funcionan en un emulador: contesta el agente dentro de la app (con `lost` incluido, y sin `--sticky`).

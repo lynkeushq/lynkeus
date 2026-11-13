@@ -27,7 +27,7 @@ No. The agent runs only in debug builds, by design. lynkeus tests your app's beh
 
 ### Can it run on a physical phone?
 
-No. Physical devices are not supported. The CLI looks for a booted iOS simulator or Android emulator, and launching the app, screenshots and the `os` commands go through `simctl` and `adb` on one. The third place an app can run is the headless host, in Node.
+An Android phone connected over USB works like an emulator: the CLI runs `adb reverse` for it, so the app reaches the driver with no setup. An iPhone does not work yet: the CLI drives iOS through `simctl`, which only controls simulators. The third place an app can run is the headless host, in Node.
 
 ### Which versions of React Native does it support?
 

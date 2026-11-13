@@ -94,7 +94,7 @@ No. La app es la que se conecta hacia afuera, a tu propia máquina. Dentro de la
 
 ### ¿Funciona en un dispositivo físico?
 
-No. Los dispositivos físicos no están soportados. El CLI busca un simulador o un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `simctl` y `adb` sobre uno de ellos.
+Depende de la plataforma. Un teléfono Android conectado por USB funciona como un emulador: el CLI ejecuta `adb reverse` para cada teléfono que ve en `adb devices` y la app llega al driver sin configurar nada. Un iPhone físico no está soportado: `simctl` solo maneja simuladores, y todo lo que el CLI hace desde afuera en iOS pasa por él.
 
 ## Al escribir tests
 

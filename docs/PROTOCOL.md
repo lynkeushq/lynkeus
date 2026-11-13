@@ -1,8 +1,9 @@
 # Protocol
 
 Version 1. JSON messages over a WebSocket. The **app** is the client: in
-development it dials the **driver** (`ws://localhost:8123` on iOS, `ws://10.0.2.2:8123`
-on the Android emulator). While nothing answers it dials again every 100 ms
+development it dials the **driver** (`ws://localhost:8123` on iOS; on Android
+`ws://10.0.2.2:8123` for an emulator, then `ws://localhost:8123`, which a phone on USB
+reaches through the `adb reverse` the CLI sets up when it starts listening). While nothing answers it dials again every 100 ms
 for the first 3 s after the app starts or a link drops, then waits twice as
 long each time, up to 1.5 s (`reconnectMs`).
 The driver is any process that can hold a socket: a Node test runner, a CLI,
