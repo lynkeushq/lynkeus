@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- On a device, `app.mock` with `lost: true` sends the request and loses only its answer, as the hosts do: it failed the request without sending it, so the server never acted on it (a provider link the app thinks failed is still saved), and cases checking that ran differently on a phone.
+
 ## 0.5.1
 
 - An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.
