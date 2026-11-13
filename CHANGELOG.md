@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
 
 - `lynkeus headless start` no longer runs out of memory in a long suite. Every `jest.fn()` an app's mocks are made of (the jest preset's native modules, AsyncStorage, the app's own) keeps the arguments and result of each call for a test to read; a host runs for hours and nothing reads them, so its heap grew some 20 MB per sign-in and screen in a large app and hit node's 4 GB limit after about 30 cases, failing the case it was in. The host clears those records every 10 s; the mocks keep their implementations and once-queues. Measured on that app with no backend, 40 sign-out-and-Home cycles: the heap grew 1 GB before, 40 MB now, and flat once react-query's 5-minute cache window fills.
 - `lynkeus call memory` on the headless host reads the heap after a collection, with no `--expose-gc` (which `NODE_OPTIONS` refuses), and says where the heap stops (`heapLimitMb`): a runner can compare a reading with the next case's and with the limit.
