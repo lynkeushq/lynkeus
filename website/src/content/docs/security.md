@@ -22,7 +22,9 @@ Once a driver is attached, it can do everything the [protocol](/reference/protoc
 - Read the screen: every element React rendered, with its `testID`, text, value and position.
 - Press, type and swipe, as a user would.
 - Navigate to any route and open deep links.
-- Read the app's recent HTTP requests: method, URL, status and duration.
+- Read the app's recent HTTP requests: method, URL, status and duration, and, while the driver asks for them, their headers and bodies.
+- Answer the app's requests with mocks, or lose their answers.
+- Read what the app printed: its console and the errors it did not catch.
 - Read the trace: routes, requests, store changes and analytics events.
 - Run any command the app registered with `qa.register`, and read any store it exposed with `qa.observe`.
 
@@ -35,7 +37,7 @@ The agent limits what it reads in three places.
 | Data | What is kept |
 |---|---|
 | Inputs with `secureTextEntry` | The value is masked with `•`. A password never appears in a screen listing. |
-| HTTP requests | Method, URL, status and duration only. Headers and bodies are never recorded. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`. |
+| HTTP requests | Method, URL, status and duration. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`. Headers and bodies are kept only while a driver asks for them (`case run --out` does, for the report, and stops at the end of each case). Then a header or a JSON field named like a secret (a password, a PIN, an OTP, a token, an API key, an authorization header, a cookie, a card number or CVV, an SSN) is replaced with `…`, and a body is cut at 16,000 characters. |
 | Store changes in the trace | Which top-level keys changed, with short values. An object is reduced to its number of keys and an array to its length, a string longer than 80 characters is cut, and the value under a key named like a secret (`token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session`, `auth`) is replaced with `…`. A trace is part of what a report uploads, so secrets and payloads do not land in it. |
 
 Two things are not reduced, and you control both:
@@ -91,6 +93,8 @@ The **token** is a secret shared by the app and its driver. When the app is moun
 auto({ token: process.env.LYNKEUS_TOKEN });
 ```
 
+`lynkeus init` makes the project's token: 48 random hexadecimal characters in `.lynkeus/token`, readable by your user only and kept out of git by `.lynkeus/.gitignore`. The CLI, `lynkeus mcp`, the headless host and the Babel plugin that writes it into the app read it from there. `LYNKEUS_TOKEN` in the environment wins over the file:
+
 ```bash
 export LYNKEUS_TOKEN=<the same value>
 lynkeus screen
@@ -106,7 +110,7 @@ An app that passes a token expects protection. If the value arrives empty, the a
 lynkeus: the app passed a token and it is empty, so the agent stays off. …
 ```
 
-This case is common, not exotic. React Native gives the app no environment, so `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes it there. The `lynkeus-agent/babel` plugin does, and `lynkeus init` adds it to `babel.config.js`. Metro must be started with `LYNKEUS_TOKEN` set, and once with `--reset-cache` after the value changes.
+This case is common, not exotic. React Native gives the app no environment, so `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes it there. The `lynkeus-agent/babel` plugin does, with `LYNKEUS_TOKEN` from Metro's environment or else the project's `.lynkeus/token`, and `lynkeus init` adds it to `babel.config.js`. Metro must be started once with `--reset-cache` after the value is made or changes.
 
 The plugin writes the token into a development bundle only. A release bundle is left alone: a developer's secret has no place in a build that ships.
 
@@ -118,17 +122,17 @@ Before 0.3.0 an empty token meant "no token", and the agent served any driver th
 
 Treat the token like any other secret:
 
-- Do not commit it. Keep it in your environment, and in CI in the CI's secret store.
-- Use one per machine or per pipeline rather than one for everybody.
+- Do not commit it. `.lynkeus/token` is kept out of git for you; in CI, keep the value in the CI's secret store and pass it as `LYNKEUS_TOKEN`.
+- Use one per machine or per pipeline rather than one for everybody. `lynkeus init` makes a new one on each machine where the project has none.
 - It is written into the development bundle of the app that reads it, so do not reuse a secret that protects something else.
 
-In an Expo app the app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, because Expo only inlines variables with that prefix, and the Babel plugin is not needed. The value ends up in the bundle of your development build, which is the same exposure as any other build-time token.
+In an Expo app the app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, because Expo only inlines variables with that prefix, and the Babel plugin is not needed. `lynkeus init` writes it to `.env.local`, which Expo's template keeps out of git. The value ends up in the bundle of your development build, which is the same exposure as any other build-time token.
 
 ## The headless host
 
 The headless host runs your app's JavaScript in Node, usually against a real backend. Because nothing about it is tied to a simulator on a developer's desk, it has stricter defaults.
 
-- **It refuses to start without a token.** `lynkeus headless start` stops with an error unless `LYNKEUS_TOKEN` is set.
+- **It refuses to start without a token.** `lynkeus headless start` stops with an error unless `LYNKEUS_TOKEN` is set or the project has `.lynkeus/token`.
 - **It refuses hosts that are not local.** With `network: 'real'`, the host lets the app reach only the hosts in `networkHosts`, which defaults to loopback. A request to anything else is refused at once.
 - **It checks the API address before the app renders.** The entry that `lynkeus headless init` writes reads the variable named by `apiEnv` (default `API_URL`) and throws unless it points at `localhost`, `127.0.0.1` or `10.0.2.2`.
 
@@ -144,7 +148,7 @@ lynkeus ships no list of dangerous controls, because which controls are irrevers
 
 ## What stays on your machine
 
-Everything lynkeus learns is written as files under `.lynkeus/` in the app's folder: the graph, recorded screens, snapshots, run artifacts. No server is involved. A run goes somewhere else only when you ask for it, with `case run --push` or `report push`.
+Everything lynkeus learns is written as files under `.lynkeus/` in the app's folder: the graph, recorded screens, snapshots, run artifacts, and the project's token. No server is involved. A run goes somewhere else only when you ask for it, with `case run --push` or `report push`.
 
 Run directories and `.lynkeus/runs/` can hold screenshots and screen listings of your app. Decide deliberately whether to commit them or upload them as CI artifacts.
 
@@ -158,7 +162,7 @@ The report service at [lynkeus.io](https://lynkeus.io) is optional and separate 
 
 | File | Contains |
 |---|---|
-| `run.json` | When the run started and ended, the platform, the git branch and commit, the totals. |
+| `run.json` | When the run started and ended, the platform, the totals, and the git branch and commit, the repository's web address (without credentials) and the names of up to 20 files with changes no commit has. |
 | `cases.jsonl` | For each case: its id, title, description and file path, and each step as the case words it, with its result, duration and error. |
 | Frames | A screenshot after each app step, when you ran with `--screenshots`. |
 | Films | A video of each case, when you ran with `--video`. |
@@ -166,6 +170,7 @@ The report service at [lynkeus.io](https://lynkeus.io) is optional and separate 
 A line of `cases.jsonl` can also carry:
 
 - The analytics events each step caused, with their properties.
+- The requests the app sent during each step, with their headers and bodies as described in [What the agent does not record](#what-the-agent-does-not-record), and what the app printed: its console, the errors it did not catch, and its native log.
 - For a failed case, its evidence: the screen listing at the failure, the last requests (status, method and URL) and the diagnosis.
 - With `--traces`, what your backend did for each step: the spans it exported, with their attributes, such as a route, a status, a table or a job class.
 

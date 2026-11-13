@@ -44,7 +44,7 @@ report carries the screen, the requests and the reason.
 
 | Key | | |
 |---|---|---|
-| \`id\`, \`title\` | required, a line | how runs and reports name the case |
+| \`id\`, \`title\` | a line each | how runs and reports name the case; without \`id\` it is the file's name |
 | \`description\` | a paragraph | what the case proves |
 | \`why\` | optional | what breaks for people if it fails |
 | \`given\` | optional | what is true when it starts |

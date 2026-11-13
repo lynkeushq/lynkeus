@@ -70,7 +70,7 @@ Before 0.3.0 an empty token meant "no token", and the agent served any driver th
 
 ### `lynkeus-agent/babel`
 
-React Native gives the app no environment. `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes the value there. `lynkeus-agent/babel` is a Babel plugin that does: wherever the app's code reads `process.env.LYNKEUS_TOKEN`, it writes the value the variable has in Metro's environment.
+React Native gives the app no environment. `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes the value there. `lynkeus-agent/babel` is a Babel plugin that does: wherever the app's code reads `process.env.LYNKEUS_TOKEN`, it writes the project's token. That is the value the variable has in Metro's environment, else the one `lynkeus init` wrote to `.lynkeus/token`.
 
 ```js title="babel.config.js"
 module.exports = {
@@ -83,11 +83,11 @@ module.exports = {
 |---|---|
 | What it rewrites | The expression `process.env.LYNKEUS_TOKEN`, and nothing else. |
 | When | In a development bundle only. A release bundle is left alone, so the token is never written into one. |
-| When the variable is not set | It rewrites nothing. The expression stays `undefined` in the app, and the agent stays off as described above. |
+| When there is no token | Neither the variable nor `.lynkeus/token` holds one: it rewrites nothing. The expression stays `undefined` in the app, and the agent stays off as described above. |
 | Who adds it | `lynkeus init`, or you by hand. |
-| Expo | Not needed. An Expo app reads `EXPO_PUBLIC_LYNKEUS_TOKEN`, which Expo inlines itself. |
+| Expo | Not needed. An Expo app reads `EXPO_PUBLIC_LYNKEUS_TOKEN`, which Expo inlines itself; `lynkeus init` writes it to `.env.local`. |
 
-Start Metro with `LYNKEUS_TOKEN` set to the value the CLI reads. Metro keeps what it has transformed, so after the value changes start it once with `--reset-cache`. Available since 0.3.0.
+Metro keeps what it has transformed, so after the token changes, start it once with `--reset-cache`. Available since 0.3.0.
 
 ## `<Lynkeus>`
 
@@ -125,7 +125,7 @@ The options are read once, when the component mounts. Changing `host`, `port` or
 | `navigation` | `NavigationAdapter` | none | How the agent reads and drives your router. Without one you still get the screen, touches and waits, but no routes. |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
 | `port` | number | `8123` | The driver's port. Change it on both ends to run several apps on one machine. |
-| `token` | string | none | The shared secret. When set, the driver must present it before any command is served, which keeps other local processes from driving the app. The CLI reads its copy from `LYNKEUS_TOKEN`. Passed but empty, it keeps the agent off; see [The token option](#the-token-option). |
+| `token` | string | none | The shared secret. When set, the driver must present it before any command is served, which keeps other local processes from driving the app. The CLI reads its copy from `LYNKEUS_TOKEN`, else from `.lynkeus/token`. Passed but empty, it keeps the agent off; see [The token option](#the-token-option). |
 | `app` | object | none | A free-form description sent when the app attaches. `lynkeus hello` prints it. |
 | `reconnectMs` | number (ms) | `1500` | The longest wait between two attempts to reach the driver. For 3 seconds after the app starts or a connection drops, it retries every 100 ms; after that each wait doubles, up to this value. |
 | `onError` | `(error, context) => void` | none | Called when something fails inside the connection. |
@@ -185,7 +185,7 @@ Drivers look for two command names. Neither is required.
 
 #### Commands every app answers
 
-The agent registers four commands of its own. Registering the same name in your app replaces the built-in one.
+The agent answers some commands of its own. Registering the same name in your app replaces the built-in one.
 
 | Command | Params | Answer |
 |---|---|---|
@@ -193,6 +193,19 @@ The agent registers four commands of its own. Registering the same name in your 
 | `stores` | `{ name?: string }` | Without a name, `{ stores: [...] }`: the names observed with `qa.observe`. With a name, that store's state. |
 | `profile` | `{ action?: 'start' \| 'stop' }` | Render time per route. See `lynkeus profile`. |
 | `traceContext` | `{ traceparent: string \| null }` | Sets the W3C trace context the agent adds to the app's requests. `lynkeus case run --traces` uses it. |
+| `networkBodies` | `{ on: boolean }` | While on, the request log keeps each request's headers and body and the answer's, with secrets hidden. `case run` turns it on for a run that keeps evidence. |
+| `netmock` | `{ action?: 'add' \| 'clear' \| 'list', method?, path, status?, body?, headers?, delayMs?, times?, lost? }` | Answers matching requests in the app, before they reach the network. `lynkeus mock` and a case's `app.mock` send it. A host that stands in for the network answers it itself. |
+
+Two more are answered only where the agent can do the work:
+
+| Command | Params | Answer |
+|---|---|---|
+| `analytics` | `{ take?: boolean }` | What the app told the analytics SDKs the agent could wrap (Mixpanel, AppsFlyer, Firebase Analytics, and every call to Sentry, Datadog, Intercom and Crashlytics), oldest first. `take` empties the buffer after reading. |
+| `logs` | `{ take?: boolean }` | What the app printed with `console` and the errors nothing caught, oldest first. `take` empties the buffer after reading. |
+
+A host that keeps these itself, such as the headless host, answers them in the agent's place.
+
+On a simulator, an emulator or a phone, a `netmock` rule with `lost: true` sends the request and loses only its answer: the server gets it and acts on it, and the app sees `Network request failed`. This is what the hosts do too. Before 0.6.0 the agent failed the request without sending it. A request a rule answered or lost is marked `mocked` in the request log and the trace. Rules on a device do not take `sticky`: they stay until `lynkeus mock --clear`, or until the app's JavaScript reloads.
 
 ### `qa.unregister(name)`
 
@@ -320,10 +333,10 @@ The agent records three things as the app runs, each in a buffer that drops its 
 | Buffer | Size | Holds |
 |---|---|---|
 | Trace | 500 entries | Routes, requests, store changes, analytics events, commands, touches. |
-| Requests | 200 entries | Method, URL, status and duration of each HTTP request. |
+| Requests | 200 entries | Method, URL, status and duration of each HTTP request, and whether a mock answered it. |
 | Events | 500 entries | What `qa.event` recorded. |
 
-Requests are recorded without headers and without bodies, and sensitive query values are redacted. See [Security](/security/).
+Requests are recorded without headers and without bodies, and sensitive query values are redacted. The one exception is a driver that turns `networkBodies` on, as `case run` does for a run that keeps evidence: the requests that follow keep their headers and bodies, with values under secret-looking keys (passwords, tokens, PINs, card numbers, cookies) replaced by `…` and each body cut at 16,000 characters. See [Security](/security/).
 
 ## Other exports
 

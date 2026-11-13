@@ -197,6 +197,47 @@ This matters because the alternative is a case that fails halfway, with the back
 
 A server that is running but cannot serve, because its database is down for example, can add `"down": "<why>"` to its reply. No case starts, and the run says `the fixtures server cannot serve: <why>`.
 
+### Describe what each fixture does
+
+`commands` can list descriptions instead of bare names, or mix the two. A description says what a fixture makes or reads, so that whoever writes a case, a person or a model, can pick a setup without reading your server's code:
+
+```json
+{
+  "protocol": 1,
+  "commands": [
+    {
+      "name": "create_user",
+      "summary": "A user who has finished onboarding",
+      "params": { "name": { "type": "string", "default": "Test user" } },
+      "example": { "name": "Ana" },
+      "answers": ["user_id"]
+    },
+    { "name": "inspect", "summary": "What the backend holds for a user", "changes": false },
+    "give_points"
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `name` | The step name. |
+| `summary` | What it makes or reads, in a line. |
+| `params` | Each parameter: `type`, `summary`, `values` (when there are few), `default`, `required`. |
+| `example` | The params of one call that works, as a case would write them. |
+| `answers` | What its answer carries that a later step reads, such as `user_id`. |
+| `changes` | `false` for a fixture that only reads. |
+
+`protocol` is the version of the fixtures protocol the server speaks, `1` today. A server that leaves it out is taken to speak this one.
+
+Two commands read the description:
+
+```bash
+npx lynkeus fixtures describe   # every fixture, with its summary and parameters
+npx lynkeus fixtures check      # whether the server keeps the protocol
+```
+
+`fixtures describe` keeps the answer under `.lynkeus` and shows it for a day without starting the server again; `--fresh` asks again. `fixtures check` fails when the reply has no list of commands, names a command twice, speaks a newer protocol version than this lynkeus knows, or says it is `down`. Neither changes anything in the backend. `lynkeus case new` uses the same description to offer a new case the setups it can choose from.
+
 ### Configuration
 
 ```json

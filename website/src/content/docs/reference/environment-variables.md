@@ -3,7 +3,7 @@ title: Environment variables
 description: Every environment variable lynkeus reads or sets, which part reads it, and what it changes.
 ---
 
-lynkeus reads a small number of environment variables. Most of them carry what differs between machines and should not be committed: a secret, a port, a key. This page lists each one, says which part of lynkeus reads it, and what it does.
+lynkeus reads a small number of environment variables. Most of them carry what differs between machines and should not be committed: a port, a key, a secret that overrides the project's. This page lists each one, says which part of lynkeus reads it, and what it does.
 
 Three parts can read the environment, and it matters which:
 
@@ -18,7 +18,7 @@ Three parts can read the environment, and it matters which:
 | [`LYNKEUS_TOKEN`](#lynkeus_token) | CLI, headless host, Metro through `lynkeus-agent/babel` | The shared secret between the app and its driver. |
 | [`LYNKEUS_PORT`](#lynkeus_port) | CLI, headless host | The port the driver listens on. |
 | [`LYNKEUS_HOST`](#lynkeus_host) | headless host | Where the driver is listening. |
-| [`LYNKEUS_DEVICE`](#lynkeus_device) | CLI | The simulator to use. |
+| [`LYNKEUS_DEVICE`](#lynkeus_device) | CLI | The simulator or emulator to use. |
 | [`LYNKEUS_APP_ID`](#lynkeus_app_id) | CLI | The app's bundle id. |
 | [`LYNKEUS_ATTACH_TIMEOUT_MS`](#lynkeus_attach_timeout_ms) | CLI | How long to wait for the app to attach. |
 | [`LYNKEUS_CONFIG`](#lynkeus_config) | CLI | A second configuration file. |
@@ -35,16 +35,18 @@ Where a value can also be given as a flag or in `lynkeus.config.json`, flags win
 
 The shared secret between the app and its driver. When the app was mounted with a token, it serves only a driver that presents the same one.
 
-- The **CLI** reads it and presents it to the app when the app attaches.
-- **`lynkeus headless start`** requires it and refuses to start without it. The hosted app uses its value as the agent's token.
+You usually do not set it. `lynkeus init` (and `lynkeus headless init`) makes a token for the project in `.lynkeus/token`, writes a `.lynkeus/.gitignore` that keeps it out of git, and every part below reads that file when the variable is not set. Set `LYNKEUS_TOKEN` to override the file, for example in CI, where the file does not exist.
+
+- The **CLI** reads it, else `.lynkeus/token`, and presents it to the app when the app attaches.
+- **`lynkeus headless start`** needs one of the two and refuses to start without it. The hosted app uses its value as the agent's token.
 - **Your app** gets the token from your code. The common form is `auto({ token: process.env.LYNKEUS_TOKEN })`. Inside a React Native bundle that expression is `undefined` unless something writes the value there.
-- **Metro**, when `babel.config.js` lists the `lynkeus-agent/babel` plugin, reads it while it transforms your code and writes its value wherever the app reads `process.env.LYNKEUS_TOKEN`. It does so in a development bundle only, never a release one. `lynkeus init` adds the plugin. Since 0.3.0.
+- **Metro**, when `babel.config.js` lists the `lynkeus-agent/babel` plugin, writes the token wherever the app reads `process.env.LYNKEUS_TOKEN`: the variable's value, else the one in `.lynkeus/token`. It does so in a development bundle only, never a release one. `lynkeus init` adds the plugin. Since 0.3.0.
 
 ```bash
 export LYNKEUS_TOKEN=$(openssl rand -hex 16)
 ```
 
-Set it in the shell that starts Metro as well as in the one that runs the CLI. Metro keeps what it has transformed, so after the value changes, start Metro once with `--reset-cache`.
+When you set it, set it in the shell that starts Metro as well as in the one that runs the CLI. Metro keeps what it has transformed, so after the value changes, start Metro once with `--reset-cache`.
 
 Both ends must hold the same value. When they do not, the app never attaches. See [Security](/security/) for what the token protects.
 
@@ -53,7 +55,7 @@ If the app passes a token and the value arrives empty, because Metro was started
 :::
 
 :::note
-In an Expo app, only variables that start with `EXPO_PUBLIC_` are inlined into the bundle. The app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`, and the CLI still reads `LYNKEUS_TOKEN`. Set both to the same value. An Expo app does not need the Babel plugin.
+In an Expo app, only variables that start with `EXPO_PUBLIC_` are inlined into the bundle. The app reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN`. `lynkeus init` writes that variable, with the project's token, to `.env.local`, which Expo reads and its template keeps out of git. Restart the development server after it does. A value in the environment wins over the file; if you set `LYNKEUS_TOKEN` yourself, give `EXPO_PUBLIC_LYNKEUS_TOKEN` the same value. An Expo app does not need the Babel plugin.
 :::
 
 ### `LYNKEUS_PORT`
@@ -67,8 +69,8 @@ The port the driver listens on and the app dials. Default: `port` in `lynkeus.co
 Use it to run several app and driver pairs on one machine: each pair gets its own port.
 
 ```bash
-LYNKEUS_PORT=8124 LYNKEUS_TOKEN=secret lynkeus headless start
-LYNKEUS_PORT=8124 LYNKEUS_TOKEN=secret lynkeus screen
+LYNKEUS_PORT=8124 lynkeus headless start
+LYNKEUS_PORT=8124 lynkeus screen
 ```
 
 ### `LYNKEUS_HOST`
@@ -77,7 +79,7 @@ Read by the headless host. It says where the driver is listening, for a host tha
 
 ### `LYNKEUS_DEVICE`
 
-Read by the CLI. The simulator to use, by udid or by name. The same as `--device` and as `device` in `lynkeus.config.json`. Without any of them, the CLI takes the first booted simulator.
+Read by the CLI. The simulator to use, by udid or by name, or an Android emulator by its `adb` serial. The same as `--device` and as `device` in `lynkeus.config.json`. Without any of them, the CLI takes the first booted simulator, or, for an app that says it runs on Android, the first device `adb devices` lists.
 
 ### `LYNKEUS_APP_ID`
 
@@ -125,7 +127,7 @@ Any value other than `1` leaves it off.
 
 ### `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`
 
-Read by the CLI, for `lynkeus case run --push` and every `lynkeus report` command. `LYNKEUS_REPORTS_KEY` is your organization's API key. `LYNKEUS_REPORTS_URL` is the address of the report service, `https://lynkeus.io` unless you set another.
+Read by the CLI, for `lynkeus case run --push`, `lynkeus ci` with `ci.push`, and the `lynkeus report` commands that talk to the service (all but `report prune`). `LYNKEUS_REPORTS_KEY` is your organization's API key. `LYNKEUS_REPORTS_URL` is the address of the report service, `https://lynkeus.io` unless you set another.
 
 The key is required. Without it, those commands stop with:
 
@@ -148,10 +150,12 @@ lynkeus reads or sets a few variables that belong to other tools.
 |---|---|---|
 | `GITHUB_HEAD_REF`, `GITHUB_REF_NAME` | CLI, `case run --out` | The branch written into `run.json`, in that order of preference. Outside GitHub Actions, the branch comes from `git`. |
 | `NODE_OPTIONS` | CLI, `headless start` | The CLI appends `--dns-result-order=ipv4first` for the host it starts, because Node resolves `localhost` to IPv6 first and local backends usually listen on IPv4 only. What you set is kept. |
-| `CI` | CLI, `headless start` | Set to `1` for the jest process that hosts the app. |
+| `CI` | CLI | When set, `case run` leaves out its live status line, as it does when stderr is not a terminal. `headless start` sets it to `1` for the jest process that hosts the app. |
+| `GITHUB_STEP_SUMMARY` | CLI, `lynkeus ci` | When set, `lynkeus ci` appends the run's summary to that file, which GitHub Actions shows on the job's page. |
 | The variable named by `apiEnv` (default `API_URL`) | The generated headless entry | The entry refuses to start unless this variable points at `localhost`, `127.0.0.1` or `10.0.2.2`. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Your backend | Not read by lynkeus. With `case run --traces`, point your backend's exporter at `http://localhost:4318` (or the port given with `--traces-port`). |
-| `EXPO_PUBLIC_LYNKEUS_TOKEN` | Your Expo app | Not read by lynkeus. It is how an Expo app receives the token: Expo inlines it, with no Babel plugin. Start the development server with it set to the value of `LYNKEUS_TOKEN`. |
+| `EXPO_PUBLIC_LYNKEUS_TOKEN` | Your Expo app | How an Expo app receives the token: Expo inlines it, with no Babel plugin. `lynkeus init` writes it to `.env.local`, and `lynkeus status` checks that it is there. |
+| `LYNKEUS_HEADLESS` | Set by `headless start` | Set to `1` for the jest process that hosts the app, so the app's jest setup can tell a host from its unit tests. A setup that stubs a native SDK whole for unit tests can leave it real when this is set, so that the call reaches a [native mock](/reference/configuration/#casesnativemocks). |
 
 Three more places hand the environment through:
 
@@ -160,5 +164,5 @@ Three more places hand the environment through:
 - The headless host inherits the CLI's environment, so the variables your app reads are the ones you exported before `lynkeus headless start`.
 
 :::caution
-If your babel configuration inlines environment variables, jest's transform cache keeps the first value it saw. After changing a variable the hosted app reads, remove the cache directory your jest configuration points at.
+If your babel configuration inlines environment variables, jest's transform cache keeps the first value it saw. `headless start` keeps one cache per value of the API variable (under `.lynkeus/jest-cache/`), so changing the backend address is safe. After changing any other variable the hosted app reads, delete `.lynkeus/jest-cache/`.
 :::

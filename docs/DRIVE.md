@@ -165,8 +165,9 @@ that scale with cores: one host per `LYNKEUS_PORT`. See
 [HEADLESS.md](HEADLESS.md).
 
 **An AI that drives the app.** `lynkeus mcp` exposes screen, press, type, wait,
-why, call, os deeplink, map show and map plan as MCP tools; `--full` adds every
-other command, at about five times the tokens per turn. The model sees structured
+why, call, os deeplink, map show and map plan as MCP tools, with the case and
+setup tools (`case_run`, `case_status`, `status`, `init`…) for a model that writes and
+runs cases; `--full` adds every other command, at about twice the tokens per turn. The model sees structured
 elements instead of pixels, so it can decide the next step from facts.
 `lynkeus map plan --from … --to …` gives it directions instead of guesses.
 
@@ -177,6 +178,11 @@ backend fixture. `lynkeus os clock`, `lynkeus os appstate` and `lynkeus os deepl
 do the same for time, foreground/background and links. `mock`, `os appstate`
 and `os deeplink` work on a simulator or an emulator too (the agent answers the
 mock inside the app; simctl and adb move the app); `os clock` is a host's only.
+`--lost` sends the request and loses only the answer, the same on a host and on
+a simulator or an emulator: the server acts on it and the app sees a failure.
+A request a rule answered (or whose answer it lost) is marked `mocked`: `lynkeus
+requests` and `lynkeus trace` print `(mocked)` after it, and a failed case's
+evidence does too, so a 500 the case asked for is not read as the backend's.
 
 **A quick accessibility and copy pass.** `lynkeus lint` reads the current screen
 and flags controls with no label, tap targets under 44pt, text that is an

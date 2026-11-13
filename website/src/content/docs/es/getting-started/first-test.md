@@ -12,7 +12,7 @@ El orden no es casual. Un caso es la misma secuencia de comandos que escribiría
 - lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
 - La app abierta en un simulador o un emulador, en build de depuración.
 - `npx lynkeus screen` funcionando: imprime la pantalla actual.
-- Si configuraste un token, la variable `LYNKEUS_TOKEN` definida en tu terminal, con el mismo valor que recibió la app.
+- El token del proyecto, que `lynkeus init` guardó en `.lynkeus/token` y el CLI lee solo. Si en cambio lo defines con la variable `LYNKEUS_TOKEN`, tiene que tener en tu terminal el mismo valor que recibió la app.
 
 Los ejemplos usan una app imaginaria con un botón de ajustes y un selector de tema. Los `testID` y las rutas de tu app son otros: cada vez que veas `#settings-button` o `Settings.Main`, reemplázalos por lo que te muestre `lynkeus screen`.
 
@@ -145,6 +145,8 @@ npx lynkeus case run cases/settings-dark-mode.md --dry-run
 ```
 
 `--dry-run` lee el caso y recorre sus pasos sin ejecutarlos. Sirve para encontrar errores de formato antes de gastar una ejecución.
+
+Si prefieres no partir de una página en blanco, `npx lynkeus case here mi-caso --write` lee la pantalla donde está la app y escribe en `cases/` un caso que ya pasa: va a su ruta y comprueba hasta tres de las cosas que muestra. Es un buen punto de partida para editar.
 
 ### 3. Ejecuta el caso
 

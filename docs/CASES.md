@@ -34,6 +34,15 @@ report carries the screen, the requests and the reason.
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
 
+```yaml
+  - app.mock: { route: "POST /v3/transfers", lost: true, times: 1 }   # the server gets it and acts; the app never hears back
+  - app.mock: { route: "GET /v3/accounts", status: 500 }
+```
+
+A request a mock answered (or whose answer it lost) is marked `mocked`: a failed
+case's evidence says `(mocked)` after it, and its reasons never blame the
+backend for the 500 the case asked for.
+
 A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
 
 One case runs on a host and on a device. What only one of them needs — closing a
@@ -135,6 +144,21 @@ its `cases` are relative to it.
 `LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
 different ones from the case beside it: what comparing two runs' screens needs.
 
+## Several cases at once
+
+```sh
+npx lynkeus case run --jobs 4 --ports 8201,8202,8203,8204 --host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'
+```
+
+`--jobs N` runs N cases side by side, each job on a host of its own that dials the
+job's port from `--ports`; `--host-command` starts a fresh host for every case
+and stops it after (`{port}` is where it dials, `{job}` the job). The longest
+cases, from the ledger `--flakes` keeps, go first so the jobs end together;
+`--in-order` keeps the order given. `--ahead N` makes up to N setups while other
+cases run (`case prepare` does the same into `--prepared`), and only starts one
+while `--idle` of the CPU is free. A case that is `exclusive` waits for the others
+(above). `lynkeus ci` does all of this from the config.
+
 ## Coverage and impact
 
 ```sh
@@ -165,6 +189,9 @@ everything torn down, failure or not. lynkeus knows no backend; the config says 
 }
 ```
 
+`ci.hosts.command` starts a host other than headless (`{port}` is where it dials), `ci.run` adds `case run` flags as on the
+command line, and `ci.backend.timeoutMs` and `ci.hosts.timeoutMs` bound how long each takes to come up.
+
 ```yaml
 - run: npx lynkeus ci --affected --base origin/main   # only the cases this pull request's changes reach
 ```
@@ -188,6 +215,14 @@ everything torn down, failure or not. lynkeus knows no backend; the config says 
 command is started once per run, in `cwd`, and can be anything that reads a
 line and writes a line: a Node script, a Rails runner, a container.
 
+The other keys under `cases`: `start` (the screen `case new` begins on),
+`interruptions` and `macros` (above), `serverEvents` (`{ fixture, provider? }`:
+the fixture is asked after each app step with `{ since }` and answers
+`{ events: [{ name, props, provider? }] }`, the backend's own analytics),
+`appEvents` (`{ provider }`: the service the app's own events go to, so a report
+names it instead of "App") and `nativeMocks` ([HEADLESS.md](HEADLESS.md)). The
+defaults are `dir: "cases"`, `flows: "flows"` and `inspect: "inspect"`.
+
 ## What a run leaves
 
 A failed case runs once more before it counts as failed (`--once` turns that
@@ -195,7 +230,7 @@ off), and one that passes the second time is reported as passed on retry. A
 failed step leaves the screen as it was, the requests the app had made and,
 for a step on a target, why: covered, hidden behind a layer, disabled, gone.
 
-A step the host has no way to do (a mocked response on a real device, a command
+A step the host has no way to do (`os clock` on a simulator, a command
 the app does not register in this build) is `unsupported`, not failed: the case
 stops there, counts as one that cannot run on this host, and does not fail the
 run. The same case then passes where the host can do it.
@@ -248,33 +283,64 @@ request.
 ### Following a long run
 
 A run says where it is as it goes, in `progress.ndjson` (in the `--out`
-directory; without one, in `.lynkeus/last-run.progress.ndjson`):
+directory; without one, in `.lynkeus/last-run.progress.ndjson`; a `--dry-run`
+writes none). Every event has `type` and `at`, an ISO time:
 
 ```
-{"type":"run-start","total":52,"jobs":4,"cases":[{"id":"login-sign-in-pin","expectedMs":81993}, …]}
+{"type":"run-start","pid":4121,"total":52,"jobs":4,"cases":[{"id":"login-sign-in-pin","title":"Sign in with a PIN","expectedMs":81993}, …]}
+{"type":"report","url":"https://…"}
 {"type":"case-start","id":"login-sign-in-pin","job":0,"attempt":1,"steps":176,"host":"port 8201"}
 {"type":"step","id":"login-sign-in-pin","job":0,"index":87,"steps":176,"section":"steps","heading":"4 A forgotten PIN","step":"app.press #security-forgot-passcode-button"}
+{"type":"step","id":"login-sign-in-pin","job":0,"index":87,"steps":176,"section":"steps","heading":"4 A forgotten PIN","step":"app.press #security-forgot-passcode-button","status":"passed","ms":412}
 {"type":"case-end","id":"login-sign-in-pin","job":0,"attempt":1,"result":"passed","ms":81122}
 {"type":"run-end","passed":50,"failed":2,"unsupported":0,"ms":1520400}
 ```
 
-A `step` event comes when the step starts, and again with its `status` and `ms`
-when it ends. Its `heading` is the numbered comment above it in the case
-(`# 4 A forgotten PIN`). Every event has `at`, an ISO time. `--progress json`
-also writes the events to stdout, one per line, and the run's summary to stderr.
+- `run-start` comes first and names every case in the order the jobs take
+  them, with `expectedMs`, how long it took when it last passed (from the
+  ledger `--flakes` keeps), where known. A reader of the file needs nothing
+  else to work out the time left. `pid` is the run's process.
+- `report` comes with `--push`, once the report exists (and `run-end` carries
+  `report` too).
+- `case-start` names the `job`, the `attempt` and the `host` it runs on.
+  `case-end` of a failed first attempt has `retrying: true`.
+- A `step` event comes when the step starts and again, with its `status` and
+  `ms`, when it ends. `index` counts from 0 over the steps the case runs
+  (`steps` of them), `section` says whether it is in `setup` or `steps`, and
+  `heading` is the numbered comment above it (`# 4 A forgotten PIN`); a step
+  before the first one has none.
 
-In a terminal the run keeps a status line under its output: cases done and
-failed, the time spent and the time left, and what each job is running and in
-which section. The time left comes from how long each case took when it last
-passed (the ledger `--flakes` keeps), else from the run's own cases.
-`--progress none` leaves the line out.
+`--progress json` also writes the events to stdout, one per line, and the run's
+summary to stderr. Over MCP the events go to the caller as progress
+notifications instead.
+
+In a terminal (stderr is a TTY and `CI` is not set) the run keeps a status line
+under its output: cases done and failed, the time spent and the time left, and
+what each job is running and in which section. The time left comes from
+`expectedMs`, else from how long this run's own cases took. `--progress none`
+leaves the line out; `--progress json` replaces it.
 
 `lynkeus case status [dir]` reads the file from another terminal, during the run
-or after it, and `--json` gives the same as an object; an MCP client calls the
-`case_status` tool, and hears `case_run`'s progress as MCP progress
-notifications when it passes a progress token. With `--push` the report is made
-when the run starts and fills case by case, so its address works from the first
-case.
+or after it: `dir` is the run's `--out`, or its `progress.ndjson`; without one,
+the last run of this project (`.lynkeus/last-run.json` points at it). `--json`
+gives the same as an object. A run whose process is gone without a `run-end` is
+reported as `stopped`. An MCP client calls the `case_status` tool, and hears
+`case_run`'s progress as MCP progress notifications when it passes a progress
+token. With `--push` the report is made when the run starts and fills case by
+case, so its address works from the first case; a send that fails is tried again
+at the end. A reports service from before this gets the whole run at the end.
+
+### A host that dies
+
+With `--host`, the run owns the host. When it died during a case (out of
+memory, a crash) or its app stopped answering, the case that lost it still
+fails, and its reasons say how the host ended, with its last words and its log;
+the next case starts on a host started again, which writes a log of its own.
+Before each case the run also asks the host how full its heap is (one line in
+the log) and starts it again past `--host-heap` percent of its limit
+(`heapLimitMb`, 60 percent unless told), so a case does not begin on a host
+about to run out. Without this, every case after a crash failed with "No app
+attached".
 
 ### A run with everything
 

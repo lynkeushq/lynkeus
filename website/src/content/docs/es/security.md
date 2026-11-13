@@ -24,7 +24,7 @@ Quien esté conectado al agente como driver puede hacer, en esencia, lo mismo qu
 |---|---|
 | Leer la pantalla | Todos los textos, etiquetas, `testID` y valores de los campos que la app tiene montados, y la ruta actual con sus parámetros. |
 | Actuar | Pulsar, escribir, arrastrar, navegar a cualquier ruta y abrir un enlace profundo. |
-| Ver las peticiones | El método, la URL, el estado y la duración de cada petición HTTP de la app. |
+| Ver las peticiones | El método, la URL, el estado y la duración de cada petición HTTP de la app. Sus cabeceras y cuerpos, solo mientras el driver los pide (lo hace `case run` cuando guarda evidencia con `--out`). |
 | Ver la traza | Las rutas visitadas, los cambios en los stores observados, los eventos de analítica y los comandos ejecutados. |
 | Ejecutar los comandos de la app | Todo lo que tu app registró con `qa.register`, además de leer el estado de los stores que mostró con `qa.observe`. |
 
@@ -35,7 +35,7 @@ Los dos últimos puntos dependen de ti. El agente no expone ningún store ni nin
 El agente recorta algunos datos antes de que salgan de la app:
 
 - **Los campos de contraseña.** El valor de un campo con `secureTextEntry` llega enmascarado con `•`.
-- **Las cabeceras y los cuerpos de las peticiones.** No se registran nunca. De una petición solo quedan el método, la URL, el estado y la duración.
+- **Las cabeceras y los cuerpos de las peticiones, salvo cuando el driver los pide.** Por defecto, de una petición solo quedan el método, la URL, el estado y la duración, que es lo que ven `lynkeus requests` y `lynkeus trace`. Cuando un driver activa `networkBodies` (lo hace `case run` si la ejecución guarda evidencia con `--out`, para que el reporte muestre qué se envió y qué se recibió), el agente guarda también las cabeceras y los cuerpos de las peticiones que siguen. Antes de guardarlos reemplaza por `…` el valor de las claves con nombre de secreto (contraseñas, códigos, PIN, tokens, números de tarjeta, `Authorization`, cookies, claves de API) y corta cada cuerpo a 16 KB. Un secreto bajo una clave que no lo parece, o dentro de un texto libre, no se oculta.
 - **Los valores sensibles de la URL.** En la cadena de consulta, se oculta el valor de todo parámetro cuyo nombre contenga `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`.
 - **El contenido de los stores en la traza.** Cuando un store observado cambia, la traza anota qué claves de primer nivel cambiaron, con sus valores en forma corta. Un objeto o una lista se reduce a su tamaño. Un texto de más de 80 caracteres se corta. Y el valor de una clave con nombre de secreto se reemplaza por `…`: toda clave cuyo nombre contenga `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`. La traza es parte de lo que un reporte sube, y por eso no lleva secretos ni cargas completas.
 
@@ -61,7 +61,7 @@ import { auto } from 'lynkeus-agent/auto';
 auto({ token: process.env.LYNKEUS_TOKEN });
 ```
 
-El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN`.
+El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN` o, si no está definida, del archivo `.lynkeus/token` que crea `lynkeus init`. Ese archivo queda fuera de git (`init` lo agrega al `.gitignore` de `.lynkeus`) y se escribe con permisos de lectura solo para quien lo creó.
 
 A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo: el token nunca se escribe en un build de producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
@@ -114,7 +114,7 @@ Un build de depuración que habla con un backend real, con cuentas reales, no de
 
 El host sin pantalla (headless) ejecuta tu app en Node, sin simulador. La capa nativa está simulada, pero el JavaScript de la app corre de verdad y habla con un backend de verdad. Por eso tiene tres protecciones propias.
 
-**El token es obligatorio.** `lynkeus headless start` se niega a arrancar sin `LYNKEUS_TOKEN`. El mensaje explica el motivo: `a hosted app talks to a real backend, and without one any local process could drive it`.
+**El token es obligatorio.** `lynkeus headless start` se niega a arrancar sin el token del proyecto (`.lynkeus/token` o `LYNKEUS_TOKEN`). El mensaje explica el motivo: `a hosted app talks to a real backend, and without one any local process could drive it`.
 
 **La red está limitada a tu máquina.** Con `network: 'real'`, el host rechaza cualquier petición a un servidor que no esté en `networkHosts`, y esa lista por defecto solo contiene la propia máquina (`127.0.0.1` y `localhost`). Una herramienta automática apuntada a producción es exactamente el accidente que esto previene.
 
@@ -149,11 +149,13 @@ El contenido de `cases.jsonl` es lo que más conviene mirar. Cada paso lleva el 
 
 - Los eventos de analítica que la app envió durante el paso, con sus propiedades.
 - Con `--traces`, lo que el backend hizo por ese paso: las peticiones, las consultas, los jobs y las llamadas salientes que exportó por OpenTelemetry, con sus atributos.
+- Las peticiones que hizo la app durante el paso, con sus cabeceras y cuerpos (con los secretos recortados como se explicó arriba), y lo que la app imprimió: su consola, los errores sin atrapar y, en un simulador o un emulador, su log nativo.
 - Si el caso falló, la evidencia: el listado de la pantalla en ese momento, las últimas peticiones y el diagnóstico.
 
 Tres consecuencias prácticas:
 
 - **Los valores escritos en un caso llegan al reporte.** El texto de un paso `app.type` incluye lo que se escribió. No pongas credenciales reales en un caso.
+- **Los cuerpos de las peticiones y los logs de la app llegan al reporte.** El recorte de secretos se guía por el nombre de la clave. Un dato personal en un cuerpo, o algo que la app imprime en su consola, se sube tal cual.
 - **Las capturas de pantalla muestran lo que la app mostró.** Si tus tests corren contra datos personales reales, esos datos aparecen en las imágenes.
 - **Los atributos de las trazas vienen de tu backend.** Qué incluyen (el texto de una consulta SQL, por ejemplo) depende de cómo esté configurado tu SDK de OpenTelemetry.
 

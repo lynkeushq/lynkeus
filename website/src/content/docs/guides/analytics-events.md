@@ -91,6 +91,8 @@ Each step in `run/cases.jsonl` then has an `events` list, with the name, the pro
 
 `--events <dir>` writes the same events per case, as `<dir>/<case id>/events.jsonl`, without the rest of the run directory.
 
+`--no-app-events` leaves the app's own event list unread in a run with `--out`. Some apps turn on their tracking's debug view when that list is read, and it can draw on the screen; frames that two runs compare pixel by pixel should not have it.
+
 For a flow, `run --events` does the same:
 
 ```bash
@@ -185,7 +187,7 @@ signup
 
 During a case run with `--out` or `--events`, the runner reads the buffer after every app step and assigns the new events to that step. It never empties the buffer, because the case may be asserting on it.
 
-The run file can also carry events with a `provider`: what an analytics SDK itself was asked to send, as opposed to what the app told `qa.event`. Those are recorded only on a host that captures SDK calls.
+The run file can also carry events with a `provider`: what an analytics SDK itself was asked to send, as opposed to what the app told `qa.event`. The agent records those where it can wrap the SDK's native module (Mixpanel, AppsFlyer and Firebase Analytics, and every call to Sentry, Datadog, Intercom and Crashlytics), and a host that stands in for the SDKs records them itself. When the app's own event list feeds a single service, name it with [`cases.appEvents`](/reference/configuration/#casesappevents) so a report says which. What the backend sent to its own analytics can be shown too, through [`cases.serverEvents`](/reference/configuration/#casesserverevents).
 
 ## Common problems
 

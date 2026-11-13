@@ -6,11 +6,15 @@ Native app.
 
 ## Tools
 
-`lynkeus mcp` serves nine tools: `screen`, `press`, `type`, `wait`, `why`,
-`call`, `os_deeplink`, `map_show` and `map_plan` — about 750 tokens of tool
-definitions on every turn. `lynkeus mcp --full` serves all 42 commands for
-about 4,200. Start with the core; add `--full` for an agent whose job is
-crawling, recording or snapshots.
+`lynkeus mcp` serves 22 tools: the nine a turn needs (`screen`, `press`,
+`type`, `wait`, `why`, `call`, `os_deeplink`, `map_show` and `map_plan`), the
+ones that run and write cases (`case_run`, `case_status`, `case_init`,
+`case_coverage`, `case_impact`, `case_new`, `case_here`, `fixtures_describe`,
+`fixtures_check`) and the ones that set a project up (`init`, `status`,
+`headless_init`, `headless_doctor`) — about 3,500 tokens of tool definitions on
+every turn (the schemas' size over 3.8 characters a token). `lynkeus mcp --full`
+serves all 56 commands for about 7,500. Start with the core; add `--full` for an
+agent whose job is crawling, recording, snapshots or mocking the network.
 
 ## Reading a screen
 
@@ -34,6 +38,14 @@ Settings.Main (Tabs > Settings.Main) +overlay#account-sheet · 12 hidden: 12 beh
 - An average screen reads in about 250 tokens; with a sheet open, what the
   sheet covers is not in the listing at all. `screen --json` is several times
   larger and carries nothing a model needs; it is for programs.
+
+## Following a long run
+
+`case_run` on a suite takes minutes. `case_status` says where it is (cases
+done and failed, what each job runs and in which section, the time left)
+without waiting for it, and a client that passes a progress token to `case_run`
+hears the same as MCP progress notifications. A case that changes what every
+case sees (a global flag) declares `exclusive: true` and runs alone.
 
 ## Moving around
 

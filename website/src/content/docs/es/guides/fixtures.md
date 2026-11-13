@@ -150,6 +150,46 @@ the fixtures command answers: create_user, give_points, inspect
 
 La alternativa es peor: un caso que falla a la mitad, con el backend ya modificado. Un servidor que responde `"ok": false` a esta pregunta no se revisa, y sus casos corren sin esa comprobación.
 
+Para que quien escribe un caso sepa qué pedirle al servidor, `commands` también puede listar descripciones en lugar de nombres (o mezcladas). Cada una es un objeto con `name` y, si quieres, esto:
+
+```json
+{
+  "protocol": 1,
+  "commands": [
+    {
+      "name": "create_user",
+      "summary": "Crea un usuario con sesión iniciada y sin puntos",
+      "params": {
+        "name": { "type": "string", "summary": "Cómo se llama", "default": "Test user" },
+        "plan": { "values": ["free", "pro"], "default": "free" }
+      },
+      "example": { "name": "Ana", "plan": "pro" },
+      "answers": ["user_id"],
+      "changes": true
+    },
+    { "name": "inspect", "summary": "Lee el usuario", "changes": false }
+  ]
+}
+```
+
+| Campo | Qué dice |
+|---|---|
+| `summary` | Qué estado crea o lee el comando, en una línea. |
+| `params` | Cada parámetro, con su `type` (`string`, `number`, `boolean`, `object` o `array`), su `summary`, los `values` posibles si son pocos, su `default` y si es `required`. |
+| `example` | Los parámetros de una llamada que funciona, tal como un caso los escribiría. |
+| `answers` | Qué campos de la respuesta lee un paso posterior (`user_id`, `api_key`…). |
+| `changes` | `false` en un comando que solo lee. |
+| `protocol` (en la respuesta) | La versión del protocolo de fixtures que habla el servidor, hoy `1`. Una versión que esta lynkeus no conoce se rechaza. |
+
+Un servidor de antes de las descripciones, que responde solo nombres, sigue siendo válido. Dos comandos del CLI sacan partido de esto:
+
+```bash
+npx lynkeus fixtures describe   # cada comando, qué hace y sus parámetros
+npx lynkeus fixtures check      # ¿cumple el servidor el protocolo?
+```
+
+`fixtures describe` arranca tu comando, le pregunta `lynkeus.describe` e imprime lo que contestó; es la lista que consulta quien escribe un caso, o un agente de IA que lo hace por ti (`lynkeus case new` copia de ella el `setup` que propone). Lo último que el servidor dijo de sí mismo se guarda en `.lynkeus` y se muestra durante un día sin volver a arrancarlo; `--fresh` le pregunta de nuevo. `fixtures check` comprueba la respuesta contra el contrato: una lista de comandos, ningún nombre repetido, una versión del protocolo que conozca esta lynkeus y un servidor en pie. Avisa, sin fallar, de los comandos sin `summary`. No cambia nada en el backend, y termina con código 1 si algo del contrato no se cumple.
+
 Si el servidor está en marcha pero no puede atender (su base de datos está caída, por ejemplo), puede agregar `"down": "<motivo>"` a la respuesta. Ningún caso empieza, y verás `the fixtures server cannot serve: <motivo>`.
 
 ## Encadenar pasos: `as` y `refs`

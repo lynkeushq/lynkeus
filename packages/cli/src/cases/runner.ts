@@ -68,7 +68,7 @@ export type CasesConfig = {
 /** `via`: the SDK's native module (a host that stands in for it), the request it sent, or the backend's own analytics. */
 export type SentEvent = { provider: string; name: string; props?: Record<string, unknown>; via?: 'sdk' | 'network' | 'server' };
 
-/** `unsupported`: the host the case ran on has no such thing to do (a real device has no mocked responses), which says nothing about the app. */
+/** `unsupported`: the host the case ran on has no such thing to do (it answered "Unknown method" for the step), which says nothing about the app. */
 export type StepReport = {
   step: string;
   status: 'passed' | 'failed' | 'skipped' | 'unsupported';
@@ -116,7 +116,7 @@ export type CaseReport = {
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
-/** `frames`: AVIF where the host writes it (a fifth of a PNG's bytes, lossy), or PNG, exact, for frames two runs are compared by. */
+/** `frames`: AVIF (lossy: a fifth of a PNG's bytes where the host writes it, about 4 % where the CLI encodes a simulator's PNG), or PNG, exact, for frames two runs are compared by. */
 export type Evidence = {
   dir: string;
   screenshots?: boolean;

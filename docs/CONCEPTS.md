@@ -34,7 +34,8 @@ session. When a step fails, the answer carries `why` alongside the error.
 
 `lynkeus mcp` serves the commands a turn needs as MCP tools over stdio, for an
 AI harness: screen, press, type, wait, why, call, os deeplink, map show and map
-plan. `lynkeus mcp --full` adds the rest (crawl, record, snapshot, doctor…). The
+plan, plus the case tools (`case_run`, `case_status`…) and setup (`init`,
+`status`). `lynkeus mcp --full` adds the rest (crawl, snapshot, mock…). The
 model sees structured elements instead of pixels.
 
 ## Targets
@@ -130,8 +131,8 @@ same cases run on a simulator; only the way the host starts differs.
 
 ## `.lynkeus/`
 
-Everything lynkeus keeps lives under `.lynkeus/` in the app's folder. All of it
-is a build product: safe to delete, cheap to regenerate.
+Everything lynkeus keeps lives under `.lynkeus/` in the app's folder. Except the
+token, all of it is a build product: safe to delete, cheap to regenerate.
 
 | Path | |
 |---|---|
@@ -142,6 +143,13 @@ is a build product: safe to delete, cheap to regenerate.
 | `screens/` | screen structures kept by `lynkeus screen --record`, read by `map changes` |
 | `snapshots/` | tree and pixel baselines from `lynkeus snapshot` |
 | `runs/` | artifacts of runs, smokes, crawls, recordings and snapshot diffs |
+| `token` | the secret the app's bundle and the driver share, made by `lynkeus init` and kept out of git; deleting it means a new one and a Metro `--reset-cache` |
+| `flakes.json` | the ledger of how each case did across runs: flaky cases, and how long each took when it last passed |
+| `seen/`, `prepared/` | what `case run --seen` and `--prepared` keep: the screens a passing run went through, setups made ahead |
+| `fixtures-described.json` | what the fixtures server last described ([FIXTURES.md](FIXTURES.md)) |
+| `last-run.json`, `last-run.progress.ndjson` | the last `case run`: where its progress is, for `lynkeus case status` |
+| `funnels/` | analytics funnels a run is checked against (`<name>.json`), written by hand |
+| `jest-cache/`, `__tests__/` | the headless host's transform cache and the test file it generates |
 
 ## Configuration
 

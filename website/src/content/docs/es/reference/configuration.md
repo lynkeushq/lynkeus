@@ -49,6 +49,15 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
   "live": ["^countdown-", "^clock$"],
   "errorCopy": ["algo salió mal", "inténtalo de nuevo"],
 
+  "report": { "afterPush": "keep" },
+
+  "ci": {
+    "backend": { "up": "docker compose up -d", "down": "docker compose down", "ready": "http://127.0.0.1:3000/health" },
+    "hosts": { "count": 2 },
+    "push": true,
+    "run": ["--once"]
+  },
+
   "lintBaseline": ".lynkeus/lint.json",
   "lint": {
     "i18nKeyPatterns": ["^[a-z]+(\\.[a-z0-9]+){2,}$"],
@@ -64,6 +73,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 
   "cases": {
     "dir": "cases",
+    "start": "Home.Main",
     "flows": "flows",
     "fixtures": {
       "command": "node cases/fixtures.mjs",
@@ -116,6 +126,28 @@ Si no nombras ningún dispositivo y no hay ningún simulador encendido, lynkeus 
 | `live` | lista de textos | ninguno | Expresiones regulares para los `testID` de controles cuyo contenido cambia solo: un reloj, una cuenta regresiva. Su texto deja de contar como commit. Sin esto, `idle` agotaría todo su tiempo de espera en cada pantalla que muestre uno. |
 
 Las expresiones de `live` se unen en una sola y distinguen mayúsculas de minúsculas.
+
+## Reportes (`report`)
+
+| Clave | Tipo | Por defecto | Qué hace |
+|---|---|---|---|
+| `report.afterPush` | `"keep"` o `"delete"` | `"keep"` | Qué pasa con la carpeta de una ejecución (`case run --out`) cuando se sube. Con `"delete"`, se borra en cuanto el servicio tiene todos sus archivos; si alguno no se subió, la carpeta se conserva y lo dice. Con `"keep"` queda en disco, y [`lynkeus report prune`](/es/reference/cli/#lynkeus-report-prune) libera las viejas. |
+
+## CI (`ci`)
+
+Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y los hosts, ejecuta la suite y lo desmonta. lynkeus no conoce tu backend: solo ejecuta los comandos que declares aquí, desde la carpeta de la app.
+
+| Clave | Tipo | Por defecto | Qué hace |
+|---|---|---|---|
+| `ci.backend.up` | texto | ninguno | El comando de shell que levanta el backend. Si termina con un código distinto de 0, `lynkeus ci` se detiene. Sin `ci.backend`, no se levanta nada. |
+| `ci.backend.down` | texto | ninguno | El comando que lo baja al terminar, salvo con `--keep-up`. |
+| `ci.backend.ready` | texto | ninguno | Una URL que responde con éxito cuando el backend ya puede servir. `lynkeus ci` la consulta hasta que responde. |
+| `ci.backend.timeoutMs` | número (ms) | `300000` | Cuánto espera a esa URL. |
+| `ci.hosts.count` | número | `2` | Cuántos hosts y jobs. `--jobs` lo reemplaza. |
+| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. `{port}` es el puerto donde se conecta, empezando en `8123`. Por defecto, `headless start` con ese puerto. |
+| `ci.hosts.timeoutMs` | número (ms) | `600000` | Cuánto espera a que cada host se conecte; compilar la app es lo lento. |
+| `ci.push` | booleano | `false` | Sube la ejecución al servicio de reportes. Necesita `LYNKEUS_REPORTS_KEY`. |
+| `ci.run` | lista de textos | ninguno | Opciones extra de `case run`, tal como las escribirías en la línea de comandos. |
 
 ## Idioma
 
@@ -172,6 +204,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `cases.dir` | texto | `cases` | La carpeta donde viven los casos. Sin archivos en la línea de comandos, `case run` ejecuta todos los `.md` que haya allí y en sus subcarpetas, en orden de ruta; también acepta una carpeta como argumento. |
+| `cases.start` | texto | ninguno | La pantalla donde empieza un caso, para los borradores de `lynkeus case new`: la primera que ve una persona que ya inició sesión, por ejemplo. |
 | `cases.flows` | texto | `flows` | La carpeta donde viven los flows que un caso ejecuta con `app.run`. |
 | `cases.fixtures` | objeto | ninguno | El comando que responde los pasos de fixtures. Ver abajo. |
 | `cases.inspect` | texto | `inspect` | El nombre del fixture por el que `assert` lee el backend. |
@@ -282,7 +315,7 @@ La configuración se envía a la app al comienzo de cada caso, así que un caso 
 
 ## Lo que no va en este archivo
 
-- **El token.** Es un secreto y se lee de la variable `LYNKEUS_TOKEN`. No lo pongas en un archivo que se sube al repositorio. El CLI la lee de su entorno; a una app de React Native el valor le llega por el plugin `lynkeus-agent/babel`, desde el entorno de Metro.
+- **El token.** Es un secreto. `lynkeus init` lo crea en `.lynkeus/token`, fuera de git, y el CLI, el servidor MCP y el plugin `lynkeus-agent/babel` lo leen de ahí; `LYNKEUS_TOKEN` en el entorno gana sobre ese archivo. No lo pongas en `lynkeus.config.json`, que se sube al repositorio.
 - **La dirección y la clave del servicio de reportes.** Van en `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`.
 
 Las dos están en [Variables de entorno](/es/reference/environment-variables/).

@@ -69,3 +69,16 @@ currently knows about the destination.
 **`map changes` reports nothing.** It reads what `lynkeus screen --record` (or
 `LYNKEUS_RECORD_SCREENS=1`) kept under `.lynkeus/screens/`; without recorded
 screens there is nothing to compare.
+
+**A long `case run` died and every case after one failed with "No app attached".**
+With `--host`, the run starts the host again when it dies (out of memory, a
+crash) and the failing case's reasons say how it ended, with its last words and
+its log. Without `--host` the run does not own the host and cannot. If the
+heap is the cause, `--host-heap <percent>` (60 by default) restarts the host
+before a case when its heap is past that share of `heapLimitMb`;
+`lynkeus call memory` reads it ([HEADLESS.md](HEADLESS.md)).
+
+**Where is a run?** `lynkeus case status` from any terminal, or the live status
+line under the run's output (`--progress none` turns it off). It reads
+`progress.ndjson`; a run whose process is gone without finishing says
+`stopped` ([CASES.md](CASES.md#following-a-long-run)).

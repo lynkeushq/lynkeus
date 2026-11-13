@@ -155,7 +155,7 @@ type Target =
 | `swipe` | `{ direction?, target?, distance?, from?, to?, durationMs? }` | `{ from, to }` |
 | `navigate` | `{ name, params? }` | `{ route }` |
 | `back` | ninguno | `{ route? }` |
-| `waitFor` | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs? }` | `{ route?, matched?, waitedMs }` |
+| `waitFor` | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
 | `requests` | `{ since? }` | `{ inFlight, requests }` |
@@ -221,6 +221,7 @@ Espera hasta que se cumplan a la vez todas las condiciones dadas.
 | `gone` | `false` | Invierte la condición de `target`: espera a que no esté. |
 | `scroll` | `false` | Desplaza el contenedor más cercano hacia el objetivo hasta que esté dentro de la ventana. |
 | `timeoutMs` | `5000` | Cuánto esperar. |
+| `since` | ninguno | Una marca de la traza (el `last` de un `trace`). Una ruta que la app alcanzó después de esa marca cuenta como alcanzada aunque ya se haya ido de ella, y el resultado lleva `passed: true`. Sirve para una pantalla que se cierra sola (una de éxito), que puede ir y venir mientras el paso espera. |
 
 La app revisa cada 40 ms y responde en el instante en que la condición se cumple. Si se agota el tiempo, el error es `Timed out waiting for <ruta> <objetivo> (on <ruta actual>)`.
 
@@ -267,6 +268,12 @@ Ejecuta varias llamadas en un solo viaje de ida y vuelta, en orden. Se detiene e
 ### Comandos de la app y `reset`
 
 Cualquier nombre que figure en `commands` se llama como un método más. Los parámetros y el resultado son los que defina la app.
+
+Algunos comandos los usa `case run` y los ofrece el host, no el agente:
+
+- **`memory`** (el host sin pantalla): lee el heap después de una recolección de basura, sin necesitar `--expose-gc`, y responde entre otros campos `heapUsedMb`, `heapTotalMb`, `rssMb` y `heapLimitMb`, que dice dónde se detiene el heap. Un ejecutor puede comparar una lectura con la del caso siguiente y con el límite. `case run --host` lo consulta antes de cada caso.
+- **`record`** (un host que filma, como fastsim): `{ path, fps, scale? }` empieza a filmar, `{ frames: true }` dice cuántos cuadros lleva, y `{ stop: true }` termina y responde `{ bytes }` con lo que pesa la película. Si el host está en otra máquina, la ruta `path` es de esa máquina; entonces `{ read: offset }` entrega la película de a trozos, `{ data, done }` con `data` en base64, hasta completar `bytes`. Así `case run --video` conserva la película de un host remoto.
+- **`netmock`**: las reglas con las que se contestan peticiones (`add`, `clear`, `list`). El host sin pantalla además acepta `record`, `dump` y `replay`. El agente lo trae para un simulador, un emulador o un teléfono, donde solo funcionan `add`, `clear` y `list`.
 
 `reset` tiene un trato especial. La app ejecuta primero la función que registró, si registró alguna. Después el agente agrega lo que solo él alcanza: reinicia el estado nativo simulado del host y devuelve la navegación a su ruta inicial.
 
@@ -351,10 +358,17 @@ type RequestRecord = {
   startedAt: number;
   ms?: number;
   error?: string;
+  mocked?: boolean;  // la contestó (o la perdió) una regla del driver, no el servidor
+  request?: Exchange;   // solo mientras el driver pidió cuerpos (`networkBodies`)
+  response?: Exchange;
 };
+
+type Exchange = { headers?: Record<string, string>; body?: string; truncated?: boolean };
 ```
 
-Nunca incluye cabeceras ni cuerpos. En la URL se ocultan los valores de los parámetros de consulta cuyo nombre contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`.
+`mocked` vale `true` cuando la petición la contestó (o su respuesta se perdió) una regla que fijó el driver con `netmock`, que es lo que hace `lynkeus mock` y el paso `app.mock` de un caso. Quien lee el registro puede así distinguir lo que respondió el servidor de lo que armó la prueba. El agente marca las respuestas de su propio `netmock`; una capa por debajo de él (la red del host sin pantalla, o el `netmock` de un host que no es el nuestro) las marca con la cabecera de respuesta `x-lynkeus-mocked`, y la ausencia de la marca significa que contestó el servidor.
+
+Por defecto no incluye cabeceras ni cuerpos: `request` y `response` solo se llenan mientras el driver pidió cuerpos con el comando `networkBodies`, que es lo que hace `case run` cuando guarda evidencia, y con los valores secretos reemplazados por `…` y un cuerpo largo cortado. En la URL se ocultan los valores de los parámetros de consulta cuyo nombre contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`.
 
 ### `TraceEvent`
 
@@ -363,7 +377,7 @@ Cada entrada de la traza tiene un número de secuencia `seq`, un instante `t` y 
 | `kind` | Campos | Qué registra |
 |---|---|---|
 | `route` | `route?`, `path` | Un cambio de ruta. |
-| `request` | `method`, `url`, `status?`, `ms?`, `error?` | Una petición que terminó. |
+| `request` | `method`, `url`, `status?`, `ms?`, `error?`, `mocked?` | Una petición que terminó. `mocked` es `true` si la contestó una regla del driver y no el servidor. |
 | `store` | `store`, `changed` | Un cambio en un store observado con `qa.observe`: por cada clave de primer nivel que cambió, `{ from, to }`. Los valores van en forma corta: un objeto como su tamaño (`{3}`), una lista como su largo (`[12]`), un texto de más de 80 caracteres cortado, y el valor de una clave con nombre de secreto (`token`, `password`, `session`…) como `…`. |
 | `event` | `name`, `props?`, `route?` | Un evento de analítica informado con `qa.event`. |
 | `command` | `method`, `ms`, `error?` | Un método que ejecutó el driver. Las lecturas (`screen`, `find`, `trace`, `requests`, `ping`, `idle`, `waitFor`) no se anotan, salvo cuando fallan. |
@@ -449,7 +463,7 @@ Los tipos de esta página (`Screen`, `Element`, `Target`, `CoreMethods` y los de
 
 ## El archivo de una ejecución
 
-`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`.
+`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`. Un `RunStep` de `steps` lleva `heading` cuando el caso numera sus secciones (`# 3 Un PIN equivocado` se lee `3 Un PIN equivocado`), para que un lector agrupe los pasos como el caso; los de `setup`, y los anteriores al primer comentario numerado, no lo tienen.
 
 Si escribes algo que lee ese directorio, como un tablero o un script, ten en cuenta dos reglas. A un campo existente nunca se le cambia el significado: solo se agregan campos. Y un cambio que sí altere un significado sube el número `schema` de `run.json` (hoy `1`); un lector debe rechazar un `schema` que no conoce.
 

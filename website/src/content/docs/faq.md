@@ -35,7 +35,7 @@ React Native 0.76 or newer, with the New Architecture. On iOS the New Architectu
 
 ### Does it work with Expo?
 
-Yes, in a development build. It does not work in Expo Go, because the agent has native code. No config plugin is needed. There are three Expo-specific points: an entry file that mounts the agent before expo-router loads, the token under the name `EXPO_PUBLIC_LYNKEUS_TOKEN`, and native tab bars, which cannot be pressed by name. An app that uses Expo Router runs on a simulator or an emulator, not on the headless host. See [Install in an Expo app](/getting-started/installation-expo/) and [Expo](/platforms/expo/).
+Yes, in a development build. It does not work in Expo Go, because the agent has native code. No config plugin is needed. There are three Expo-specific points: an entry file that mounts the agent before expo-router loads, the token under the name `EXPO_PUBLIC_LYNKEUS_TOKEN`, and native tab bars, which cannot be pressed by name. `lynkeus init` takes care of the first two. An app that uses Expo Router also runs on the headless host. See [Install in an Expo app](/getting-started/installation-expo/) and [Expo](/platforms/expo/).
 
 ### Is it free?
 
@@ -51,7 +51,7 @@ No, and that is deliberate. lynkeus has no list of your screens and no notion of
 
 ### Do I need a simulator?
 
-Not necessarily. The **headless host** runs the app in Node under Jest, with no simulator and no native build, and the same tests run on it. It is the usual choice for CI. The native layer is mocked there, so things like the real camera, WebView contents, push delivery and pixels need a simulator or emulator. An Expo Router app is the exception: it has no root component for the host to render, so it always needs a simulator or an emulator. See [Headless](/platforms/headless/).
+Not necessarily. The **headless host** runs the app in Node under Jest, with no simulator and no native build, and the same tests run on it. It is the usual choice for CI. The native layer is mocked there, so things like the real camera, WebView contents, push delivery and pixels need a simulator or emulator. An Expo Router app runs there too: it has no root component, so `lynkeus headless init` writes an entry that renders the router over the app's route files. See [Headless](/platforms/headless/).
 
 ### Do I need a Mac?
 
@@ -67,17 +67,17 @@ No. An element can be targeted by its `testID`, by its text, by its index in the
 
 ### What is the token for?
 
-It keeps other processes on your machine from driving the app. The app is given a value when it is bundled, and the driver must present the same one before the agent serves it. The CLI reads it from `LYNKEUS_TOKEN`. The headless host refuses to start without one.
+It keeps other processes on your machine from driving the app. The app is given a value when it is bundled, and the driver must present the same one before the agent serves it. `lynkeus init` makes one for the project in `.lynkeus/token`, kept out of git, and the CLI, `lynkeus mcp`, the headless host and the Babel plugin read it from there. `LYNKEUS_TOKEN` in the environment wins over the file. The headless host refuses to start without a token.
 
 An app that passes no `token` at all is served to any driver. An app that passes one whose value arrives empty keeps its agent off and logs why; it never falls back to serving any driver.
 
 ### Why is `process.env.LYNKEUS_TOKEN` undefined in my app?
 
-React Native gives the app no environment. The expression has a value only if something writes it into the bundle. Add the `lynkeus-agent/babel` plugin to `babel.config.js` (`npx lynkeus init` does it), start Metro with `LYNKEUS_TOKEN` set, and start it once with `--reset-cache` after the value changes. In an Expo app, use `EXPO_PUBLIC_LYNKEUS_TOKEN` instead; no plugin is needed. See [Install in a React Native app](/getting-started/installation-react-native/#3-choose-a-token).
+React Native gives the app no environment. The expression has a value only if something writes it into the bundle. The `lynkeus-agent/babel` plugin in `babel.config.js` does, with `LYNKEUS_TOKEN` from Metro's environment or else the project's `.lynkeus/token`; `npx lynkeus init` adds the plugin and makes the file. Start Metro once with `--reset-cache` after the token is made or changes. In an Expo app, the app reads `EXPO_PUBLIC_LYNKEUS_TOKEN` instead, which `init` writes to `.env.local`; no plugin is needed. See [Install in a React Native app](/getting-started/installation-react-native/#3-give-the-app-the-token).
 
 ### Why does the CLI say "No app attached"?
 
-The CLI listened and no app dialed in with the right token within 15 seconds. The usual causes, in order: the app is not a debug build or is not running; `enabled` is false for this environment; the token never reached the app, which the app's log reports as `lynkeus: the app passed a token and it is empty`; the token in the app and `LYNKEUS_TOKEN` differ; the app and the CLI are on different ports. See [Troubleshooting](/troubleshooting/).
+The CLI listened and no app dialed in with the right token within 15 seconds. The usual causes, in order: the app is not a debug build or is not running; `enabled` is false for this environment; the token never reached the app, which the app's log reports as `lynkeus: the app passed a token and it is empty`; the token in the app and the CLI's (`LYNKEUS_TOKEN`, else `.lynkeus/token`) differ, which the message says when an app connected and did not answer; the app and the CLI are on different ports. `npx lynkeus status` checks the setup and says what fixes each missing piece. See [Troubleshooting](/troubleshooting/).
 
 ### Can I drive several apps at once on one machine?
 
@@ -113,7 +113,7 @@ Through **fixtures**. Any step in a case that is not an `app.` step is sent to a
 
 ### Can the same test run on iOS, Android and headless?
 
-Yes. That is the normal case. Where one step applies to only one of them, wrap it in `on: ios`, `on: android`, `on: device` or `on: headless`. A step the current host cannot perform, such as a mocked network response on a simulator or an emulator, is reported as unsupported there and does not fail the run.
+Yes. That is the normal case. Where one step applies to only one of them, wrap it in `on: ios`, `on: android`, `on: device` or `on: headless`. A step the current host cannot perform, such as moving the app's clock on a simulator or an emulator, is reported as unsupported there and does not fail the run.
 
 ### What happens when a test fails?
 
@@ -125,11 +125,11 @@ Every run records how each case did in a ledger (`.lynkeus/flakes.json` by defau
 
 ### Can I test error states, such as a 500 from the backend?
 
-On the headless host, yes, in one line: `lynkeus mock 'GET /v3/accounts' --status 500` answers the request before it reaches the network. The same host can move the clock, send the app to the background and turn the network off. On a device those are the real thing and are not mocked. See [Headless](/platforms/headless/).
+Yes, in one line: `lynkeus mock 'GET /v3/accounts' --status 500` answers the request before it reaches the network, or `app.mock` in a case. On the headless host the host stands in for the network; on a simulator or an emulator the agent answers inside the app. `--lost` lets the request reach the server and loses only its answer, so the server still acts on it. A request a mock answered is marked mocked, and a failed case's reasons do not blame the backend for it. The headless host can also move the clock and turn the network off; on a device those are the real thing. See [Driving the app](/guides/driving-the-app/) and [Headless](/platforms/headless/).
 
 ### Does it run on CI?
 
-Yes. `lynkeus case run` exits with code 0 when no case failed and 1 otherwise. The headless host needs only Node, so a job needs no device farm; simulators and emulators work too where the runner provides them. `--report <file>` appends one JSON line per case, and `--out <dir>` writes the whole run as a directory. See [Running on CI](/guides/ci/).
+Yes. `lynkeus case run` exits with code 0 when no case failed and 1 otherwise. The headless host needs only Node, so a job needs no device farm; simulators and emulators work too where the runner provides them. `--report <file>` appends one JSON line per case, and `--out <dir>` writes the whole run as a directory. `lynkeus ci` does what a job usually does around that: it brings the backend and the hosts up, runs the cases across them, writes the job summary on GitHub Actions and tears everything down. See [Running on CI](/guides/ci/).
 
 ### Can an AI agent drive the app?
 
@@ -147,7 +147,7 @@ To a driver that presents the token: the screen as React rendered it, the abilit
 
 ### Does it record sensitive data?
 
-Values of password fields (`secureTextEntry`) are masked in the screen. The request log keeps the method, path, status and duration of each request; it never keeps headers or bodies, and sensitive query values are redacted. A store you expose with `qa.observe` appears in the trace as the keys that changed, with short values: an object as its size, a long string cut at 80 characters, and a key named like a secret (`token`, `password`, `session` and the like) as `…`. The `stores` command, which you call on purpose, still returns the state in full.
+Values of password fields (`secureTextEntry`) are masked in the screen. The request log keeps the method, URL, status and duration of each request, with sensitive query values redacted. Headers and bodies are kept only while a driver asks for them, as `case run --out` does for the report, with secret-named headers and fields replaced by `…`. A store you expose with `qa.observe` appears in the trace as the keys that changed, with short values: an object as its size, a long string cut at 80 characters, and a key named like a secret (`token`, `password`, `session` and the like) as `…`. The `stores` command, which you call on purpose, still returns the state in full.
 
 ### Should the agent run against production?
 

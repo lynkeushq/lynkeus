@@ -68,15 +68,17 @@ npx lynkeus init
 `lynkeus init` existe desde la versión 0.3.0. Con una versión anterior, haz lo mismo a mano como explica [Montar el agente a mano](#montar-el-agente-a-mano).
 :::
 
-En un proyecto con expo-router, el comando hace dos cosas: escribe un `index.js` que monta el agente y después carga el enrutador, y apunta la clave `main` de `package.json` a ese archivo. Deberías ver:
+Si todavía no es una dependencia, el comando instala `lynkeus-agent` con `npx expo install` (`--no-install` lo omite). En un proyecto con expo-router, además escribe un `index.js` que monta el agente y después carga el enrutador, y apunta la clave `main` de `package.json` a ese archivo; crea el token del proyecto y lo escribe en `.env.local`. Deberías ver:
 
 ```
 wrote index.js (mounts the agent, then loads expo-router) and pointed package.json's main at it
+made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+wrote EXPO_PUBLIC_LYNKEUS_TOKEN to .env.local (check it is in .gitignore: Expo's template ignores .env*.local)
 Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go
-Expo: start the dev server with EXPO_PUBLIC_LYNKEUS_TOKEN set to the same value as LYNKEUS_TOKEN; Expo passes the app only variables with that prefix
+Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file
 ```
 
-Las dos últimas líneas son recordatorios de los pasos que siguen: el token y el development build.
+Las dos últimas líneas son recordatorios de los pasos que siguen: el development build y el servidor de desarrollo. `lynkeus status` revisa en cualquier momento qué tiene el proyecto y qué falta.
 
 Si tu proyecto de Expo ya tiene un `index.js` propio, el comando no crea nada: agrega las líneas de `auto()` a ese archivo, después del último `import`, e imprime `added auto() to index.js`. Si el agente ya estaba montado, lo dice y no toca nada.
 

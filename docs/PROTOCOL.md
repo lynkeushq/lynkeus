@@ -87,24 +87,37 @@ Ties go to the later element: it draws on top.
 | `screen` | — | `Screen` (below) |
 | `find` | `Target` | `Element \| null` |
 | `press` | `Target & { holdMs?, mode?: 'native' \| 'js' }` | `{ x, y, element?, mode }` |
-| `type` | `{ text, target?, clear?, paste? }` | `{ typed, element? }` |
-| `swipe` | `{ direction? } \| { from, to }`, `durationMs?` | `{ from, to }` |
+| `type` | `{ text, target?, clear?, paste?, submit? }` | `{ typed, element? }` |
+| `swipe` | `{ direction?, target?, distance? } \| { from, to }`, `durationMs?` | `{ from, to }` |
 | `navigate` | `{ name, params? }` | `{ route }` |
 | `back` | — | `{ route? }` |
-| `waitFor` | `{ route?, target?, anyOf?, gone?, timeoutMs? }` | `{ route?, matched?, waitedMs }` |
-| `idle` | `{ quietMs?, timeoutMs? }` | `{ commit, idle }` |
+| `waitFor` | `{ route?, target?, anyOf?, gone?, scroll?, since?, timeoutMs? }` | `{ route?, matched?, waitedMs, passed? }` |
+| `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
 | `requests` | `{ since? }` | `{ inFlight, requests: RequestRecord[] }` |
-| `trace` | `{ since? }` | `{ last, events: TraceEvent[] }` — what the app did, in order: routes, requests, store changes, events, commands |
+| `trace` | `{ since? }` | `{ last, events: TraceEvent[] }` — what the app did, in order: `route`, `request`, `store`, `event`, `command`, `stall`, `touch` and `crash` events |
 | `dismissKeyboard` | — | `true` |
 | `batch` | `{ calls: [{ method, params? }] }` | `{ results }` — in order, stops at the first error |
 | `debug` | — | what the tree walker can see |
 | *app command* | anything | anything — whatever `qa.register` returned |
 
 A request a `netmock` rule answered (or whose answer it lost) instead of the server has `mocked: true`, in `requests`
-and in its `trace` event: the agent marks what its own rules answer, and a host that answers rules below the app (the
-headless host's network fence) puts the `x-lynkeus-mocked` header on the answer it makes. Diagnoses read only what the
-server answered as the backend's.
+and in its `trace` event. Who marks it: the agent marks what its own rules answer (on a simulator or an emulator); a
+layer below the app (the headless host's network fence, a host's own netmock) answers with the `x-lynkeus-mocked`
+header, and the agent, which sees every response, reads the header and sets `mocked`. `lynkeus requests` and `lynkeus
+trace` print `(mocked)`, a failed case's evidence says it, and the backend diagnoses (5xx, 401, 403, 429) read only what
+the server answered. A rule's `lost` loses the answer after the request was sent.
+
+### Commands a host registers
+
+A host registers commands beside the app's, called like any method (`lynkeus call <name>`). Two matter to a run:
+
+- `memory` (headless): the heap after a collection: `{ heapUsedMb, heapTotalMb, heapLimitMb, rssMb, resets, roots,
+  listeners, commands }`. `heapLimitMb` is where V8 stops; `case run --host` starts the host again past `--host-heap`
+  percent of it.
+- `record` (a host that films, named in `hello`): `{ path, fps, scale? }` starts a film at `path`; `{ stop: true }` ends the film and answers `{ bytes }`, how big it is.
+  When the host is on another machine its path is not this machine's, so `{ read: offset }` hands the film over a piece
+  at a time, `{ data, done }` with `data` base64, until `bytes` have arrived; `case run --video` reassembles it.
 
 ### `Screen`
 
@@ -117,6 +130,7 @@ server answered as the backend's.
   commit: number            // React commits since the agent started
   busy: boolean             // requests in flight, or the app's `busy` command said so
   window: { w, h }          // points
+  presenting?: { i, modal, testId? }   // the layer on top, when the app presents one
   costMs: number            // time spent building the snapshot
 }
 ```
@@ -135,11 +149,13 @@ server answered as the backend's.
   accessibilityLabel?: string
   value?: string            // inputs; masked with • when secureTextEntry
   placeholder?: string
+  font?: { size, bold? }    // points; what makes text "large" for contrast
   focused?: boolean
   parent?: number           // index of the nearest listed ancestor
   tag?: number              // React native tag
   covered?: boolean         // a touch at its centre would not reach it
   hidden?: HiddenReason     // not presented at all, and why
+  offscreen?: boolean       // its rect is outside the window: on screen only after scrolling
 }
 ```
 
@@ -177,10 +193,10 @@ it.
   animations entirely. Use it when you want the outcome, not the gesture.
 - `type` goes through the platform's key input, so formatters and `onChange`
   behave as with a keyboard; keys are paced 25 ms apart unless `paste`.
-- `waitFor` polls inside the app every 40 ms and returns the moment the
+- `waitFor` (`since`: a trace mark, so a route reached after it counts even if the app has already left it, and `passed` says so; `scroll` swipes the nearest scroller towards the target) polls inside the app every 40 ms and returns the moment the
   condition holds; `idle` resolves after `quietMs` without commits or
   requests, or reports `idle: false` at `timeoutMs` (a ticking screen never
   settles, and that is information).
 - `requests` includes headers and bodies only after `networkBodies` turns them
   on (a case run that keeps evidence does), with secrets replaced; query values under keys such
-  as `token`, `code`, `otp`, `password`, `pin`, `session`, `auth` are redacted.
+  as `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session`, `auth` are redacted.

@@ -58,13 +58,19 @@ npx lynkeus init
 `lynkeus init` existe desde la versión 0.3.0. Con una versión anterior, agrega las líneas a mano como se muestra más abajo.
 :::
 
-El comando hace dos cambios. Abre el punto de entrada de la app (`index.js`, `index.tsx` o `index.ts`) y agrega la llamada a `auto()` después del último `import`. Y agrega el plugin `lynkeus-agent/babel` a `babel.config.js`, que es lo que hace llegar el token a la app; lo explica el paso 3. Deberías ver:
+Si todavía no es una dependencia, el comando instala `lynkeus-agent` con el gestor de paquetes de tu proyecto (`--no-install` lo omite). Después hace tres cambios. Abre el punto de entrada de la app (`index.js`, `index.tsx` o `index.ts`) y agrega la llamada a `auto()` después del último `import`. Crea el token del proyecto en `.lynkeus/token`. Y agrega el plugin `lynkeus-agent/babel` a `babel.config.js`, que es lo que hace llegar el token a la app; lo explica el paso 3. Deberías ver:
 
 ```
+installed lynkeus-agent (npm install lynkeus-agent); it has native code, so build the app again
 added auto() to index.js
+made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
 added lynkeus-agent/babel to babel.config.js
-start Metro with LYNKEUS_TOKEN set to the value the CLI reads; after changing it, start Metro with --reset-cache
+restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file
+next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches
+      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute
 ```
+
+`lynkeus status` revisa en cualquier momento qué tiene el proyecto de lynkeus y qué falta: cada línea que falla dice cómo se arregla.
 
 Si el agente ya estaba montado, imprime `index.js already mounts the agent` y no toca ese archivo. Lo mismo con el plugin: `babel.config.js already has lynkeus-agent/babel`.
 

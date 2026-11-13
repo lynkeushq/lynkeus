@@ -8,12 +8,14 @@ app dials out exactly as it does on a device, so every command in
 ```sh
 npx lynkeus headless init         # writes qa/headless.tsx: default mocks, local-backend guard, your App (--auto mounts the agent too)
 npx lynkeus headless doctor       # what lynkeus will mock, and which native modules still need one (--fix writes the stubs)
-LYNKEUS_TOKEN=secret npx lynkeus headless start   # hosts the app and waits for a driver on 8123
+npx lynkeus headless start        # hosts the app and waits for a driver on 8123 (LYNKEUS_TOKEN overrides .lynkeus/token)
 ```
 
-`headless start` needs `LYNKEUS_TOKEN` in the environment: a hosted app talks to a real backend, and
+`headless start` needs a token, from `.lynkeus/token` (which `lynkeus init` makes) or
+`LYNKEUS_TOKEN` in the environment: a hosted app talks to a real backend, and
 without a token any local process could drive it. `LYNKEUS_PORT` moves the host
-and its driver together. Arguments after `--` go to jest. The entry path can
+and its driver together; `LYNKEUS_HOST` says where the driver listens, for a
+host that is not beside it (a container dialing out). Arguments after `--` go to jest. The entry path can
 live in `lynkeus.config.json` as `entry` instead of `--entry` on every call;
 `apiEnv` there is the variable the local-backend guard checks.
 
@@ -39,7 +41,7 @@ jest.mock('../app/native/Updater', () => ({ /* … */ }));
 
 installDefaultMocks({
   network: 'real',                       // let the app reach your local backend
-  networkHosts: ['127.0.0.1', 'localhost'],   // and nothing else (the default)
+  networkHosts: ['127.0.0.1', 'localhost'],   // and nothing else (default: loopback and 10.0.2.2)
   locale: { country: 'DE', languageTag: 'de-DE', languageCode: 'de' },
 });
 
@@ -53,8 +55,8 @@ worklets, pager-view, video, fast-image, biometrics, in-app-review, webview,
 vision-camera, image-picker, and vector-icons' native module. Reanimated
 and gesture-handler are deliberately left alone (their jest story is a babel
 plugin, not `jest.mock`); pass `overrides` if your app wants them mocked.
-Options: `skip`, `overrides`, `network`, `networkHosts`, `websocket`,
-`animations`, `deviceVersion`, `locale`.
+Options: `skip`, `overrides`, `network` (`'real'` or `'banned'`), `networkHosts`, `websocket` (`'stub'`, `'real'` or `'none'`),
+`animations`, `deviceVersion`, `locale`, `initialUrl` (what `Linking.getInitialURL` answers).
 
 `headless init` finds your App component when it sits in a standard place
 (`--component` otherwise), takes `--api-env <NAME>` for the guard, and with
@@ -73,9 +75,17 @@ Long runs: every `jest.fn()` the app's mocks are made of keeps what it was
 called with, for a test to read. Nothing reads it under the host, so the host
 clears those records every 10 s (the mocks keep what they do); left alone they
 grew some 20 MB per sign-in and screen and ran a 4 GB heap out in about 30
-cases. What is left grows slowly; `lynkeus call memory` reports the heap, and a
-runner that drives hundreds of cases on one host can restart it when that is
-too much.
+cases. What is left grows slowly. `lynkeus call memory` reads the heap after a
+collection (no `--expose-gc`, which `NODE_OPTIONS` refuses) and answers
+`heapUsedMb`, `heapTotalMb`, `heapLimitMb` (where V8 gives up, about 4096 by
+default), `rssMb`, `resets`, `roots`, `listeners` and `commands`, so a runner
+can compare a reading with the next case's and with the limit. `case run
+--host` does: it starts the host again past `--host-heap` percent of
+`heapLimitMb` ([CASES.md](CASES.md)).
+
+The host's real network (`network: 'real'`) hands the app a body that is not
+JSON as the app's own `SyntaxError`, not Node's, so `error instanceof
+SyntaxError` inside jest's sandbox holds, as on a phone.
 
 ## Controls: what the OS would hand the app
 
@@ -104,6 +114,11 @@ npx lynkeus mock --clear
 
 Error states, timeouts and empty states are one line each, with no backend
 fixture. A rule without `--sticky` is dropped by the app's `reset` command.
+`--lost` sends the request to the backend and loses only the answer, so the
+server acts and the app sees a failure. The host's network fence puts the
+`x-lynkeus-mocked: 1` header on every answer a rule makes, and the agent reads
+it to mark the request `mocked` in `requests` and `trace`
+([PROTOCOL.md](PROTOCOL.md)).
 
 The biometric sensor is a mock a driver sets, so a case can walk both the
 success and the fallback paths:
@@ -150,7 +165,7 @@ aliases, the longest first, since jest-expo tries `@/*` before `@/assets/*`.
 
 ## Security posture
 
-- `headless start` refuses to run without `LYNKEUS_TOKEN`. The token is the
+- `headless start` refuses to run without a token. The token is the
   shared secret between the hosted app and its driver, the same value the
   app reads for its `token` prop.
 - With `network: 'real'`, the host refuses any host outside `networkHosts`,

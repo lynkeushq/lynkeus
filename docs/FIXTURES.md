@@ -14,7 +14,8 @@ Protocol version: **1** (`FIXTURES_PROTOCOL` in `lynkeus-protocol`, with the typ
 { "cases": { "fixtures": { "command": "./fixtures.sh", "cwd": ".", "timeoutMs": 120000 } } }
 ```
 
-lynkeus starts it once per run (once per job with `--jobs`), writes one JSON object per line to its stdin and reads
+`cwd` is relative to the config file (default: the app's folder), `env` adds variables to the command's environment, and
+`timeoutMs` (120000 by default) is how long one answer may take. lynkeus starts it once per run (once per job with `--jobs`), writes one JSON object per line to its stdin and reads
 one JSON object per line from its stdout, in order. The command runs through a shell, so `${VAR:-default}` works. It
 may print anything to stderr. lynkeus closes stdin when the run ends; the server then exits.
 
@@ -66,6 +67,10 @@ what it can do:
   that works, `answers` what a later step can read, and `changes: false` marks a command that only reads.
 - `down` says the server runs but cannot serve (its database is down); the run stops there and says why.
 - A server that answers `"ok": false` to `lynkeus.describe` has its cases run unchecked.
+
+lynkeus has one more command of its own: `{"command": "lynkeus.ahead", "params": {}}`, sent on a connection that makes
+setups ahead of the cases (`--ahead`), so a server can tell that what it prepares is not for a case running now. Its
+answer is ignored; a server that does not know it may answer anything.
 
 ## Safety
 

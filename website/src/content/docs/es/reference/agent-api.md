@@ -119,7 +119,7 @@ El tercer caso es el que sorprende. React Native no le da a la app ningún entor
 lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
 ```
 
-El plugin `lynkeus-agent/babel` es lo que escribe el valor. Reemplaza cada `process.env.LYNKEUS_TOKEN` del código por el valor que la variable tiene en el entorno de Metro:
+El plugin `lynkeus-agent/babel` es lo que escribe el valor. Reemplaza cada `process.env.LYNKEUS_TOKEN` del código por el valor que la variable tiene en el entorno de Metro o, si no está definida, por el token del proyecto, el que `lynkeus init` guardó en `.lynkeus/token`:
 
 ```js title="babel.config.js"
 module.exports = {
@@ -131,7 +131,7 @@ module.exports = {
 Tres reglas del plugin:
 
 - **Solo actúa en un bundle de desarrollo.** En una transformación de producción no toca nada: el token nunca se escribe en un build de producción.
-- **Lee la variable del entorno de Metro.** Arranca Metro con `LYNKEUS_TOKEN` definida. Si no lo está, el plugin no reemplaza nada y el token llega vacío.
+- **Lee la variable del entorno de Metro, y si no está, `.lynkeus/token`.** Con `lynkeus init` no hace falta definir nada. Si no hay variable ni archivo, el plugin no reemplaza nada y el token llega vacío.
 - **Metro guarda lo que ya transformó.** Después de cambiar el valor, arranca Metro una vez con `--reset-cache`.
 
 `npx lynkeus init` agrega el plugin a `babel.config.js`. Una app de Expo no lo necesita: lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, que Expo incorpora al bundle por su cuenta.
@@ -199,7 +199,7 @@ Cualquier nombre sirve, pero hay dos que los drivers buscan por convención:
 
 #### Comandos que ya vienen
 
-El agente responde cuatro comandos sin que registres nada. Si registras uno con el mismo nombre, el tuyo reemplaza al que viene.
+El agente responde estos comandos sin que registres nada. Si registras uno con el mismo nombre, el tuyo reemplaza al que viene.
 
 | Comando | Parámetros | Qué responde |
 |---|---|---|
@@ -207,6 +207,10 @@ El agente responde cuatro comandos sin que registres nada. Si registras uno con 
 | `stores` | `{ name?: string }` | Sin `name`, los nombres de los stores observados. Con `name`, el estado de ese store. |
 | `profile` | `{ action?: 'start' \| 'stop' }` | Lo que React pasó renderizando, por ruta. Es lo que usa `lynkeus profile`. |
 | `traceContext` | `{ traceparent }` | Lo usa `case run --traces` para marcar las peticiones de cada paso. No hace falta llamarlo a mano. |
+| `networkBodies` | `{ on: boolean }` | Con `on`, el registro de peticiones guarda las cabeceras y los cuerpos de las que siguen (con los secretos ocultos). Lo activa `case run` cuando guarda evidencia. |
+| `netmock` | `{ action: 'add' \| 'clear' \| 'list', … }` | Las reglas con las que el agente contesta una petición antes de que salga de la app: lo que hacen `lynkeus mock` y el paso `app.mock` en un simulador, un emulador o un teléfono. Una regla puede contestar con un estado y un cuerpo (`status`, `body`, `headers`, `delayMs`, `times`) o, con `lost`, dejar salir la petición y perder solo su respuesta. Un host que hace de red registra el suyo y estas reglas quedan vacías. |
+
+Según dónde corre la app, el agente suma otros dos: `analytics` (lo que la app mandó a los SDK de analítica que pudo envolver, donde el módulo nativo de cada SDK se deja envolver) y `logs` (lo que la app imprimió, para la evidencia de un reporte). Aparecen en `lynkeus hello` solo cuando existen.
 
 ### `qa.unregister(name)`
 
@@ -347,7 +351,7 @@ El agente no escribe nada en disco. Guarda tres listas en memoria, y cada una de
 | Lista | Cuánto guarda | Qué contiene |
 |---|---|---|
 | Traza | 500 entradas | Rutas, peticiones, cambios de stores, eventos, comandos, toques y errores sin atrapar. |
-| Peticiones | 200 | Método, URL, estado y duración. Nunca cabeceras ni cuerpos; los valores sensibles de la URL se ocultan. |
+| Peticiones | 200 | Método, URL, estado, duración y, si la contestó un mock, `mocked`. Cabeceras y cuerpos solo mientras un driver los pidió con `networkBodies`, con los secretos ocultos; los valores sensibles de la URL siempre se ocultan. |
 | Eventos | 500 | Lo que informaste con `qa.event`. |
 
 ## Otras exportaciones

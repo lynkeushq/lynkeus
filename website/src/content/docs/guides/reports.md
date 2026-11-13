@@ -27,16 +27,18 @@ You should see the usual output in the terminal, and afterward this on disk:
 run/
   run.json          when it started and ended, what the app ran on, the totals
   cases.jsonl       one line per attempt of a case, in the order they ran
+  progress.ndjson   where the run was, event by event (see below)
   login/            one folder per case
-    01-app-press-next-button.png
+    01-app-press-next-button.avif
     01-app-press-next-button.json
+    video.mp4       with --video, where the host films
     …
   login.2/          the second attempt, when the case was retried
 ```
 
-Each screenshot has a `.json` file beside it with the screen's structure at that moment.
+Each screenshot has a `.json` file beside it with the screen's structure at that moment. The frames are AVIF by default and PNG with `--frames png`.
 
-Add `--video` to film each case, where the host can film. Each step then records the second of the video at which it began. `--video-fps <n>` sets the frame rate (30 by default).
+Add `--video` to film each case, where the host can film. Each step then records the second of the video at which it began. `--video-fps <n>` sets the frame rate (30 by default), and `--video-scale <n>` the pixels per point where the host lets you choose.
 
 :::note
 `--video` films a case only where the host offers a `record` command, which the host names in `hello` (`lynkeus hello` lists it). The built-in headless host draws nothing, and a simulator or emulator session offers no such command, so on those a run keeps its screenshots and has no video. The flag is not an error there: the case runs and is not filmed.
@@ -70,6 +72,7 @@ Each step says:
 |---|---|
 | `step` | The step as text |
 | `section` | `setup` or `steps` |
+| `heading` | The numbered section of the case the step is in, such as `3 A wrong PIN`. A step of `setup`, or one before the first numbered comment, has none. See [Sections](/reference/case-format/#sections). |
 | `status` | `passed`, `failed`, `skipped` or `unsupported` |
 | `ms` | How long it took |
 | `error` | Why it failed, when it did |
@@ -77,14 +80,18 @@ Each step says:
 | `screenshot` | The frame after it, relative to the run directory |
 | `videoS` | The second of the video at which it began |
 | `backend` | What the backend did for it, with `--traces` |
+| `requests` | The requests the app sent while it ran, with their headers and bodies. A request that one of the case's mocks answered carries `mocked: true`. |
+| `logs` | What the app printed while it ran |
 
-A failed attempt also keeps its `evidence` (the screen at the failure, the last requests, and why) and a `diagnosis`.
+A failed attempt also keeps its `evidence` (the screen at the failure, the last requests, and why) and a `diagnosis`. A request that a mock answered reads `(mocked)` in the evidence, and the diagnosis never blames the backend for it.
 
 The TypeScript types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in the `lynkeus-protocol` package, with the schema number in `RUN_SCHEMA`. Fields are only ever added. A change to what an existing field means raises the schema number, and a reader should refuse a schema it does not know.
 
 :::note
 `run.json` is written when the run starts and again when it ends. A run that was cut short has no `finishedAt` and no `totals`.
 :::
+
+`progress.ndjson` is not part of the schema. It is one JSON event per line, written while the run goes on, and `lynkeus case status <dir>` reads it. See [Watch a long run](#watch-a-long-run).
 
 ## Step 3: Get a key for the hosted service
 
@@ -104,7 +111,13 @@ Add `--push` to upload the run when it ends:
 npx lynkeus case run --out run --screenshots --push
 ```
 
-You should see the report's address at the end of the summary:
+The report is made when the run starts and fills case by case, so its address works from the first case. It is printed as soon as the run has it:
+
+```text
+report: https://lynkeus.io/r/… (it fills as the cases run)
+```
+
+If the service cannot make the report ahead (a reports service older than this CLI), or a send fails along the way, the whole run is uploaded when it ends, as before. You should see the report's address again at the end of the summary:
 
 ```text
 11/12 passed
@@ -124,14 +137,17 @@ npx lynkeus report push run --project myapp
 
 `--push` checks for the key before the run starts, so a missing key stops the command at once instead of after every case has run. If the upload itself fails, the run still counts: the summary says `the report was not uploaded: …` and the exit code reflects the cases.
 
+What happens to the run folder afterward is up to `report.afterPush` in `lynkeus.config.json`: `"keep"` (the default) leaves it, `"delete"` removes it once the service took every file. `npx lynkeus report prune <dir> --older 7d` deletes old run folders either way.
+
 ## What the hosted report shows
 
 - Each case, with its steps and how each one ended.
-- The screenshot after each step, and the video in step with the steps where one was recorded. Since 0.5.0 a host that can (fastsim on a Mac) writes the screenshots as AVIF, about a fifth of a PNG's size; `--frames png` keeps PNG, for frames you compare pixel for pixel.
+- The screenshot after each step, and the video in step with the steps where one was recorded. Since 0.5.0 a host that can (fastsim on a Mac) writes the screenshots as AVIF, about a fifth of a PNG's size; a simulator's or an emulator's PNG is encoded to AVIF by the CLI, about 4 % of its bytes; `--frames png` keeps PNG, for frames you compare pixel for pixel.
 - What the case is about: its `description`, `why`, `given`, `ticket` and `expected`.
 - The analytics events each step sent, with the service they went to (over 40 services: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase and Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly and others). See [Analytics events](/guides/analytics-events/).
 - The requests each step sent, with their headers and bodies, and what came back. Secrets in them (passwords, codes, tokens, card numbers, `Authorization` and cookies) are replaced by `…`, and a body is cut at 16 KB. Since 0.5.0, for any run made with `--out`.
-- Why a failed case failed, with only the nearby requests that got a server error or no answer.
+- Why a failed case failed, with only the nearby requests that got a server error or no answer. A request that one of the case's own mocks answered is marked `(mocked)` and is never blamed on the backend.
+- The steps of a long case grouped by its numbered sections (`# 3 A wrong PIN`), the way the case is written.
 - What the backend did for each step, when the run used `--traces`: each request with what the app sent and got back, and the jobs and calls out it set off. Database queries are never kept or shown, since their statements name your tables. See [Backend traces](/guides/backend-traces/).
 - The events your backend sent to its own analytics, marked BACKEND, when `cases.serverEvents` names a fixture that reads them. See [Configuration](/reference/configuration/#casesserverevents).
 - The branch and commit the run was made from, linked to the repository; what commit the project's run before was on, with a link to compare the two; and the files the run had with changes no commit has.
@@ -157,6 +173,30 @@ npx lynkeus report flakes --project myapp            # cases that do not always 
 `report list` prints one line per run: when it started, its project and platform, how many cases passed, and the report's address. `--limit <n>` sets how many (20 by default, at most 100).
 
 `report history` and `report flakes` are explained in [Flaky tests](/guides/flaky-tests/).
+
+## Watch a long run
+
+A suite of hundreds of cases takes a while. While it goes on, `case run` says where it is:
+
+- In a terminal, a status line stays under the output: cases done and failed, the time spent and left, and what each job is running and in which section.
+- `progress.ndjson`, in the `--out` directory (or `.lynkeus/last-run.progress.ndjson` without one), gets an event when a case starts and ends and when each step starts and ends.
+- `--progress json` prints the same events on stdout, for a program. The summary then goes to stderr. `--progress none` leaves the status line out.
+
+From another terminal, or after the run:
+
+```bash
+npx lynkeus case status run
+```
+
+```text
+running: 41 of 120 cases done (✅ 40, ❌ 1), started 22 min ago; about 14 min left (from past runs)
+  job 1: login-wrong-pin on port 8123, 8s in — §3 A wrong PIN · step 7/12: app.see text: Wrong PIN
+  job 2: gift-send on port 8124, 3s in — setup · step 1/9: create_user as: u
+failed: checkout-declined-card
+progress: run/progress.ndjson
+```
+
+The time left comes from how long each case took when it last passed, else from the cases this run has finished. A run whose process is gone without finishing says `stopped`. Without a directory, `case status` reads the last run of the project. `--json` gives the same as an object.
 
 ## Plans and retention
 
@@ -187,7 +227,7 @@ npx lynkeus report plan --manage    # prints the Stripe portal: card, invoices, 
 
 ## How it works
 
-`report push` sends the run in four stages: it creates the run from `run.json`, sends `cases.jsonl`, uploads every screenshot and video the cases name, and marks the run finished. The service answers the last stage with the report's address and the comparison to the previous run.
+`report push` sends the run in four stages: it creates the run from `run.json`, sends `cases.jsonl`, uploads every screenshot and video the cases name, and marks the run finished. The service answers the last stage with the report's address and the comparison to the previous run. With `case run --push`, the first stage happens when the run starts, and each case is sent as it ends.
 
 The run directory is the only thing the service reads. It does not connect to your app, your simulator or your backend.
 
@@ -203,7 +243,7 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no screenshots.** The host takes none. The headless host renders nothing to capture; use a simulator or an emulator for runs that need pictures.
 
-**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it.
+**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (fastsim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
 
 ## Next steps
 

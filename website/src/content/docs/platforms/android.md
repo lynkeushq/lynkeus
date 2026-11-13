@@ -58,7 +58,7 @@ When you change the port in the app, change it for the CLI too, with `LYNKEUS_PO
 
 ## Verify
 
-With the app running on the emulator and `LYNKEUS_TOKEN` exported:
+With the app running on the emulator, from the app's folder (where `.lynkeus/token` is):
 
 ```bash
 npx lynkeus hello
@@ -70,7 +70,7 @@ You should see the platform reported as `android` and the native module as avail
 {
   "event": "hello",
   "protocolVersion": 1,
-  "agentVersion": "0.4.0",
+  "agentVersion": "0.6.0",
   "platform": "android",
   "native": true,
   ...
@@ -139,14 +139,18 @@ The `lynkeus os` commands available for Android are fewer:
 | `lynkeus os permissions <grant\|revoke> <permission>` | Yes. The permission is an Android name, such as `android.permission.CAMERA`; a short name like `camera` is expanded to that form. There is no `reset`. Needs the application ID (`--app` or `app` in the configuration). |
 | `lynkeus os appearance <light\|dark>` | Yes. |
 | `lynkeus os location <lat>,<lon>` | Yes. There is no `clear`. |
+| `lynkeus os appstate <background\|active>` | Yes. `background` presses Home; `active` brings the same task back through the app's launcher intent, and needs the application ID. |
 | `lynkeus os push` | No. |
 | `lynkeus os language` | No. |
+| `lynkeus os biometrics` | No. It works on the headless host, and `--available` on an iOS simulator. |
 
 Asking for one that is not available fails with:
 
 ```text
-"push" is not available on Android through lynkeus; permissions, appearance and location are
+"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
 ```
+
+`lynkeus mock` and a case's `app.mock` work on Android too: the agent answers a matching request inside the app. With `--lost` the request is sent and only its answer is lost. See [Driving the app](/guides/driving-the-app/#change-what-the-app-sees-mock-and-os).
 
 :::note
 Of the commands that act from outside the app, `lynkeus screenshot` is the one that has been run on the Android emulator. `lynkeus launch` and the `lynkeus os` commands in the table use the same device lookup, but they were not run on Android for this documentation. Confirm them on your setup before a suite depends on them.
@@ -159,7 +163,7 @@ Of the commands that act from outside the app, `lynkeus screenshot` is the one t
 - **System UI is not part of the screen.** Permission dialogs, the system keyboard, the notification shade and anything else drawn by Android rather than by React Native are not listed as elements.
 - **Debuggable builds only.** lynkeus cannot drive a release build or a build installed from Google Play.
 - **Physical devices are not supported.** The CLI looks for a booted emulator, and launching, screenshots and the `os` commands go through `adb` on one. The default address, `10.0.2.2`, exists only inside an emulator, and the driver listens on your machine's loopback address only.
-- **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. A emulator session offers none, so a run keeps its screenshots and no video.
+- **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. An emulator session offers none, so a run keeps its screenshots and no video.
 
 ## Known problems
 
@@ -177,7 +181,7 @@ The installed binary predates the fix described under [How the agent works on An
 ✗ No app attached on 127.0.0.1:8123 within 15000ms. Is a dev build running with <Lynkeus>?
 ```
 
-Check that the build is a debug build, that `enabled` is true for this environment, and that the token the app received is the `LYNKEUS_TOKEN` the CLI reads. If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off; see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty). If you passed `host` to the agent, check that the address reaches your machine from inside the emulator. `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
+Check that the build is a debug build, that `enabled` is true for this environment, and that the app was bundled with the token the CLI reads (`.lynkeus/token`, or `LYNKEUS_TOKEN` when set). When the message instead says `An app connected but did not answer`, the app is running with another token: start Metro again with `--reset-cache`. If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off; see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty). If you passed `host` to the agent, check that the address reaches your machine from inside the emulator. `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
 
 ### A press does nothing
 

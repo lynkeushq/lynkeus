@@ -89,6 +89,8 @@ Some things are not the app's to decide: whether it has permission to use the ca
 | `lynkeus os appearance <light\|dark>` | Switches the simulator between light and dark. |
 | `lynkeus os location <lat>,<lon>` | Sets where the device is. `lynkeus os location clear` removes it. |
 | `lynkeus os language [tag]` | Relaunches the app in a locale, such as `de-DE`. Needs the bundle identifier. |
+| `lynkeus os appstate <background\|active>` | Sends the app to the background by opening Settings, and brings it back by launching it again. Its `AppState` listeners see both. Needs the bundle identifier for `active`. |
+| `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Enrolls the simulator in Face ID or Touch ID, or takes the enrollment away. Which of the two the simulator has depends on its model. |
 
 ### Permissions
 
@@ -109,7 +111,7 @@ npx lynkeus os push '{"alert":"Your order shipped"}'
 npx lynkeus os push fixtures/order-shipped.json
 ```
 
-The payload is either JSON or the path to a `.json` file. A bare notification is wrapped under `aps` for you; a payload that already has an `aps` key is sent as it is.
+The payload is either JSON or the path to a `.json` file. Inline JSON that is a bare notification is wrapped under `aps` for you, and one that already has an `aps` key is sent as it is. A file is sent as it is, so write it as a full APNs payload.
 
 ### Language
 
@@ -127,6 +129,22 @@ npx lynkeus os appearance dark
 
 Light and dark are two different screens for checks that depend on color, such as the contrast check in [`lynkeus lint`](/guides/lint-and-contrast/). Run those checks once in each.
 
+### Background and Face ID
+
+```bash
+npx lynkeus os appstate background
+npx lynkeus os appstate active
+npx lynkeus os biometrics --available FaceID
+```
+
+`os appstate active` waits for the app to attach again before it returns, so the next command reads the screen it came back to. `inactive` exists only on the headless host.
+
+On a simulator, `os biometrics` sets only the enrollment. What a prompt answers is the person's to decide on a real device, so `--next` and `--fallback` work only on the headless host; a case step that uses them reports the step as unsupported here.
+
+## Answering requests in the app
+
+`lynkeus mock` and a case's `app.mock` work on a simulator: the agent answers a matching request inside the app, before it reaches the network. With `--lost` the request is sent and only its answer is lost, as on the headless host. See [Driving the app](/guides/driving-the-app/#change-what-the-app-sees-mock-and-os).
+
 ## Screenshots and pixels
 
 On a simulator the pixels are real, which is what a headless host cannot give you.
@@ -137,7 +155,7 @@ npx lynkeus screenshot home.png
 
 `lynkeus snapshot <name> --pixels` compares a screenshot against a stored baseline. Before taking it, lynkeus pins the simulator's status bar (the time reads 9:41, the battery is full, the signal bars are fixed) so that the clock does not count as a difference. `--no-freeze` skips that. See [Recording and snapshots](/guides/recording-and-snapshots/).
 
-`lynkeus case run --out <dir> --screenshots` keeps a screenshot after every app step of every case. See [Reports](/guides/reports/).
+`lynkeus case run --out <dir> --screenshots` keeps a screenshot after every app step of every case. The simulator gives PNG, which the run encodes again as AVIF unless `--frames png`. A native transition the agent cannot see, such as a system sheet sliding in, can leave a frame half drawn; `--still <ms>` takes each frame again until two in a row match. See [Reports](/guides/reports/).
 
 ## Limits
 
@@ -159,7 +177,7 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 
 ### The driver never attaches
 
-The agent dials `localhost:8123` and keeps retrying, so the order in which you start the app and the CLI does not matter. If the CLI still times out, check that the build is a debug build, that `enabled` is true for this environment, and that the token the app received is the `LYNKEUS_TOKEN` the CLI reads. If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off: add the `lynkeus-agent/babel` plugin and start Metro with `LYNKEUS_TOKEN` set, once with `--reset-cache` (see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty)). `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
+The agent dials `localhost:8123` and keeps retrying, so the order in which you start the app and the CLI does not matter. If the CLI still times out, check that the build is a debug build, that `enabled` is true for this environment, and that the app was bundled with the token the CLI reads (`.lynkeus/token`, or `LYNKEUS_TOKEN` when set). If the app's log says `lynkeus: the app passed a token and it is empty`, the agent is off: add the `lynkeus-agent/babel` plugin and start Metro once with `--reset-cache` (see [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty)). `--attach-timeout <ms>`, or `attachTimeout` in the configuration, gives a slow launch longer than the default 15 seconds.
 
 ### A press does nothing
 

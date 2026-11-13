@@ -5,8 +5,9 @@ description: Problems by symptom — what you see, why it happens and how to fix
 
 This page is organized by symptom. Find what you are seeing, read why it happens, and apply the fix. Exact error texts are quoted so that you can search the page for them.
 
-Before you read further, use the two tools lynkeus has for this:
+Before you read further, use the three tools lynkeus has for this:
 
+- `lynkeus status` lists what the project has of lynkeus (the agent, the mount, the token, an attached app, cases) and says what fixes each line that is missing.
 - After a failed `press`, `wait`, `type`, `swipe` or `nav`, lynkeus prints `why:` followed by what it read from the screen, the requests and the trace. Read that first.
 - `lynkeus why <target>` asks the same question at any moment. `lynkeus why --route <Route>` asks it about a route you expected.
 
@@ -34,7 +35,7 @@ The [last section](#what-why-tells-you) lists every answer `why` can give.
 1. **The build is a debug build.** The agent does not run in a release build.
 2. **`enabled` is true for this environment.** If you gate it, as in `enabled: __DEV__ && config.ENV !== 'prod'`, check what the expression gives in the build you are running.
 3. **The token reached the app.** Look in the app's log for `lynkeus: the app passed a token and it is empty`. If the line is there, the agent is off; see [the next entry](#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
-4. **The tokens match.** The token the app received when it was bundled must be the value of `LYNKEUS_TOKEN` in the terminal where you run the CLI. A mismatch looks exactly like no app at all.
+4. **The tokens match.** The token the app received when it was bundled must be the one the CLI reads: `LYNKEUS_TOKEN` in the terminal, else the project's `.lynkeus/token`. A mismatch looks like no app at all, with one difference: the error then ends with `An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.`
 5. **The app runs on a simulator or an emulator.** Physical devices are not supported: the CLI looks for a booted simulator or emulator.
 6. **The ports match.** If you set `LYNKEUS_PORT` or `port` in `lynkeus.config.json`, the app's `port` option must be the same number.
 7. **The app was rebuilt after you added the package.** The native module is compiled into the app.
@@ -54,11 +55,13 @@ lynkeus: the app passed a token and it is empty, so the agent stays off. React N
 
 **Fix.** In a React Native CLI app:
 
-1. Add `'lynkeus-agent/babel'` to the plugins in `babel.config.js`. `npx lynkeus init` does it for you.
-2. Start Metro from a shell where `LYNKEUS_TOKEN` is set to the value the CLI reads.
-3. Start it once with `--reset-cache`. Metro keeps what it has transformed, so without this it goes on serving the entry file as it was when the variable was empty.
+1. Add `'lynkeus-agent/babel'` to the plugins in `babel.config.js`. `npx lynkeus init` does it for you, and makes the project's token in `.lynkeus/token`, which the plugin reads when `LYNKEUS_TOKEN` is not set.
+2. If you set `LYNKEUS_TOKEN` yourself, start Metro from a shell where it has the value the CLI reads.
+3. Start Metro once with `--reset-cache`. Metro keeps what it has transformed, so without this it goes on serving the entry file as it was when the token was empty.
 
-In an Expo app the plugin is not needed. Name the variable `EXPO_PUBLIC_LYNKEUS_TOKEN`, read that name in the entry file, and start the development server with it set.
+Run `npx lynkeus status`: it says which of these is missing.
+
+In an Expo app the plugin is not needed. Name the variable `EXPO_PUBLIC_LYNKEUS_TOKEN` and read that name in the entry file. `lynkeus init` writes it to `.env.local`; restart the development server so that it reads the file.
 
 The plugin writes the token into a development bundle only, never a release one.
 
@@ -73,7 +76,7 @@ Before 0.3.0 an empty token did not turn the agent off: it served any driver, wi
 - The agent has native code, so it does not work in Expo Go. It needs a development build: `npx expo prebuild`, then `npx expo run:ios` or `npx expo run:android`.
 - Expo only inlines environment variables that start with `EXPO_PUBLIC_`. An app that reads `process.env.LYNKEUS_TOKEN` gets `undefined`, and with an empty token the agent stays off.
 
-**Fix.** Run a development build, and read the token from `EXPO_PUBLIC_LYNKEUS_TOKEN` in the app. The CLI still reads `LYNKEUS_TOKEN`. Both must hold the same value. See [Expo](/platforms/expo/).
+**Fix.** Run a development build, and read the token from `EXPO_PUBLIC_LYNKEUS_TOKEN` in the app. `lynkeus init` writes it to `.env.local` with the project's token, which is the one the CLI reads. If you set `LYNKEUS_TOKEN` yourself, give both the same value. See [Expo](/platforms/expo/).
 
 ### `Port 8123 is already taken`
 
@@ -310,7 +313,7 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **What you see.** A step is marked 🚫 with `this host has no <command>`, and the summary says `2 cannot run on this host`.
 
-**Why.** The step needs something this host cannot do: a mocked response on a simulator or an emulator, or a command the app does not register in this build. That says nothing about the app, so the case is not failed and the run still exits with 0.
+**Why.** The step needs something this host cannot do: a command only the headless host has (`app.network`, `app.clock`, `app.scan`) on a simulator or an emulator, or a command the app does not register in this build. That says nothing about the app, so the case is not failed and the run still exits with 0.
 
 **Fix.** Nothing is broken. Run the case where the host can do it, or keep the step to that host with `on:`. See [Conditions with `on:`](/reference/case-format/#conditions-with-on).
 
@@ -328,6 +331,32 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **Fix.** Add `--out <dir>`.
 
+### `--video kept no film`
+
+**What you see.** The run ends with `⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).`
+
+**Why.** A case is filmed only where the host offers a `record` command, which it names in `hello`.
+
+**Fix.** Nothing failed. Use a host that films, such as fastsim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
+
+### A case fails and its evidence shows `(mocked)` on a request
+
+**Why.** A step of the case (`app.mock`) answered that request, or lost its answer. The reasons a failed case prints read only what the server answered, so a 500 the case made is not reported as a backend error.
+
+**Fix.** Look at the mock the case set: a rule with `status: 500` or `lost: true` is the cause. `lynkeus mock --list` shows the rules in force, and `lynkeus requests` marks the answered requests `(mocked)`.
+
+### A long run: where is it?
+
+**What you see.** A run of hundreds of cases says nothing for minutes, because it does not run in a terminal (CI, a script) or the line scrolled away.
+
+**Fix.** `lynkeus case status [dir]` says how many cases are done, what each job runs and in which section, and the time left, from any terminal and after the run ends. A run whose process is gone without finishing says `stopped`. The events are in `progress.ndjson` in the `--out` directory (`.lynkeus/last-run.progress.ndjson` without one), and `--progress json` prints them on stdout. A terminal also keeps a status line under the output, unless `--progress none` or `CI` is set. See [Progress](/reference/cli/#progress).
+
+### A case that changes a global setting breaks the cases beside it
+
+**Why.** Cases run side by side with `--jobs` share one backend. A case that changes what every case sees, such as a global feature flag or a setting for all users, changes what the others see while they run: a sign-in that should have been refused is let in.
+
+**Fix.** Give the case `exclusive: true` in its frontmatter. It then waits for the cases in flight to end, and no other case starts until it has ended.
+
 ### `--jobs and --host-command need a driver port per job`
 
 **Why.** Each job drives its own host, and each host dials its own port.
@@ -336,11 +365,17 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 ## The headless host
 
-### `lynkeus headless needs LYNKEUS_TOKEN in the environment`
+### `lynkeus headless needs a token`
+
+**What you see.**
+
+```text
+lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it.
+```
 
 **Why.** A hosted app talks to a real backend. Without a token, any local process could drive it, so `headless start` refuses to run.
 
-**Fix.** Set `LYNKEUS_TOKEN` for the host and for the driver, to the same value.
+**Fix.** Run `lynkeus headless init` or `lynkeus init`, which make the project's token in `.lynkeus/token`. In CI, where that file does not exist, set `LYNKEUS_TOKEN` for the host and for the driver, to the same value.
 
 ### `No qa/headless.tsx in …`
 
@@ -388,6 +423,12 @@ The errors it recognizes:
 
 **Fix.** Run `lynkeus headless start` on its own and read what it prints.
 
+### Every case after one fails with `No app attached`
+
+**Why.** The host died during that case, usually out of memory (node stops at about 4 GB), or its app stopped answering. Without `--host`, nothing starts it again, so each case after it finds no app.
+
+**Fix.** Run with `--host`: the run starts the host again before the next case, and the case that lost it fails with its reasons saying how the host ended, with its last words and the path of its log (`during this case the host exited (…)`). A host started again writes a log of its own, so the one that died keeps what explains it. To avoid the failure instead of recovering from it, the run reads the host's heap before each case and starts it again past `--host-heap` percent of its limit (60 by default); lower it for a leaky app. When you start the hosts yourself, restart one when `lynkeus call memory` reports a heap near `heapLimitMb`. See [Hosts that die](/reference/cli/#hosts-that-die).
+
 ### An environment variable change has no effect
 
 **Why.** If your babel configuration inlines environment variables, jest's transform cache keeps the first value it saw.
@@ -402,9 +443,9 @@ The errors it recognizes:
 
 ### The host's memory grows over a long run
 
-**Why.** Node's heap grows by a few dozen megabytes per full app reset.
+**Why.** Node's heap grows by a few dozen megabytes per full app reset. The host clears what the jest mocks record about their calls every 10 seconds, which was most of the growth; what is left grows slowly.
 
-**Fix.** A runner that drives hundreds of tests should restart the host when `lynkeus call memory` reports too much. `case run --host-command` starts a fresh host for every case.
+**Fix.** `case run --host` starts the host again before a case when its heap is past `--host-heap` percent of its limit (60 by default). A runner of your own should restart the host when `lynkeus call memory` reports too much: it reads the heap after a collection and says where the heap stops (`heapLimitMb`). `case run --host-command` starts a fresh host for every case.
 
 ### Requests are refused by the host
 
@@ -434,7 +475,7 @@ The errors it recognizes:
 
 ## What `why` tells you
 
-`lynkeus why` reads the screen, the last requests and the trace, and reports every rule that matches. Each line starts with one of these.
+`lynkeus why` reads the screen, the last requests and the trace, and reports every rule that matches. The rules about the backend (every request 401, 403, a 5xx, 429) read only what the server answered: a request that a mock answered or lost (`(mocked)` in `lynkeus requests`) is the case's own doing and is left out. Each line starts with one of these.
 
 | It says | Meaning | What to do |
 |---|---|---|

@@ -66,7 +66,7 @@ npx lynkeus headless doctor --fix
 ### 3. Levanta el host
 
 ```bash
-LYNKEUS_TOKEN=un-secreto-local API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
+API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
 ```
 
 Deberías ver, después de que Jest compile la app:
@@ -75,17 +75,17 @@ Deberías ver, después de que Jest compile la app:
 hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 ```
 
-Dos variables intervienen:
+Dos cosas intervienen:
 
-- `LYNKEUS_TOKEN` es obligatoria. Sin ella el host se niega a arrancar: una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla.
-- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. El archivo de entrada se niega a renderizar la app si esa dirección no es local.
+- El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.
+- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección no es local.
 
 ### 4. Maneja la app
 
-En otra terminal, con el mismo token:
+En otra terminal, desde la misma carpeta del proyecto (el CLI lee el mismo token):
 
 ```bash
-LYNKEUS_TOKEN=un-secreto-local npx lynkeus screen
+npx lynkeus screen
 ```
 
 Deberías ver la pantalla inicial de tu app, en el mismo formato que en un simulador.
@@ -95,10 +95,12 @@ Deberías ver la pantalla inicial de tu app, en el mismo formato que en un simul
 Para ejecutar casos no necesitas los pasos 3 y 4. La opción `--host` levanta el host al empezar y lo detiene al terminar:
 
 ```bash
-LYNKEUS_TOKEN=un-secreto-local API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
+API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-Verás `host: up` cuando esté listo. Si el host no arranca en 180 segundos, la ejecución termina con las últimas líneas de su salida.
+Verás `host: up (its log: …)` cuando esté listo; esa ruta es el registro de todo lo que imprime el host. Si el host no arranca en 180 segundos, la ejecución termina con las últimas líneas de su salida.
+
+Si el host muere a mitad de la ejecución (se queda sin memoria, un fallo), o está vivo pero su app dejó de contestar, `case run --host` arranca otro antes del caso siguiente, en lugar de dejar que todos los demás fallen con `No app attached`. Antes de cada caso también le pregunta al host cuánto heap usa y lo reinicia pasado el `--host-heap` por ciento de su límite (60 si no dices otra cosa). El caso que perdió el host sigue fallando, y sus razones dicen cómo terminó el host, con sus últimas líneas y la ruta de su registro; el host nuevo escribe un registro propio.
 
 ## El archivo de entrada
 
@@ -135,14 +137,14 @@ En el host no hay sistema operativo. Lo que un dispositivo recibiría del mundo 
 | Comando | Qué simula |
 |---|---|
 | `lynkeus os deeplink <url>` | Un enlace que abre la app. Funciona también en un dispositivo. |
-| `lynkeus os appstate <active\|background\|inactive>` | El paso a segundo plano y la vuelta: lo que se recarga o se vuelve a bloquear. |
+| `lynkeus os appstate <active\|background\|inactive>` | El paso a segundo plano y la vuelta: lo que se recarga o se vuelve a bloquear. También funciona en un simulador o un emulador, donde lo hace el sistema de verdad (`inactive` es solo del host). |
 | `lynkeus os network <off\|on>` | El modo avión: las peticiones fallan y las conexiones abiertas se caen. |
 | `lynkeus os clock --now <iso>` | Lo que responde `Date`. Los temporizadores siguen siendo reales. También `--advance <ms>` y `--reset`. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none> --next <resultados>` | El sensor y lo que responden los próximos pedidos: `success`, `fail`, `cancel`. |
 | `lynkeus os scan <valor> --type <qr\|ean13\|…>` | Un código que lee el escáner de la cámara abierta. |
 | `lynkeus os gallery <uri>` | Lo que devuelve el próximo selector de imágenes. Con `--cancel`, que la persona canceló. |
 
-Salvo `os deeplink`, todos son exclusivos del host sin pantalla. En un dispositivo tienes el comportamiento real.
+`os deeplink` y `os appstate` funcionan también en un dispositivo, y `os biometrics --available` en un simulador de iOS. El resto es exclusivo del host sin pantalla: en un dispositivo tienes el comportamiento real.
 
 ### La red
 
@@ -152,6 +154,7 @@ La red es una tabla de reglas delante de `fetch`. Con `lynkeus mock` respondes u
 npx lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000   # error lento
 npx lynkeus mock '/v3/accounts' --body '[]' --times 1           # lista vacía, una sola vez
 npx lynkeus mock 'GET /v3/session' --status 401 --sticky        # sobrevive a un reinicio de la app
+npx lynkeus mock 'POST /v1/transfers' --lost                    # el servidor la recibe; la respuesta se pierde
 npx lynkeus mock --list
 npx lynkeus mock --clear
 ```
@@ -159,6 +162,12 @@ npx lynkeus mock --clear
 Una ruta sin método coincide con cualquiera. Una regla sin `--sticky` desaparece cuando la app ejecuta su comando `reset`.
 
 Así, un estado de error, una demora o un estado vacío cuestan una línea cada uno, sin preparar nada en el backend.
+
+`--lost` imita una conexión que se cae después de haber enviado la petición: la petición llega al backend, que la procesa, y a la app le llega un fallo de red. Es la forma de probar qué hace la app cuando cree que algo no ocurrió y en el servidor sí.
+
+La app marca como `mocked` las peticiones que contestó una regla (o cuya respuesta perdió), y `lynkeus requests`, `lynkeus trace` y la evidencia de un caso fallido las muestran con `(mocked)`. Esa marca la pone el agente cuando contesta él (en un dispositivo), y el host sin pantalla la avisa con la cabecera `x-lynkeus-mocked` en la respuesta que arma; un host propio que tenga su `netmock` debajo del agente puede hacer lo mismo. Gracias a eso, cuando un caso falla, los motivos no culpan al backend por un 500 que puso el propio caso: las reglas sobre el backend (5xx, 401, 403, 429) leen solo lo que contestó el servidor.
+
+En un simulador o un emulador, `lynkeus mock` también funciona: responde el agente dentro de la app, con las mismas reglas, salvo `--sticky`.
 
 ## Lo que el host no puede decirte
 
@@ -194,7 +203,7 @@ Y si un caso pide algo que el host actual no puede hacer, ese paso se informa co
 
 El host tiene tres protecciones, pensadas para un accidente concreto: un proceso automatizado apuntando a producción.
 
-- `headless start` no arranca sin `LYNKEUS_TOKEN`.
+- `headless start` no arranca sin el token del proyecto (`.lynkeus/token` o `LYNKEUS_TOKEN`).
 - Con `network: 'real'`, el host rechaza cualquier dirección fuera de `networkHosts`, que por defecto son solo las locales.
 - El archivo de entrada generado comprueba, antes de renderizar la app, que la dirección de la API sea local.
 
@@ -203,11 +212,11 @@ El host tiene tres protecciones, pensadas para un accidente concreto: un proceso
 Cada host y su driver se emparejan por puerto. Define `LYNKEUS_PORT` con el mismo valor en los dos, y cada pareja es independiente:
 
 ```bash
-LYNKEUS_PORT=8124 LYNKEUS_TOKEN=un-secreto-local npx lynkeus headless start
+LYNKEUS_PORT=8124 npx lynkeus headless start
 ```
 
 ```bash
-LYNKEUS_PORT=8124 LYNKEUS_TOKEN=un-secreto-local npx lynkeus screen
+LYNKEUS_PORT=8124 npx lynkeus screen
 ```
 
 Es lo que permite repartir una suite entre los núcleos de una máquina de CI. La guía [CI](/es/guides/ci/) lo desarrolla.
@@ -250,7 +259,7 @@ El host renderiza sin `React.StrictMode`, porque en producción no existe y sus 
 
 ### La memoria crece en ejecuciones largas
 
-Cada `jest.fn()` de los mocks de la app guarda con qué se lo llamó, para que un test lo lea. Bajo el host nadie lo lee, así que el host borra ese registro cada 10 segundos y los mocks siguen haciendo lo mismo. Sin eso crecía unos 20 MB por inicio de sesión y pantalla en una app grande, y agotaba un heap de 4 GB en unos 30 casos. Lo que queda crece despacio; un ejecutor que maneja cientos de casos en un mismo host puede reiniciarlo cuando `lynkeus call memory` informe demasiado.
+Cada `jest.fn()` de los mocks de la app guarda con qué se lo llamó, para que un test lo lea. Bajo el host nadie lo lee, así que el host borra ese registro cada 10 segundos y los mocks siguen haciendo lo mismo. Sin eso crecía unos 20 MB por inicio de sesión y pantalla en una app grande, y agotaba un heap de 4 GB en unos 30 casos. Lo que queda crece despacio. `lynkeus call memory` lee el heap después de una recolección de basura (sin necesitar `--expose-gc`, que `NODE_OPTIONS` no admite) y dice dónde se detiene el heap (`heapLimitMb`), de modo que un ejecutor puede comparar una lectura con la del caso siguiente y con el límite. `case run --host` ya hace esa comprobación por ti antes de cada caso y reinicia el host pasado el `--host-heap` por ciento del límite.
 
 ## Próximos pasos
 

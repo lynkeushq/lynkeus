@@ -5,7 +5,7 @@ description: What a CI job needs to run lynkeus cases, which host to choose, and
 
 Tests earn their keep when they run on every change without anyone asking. This guide explains what a CI job needs in order to run your cases, how to choose where the app runs, and how to leave a report on each pull request.
 
-lynkeus does not ship a ready-made action for running cases. A job runs the same commands you run locally. The one workflow lynkeus writes for you, `map ci`, is covered at the end: it needs no app at all.
+lynkeus does not ship a ready-made action for running cases. A job runs the same commands you run locally. `lynkeus ci` runs the whole suite the way a job does, bringing your backend and several hosts up around it: it is covered after the plain workflow. The one workflow lynkeus writes for you, `map ci`, is covered at the end: it needs no app at all.
 
 ## What every job needs
 
@@ -13,7 +13,7 @@ Whatever the host, a job that runs cases needs five things.
 
 1. **Node and your dependencies.** The CLI and the headless host need Node 22 or newer. Install the project's packages as usual; `lynkeus` and `lynkeus-agent` are among them.
 2. **The app, running somewhere.** Either hosted in Node by the headless host, or as a debug build on a simulator or an emulator. The next section helps you choose.
-3. **A shared token.** `LYNKEUS_TOKEN` must hold the same value for the app and for the CLI. In a job that builds or hosts the app itself, any value works, as long as both sides read the same one. An app that passes a token and receives an empty one keeps its agent off, so a job that forgets the variable on the app's side fails to attach rather than run unprotected.
+3. **A shared token.** The app and the CLI must hold the same token. Locally, `lynkeus init` makes it in `.lynkeus/token`, and everything reads that file. That file is kept out of git, so a job does not have it: set `LYNKEUS_TOKEN` in the job, which wins over the file. In a job that builds or hosts the app itself, any value works, as long as both sides read the same one. An app that passes a token and receives an empty one keeps its agent off, so a job that forgets the variable on the app's side fails to attach rather than run unprotected.
 4. **A backend to talk to.** The app under test makes real requests. Run the backend the job tests, with its database and cache, seeded for tests. No shared environment is needed, and no production data is involved.
 5. **A fixtures command, if your cases use fixtures.** It is started by `case run` from `cases.fixtures` in `lynkeus.config.json`, so it must be runnable in the job. See [Fixtures](/guides/fixtures/).
 
@@ -48,7 +48,7 @@ Set up the headless host locally and commit the result. See [Headless](/platform
 ```bash
 npx lynkeus headless init --auto     # writes the headless entry, mounts the agent
 npx lynkeus headless doctor          # lists native modules that still need a mock
-LYNKEUS_TOKEN=secret npx lynkeus case run --host
+npx lynkeus case run --host
 ```
 
 When that passes on your machine, the job is the same command.
@@ -61,7 +61,11 @@ npx lynkeus case run --host --out run
 
 `--host` starts `lynkeus headless start` for the run and stops it afterward. `--out run` writes the run as a directory, which you can keep as a build artifact or push as a report.
 
-You should see `host: up` once the app is hosted, then each case. If the host has not come up within 180 seconds, the command stops with `the host did not come up within 180 s` followed by the last lines of its output.
+You should see `host: up (its log: …)` once the app is hosted, then each case. If the host has not come up within 180 seconds, the command stops with `the host did not come up within 180 s` followed by the last lines of its output.
+
+If the host dies during a case (it ran out of memory, say) or its app stops answering, the run starts it again before the next case. That case still fails, and its reasons say how the host ended, with its last words and its log. Before each case the run also reads the host's heap, and starts the host again past `--host-heap` percent of its limit (60 unless told), so a case does not begin on a host about to run out. See [Hosts that die](/reference/cli/#hosts-that-die).
+
+In a job the run keeps no live status line, because stderr is not a terminal. Read where it is from the log, or with `--progress json`, which prints one event per line on stdout, or from another step with `npx lynkeus case status run`.
 
 ### A plain workflow
 
@@ -113,11 +117,41 @@ LYNKEUS_PORT=8125 npx lynkeus headless start &
 npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 ```
 
-The longest cases start first, so the jobs finish together. Hosts scale with the machine's cores.
+The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have lynkeus start a fresh host for every case instead, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'`.
 
-The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, and the others wait for it.
+The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
 
 A long-lived host clears what the app's jest mocks record about their calls every 10 s, which was most of what made its heap grow (some 20 MB per sign-in and screen in a large app). What is left grows slowly: a runner that drives hundreds of cases on one host can still restart it when `npx lynkeus call memory` reports too much.
+
+## Run the suite with `lynkeus ci`
+
+`lynkeus ci` does what the plain workflow does by hand: it starts your backend, starts N headless hosts, runs the cases across them, and tears everything down. It reads a `ci` section of `lynkeus.config.json`:
+
+```json title="lynkeus.config.json"
+{
+  "ci": {
+    "backend": { "up": "docker compose up -d --wait", "down": "docker compose down", "ready": "http://127.0.0.1:3000/up" },
+    "hosts": { "count": 2 },
+    "push": true
+  }
+}
+```
+
+```bash
+npx lynkeus ci
+```
+
+lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
+
+`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend and the hosts up afterward, to look at what a failed run left.
+
+`--affected` runs only the cases that a branch's changes reach:
+
+```bash
+npx lynkeus ci --affected --base origin/main
+```
+
+It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
 
 ## Run on a simulator or an emulator
 
@@ -126,7 +160,7 @@ Use this for what the headless host cannot show: screenshots, contrast, and anyt
 The job has more to prepare, and those steps are your platform's, not lynkeus's:
 
 1. Build the **debug** build of the app, with the agent enabled. lynkeus does not work in a release build: the code that synthesizes touches is not compiled into one.
-2. Give the app the token the job will use. In a React Native CLI app the token is written into the development bundle by the `lynkeus-agent/babel` plugin, so start Metro with `LYNKEUS_TOKEN` set in its environment. In an Expo app, start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set to the same value.
+2. Give the app the token the job will use. In a React Native CLI app the token is written into the development bundle by the `lynkeus-agent/babel` plugin, so start Metro with `LYNKEUS_TOKEN` set in its environment. In an Expo app, start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set to the same value. Both read `.lynkeus/token` when the variable is not set, which a job that has the file (a self-hosted runner) can rely on.
 3. Boot the simulator or emulator, install the app and launch it.
 4. Run the cases.
 
@@ -159,9 +193,9 @@ Store the organization's API key as a secret and add `--push`:
     LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
 ```
 
-The step prints the report's link, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
+The report is made when the run starts and fills case by case, so its link works from the first case: the step prints it right away, and you can open it while the suite is still running. A send that fails along the way is tried again at the end. At the end the step prints the link again, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
 
-On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. Where a video is recorded, it is kept on the Team plan.
+On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. fastsim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
 
 ### Comment on the pull request
 
@@ -220,13 +254,15 @@ Each of these acts on the screen the app is showing or on a recorded run, so the
 
 ## Common problems
 
-**The run hangs and then fails to attach.** The app never connected. On the headless host, check that `LYNKEUS_TOKEN` is set: `headless start` refuses to run without it. On a simulator or an emulator, check that the build is a debug build, that the agent is enabled for the environment the build targets, that Metro (or Expo's development server) was started with the token variable set, and that the app's token equals the job's `LYNKEUS_TOKEN`. If the app's log says `lynkeus: the app passed a token and it is empty`, the variable did not reach the bundle. Then raise `--attach-timeout`.
+**The run hangs and then fails to attach.** The app never connected. On the headless host, check that the job has a token, `LYNKEUS_TOKEN` or a `.lynkeus/token` file: `headless start` refuses to run without one. On a simulator or an emulator, check that the build is a debug build, that the agent is enabled for the environment the build targets, that Metro (or Expo's development server) was started with the token variable set, and that the app's token equals the job's `LYNKEUS_TOKEN`. If the app's log says `lynkeus: the app passed a token and it is empty`, the variable did not reach the bundle. Then raise `--attach-timeout`.
 
 **`the host failed to start: …`.** The headless host hit a Jest error; the message ends with the last lines of its output. Run `npx lynkeus headless doctor` locally to see which native modules still need a mock, and `npx lynkeus headless doctor --explain "<first line of the error>"` for a specific error.
 
 **The app never leaves the splash screen under the headless host.** A native module lynkeus does not know, or Node resolving `localhost` to IPv6 while the backend listens on IPv4. Use `127.0.0.1` for the backend's address.
 
 **An environment variable change has no effect under the headless host.** If your Babel configuration inlines environment variables, Jest's transform cache keeps the first value it saw. Remove the cache directory your Jest configuration points at.
+
+**Every case after one fails with `No app attached`.** The host died with that case, out of memory or from a crash, and the run was not using `--host`, so nothing started it again. With `--host`, the run starts the host again before the next case. When you start the hosts yourself, find out why the first one died: the failed case's reasons say how it ended, and `lynkeus call memory` reads a host's heap.
 
 **`port 8123 is held by another lynkeus case run`.** Two runs share a machine and a port. Give each run its own `--ports`, or its own `LYNKEUS_PORT`.
 

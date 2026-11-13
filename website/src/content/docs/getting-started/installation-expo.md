@@ -18,15 +18,14 @@ If your app does not use Expo, follow [Install in a React Native app](/getting-s
 Before any development build, the headless host runs the app in Node, so a first case passes in about a minute. Measured on a new Expo app: two minutes from `create-expo-app` to a green case.
 
 ```bash
-npx expo install lynkeus-agent
 npm install --save-dev lynkeus
-npx lynkeus init                          # mounts the agent and makes the token
-npx lynkeus headless init                 # installs jest and writes qa/headless.tsx
+npx lynkeus init                          # installs the agent, mounts it and makes the token
+npx lynkeus headless init                 # installs jest, jest-expo and lynkeus-headless, writes qa/headless.tsx
 npx lynkeus case here first-screen --host --write   # the app in Node: a case from what is on its screen
 npx lynkeus case run --host
 ```
 
-`case here` writes a case that passes as it is: the screen's route, when it has one, and up to three of what is on it. `--host` starts the app in Node for the command and stops it after. Over MCP, an agent does the same with the `init`, `headless_init`, `case_here` and `case_run` tools, `host` set. The steps below add the development build, for the simulator, the emulator and the native code headless cannot run.
+An Expo Router app runs on the headless host too: it has no root component, so `headless init` writes an entry that renders the router over the app's route files. `case here` writes a case that passes as it is: the screen's route, when it has one, and up to three of what is on it. `--host` starts the app in Node for the command and stops it after. Over MCP, an agent does the same with the `init`, `headless_init`, `case_here` and `case_run` tools, `host` set. The steps below add the development build, for the simulator, the emulator and the native code headless cannot run.
 
 ## Before you start
 
@@ -47,11 +46,11 @@ npx expo install lynkeus-agent
 npm install --save-dev lynkeus
 ```
 
-Keep both on the same version. The CLI prints a warning when it attaches to an agent from a different release.
+Keep both on the same version. The CLI prints a warning when it attaches to an agent from a different release. `lynkeus init`, in the next step, runs `npx expo install lynkeus-agent` itself when the app does not depend on the agent yet; `--no-install` leaves that to you.
 
 ### 2. Mount the agent
 
-`lynkeus init` mounts the agent from the app's entry, and knows what an Expo project needs:
+`lynkeus init` mounts the agent from the app's entry, makes the project's token, and knows what an Expo project needs:
 
 ```bash
 npx lynkeus init
@@ -60,17 +59,22 @@ npx lynkeus init
 In an expo-router project you should see:
 
 ```text
+lynkeus-agent is already a dependency
 wrote index.js (mounts the agent, then loads expo-router) and pointed package.json's main at it
+made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+wrote EXPO_PUBLIC_LYNKEUS_TOKEN to .env.local (check it is in .gitignore: Expo's template ignores .env*.local)
 Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go
-Expo: start the dev server with EXPO_PUBLIC_LYNKEUS_TOKEN set to the same value as LYNKEUS_TOKEN; Expo passes the app only variables with that prefix
+Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file
+next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches
+      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute
 ```
 
-The first line is what it changed. The two lines that start with `Expo:` are reminders of steps 3 and 4 below.
+The first four lines are what it found and changed. The lines that start with `Expo:` and `next:` are reminders of steps 3 to 5 below.
 
 In an Expo project that already has an entry file (`index.js`, `index.tsx` or `index.ts`), `init` adds the `auto()` call to that file instead, after its last import, and reads the token from `EXPO_PUBLIC_LYNKEUS_TOKEN` there too.
 
 :::note[Since 0.3.0]
-`lynkeus init` arrived in version 0.3.0. On an earlier version, make the two changes by hand as shown below.
+`lynkeus init` arrived in version 0.3.0. It installs the agent and makes the token since 0.4.0. On an earlier version, make the changes by hand as shown below.
 :::
 
 #### What it does, and doing it by hand
@@ -101,29 +105,25 @@ The order in `index.js` matters. `auto()` wraps the app's root component, so it 
 
 If your project already has an `index.js` (it does not use expo-router, or you added an entry earlier), the `auto()` call goes there, before the app is registered.
 
-### 3. Set the token under both names
-
-:::note[Since 0.4.0]
-`lynkeus init` makes the project's token in `.lynkeus/token` and writes it to `.env.local` as `EXPO_PUBLIC_LYNKEUS_TOKEN`, which Expo reads and its template keeps out of git; the CLI reads the same file. Restart the dev server and skip this step. Setting the variables still works, and the environment wins over the files.
-:::
+### 3. The token, under two names
 
 The token is a shared secret: the app is built with a value, the CLI presents the same value, and the agent ignores a driver that presents anything else.
 
-Two programs read it, under two names:
+Two programs read it, under two names, and `lynkeus init` gave each its copy:
 
-| Who reads it | Variable | Why |
+| Who reads it | Where | Why |
 |---|---|---|
-| The app | `EXPO_PUBLIC_LYNKEUS_TOKEN` | Expo only inlines variables that start with `EXPO_PUBLIC_`. |
-| The CLI | `LYNKEUS_TOKEN` | The CLI always reads this name. |
+| The app | `EXPO_PUBLIC_LYNKEUS_TOKEN`, in `.env.local` | Expo only inlines variables that start with `EXPO_PUBLIC_`, and reads `.env.local` when the development server starts. Expo's template keeps `.env*.local` out of git. |
+| The CLI | `.lynkeus/token`, or `LYNKEUS_TOKEN` | `LYNKEUS_TOKEN` in the environment wins over the file. `.lynkeus/.gitignore` keeps the file out of git. |
 
-Both must hold the same value. Export both in the shell where you build the app and start the development server, and export `LYNKEUS_TOKEN` in any other shell where you run `lynkeus`:
+Both must hold the same value. The app's copy is read when the JavaScript is bundled, so restart the development server after `init`.
+
+To use a value of your own instead, on CI for example, export both variables in the shell where you build the app and start the development server, and `LYNKEUS_TOKEN` in any other shell where you run `lynkeus`. The environment wins over both files:
 
 ```bash
 export EXPO_PUBLIC_LYNKEUS_TOKEN=some-local-secret
 export LYNKEUS_TOKEN=some-local-secret
 ```
-
-The app's copy is read when the JavaScript is bundled, so it must be set before the development server starts.
 
 :::caution[Since 0.3.0]
 If the app reads `process.env.LYNKEUS_TOKEN` (without the `EXPO_PUBLIC_` prefix), or the development server was started without `EXPO_PUBLIC_LYNKEUS_TOKEN`, the value is `undefined` inside the bundle. A token that the app passes and that arrives empty keeps the agent off: it never falls back to serving any driver. The app says so in its log:
@@ -198,8 +198,10 @@ Check, in this order:
 
 1. The app is a development build, not Expo Go. In Expo Go the agent's native module does not exist.
 2. `package.json` has `"main": "index.js"`, and `index.js` calls `auto()` before it imports `expo-router/entry`. `npx lynkeus init` sets both up.
-3. The development server was started with `EXPO_PUBLIC_LYNKEUS_TOKEN` set. A value exported afterwards is not in the bundle. When the app's log shows `lynkeus: the app passed a token and it is empty`, this is the cause, or the entry reads the variable without its `EXPO_PUBLIC_` prefix.
-4. `EXPO_PUBLIC_LYNKEUS_TOKEN` and `LYNKEUS_TOKEN` hold the same value. A mismatch looks exactly like no app at all.
+3. The development server was started after `EXPO_PUBLIC_LYNKEUS_TOKEN` was set, in `.env.local` or in its environment. A value written afterwards is not in the bundle until the server restarts. When the app's log shows `lynkeus: the app passed a token and it is empty`, this is the cause, or the entry reads the variable without its `EXPO_PUBLIC_` prefix.
+4. The app's `EXPO_PUBLIC_LYNKEUS_TOKEN` and the CLI's token (`LYNKEUS_TOKEN`, else `.lynkeus/token`) hold the same value. A mismatch ends the message with `An app connected but did not answer: its token is not this one`.
+
+`npx lynkeus status` checks the files behind points 2 and 3 (the entry that mounts the agent, the token in `.env.local`) and says what fixes each.
 
 ### The screen reads, but a press fails
 

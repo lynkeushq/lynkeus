@@ -45,8 +45,9 @@ reader refuses a version it does not know.
 |---|---|---|---|
 | Agent protocol | driver ↔ agent or host | [PROTOCOL.md](PROTOCOL.md) | `lynkeus-protocol` |
 | Case format and config | product ↔ CLI | [CASES.md](CASES.md), [CONCEPTS.md](CONCEPTS.md) | the CLI's `CasesConfig` |
-| Fixtures protocol | CLI ↔ the product's backend side | [CASES.md](CASES.md) (to move into its own page) | to add to `lynkeus-protocol` |
-| Run format | CLI → anything that reads a run | [CASES.md](CASES.md), "What a run leaves" | `RunManifest`, `RunCase`, `RunStep` |
+| Fixtures protocol | CLI ↔ the product's backend side | [FIXTURES.md](FIXTURES.md) | `FIXTURES_PROTOCOL` and the command types in `lynkeus-protocol` |
+| Run format | CLI → anything that reads a run | [CASES.md](CASES.md), "What a run leaves" | `RunManifest`, `RunCase`, `RunStep`, `RunEvent` |
+| Progress events | a running `case run` → `case status`, the live line, MCP | [CASES.md](CASES.md), "Following a long run" | the CLI's `ProgressEvent`; `progress.ndjson` |
 | Reports API | CLI → cloud | the service's `/v1` routes | the CLI's `pushRun` |
 | MCP | an LLM ↔ the CLI | the server's instructions and tool schemas | generated from the commands |
 
@@ -70,9 +71,9 @@ Examples from the work so far:
 | "What do the cases cover" | CLI (`case coverage`), shown by the cloud | Same |
 | A draft case for a route | CLI (`case new`), using `fixtures describe` for the setup | The path is lynkeus's; the setup is the product's, read through the contract |
 | Running the suite over N hosts, only affected cases | CLI (`ci`) | Orchestration of hosts and cases |
-| Bringing Olympus, its database and Redis up | the product's backend side | Only that backend knows how |
+| Bringing a product's backend, its database and Redis up | the product's backend side | Only that backend knows how |
 | Screens changed on a pull request, with approval | cloud, through a GitHub App | Needs a baseline over time and the forge |
-| Turning Mixpanel on in Hermes's dev bundle | Hermes's docs | A fact about one app |
+| Turning Mixpanel on in one app's dev bundle | That app's docs | A fact about one app |
 
 ## Getting a backend into a case
 
@@ -87,23 +88,20 @@ A case prepares state through fixtures. A team picks the cheapest way that reach
 | SQL fixtures | a local database URL and statements | anything in the database, guarded to local only |
 | A fixtures server | a server speaking the fixtures protocol (qa-tools is one, for Rails) | everything, by name, with `describe` for authors and models |
 
-`lynkeus fixtures init` (planned) writes the server's skeleton for the backend's stack (the JSON-lines loop,
-`describe`, and a guard that refuses any database that is not local) and the MCP tells a model how to fill it from
-the backend's models. `lynkeus fixtures check` (planned) tells whether any server keeps the protocol.
+`lynkeus case init` writes a small fixtures server to start from, and `lynkeus fixtures check` tells whether a server
+keeps the protocol. `lynkeus fixtures init` (planned) would write the skeleton for the backend's stack (the JSON-lines
+loop, `describe`, and a guard that refuses any database that is not local), and the MCP would tell a model how to fill
+it from the backend's models.
 
 ## Plan
 
-In order, each step leaning on the ones before:
+Done: the fixtures protocol as a contract (its own page, types in `lynkeus-protocol`, a version, `describe`, and
+`fixtures check`); `case impact` and `case coverage`; `case new <route>`; `ci`.
 
-0. The fixtures protocol as a contract: its own page, types in `lynkeus-protocol`, a version, `describe` with a
-   summary, parameters and an example per command (older servers that answer names only still work), and
-   `fixtures check`.
-1. `case impact` and `case coverage` in the CLI.
-2. `case new <route>`: the path from the route map, the setup offered from `fixtures describe`.
-3. `fixtures init` and its MCP tool; HTTP and SQL fixtures built in.
-4. `ci`: run a suite over N hosts and only the cases a diff touches, with the product's command to bring its backend
-   up.
-5. Cloud: a GitHub App, screens changed on a pull request with approval, coverage over time.
+Next, in order:
+
+1. `fixtures init` and its MCP tool; HTTP and SQL fixtures built in.
+2. Cloud: a GitHub App, screens changed on a pull request with approval, coverage over time.
 
 Later, when a team needs it: record and replay, an optional mode for running a case with no backend. A recording
 holds what the app received (each step's responses and the fixtures' answers), never what it produced, and is kept

@@ -86,13 +86,14 @@ Del lado de JavaScript, además, el cliente del agente solo se carga cuando `ena
 `lynkeus launch` y los comandos `os` de esta sección no se ejecutaron en Android durante la verificación de esta documentación. Lo que sigue describe lo que hace el código. En el emulador se comprobaron la conexión del agente, la lectura de la pantalla y `lynkeus screenshot`.
 :::
 
-Los comandos del grupo `os` actúan sobre el emulador desde afuera, a través de `adb`. En Android hay tres disponibles, además de `os deeplink`:
+Los comandos del grupo `os` actúan sobre el emulador desde afuera, a través de `adb`. En Android hay cuatro disponibles, además de `os deeplink`:
 
 | Comando | Qué hace |
 |---|---|
 | `lynkeus os permissions <grant\|revoke> <permiso>` | Concede o revoca un permiso. |
 | `lynkeus os appearance <light\|dark>` | Cambia entre modo claro y oscuro. |
 | `lynkeus os location <lat>,<lon>` | Fija la ubicación del emulador. |
+| `lynkeus os appstate <background\|active>` | Manda la app al fondo (la tecla de inicio) y la trae de vuelta (su ícono del lanzador, la misma tarea). Con `active` espera a que el agente se conecte otra vez. `--app` nombra la app. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. Lo resuelve el agente, no `adb`. |
 
 Dos diferencias con iOS en los permisos. No existe `reset`: solo `grant` y `revoke`. Y el permiso se nombra como en Android. Puedes escribir el nombre completo o solo la última parte, que lynkeus completa:
@@ -107,7 +108,7 @@ En el primer ejemplo, `camera` se convierte en `android.permission.CAMERA`.
 Los comandos `os push` y `os language` no están disponibles en Android. Si los ejecutas, el mensaje es:
 
 ```
-"push" is not available on Android through lynkeus; permissions, appearance and location are
+"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
 ```
 
 ## Capturas de pantalla y píxeles
@@ -152,7 +153,7 @@ La app intenta conectarse a `10.0.2.2:8123` apenas arranca. Si el CLI no la ve, 
 1. Que la app sea un build de depuración.
 2. Que `enabled` sea verdadero en este entorno.
 3. Que el log de la app no diga `lynkeus: the app passed a token and it is empty`. Si lo dice, el token no llegó a la app y el agente quedó apagado; el arreglo está en [Solución de problemas](/es/troubleshooting/).
-4. Que el token que recibió la app sea el `LYNKEUS_TOKEN` que lee el CLI.
+4. Que el token que recibió la app sea el que lee el CLI (`LYNKEUS_TOKEN` o `.lynkeus/token`).
 
 Si la app tarda en arrancar, `--attach-timeout <ms>` le da más tiempo.
 
@@ -165,6 +166,7 @@ Si actualizaste el CLI sin recompilar la app, lynkeus avisa que las versiones di
 - **Dispositivos físicos.** No están soportados. El CLI busca un emulador encendido, y abrir la app, tomar capturas de pantalla y los comandos `os` pasan por `adb` sobre un emulador.
 - **Video.** `case run --video` filma solo donde el host ofrece un comando `record`. Una sesión de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
 - **Notificaciones push e idioma.** No hay comando para entregarlas o cambiarlo en Android.
+- **Respuestas simuladas.** `lynkeus mock` y el paso `app.mock` funcionan en un emulador: contesta el agente dentro de la app (con `lost` incluido, y sin `--sticky`).
 - **Builds de producción.** El agente no funciona en uno, y es intencional.
 
 ## Próximos pasos

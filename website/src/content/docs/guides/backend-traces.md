@@ -3,7 +3,7 @@ title: Backend traces
 description: Use --traces and OpenTelemetry to see, under each step of a test, the requests the app sent and what the backend did for them.
 ---
 
-When a step fails, the screen shows half of the story. The other half happened on the server: the request that answered 500, the query that took four seconds, the job that never ran. **Backend traces** put that half under the step that caused it.
+When a step fails, the screen shows half of the story. The other half happened on the server: the request that answered 500, the call to another service that took four seconds, the job that never ran. **Backend traces** put that half under the step that caused it.
 
 lynkeus uses OpenTelemetry for this, the open standard for traces. Any backend that can export traces works, and nothing from lynkeus is installed in the backend. This guide is for whoever runs the backend during tests.
 
@@ -11,7 +11,7 @@ lynkeus uses OpenTelemetry for this, the open standard for traces. Any backend t
 
 - You have cases that run against a backend you control. See [Writing cases](/guides/writing-cases/).
 - Your backend has an OpenTelemetry SDK, or you can add one.
-- The agent in the app is from a release that includes trace support. An app with an older agent goes untraced.
+- The agent in the app answers the `traceContext` command, which every release since trace support does. An app with an older agent goes untraced.
 
 ## Step 1: Run with `--traces`
 
@@ -58,14 +58,14 @@ Run the cases again. Each app step in `run/cases.jsonl` now has a `backend` list
   "backend": [
     { "name": "POST /v1/payments", "kind": "server", "at": 38, "ms": 291.4, "depth": 0, "service": "api",
       "attributes": { "http.request.method": "POST", "http.route": "/v1/payments", "http.response.status_code": 201 } },
-    { "name": "SELECT accounts", "kind": "client", "at": 44, "ms": 3.1, "depth": 1, "service": "api",
-      "attributes": { "db.system": "postgresql" } },
+    { "name": "POST", "kind": "client", "at": 52, "ms": 140.3, "depth": 1, "service": "api",
+      "attributes": { "http.request.method": "POST", "server.address": "payments.example.com" } },
     { "name": "ChargeJob", "kind": "consumer", "at": 120, "ms": 180.2, "depth": 1, "service": "worker" }
   ]
 }
 ```
 
-Each entry is one span, which is OpenTelemetry's word for one unit of work: a request served, a query, a call to another service, a job.
+Each entry is one span, which is OpenTelemetry's word for one unit of work: a request served, a call to another service, a job.
 
 | Field | Meaning |
 |---|---|
@@ -78,16 +78,18 @@ Each entry is one span, which is OpenTelemetry's word for one unit of work: a re
 | `error` | The error message, when the span failed |
 | `attributes` | What it did: method, route, status, database statement, and similar |
 
-The request comes first, and what it set off is indented under it by `depth`. Not every attribute is kept, only the ones that say what the span did: HTTP method, route and status, database system and statement, messaging and RPC details, the exception message.
+The request comes first, and what it set off is indented under it by `depth`. Not every attribute is kept, only the ones that say what the span did: HTTP method, route, status and address, the code function, messaging and RPC details, the exception message and the user id.
 
-In the hosted report, each step lists the requests the app sent while it ran, and under each one the queries, jobs and calls out it set off. See [Reports](/guides/reports/).
+Database spans are left out entirely. A query's statement names the backend's tables and columns, and a run's file is what a report uploads, so queries never leave the machine.
+
+In the hosted report, each step lists the requests the app sent while it ran, and under each one the jobs and calls out it set off. See [Reports](/guides/reports/).
 
 ## How it works
 
 1. The run listens for OTLP over HTTP on `localhost:4318`.
 2. Each app step gets its own span id. The agent puts it in the W3C `traceparent` header of every request the app sends during that step.
 3. The backend continues that trace, as any OpenTelemetry SDK does when it receives a `traceparent` header, and exports what it did to the run.
-4. When the case ends, lynkeus waits a moment for the backend's last batch. Every span whose chain of parents reaches a step is kept under that step.
+4. When the case ends, lynkeus waits for the backend's last batch: until nothing new has arrived for 300 ms, or 3 seconds at most. Every span whose chain of parents reaches a step is kept under that step.
 
 Three consequences follow from this design.
 
@@ -96,8 +98,6 @@ Three consequences follow from this design.
 **Background jobs are included when their instrumentation propagates the trace.** The instrumentations of ActiveJob, Sidekiq and Celery do.
 
 **Unrelated work is left out.** Spans that no step's request caused, such as a scheduler polling, are not in the report.
-
-A step that sets off a very large number of spans keeps the first 400. A report is not a profiler.
 
 ## Common problems
 

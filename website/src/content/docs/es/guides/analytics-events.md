@@ -91,6 +91,8 @@ Con `--out`, cada paso de `cases.jsonl` lleva los eventos que provocó, y el rep
 npx lynkeus case run --out run
 ```
 
+Leer la lista de eventos propia de la app puede encender el modo de depuración del seguimiento de la app, que a veces dibuja algo en pantalla. Si las capturas de dos ejecuciones se comparan píxel por píxel, agrega `--no-app-events`: no lee esa lista, y los eventos que recogen los SDK en el host siguen guardándose.
+
 Si los quieres como archivos sueltos, uno por caso, usa `--events`:
 
 ```bash

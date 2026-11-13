@@ -72,7 +72,7 @@ Con otro enrutador, puedes escribir un adaptador de navegación y pasárselo al 
 
 Para que solo tu driver pueda manejar la app. El agente atiende únicamente a quien abre la conexión con el mismo secreto, lo que deja afuera a cualquier otro proceso de tu máquina.
 
-La app lo recibe en la opción `token`; el CLI lo lee de `LYNKEUS_TOKEN`. El host sin pantalla no arranca sin él.
+La app lo recibe en la opción `token`; el CLI lo lee de `LYNKEUS_TOKEN` o, si no está, de `.lynkeus/token`, que crea `lynkeus init`. El host sin pantalla no arranca sin él.
 
 ### ¿Por qué hay un plugin de Babel?
 
@@ -110,7 +110,7 @@ Con fixtures: datos de prueba que tu propio comando crea cuando un caso los pide
 
 ### ¿Puedo ejecutar los tests sin simulador?
 
-Sí. `lynkeus headless start` aloja la app en Node, bajo Jest y React Native Testing Library, y `case run --host` lo hace por ti durante una ejecución. La capa nativa queda reemplazada por mocks, así que hay cosas que solo un simulador puede probar. Una app con expo-router no puede correr en este host. Más en [Sin pantalla (headless)](/es/platforms/headless/).
+Sí. `lynkeus headless start` aloja la app en Node, bajo Jest y React Native Testing Library, y `case run --host` lo hace por ti durante una ejecución. La capa nativa queda reemplazada por mocks, así que hay cosas que solo un simulador puede probar. Una app con expo-router también corre en él, desde 0.4.0. Más en [Sin pantalla (headless)](/es/platforms/headless/).
 
 ### ¿El mismo test sirve para iOS, Android y sin pantalla?
 
@@ -138,6 +138,18 @@ Para encadenar muchos, `lynkeus session` mantiene una sola conexión abierta y c
 
 Sí. Define `LYNKEUS_PORT` con un valor distinto para cada pareja de app y driver. Cada pareja es independiente.
 
+### ¿Cómo sigo una suite larga mientras corre?
+
+`case run` dibuja en la terminal una línea de estado (casos hechos y fallidos, tiempo transcurrido y restante, qué corre cada trabajo) y escribe `progress.ndjson`. Desde otra terminal, `lynkeus case status` dice dónde va; por MCP, la herramienta `case_status`. Más en la [referencia de `case run`](/es/reference/cli/#seguir-una-ejecución-larga).
+
+### ¿Qué pasa si el host sin pantalla se cae a mitad de una suite?
+
+Con `case run --host`, el caso que lo perdió falla, con la causa en sus razones, y el host se arranca de nuevo antes del caso siguiente. También se reinicia antes de un caso si su memoria pasó del 60 % de su límite (`--host-heap`). Más en [Sin pantalla (headless)](/es/platforms/headless/).
+
+### ¿Qué hago con un caso que cambia algo que ven todos los demás?
+
+Márcalo con `exclusive: true` en su encabezado. Con `--jobs`, corre solo: espera a que terminen los casos en curso y ninguno empieza hasta que termina.
+
 ### ¿Cómo lo llevo a CI?
 
 De dos maneras, que se pueden combinar. Con el host sin pantalla no necesitas simuladores y puedes repartir la suite entre núcleos. Con un simulador o un emulador pruebas además la capa nativa. Las dos están en [CI](/es/guides/ci/).
@@ -148,7 +160,7 @@ Sí. `lynkeus mcp` sirve los comandos como herramientas MCP. El modelo recibe el
 
 ### ¿Qué registra lynkeus de las peticiones de mi app?
 
-El método, la ruta, el código de respuesta y la duración. Nunca los encabezados ni los cuerpos, y los valores sensibles de la consulta se ocultan. El valor de un campo con `secureTextEntry` también aparece enmascarado. Más en [Seguridad](/es/security/).
+Por defecto, el método, la ruta, el código de respuesta y la duración, con los valores sensibles de la consulta ocultos. Cuando `case run` guarda evidencia con `--out`, guarda además las cabeceras y los cuerpos, con los valores de las claves que parecen secretos reemplazados por `…` y cada cuerpo cortado a 16 KB. El valor de un campo con `secureTextEntry` aparece siempre enmascarado. Más en [Seguridad](/es/security/).
 
 ### ¿lynkeus sabe algo de mi producto?
 
