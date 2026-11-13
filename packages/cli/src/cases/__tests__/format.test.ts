@@ -74,3 +74,10 @@ test('a case with a matrix runs once per combination, named after it', () => {
   assert.deepEqual(cases[1]!.setup, []);
   assert.deepEqual(cases[1]!.steps[0]!.value, { locale: 'fr' });
 });
+
+test('a case says in its frontmatter that it runs alone', () => {
+  assert.equal(parseCase(CASE.replace('id: gift', 'id: gift\nexclusive: true'), 'x.md').exclusive, true);
+  assert.equal(parseCase(CASE, 'x.md').exclusive, undefined);
+  // Only true itself: a string or a number is not read as a yes.
+  assert.equal(parseCase(CASE.replace('id: gift', 'id: gift\nexclusive: "yes"'), 'x.md').exclusive, undefined);
+});

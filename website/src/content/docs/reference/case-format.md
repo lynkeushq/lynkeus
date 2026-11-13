@@ -49,6 +49,7 @@ The file must start with `---` on its first line. A file without frontmatter is 
 | `given` | string | none | What is true when it starts: who the user is, what is installed. Shown in a report. Since 0.5.0. |
 | `ticket` | string | none | The ticket the case covers. Shown in a report. Since 0.5.0. |
 | `matrix` | object of lists | none | Inputs to run the case over. See [Matrix](#matrix). |
+| `exclusive` | boolean | `false` | `true` runs the case with no other case at the same time under `case run --jobs`: it waits for the cases in flight to end, and no other starts until it has ended. For a case that changes state every case shares, such as a global feature flag. Its setup is never made ahead. |
 
 Other keys are allowed and ignored by the runner.
 
