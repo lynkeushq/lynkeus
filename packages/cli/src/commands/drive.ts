@@ -265,7 +265,8 @@ export const driveCommands = [
       const lines = [
         `in flight: ${result.inFlight}`,
         ...list.map(
-          (r) => `${String(r.status ?? '…').padStart(4)} ${String(r.ms ?? '').padStart(6)}ms ${r.method.padEnd(6)} ${r.url}${r.error ? `  (${r.error})` : ''}`,
+          (r) =>
+            `${String(r.status ?? '…').padStart(4)} ${String(r.ms ?? '').padStart(6)}ms ${r.method.padEnd(6)} ${r.url}${r.error ? `  (${r.error})` : ''}${r.mocked ? '  (mocked)' : ''}`,
         ),
       ];
       return { text: lines.join('\n'), json: { inFlight: result.inFlight, requests: list } };

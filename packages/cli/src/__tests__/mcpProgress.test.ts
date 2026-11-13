@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { progressNotifier } from '../mcp/server.js';
+import { caseCommands } from '../commands/cases.js';
+import { progressNotifier, schemaFor } from '../mcp/server.js';
 
 test('an MCP caller hears a run’s progress as a value that only grows, out of its cases', () => {
   const sent: { progress: number; total?: number; message?: string }[] = [];
@@ -19,4 +20,12 @@ test('an MCP caller hears a run’s progress as a value that only grows, out of 
   );
   assert.ok(sent.every((s) => s.total === 2));
   assert.match(sent[0]!.message!, /^0\/2/);
+});
+
+test('case_run takes over MCP what the instructions tell a model to pass', () => {
+  const run = caseCommands.find((c) => c.name === 'case run');
+  assert.ok(run);
+  const properties = Object.keys(schemaFor(run).properties);
+  for (const name of ['out', 'screenshots', 'video', 'traces', 'push', 'host', 'host_heap', 'jobs', 'ports', 'host_command'])
+    assert.ok(properties.includes(name), `case_run takes ${name}`);
 });

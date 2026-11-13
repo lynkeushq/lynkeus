@@ -20,7 +20,10 @@ setup:
   - create_user: { as: u, name: "Ana" }
 
 steps:
+  # 1 The first screen greets the user
   - app.see: { text: "Hello" }
+
+  # 2 Points given in the backend show up
   # \`user: u\` points at what \`create_user\` answered (cases.refs in lynkeus.config.json).
   - give_points: { user: u, points: 25 }
   - app.see: { text: "25 points", timeoutMs: 10000 }
@@ -69,6 +72,22 @@ who never opened the file knows what they are looking at.
 | \`app.<command>\` | its arguments by name | Any other lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |
 
 A target is \`#testId\`, a text, an index or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A text inside quotes of its own (\`'"Next"'\`) is always a text, where \`app.wait: Next\` would wait for a route called \`Next\`.
+
+## Sections
+
+A comment that starts with a number opens a section of \`steps\`: \`# 3 A wrong PIN\`
+(or \`# 2b …\`). Every step after it, up to the next one, belongs to it; a report
+groups the steps that way and a run's live status says which section each case is
+in. Other comments are notes. Number the sections the way \`expected\` numbers
+what must be true, so a reader can match one to the other.
+
+## Mocked answers
+
+\`app.mock: { route: "GET /path", status, body }\` answers a request in place of
+the server; with \`lost: true\` the request reaches the server and its answer is
+lost, as a dropped connection would. A request a mock answered is marked
+\`(mocked)\` in the evidence, and a failure is never blamed on the backend for an
+answer the case made.
 
 A case that runs over several inputs declares \`matrix: { locale: [en, fr] }\`
 in its frontmatter and runs once per combination; \`{{matrix.locale}}\` is that

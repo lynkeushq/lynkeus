@@ -391,24 +391,18 @@ export const caseCommands = [
       'still',
       'frames-on-change',
       'frames',
-      'traces',
       'traces-port',
       'video-fps',
       'video-scale',
       'flakes',
       'prepared',
-      'jobs',
-      'ports',
-      'host-command',
-      'in-order',
       'ahead',
       'idle',
       'continue',
-      'video',
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;

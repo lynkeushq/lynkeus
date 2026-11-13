@@ -54,7 +54,27 @@ Para correr sin simulador, pídele que la prepare en modo headless: `headless_in
 Escribe un test para la pantalla de inicio de sesión, córrelo y sube la corrida.
 ```
 
-La primera vez el agente llama a `case_init`, que escribe un caso de ejemplo y la referencia del formato. Después lleva la app a la pantalla con `press`, `type` y `wait`, escribe el caso como archivo markdown y lo corre con `case_run`. Un caso que falla vuelve con la pantalla donde falló y el motivo, para que el agente corrija el caso o reporte el error de la app. Con `push`, la corrida sube a lynkeus.io y el agente devuelve su dirección.
+La primera vez el agente llama a `case_init`, que escribe un caso de ejemplo y la referencia del formato. Después lleva la app a la pantalla con `press`, `type` y `wait`, escribe el caso como archivo markdown y lo corre con `case_run`. Un caso que falla vuelve con la pantalla donde falló y el motivo, para que el agente corrija el caso o reporte el error de la app. Con `push`, la corrida sube a lynkeus.io y el agente tiene la dirección del reporte apenas arranca: no hace falta esperar al final, porque el reporte se va completando caso por caso.
+
+Hay dos atajos para no escribir el caso desde cero. `case_here` arma uno con lo que la app muestra en ese momento, con verificaciones que ya pasan. `case_new` arma el borrador para otra pantalla: los toques para llegar, la preparación del backend que ofrece el servidor de fixtures y las verificaciones que quedan por escribir. Para saber qué puede preparar ese servidor, el agente llama a `fixtures_describe`.
+
+Si el caso es largo, conviene partirlo. La referencia que escribe `case_init` le enseña al agente a abrir cada parte de `steps` con un comentario numerado (`# 3 Un PIN equivocado`), con la misma numeración que la lista de `expected`. El reporte agrupa los pasos según esas secciones, y quien lo lee encuentra cada parte sin abrir el archivo.
+
+Cuando el caso simula una respuesta con `app.mock`, esa petición aparece marcada `(mocked)` en `requests`, en `trace` y en la evidencia de un fallo. El diagnóstico nunca culpa al backend por algo que inventó el propio caso, así que el agente no confunde su simulación con un error real del servidor.
+
+### Suites largas
+
+Si la suite tarda minutos, pídele que reparta el trabajo:
+
+```text
+Corre todos los casos en headless, de a tres, y avísame cómo va.
+```
+
+`case_run` acepta `jobs`, `ports` y `host_command`. Cada trabajo usa su propio host, y `host_command` levanta uno nuevo para cada caso. Correr en paralelo tiene una trampa: todos los casos comparten el mismo backend. Un caso que cambia algo que ven todos los demás, como un feature flag global, tiene que declarar `exclusive: true` en su frontmatter; así corre solo, sin otros casos al mismo tiempo.
+
+Con `host`, si el host headless se cae a mitad de un caso, o si su memoria pasa del porcentaje que indica `host_heap`, la corrida lo vuelve a levantar antes del caso siguiente. Una caída hace fallar ese caso y no todos los que vienen después.
+
+Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run`, además recibe notificaciones de progreso de MCP con esa misma línea.
 
 ## 4. Elige cuántas herramientas servir
 
@@ -62,8 +82,8 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 15 | 1750 tokens |
-| `lynkeus mcp --full` | las 48 | 5400 tokens |
+| `lynkeus mcp` | 22 | 3500 tokens |
+| `lynkeus mcp --full` | las 56 | 7300 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
 
@@ -76,7 +96,14 @@ Las herramientas básicas son:
 | `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
 | `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
-| `case_run` | Corre casos; uno que falla vuelve con su pantalla y su motivo. |
+| `case_run` | Corre casos, de a uno o en paralelo; uno que falla vuelve con su pantalla y su motivo. |
+| `case_status` | En qué va una corrida: casos terminados, qué corre cada trabajo y en qué sección, cuánto falta. |
+| `case_here` | Arma un caso con la pantalla que la app muestra ahora, con verificaciones que ya pasan. |
+| `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar, qué preparar, qué falta verificar. |
+| `case_coverage` | A qué pantallas llegan los casos, a cuáles ninguno, y cuáles nombra un caso aunque la app ya no las tenga. |
+| `case_impact` | Qué casos alcanza el cambio de una rama, para correr solo esos. |
+| `fixtures_describe` | Qué puede preparar y leer el servidor de fixtures del proyecto, con los parámetros de cada comando. |
+| `fixtures_check` | Si el servidor de fixtures cumple el protocolo. |
 | `screen` | Lee la pantalla: ruta y elementos. |
 | `press` | Toca un elemento. |
 | `type` | Escribe en un campo. |
@@ -139,13 +166,13 @@ Además, cuando una herramienta falla, la respuesta de error ya trae ese diagnó
 
 Con estas piezas, un agente puede hacerse cargo de la verificación de una rama:
 
-1. Ejecuta `lynkeus map check --base main` en la rama. Obtiene las pantallas que el cambio alcanza.
-2. Cruza ese resultado con los casos que tocan esas rutas. Obtiene los casos que debe ejecutar.
-3. Los ejecuta. Por cada fallo, llama a `why`.
-4. Arregla el caso si la app cambió a propósito, o el código si no.
-5. Deja en el pull request el arreglo, el caso y las pantallas que registró la ejecución (con `LYNKEUS_RECORD_SCREENS=1`). Quien revisa lee un solo diff en lugar de buscar.
+1. Llama a `case_impact` con `base: main`. Esa herramienta mira qué pantallas toca el diff y qué cubre cada caso, y devuelve dos listas: los casos que hay que correr y las pantallas alcanzadas que ningún caso cubre.
+2. Corre esos casos con `case_run`. Por cada fallo, llama a `why`.
+3. Arregla el caso si la app cambió a propósito, o el código si no.
+4. Para cada pantalla sin cobertura, escribe un caso nuevo; `case_new` le da el borrador.
+5. Deja en el pull request el arreglo, los casos y las pantallas que registró la ejecución (con `LYNKEUS_RECORD_SCREENS=1`). Quien revisa lee un solo diff en lugar de buscar.
 
-Los pasos 1 y 3 usan comandos que no están en el conjunto básico. El agente necesita `--full` o acceso a una terminal.
+Todo eso está en el conjunto básico; no hace falta `--full`.
 
 ## Sin MCP: una sesión
 
@@ -181,5 +208,5 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 ## Siguientes pasos
 
 - [Manejar la app](/es/guides/driving-the-app/): los mismos comandos, a mano.
-- [Referencia de la CLI](/es/reference/cli/): los 48 comandos que sirve `--full`.
+- [Referencia de la CLI](/es/reference/cli/): los 56 comandos que sirve `--full`.
 - [Seguridad](/es/security/): qué expone el agente y por qué solo en depuración.
