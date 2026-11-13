@@ -621,7 +621,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -634,6 +634,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | Flag | |
 |---|---|
 | `--host` | start `headless start` for the run and stop it after |
+| `--host-heap <percent>` | with --host: start the host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
 | `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
@@ -649,7 +650,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--video` | with --out: film each case, where the host films (the step says at what second it began) |
 | `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
 | `--traces-port <port>` | where --traces listens (default `4318`) |
-| `--push` | with --out: upload the run to the reports service when it ends and print the report’s address |
+| `--push` | with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case |
 | `--project <name>` | with --push: the project the run is filed under (default: the app’s folder name) |
 | `--video-fps <n>` | frames per second of the film (default `30`) |
 | `--video-scale <n>` | pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told) |
@@ -662,6 +663,17 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
 | `--idle <share>` | with --ahead: start a setup only while this share of the CPU is idle (default `0.25`) |
 | `--dry-run` | parse and list the steps without running them |
+| `--progress <json|none>` | how the run says where it is, besides <out>/progress.ndjson (`case status` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal |
+
+### `lynkeus case status [dir]`
+
+Where a run of cases is: how many are done, what each job is running and in which section, and the time left
+
+Reads progress.ndjson, which `case run` writes as it goes: in the run directory given (its --out), or the last run of this project. It works while the run goes on, from another terminal or an MCP client, and after it: a run whose process is gone without finishing says so. The time left comes from how long each case took when it last passed, else from the run's own cases. --json gives the same as an object.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory (case run --out), or its progress.ndjson; default: the last run here (optional) |
 
 ### `lynkeus case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]`
 

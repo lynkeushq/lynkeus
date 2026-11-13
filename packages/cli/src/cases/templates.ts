@@ -46,6 +46,7 @@ report carries the screen, the requests and the reason.
 | \`why\` | optional | what breaks for people if it fails |
 | \`given\` | optional | what is true when it starts |
 | \`ticket\` | optional | the ticket it covers |
+| \`exclusive\` | optional | \`true\`: under \`case run --jobs\` it runs with no other case at once, for a case that changes state every case shares (a global flag) |
 
 A report shows \`description\`, \`why\`, \`given\`, \`ticket\` and \`expected\` above the steps, so a reader
 who never opened the file knows what they are looking at.

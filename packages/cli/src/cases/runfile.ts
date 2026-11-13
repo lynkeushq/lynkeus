@@ -154,10 +154,21 @@ export class RunFile {
     return path.join(this.dir, `${id.replace(/[^\w.=-]+/g, '_')}${attempt > 1 ? `.${attempt}` : ''}`);
   }
 
-  add(c: Case, attempt: Attempt): void {
+  /** The attempt's line, as written: what a report filled as the run goes is sent. */
+  add(c: Case, attempt: Attempt): RunCase {
     const line = toRunCase(c, attempt, this.root, this.dir);
     fs.appendFileSync(path.join(this.dir, 'cases.jsonl'), `${JSON.stringify(line)}\n`);
     this.last.set(line.id, { result: line.result, attempt: line.attempt });
+    return line;
+  }
+
+  /** The manifest as it stands: at the start, what it began with; after `finish`, the run's totals too. */
+  get current(): RunManifest {
+    return this.manifest;
+  }
+
+  get directory(): string {
+    return this.dir;
   }
 
   finish(app: { platform?: string; native?: boolean } = {}, finishedAt = new Date()): void {

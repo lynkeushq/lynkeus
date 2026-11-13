@@ -149,9 +149,25 @@ export type RunOptions = {
   setupOnly?: { keep: (prepared: Prepared) => void };
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
+  /** Each step as it starts and as it ends, for a run's progress: where it is in the case and the section it is in. */
+  onStep?: (step: StepProgress) => void;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
   routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
   nativeLogs?: { take: () => LogLine[] };
+};
+
+/**
+ * A step starting (no `status`) or ended: its place among the steps the case runs (`index` from 0 of `steps`), the
+ * part of the case it is in, and the numbered section of the steps it falls under.
+ */
+export type StepProgress = {
+  index: number;
+  steps: number;
+  section: 'setup' | 'steps';
+  heading?: string;
+  step: string;
+  status?: StepReport['status'];
+  ms?: number;
 };
 
 /** What a case's setup leaves for its steps: the aliases and what they answered, and what ran. */
@@ -174,6 +190,36 @@ export const newSince = (before: AppEvent[], now: AppEvent[]): AppEvent[] => {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * A host on another machine (fastsim in a Linux VM or on a server) films there: the path it was given is this
+ * machine's. Its stop says how big the film is, and `record { read }` hands it over a piece at a time. Nothing here
+ * may fail the case: a film that does not arrive is left out of the report.
+ */
+export const fetchFilm = async (d: Pick<Device, 'command'>, film: string, bytes: number): Promise<boolean> => {
+  const part = `${film}.part`;
+  try {
+    const out = fs.openSync(part, 'w');
+    try {
+      for (let offset = 0; offset < bytes; ) {
+        const piece = (await d.command('record', { read: offset })) as { data?: unknown; done?: unknown } | undefined;
+        const data = typeof piece?.data === 'string' ? Buffer.from(piece.data, 'base64') : Buffer.alloc(0);
+        if (data.length === 0) break;
+        fs.writeSync(out, data);
+        offset += data.length;
+        if (piece?.done === true) break;
+      }
+    } finally {
+      fs.closeSync(out);
+    }
+    if (fs.statSync(part).size !== bytes) throw new Error('short film');
+    fs.renameSync(part, film);
+    return true;
+  } catch {
+    fs.rmSync(part, { force: true });
+    return false;
+  }
+};
 const run = promisify(exec);
 
 const label = (step: Step): string => {
@@ -1193,6 +1239,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       continue;
     }
     const t0 = Date.now();
+    const place = {
+      index,
+      steps: todo.length,
+      section: index < setupLength ? ('setup' as const) : ('steps' as const),
+      ...(index >= setupLength && c.sections?.[index - setupLength] ? { heading: c.sections[index - setupLength] } : {}),
+      step: text,
+    };
+    options.onStep?.(place);
+    const ended = (status: StepReport['status']) => options.onStep?.({ ...place, status, ms: Date.now() - t0 });
     // Where the app's trace stood before the case first touched it: the screens after it are the case's.
     if (options.routes && routesFrom === undefined && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
       const d = await device().catch(() => undefined);
@@ -1219,6 +1274,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0 };
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
+      ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb]))
         await record(done, steps.length, at, t0);
     } catch (error) {
@@ -1229,6 +1285,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         unsupported = true;
         steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: `this host has no ${missing}` });
         log(`  🚫 ${text}  — this host has no ${missing}`);
+        ended('unsupported');
         continue;
       }
       failed = true;
@@ -1236,6 +1293,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
       steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
+      ended('failed');
       if (evidence || capturing) await record(broke, steps.length, at, t0);
     }
   }
@@ -1289,7 +1347,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     report.routes = [...new Set(walked)].sort();
   }
   if (filming) {
-    await (await device()).command('record', { stop: true }).catch(() => undefined);
+    const d = await device();
+    const stopped = (await d.command('record', { stop: true }).catch(() => undefined)) as { bytes?: unknown } | undefined;
+    if (film && !fs.existsSync(film) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, film, stopped.bytes);
     if (film && fs.existsSync(film)) report.video = film;
   }
   if (failed && !options.dry && !options.setupOnly) {
@@ -1301,7 +1361,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const events = await d.trace(mark).catch(() => undefined);
       report.evidence = {
         screen: screen ? describeScreen(screen, { limit: 40 }) : undefined,
-        requests: events?.events.flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}`] : [])).slice(-8),
+        requests: events?.events
+          .flatMap((e) => (e.kind === 'request' ? [`${e.status ?? '…'} ${e.method} ${e.url}${e.mocked ? ' (mocked)' : ''}`] : []))
+          .slice(-8),
         why,
       };
     }

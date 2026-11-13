@@ -42,6 +42,8 @@ type RnXhr = XMLHttpRequest & {
   __didCreateRequest?: (id: number) => void;
   __didReceiveResponse?: (id: number, status: number, headers?: Record<string, string>, url?: string) => void;
   __didReceiveData?: (id: number, data: unknown) => void;
+  __didReceiveIncrementalData?: (id: number, data: string, progress: number, total: number) => void;
+  __didReceiveDataProgress?: (id: number, progress: number, total: number) => void;
   __didCompleteResponse?: (id: number, error: string, timedOut: boolean) => void;
 };
 
@@ -60,16 +62,29 @@ export const answer = (xhr: XMLHttpRequest, rule: NetRule, url: string): boolean
   const body = rule.body ?? (rule.status === 204 ? '' : '{}');
   setTimeout(() => {
     rn.__didCreateRequest!(id);
-    if (rule.lost) {
-      rn.__didCompleteResponse!(id, 'Network request failed', false);
-      return;
-    }
     rn.__didReceiveResponse!(id, rule.status, { 'content-type': 'application/json', ...rule.headers }, url);
     // fetch asks for a blob: React Native reads a blob's response from the data its Blob keeps.
     const data = xhr.responseType === 'blob' && typeof Blob !== 'undefined' ? (new Blob([body]) as Blob & { data?: unknown }).data : body;
     rn.__didReceiveData!(id, data);
     rn.__didCompleteResponse!(id, '', false);
   }, rule.delayMs ?? 0);
+  return true;
+};
+
+/**
+ * A lost connection loses the answer, not the request: the server still gets it and acts on it, as on a host. The
+ * request goes to the network as usual, and whatever comes back reaches the app as a failed request. False when this
+ * is not React Native's XMLHttpRequest: the request then goes out with its answer.
+ */
+export const loseAnswer = (xhr: XMLHttpRequest): boolean => {
+  const rn = xhr as RnXhr;
+  const complete = rn.__didCompleteResponse;
+  if (!rn.__didCreateRequest || !rn.__didReceiveResponse || !rn.__didReceiveData || !complete) return false;
+  rn.__didReceiveResponse = () => undefined;
+  rn.__didReceiveData = () => undefined;
+  rn.__didReceiveIncrementalData = () => undefined;
+  rn.__didReceiveDataProgress = () => undefined;
+  rn.__didCompleteResponse = (id) => complete.call(rn, id, 'Network request failed', false);
   return true;
 };
 

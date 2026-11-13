@@ -65,4 +65,62 @@ describe('netmock on a device', () => {
       g.XMLHttpRequest = before;
     }
   });
+
+  it('sends a request whose answer is lost, and reports it as failed whatever the server answered', async () => {
+    const sent: string[] = [];
+    class RnXhr {
+      status = 0;
+      error = '';
+      done = false;
+      private id = 0;
+      private url = '';
+      open(_method: string, url: string) {
+        this.url = url;
+      }
+      setRequestHeader() {}
+      addEventListener() {}
+      getAllResponseHeaders() {
+        return '';
+      }
+      send() {
+        sent.push(this.url);
+        // The networking module answers the request it sent.
+        this.__didCreateRequest(7);
+        this.__didReceiveResponse(7, 201);
+        this.__didReceiveData(7, '{}');
+        this.__didCompleteResponse(7, '');
+      }
+      __didCreateRequest(id: number) {
+        this.id = id;
+      }
+      __didReceiveResponse(id: number, status: number) {
+        if (id === this.id) this.status = status;
+      }
+      __didReceiveData(_id: number, _data: string) {}
+      __didCompleteResponse(id: number, error: string) {
+        if (id !== this.id) return;
+        this.error = error;
+        this.done = true;
+      }
+    }
+    const g = globalThis as unknown as { XMLHttpRequest?: unknown };
+    const before = g.XMLHttpRequest;
+    g.XMLHttpRequest = RnXhr;
+    try {
+      await jest.isolateModulesAsync(async () => {
+        const { trackRequests } = require('../requests') as typeof import('../requests');
+        const { host } = require('../registry') as typeof import('../registry');
+        trackRequests();
+        await host.get('netmock')!({ method: 'POST', path: '/v3/social/identities', lost: true, times: 1 });
+
+        const lost = new RnXhr();
+        lost.open('POST', 'http://localhost:3000/api/mobile/v3/social/identities');
+        lost.send();
+        expect(sent).toEqual(['http://localhost:3000/api/mobile/v3/social/identities']);
+        expect(lost).toMatchObject({ status: 0, error: 'Network request failed', done: true });
+      });
+    } finally {
+      g.XMLHttpRequest = before;
+    }
+  });
 });

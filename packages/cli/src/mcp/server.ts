@@ -5,6 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
 import type { FlagSpec } from '../args.js';
+import { type ProgressEvent, RunState, statusLine } from '../cases/progress.js';
 import type { Session } from '../cli.js';
 import { type Command, commands, overMcp } from '../registry.js';
 import { execute } from '../runtime.js';
@@ -26,6 +27,25 @@ const describe = (c: Command) => {
 };
 
 const identifier = (name: string) => name.replace(/[^a-z0-9]+/gi, '_');
+
+/**
+ * A run's events as MCP progress notifications, for a client that asked with a progress token: the cases done,
+ * plus how far the running ones are through their steps, out of the cases in the run, with the live line as the
+ * message. The value only ever grows, as MCP asks; a step that would not move it sends nothing.
+ */
+export const progressNotifier = (send: (params: { progress: number; total?: number; message?: string }) => void) => {
+  const state = new RunState();
+  let last = -1;
+  return (event: ProgressEvent) => {
+    state.apply(event);
+    const s = state.status();
+    const partial = s.running.reduce((sum, r) => sum + (r.step ? (r.step.index + 1) / Math.max(1, r.steps) : 0), 0);
+    const progress = Math.round((s.done + Math.min(partial, s.running.length * 0.99)) * 100) / 100;
+    if (progress <= last) return;
+    last = progress;
+    send({ progress, ...(s.total ? { total: s.total } : {}), message: statusLine(s) });
+  };
+};
 
 // Written by hand: a schema library adds fields to every tool that a model pays for on every turn.
 const schemaFor = (c: Command) => {
@@ -113,7 +133,7 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
       ...tools,
     ],
   }));
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     if (request.params.name === 'app_locale' && locale) return text(locale);
     const c = byName.get(request.params.name);
     if (!c) return { ...text(`✗ no tool ${request.params.name}`), isError: true };
@@ -124,7 +144,18 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     const unknown = Object.keys(input).filter((key) => !known.includes(key));
     if (unknown.length)
       return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
-    const r = await execute(argvFor(c, input), session.ctx);
+    // A client that passed a progress token hears how a long command (a case run) goes while it runs.
+    const token = request.params._meta?.progressToken;
+    const ctx =
+      token === undefined
+        ? session.ctx
+        : {
+            ...session.ctx,
+            progress: progressNotifier((params) => {
+              void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
+            }),
+          };
+    const r = await execute(argvFor(c, input), ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
     // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is

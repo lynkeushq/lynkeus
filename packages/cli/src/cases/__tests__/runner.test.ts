@@ -12,7 +12,7 @@ import type { Device } from '../../device/driver.js';
 import { type Base, find, register } from '../../registry.js';
 import { Fixtures } from '../fixtures.js';
 import { parseCase } from '../format.js';
-import { argvFor, missingFixtures, newSince, type Prepared, preparable, runCase } from '../runner.js';
+import { argvFor, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase } from '../runner.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -650,4 +650,23 @@ test('a host that waits for a still screen on its own clock is asked to, and the
     assert.equal(frame.still, !changed);
     assert.deepEqual(frame.moving, changed ? [{ x: 1, y: 2, w: 3, h: 4 }] : undefined);
   }
+});
+
+test('a film made on another machine comes over a piece at a time, and a short one is left out', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const film = Buffer.from('a film the host kept where the driver cannot read it');
+  const host = (pieceBytes: number, lose = false) => ({
+    command: async (_name: string, params?: unknown) => {
+      const offset = (params as { read: number }).read;
+      const piece = film.subarray(offset, offset + (lose && offset > 0 ? 0 : pieceBytes));
+      return { data: piece.toString('base64'), done: offset + piece.length >= film.length };
+    },
+  });
+  const whole = path.join(dir, 'video.mp4');
+  assert.equal(await fetchFilm(host(7) as unknown as Pick<Device, 'command'>, whole, film.length), true);
+  assert.deepEqual(fs.readFileSync(whole), film);
+  const short = path.join(dir, 'short.mp4');
+  assert.equal(await fetchFilm(host(7, true) as unknown as Pick<Device, 'command'>, short, film.length), false);
+  assert.equal(fs.existsSync(short), false);
+  assert.equal(fs.existsSync(`${short}.part`), false);
 });

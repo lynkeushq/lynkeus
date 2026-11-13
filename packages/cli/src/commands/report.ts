@@ -64,30 +64,17 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
   return Buffer.concat(blocks);
 };
 
+type Target = { url: string; key: string; fetch?: Fetch };
+
 /**
- * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
- * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
+ * What a run's upload sends besides its cases, shared by a push at the end and a report filled as the run goes:
+ * a case's frames as one tar, its film on its own, each tried again on a dropped connection, a 5xx or a 429. A
+ * file the organization's plan does not keep (a film on Free) is left out and listed.
  */
-export const pushRun = async (
-  dir: string,
-  o: { url: string; key: string; project: string; fetch?: Fetch; onReady?: (url: string) => void; onProgress?: (line: string) => void },
-): Promise<Pushed> => {
+const uploader = (o: Target, id: string, dir: string) => {
   const call = o.fetch ?? fetch;
   const auth = { authorization: `Bearer ${o.key}` };
   const base = o.url.replace(/\/+$/, '');
-  const run = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8')) as unknown;
-  const cases = fs.readFileSync(path.join(dir, 'cases.jsonl'), 'utf8');
-
-  const created = await answer(
-    await call(`${base}/v1/runs`, {
-      method: 'POST',
-      headers: { ...auth, 'content-type': 'application/json' },
-      body: JSON.stringify({ project: o.project, run }),
-    }),
-    'creating the run',
-  );
-  const id = String(created.id);
-  // A dropped connection, a 5xx or a 429 is tried again, waiting longer each time.
   const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
     for (let attempt = 1; ; attempt++) {
       const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
@@ -98,45 +85,14 @@ export const pushRun = async (
       await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** (attempt - 1)));
     }
   };
-  // The run file in parts of about 256 KB: with every request's headers and bodies it runs to megabytes, more
-  // than the service reads in one request. A service from before parts answers without `part`, and then
-  // takes the whole file in one.
-  const parts: string[] = [];
-  for (const line of cases.split('\n').filter((l) => l.trim())) {
-    const last = parts.length - 1;
-    if (last >= 0 && Buffer.byteLength(parts[last]!) + Buffer.byteLength(line) < CASES_PART) parts[last] += `\n${line}`;
-    else parts.push(line);
-  }
-  for (const [n, part] of parts.entries()) {
-    const sent = await answer(await sendWithRetries(`${base}/v1/runs/${id}/cases?part=${n}`, Buffer.from(part), 'sending its cases'), 'sending its cases');
-    if (sent.part === undefined) {
-      await answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: cases }), 'sending its cases');
-      break;
-    }
-  }
-  // The report opens as soon as its cases are in: their steps, results and requests show at once, and each
-  // frame as it arrives.
-  const finished = await answer(await call(`${base}/v1/runs/${id}/finish`, { method: 'POST', headers: auth }), 'finishing the run');
-  o.onReady?.(String(finished.url));
-
-  // Per case: its frames, sent as one tar, and its film, sent on its own (a film can be bigger than a request).
-  const work: { frames: string[]; film?: string }[] = [];
-  for (const line of cases.split('\n')) {
-    if (!line.trim()) continue;
-    const c = JSON.parse(line) as { video?: string; steps?: { screenshot?: string }[] };
-    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
-    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
-    work.push({ frames: [...new Set(frames)], ...(film ? { film } : {}) });
-  }
-  let files = 0;
-  const refused: string[] = [];
+  const done = { files: 0, refused: [] as string[] };
   const sendFile = async (file: string) => {
     const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
     const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);
-    if (response.status === 402) refused.push(file);
+    if (response.status === 402) done.refused.push(file);
     else {
       await answer(response, `sending ${file}`);
-      files += 1;
+      done.files += 1;
     }
   };
   // A suite with screenshots is thousands of frames: a request per frame took one over 20 minutes to send. A
@@ -153,13 +109,90 @@ export const pushRun = async (
       if (response.status === 404 || response.status === 405) bundles = false;
       else {
         await answer(response, `sending ${fits.length} frames`);
-        files += fits.length;
+        done.files += fits.length;
         for (const f of frames.filter((f) => !fitsTar(f))) await sendFile(f);
         return;
       }
     }
     for (const f of frames) await sendFile(f);
   };
+  /** What a case's line names that is on disk: its frames, once each, and its film. */
+  const filesOf = (c: { video?: string; steps?: { screenshot?: string }[] }) => {
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
+    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
+    return { frames: [...new Set(frames)], ...(film ? { film } : {}) };
+  };
+  const sendCase = async (c: { frames: string[]; film?: string }) => {
+    await sendFrames(c.frames);
+    if (c.film) await sendFile(c.film);
+  };
+  /** One part of the run file; false when the service takes the file only whole (one from before parts). */
+  const sendPart = async (n: number, text: string): Promise<boolean> => {
+    const sent = await answer(await sendWithRetries(`${base}/v1/runs/${id}/cases?part=${n}`, Buffer.from(text), 'sending its cases'), 'sending its cases');
+    return sent.part !== undefined;
+  };
+  const sendWhole = async (text: string) =>
+    answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: text }), 'sending its cases');
+  /** The run closed, with its manifest as it ended (a service from before reads none and keeps the first). */
+  const finish = async (manifest?: unknown) =>
+    answer(
+      await call(`${base}/v1/runs/${id}/finish`, {
+        method: 'POST',
+        headers: manifest ? { ...auth, 'content-type': 'application/json' } : auth,
+        ...(manifest ? { body: JSON.stringify({ run: manifest }) } : {}),
+      }),
+      'finishing the run',
+    );
+  return { done, filesOf, sendCase, sendPart, sendWhole, finish };
+};
+
+const createRun = async (o: Target & { project: string }, run: unknown, live?: { planned: number }) =>
+  answer(
+    await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}/v1/runs`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ project: o.project, run, ...(live ? { live: true, planned: live.planned } : {}) }),
+    }),
+    'creating the run',
+  );
+
+/**
+ * Uploads a run directory (`case run --out`) to the reports service: the run, its cases, then every frame and
+ * film the cases name. A file the organization's plan does not keep (a film on Free) is left out and listed.
+ */
+export const pushRun = async (
+  dir: string,
+  o: Target & { project: string; onReady?: (url: string) => void; onProgress?: (line: string) => void },
+): Promise<Pushed> => {
+  const run = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8')) as unknown;
+  const cases = fs.readFileSync(path.join(dir, 'cases.jsonl'), 'utf8');
+  const id = String((await createRun(o, run)).id);
+  const up = uploader(o, id, dir);
+  // The run file in parts of about 256 KB: with every request's headers and bodies it runs to megabytes, more
+  // than the service reads in one request. A service from before parts answers without `part`, and then
+  // takes the whole file in one.
+  const parts: string[] = [];
+  for (const line of cases.split('\n').filter((l) => l.trim())) {
+    const last = parts.length - 1;
+    if (last >= 0 && Buffer.byteLength(parts[last]!) + Buffer.byteLength(line) < CASES_PART) parts[last] += `\n${line}`;
+    else parts.push(line);
+  }
+  for (const [n, part] of parts.entries()) {
+    if (!(await up.sendPart(n, part))) {
+      await up.sendWhole(cases);
+      break;
+    }
+  }
+  // The report opens as soon as its cases are in: their steps, results and requests show at once, and each
+  // frame as it arrives.
+  const finished = await up.finish();
+  o.onReady?.(String(finished.url));
+
+  // Per case: its frames, sent as one tar, and its film, sent on its own (a film can be bigger than a request).
+  const work = cases
+    .split('\n')
+    .filter((line) => line.trim())
+    .map((line) => up.filesOf(JSON.parse(line) as { video?: string; steps?: { screenshot?: string }[] }));
   const queue = [...work];
   const total = work.length;
   let sent = 0;
@@ -170,8 +203,7 @@ export const pushRun = async (
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
       for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
-        await sendFrames(c.frames);
-        if (c.film) await sendFile(c.film);
+        await up.sendCase(c);
         sent += 1;
         bytes += sizeOf(c);
         if (sent === total || sent % Math.max(1, Math.ceil(total / 10)) === 0)
@@ -180,10 +212,70 @@ export const pushRun = async (
     }),
   );
   const changes = finished.changes as Pushed['changes'] | undefined;
-  return { url: String(finished.url), files, refused, ...(changes ? { changes } : {}) };
+  return { url: String(finished.url), files: up.done.files, refused: up.done.refused, ...(changes ? { changes } : {}) };
 };
 
-type Service = { url: string; key: string; fetch?: Fetch };
+export type LiveRun = {
+  /** The report's address, open from the start. */
+  url: string;
+  /** An attempt's line and what it names, sent behind the run: the run never waits for it. */
+  add: (line: { video?: string; steps?: { screenshot?: string }[] }) => void;
+  /** Everything sent, the run closed with its final manifest: the report as `pushRun` leaves it. */
+  finish: (manifest: unknown) => Promise<Pushed>;
+};
+
+/**
+ * A report that fills as the run goes: made when the run starts, each attempt's line and files sent as it ends
+ * (one part of the run file each), and closed when the run ends. A send that fails is tried again at the end,
+ * so a moment without network costs the live view, not the report. A service from before parts gets the
+ * whole run file at the end, and shows the report only then.
+ */
+export const startLiveRun = async (dir: string, o: Target & { project: string; planned: number; onError?: (line: string) => void }): Promise<LiveRun> => {
+  const run = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8')) as unknown;
+  const created = await createRun(o, run, { planned: o.planned });
+  const id = String(created.id);
+  const up = uploader(o, id, dir);
+  let next = 0;
+  let parts = true;
+  const lines: string[] = [];
+  const unsent = new Map<number, string>();
+  const filesLeft: { frames: string[]; film?: string }[] = [];
+  let chain: Promise<void> = Promise.resolve();
+  const add: LiveRun['add'] = (line) => {
+    const text = JSON.stringify(line);
+    const n = next++;
+    lines.push(text);
+    const files = up.filesOf(line);
+    chain = chain.then(async () => {
+      if (parts) {
+        try {
+          parts = await up.sendPart(n, text);
+        } catch (error) {
+          unsent.set(n, text);
+          o.onError?.(`report: case ${n + 1} kept for the end (${(error as Error).message})`);
+        }
+      }
+      try {
+        await up.sendCase(files);
+      } catch (error) {
+        filesLeft.push(files);
+        o.onError?.(`report: its files kept for the end (${(error as Error).message})`);
+      }
+    });
+  };
+  const finish: LiveRun['finish'] = async (manifest) => {
+    await chain;
+    if (!parts) await up.sendWhole(lines.join('\n'));
+    else for (const [n, text] of unsent) await up.sendPart(n, text);
+    for (const files of filesLeft) await up.sendCase(files);
+    const finished = await up.finish(manifest);
+    const changes = finished.changes as Pushed['changes'] | undefined;
+    return { url: String(finished.url ?? created.url), files: up.done.files, refused: up.done.refused, ...(changes ? { changes } : {}) };
+  };
+  return { url: String(created.url), add, finish };
+};
+
+type Service = Target;
 
 const ask = async (o: Service, method: string, route: string, doing: string) =>
   answer(await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${route}`, { method, headers: { authorization: `Bearer ${o.key}` } }), doing);

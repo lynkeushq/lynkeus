@@ -48,7 +48,9 @@ export const explain = (e: Evidence): Finding[] => {
   const out: Finding[] = [];
   const els = e.screen.elements;
   const done = e.requests.filter((r) => r.status !== undefined || r.error);
-  const status = (n: number) => done.filter((r) => r.status === n);
+  // An answer the case mocked (`app.mock`) is the case's doing: only what the server answered speaks for the backend.
+  const served = done.filter((r) => !r.mocked);
+  const status = (n: number) => served.filter((r) => r.status === n);
 
   if (!e.screen.route && els.length === 0) {
     const crash = e.trace
@@ -68,7 +70,7 @@ export const explain = (e: Evidence): Finding[] => {
     );
   }
 
-  if (done.length && done.every((r) => r.status === 401))
+  if (served.length && served.every((r) => r.status === 401))
     out.push({
       rule: 'session-gone',
       message: 'every request answered 401: the session is gone (a logout, a reset, or a key revoked elsewhere). Log in again.',
@@ -81,7 +83,7 @@ export const explain = (e: Evidence): Finding[] => {
       message: `the backend refuses ${[...new Set(forbidden.map((r) => pathOf(r.url)))].slice(0, 3).join(', ')} with 403: an account state or a permission, not the screen. Check what the case expects of this user.`,
     });
 
-  const five = done.find((r) => (r.status ?? 0) >= 500);
+  const five = served.find((r) => (r.status ?? 0) >= 500);
   if (five)
     out.push({
       rule: 'backend-error',
