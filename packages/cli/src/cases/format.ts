@@ -7,7 +7,7 @@
  */
 import fs from 'node:fs';
 
-import { parse } from 'yaml';
+import { isMap, isSeq, parse, parseDocument } from 'yaml';
 
 export type StepValue = string | number | boolean | null | Record<string, unknown> | unknown[];
 export type Step = { verb: string; value: StepValue; on?: string };
@@ -19,6 +19,11 @@ export type Case = {
   meta: Record<string, unknown>;
   setup: Step[];
   steps: Step[];
+  /**
+   * The numbered section each of `steps` belongs to, from the comment that opens it (`# 3 A wrong PIN`), as
+   * `3 A wrong PIN`; a step before the first one has none. Read for progress, never for what a step does.
+   */
+  sections?: (string | undefined)[];
   expected?: string;
 };
 
@@ -44,6 +49,39 @@ const stepsOf = (list: unknown, file: string, section: string): Step[] => {
   });
 };
 
+// `# 3 A wrong PIN`, or `# 3b …`: a comment line that opens a numbered section of the steps.
+const SECTION = /^\s*(\d+[a-z]?\s+\S.*?)\s*$/;
+
+/** The section each step falls under, by the numbered comments before the steps, one entry per step as stepsOf lists them. */
+export const sectionsOf = (body: string): (string | undefined)[] => {
+  let doc: ReturnType<typeof parseDocument>;
+  try {
+    doc = parseDocument(body);
+  } catch {
+    return [];
+  }
+  const list = doc.get('steps', true);
+  if (!isSeq(list)) return [];
+  const sections: (string | undefined)[] = [];
+  let current: string | undefined;
+  for (const [i, item] of list.items.entries()) {
+    // The comment above the first step belongs to the list, the others to the step they precede.
+    const comment = [i === 0 ? list.commentBefore : undefined, (item as { commentBefore?: string | null }).commentBefore]
+      .filter((c): c is string => typeof c === 'string')
+      .join('\n');
+    const opened = comment
+      .split('\n')
+      .map((line) => SECTION.exec(line)?.[1])
+      .find((line) => line !== undefined);
+    if (opened) current = opened;
+    // An `on`/`do` block is one item here and as many steps as it holds.
+    const inner = isMap(item) ? item.get('do', true) : undefined;
+    const count = isMap(item) && item.has('do') ? (isSeq(inner) ? inner.items.length : 1) : 1;
+    for (let n = 0; n < count; n++) sections.push(current);
+  }
+  return sections;
+};
+
 export const parseCase = (text: string, file: string): Case => {
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
   if (!match) throw new Error(`${file}: no frontmatter (a case starts with --- and its id)`);
@@ -57,6 +95,7 @@ export const parseCase = (text: string, file: string): Case => {
     meta,
     setup: stepsOf(body.setup, file, 'setup'),
     steps: stepsOf(body.steps, file, 'steps'),
+    sections: sectionsOf(match[2]!),
     expected: typeof body.expected === 'string' ? body.expected.trim() : undefined,
   };
 };

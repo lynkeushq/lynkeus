@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A long run says where it is. `case run` writes `progress.ndjson` as it goes (in `--out`, else `.lynkeus/last-run.progress.ndjson`): the run with every case and how long each took when it last passed, each case as it starts and ends with its job and host, and each step with its place and the numbered section it is in (`# 3 A wrong PIN` in the case). `--progress json` writes the events to stdout too.
+- In a terminal, a run keeps a status line under its output: cases done and failed, time spent and left, and what each job runs and in which section. The time left comes from the cases' past times, else from this run's. `--progress none` leaves it out.
+- `lynkeus case status [dir]` reads where a run is, during or after it, from any terminal (`--json` for a program); a run whose process is gone without finishing says so. Over MCP it is the `case_status` tool, and `case_run` sends MCP progress notifications to a client that passes a progress token.
+- With `--push`, the report is made when the run starts and fills case by case, so its address works from the first case; a send that fails is tried again at the end. A reports service from before this gets the whole run at the end, as it did.
+
 ## 0.5.1
 
 - An `on: device` block goes on after a step that sends the app to the background (`app.appstate: background`, then a wait and `active`). Its later steps asked the app what kind of host it was, and an app in the background has let go of the driver, so they were skipped and the app stayed away. The kind of host is now what the app said when it last attached.

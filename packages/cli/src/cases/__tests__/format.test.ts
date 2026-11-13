@@ -74,3 +74,37 @@ test('a case with a matrix runs once per combination, named after it', () => {
   assert.deepEqual(cases[1]!.setup, []);
   assert.deepEqual(cases[1]!.steps[0]!.value, { locale: 'fr' });
 });
+
+test('a numbered comment opens a section of the steps, which every step after it falls under', () => {
+  const c = parseCase(
+    `---
+id: pin
+---
+setup:
+  - create_user: { as: u }
+steps:
+  # 1 A phone sign-in
+  - app.reset:
+  # Not a section: a note about the next step.
+  - app.press: "#go"
+  - on: device
+    do:
+      - app.launch
+      - app.passcode
+
+  # 2b The keypad, wrong twice
+  # While the keypad is up …
+  - app.press: "#numpad-9-button"
+expected: |
+  1. it works
+`,
+    'pin.md',
+  );
+  assert.equal(c.steps.length, 5);
+  assert.deepEqual(c.sections, ['1 A phone sign-in', '1 A phone sign-in', '1 A phone sign-in', '1 A phone sign-in', '2b The keypad, wrong twice']);
+});
+
+test('steps before any numbered comment have no section', () => {
+  const c = parseCase(CASE, 'gift.md');
+  assert.deepEqual(c.sections, [undefined, undefined, undefined]);
+});

@@ -149,9 +149,25 @@ export type RunOptions = {
   setupOnly?: { keep: (prepared: Prepared) => void };
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
+  /** Each step as it starts and as it ends, for a run's progress: where it is in the case and the section it is in. */
+  onStep?: (step: StepProgress) => void;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
   routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
   nativeLogs?: { take: () => LogLine[] };
+};
+
+/**
+ * A step starting (no `status`) or ended: its place among the steps the case runs (`index` from 0 of `steps`), the
+ * part of the case it is in, and the numbered section of the steps it falls under.
+ */
+export type StepProgress = {
+  index: number;
+  steps: number;
+  section: 'setup' | 'steps';
+  heading?: string;
+  step: string;
+  status?: StepReport['status'];
+  ms?: number;
 };
 
 /** What a case's setup leaves for its steps: the aliases and what they answered, and what ran. */
@@ -1193,6 +1209,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       continue;
     }
     const t0 = Date.now();
+    const place = {
+      index,
+      steps: todo.length,
+      section: index < setupLength ? ('setup' as const) : ('steps' as const),
+      ...(index >= setupLength && c.sections?.[index - setupLength] ? { heading: c.sections[index - setupLength] } : {}),
+      step: text,
+    };
+    options.onStep?.(place);
+    const ended = (status: StepReport['status']) => options.onStep?.({ ...place, status, ms: Date.now() - t0 });
     // Where the app's trace stood before the case first touched it: the screens after it are the case's.
     if (options.routes && routesFrom === undefined && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
       const d = await device().catch(() => undefined);
@@ -1219,6 +1244,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0 };
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
+      ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb]))
         await record(done, steps.length, at, t0);
     } catch (error) {
@@ -1229,6 +1255,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         unsupported = true;
         steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: `this host has no ${missing}` });
         log(`  🚫 ${text}  — this host has no ${missing}`);
+        ended('unsupported');
         continue;
       }
       failed = true;
@@ -1236,6 +1263,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
       steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
+      ended('failed');
       if (evidence || capturing) await record(broke, steps.length, at, t0);
     }
   }
