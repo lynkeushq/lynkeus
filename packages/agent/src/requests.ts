@@ -1,6 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
-import { answer, installNetmock, mockFor } from './netmock';
+import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
 
 const KEEP = 200;
 /**
@@ -208,7 +208,10 @@ const trackXhr = (): void => {
         }
       }
     }
-    if (rule && request && answer(this, rule, request[1])) {
+    if (rule?.lost) {
+      loseAnswer(this);
+      if (tracked) tracked.mocked = true;
+    } else if (rule && request && answer(this, rule, request[1])) {
       if (tracked) tracked.mocked = true;
       return;
     }
