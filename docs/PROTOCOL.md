@@ -101,6 +101,11 @@ Ties go to the later element: it draws on top.
 | `debug` | — | what the tree walker can see |
 | *app command* | anything | anything — whatever `qa.register` returned |
 
+A request a `netmock` rule answered (or whose answer it lost) instead of the server has `mocked: true`, in `requests`
+and in its `trace` event: the agent marks what its own rules answer, and a host that answers rules below the app (the
+headless host's network fence) puts the `x-lynkeus-mocked` header on the answer it makes. Diagnoses read only what the
+server answered as the backend's.
+
 ### `Screen`
 
 ```ts

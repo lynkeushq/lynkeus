@@ -40,7 +40,7 @@ export const draftFlow = (events: TraceEvent[], name = 'recorded'): Flow => {
 export const describeEvent = (e: TraceEvent): string | undefined => {
   if (e.kind === 'touch') return `touch  ${e.testId ? `#${e.testId}` : e.text ? JSON.stringify(e.text) : `${e.x},${e.y}`}  on ${e.route ?? '?'}`;
   if (e.kind === 'route') return `route  ${e.route ?? '?'}`;
-  if (e.kind === 'request') return `req    ${e.status ?? '…'} ${e.method} ${pathOf(e.url)}${e.ms ? ` ${e.ms}ms` : ''}`;
+  if (e.kind === 'request') return `req    ${e.status ?? '…'} ${e.method} ${pathOf(e.url)}${e.ms ? ` ${e.ms}ms` : ''}${e.mocked ? ' (mocked)' : ''}`;
   if (e.kind === 'store') return `store  ${e.store}: ${Object.keys(e.changed).join(', ')}`;
   return undefined;
 };

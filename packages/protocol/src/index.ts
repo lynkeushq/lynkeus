@@ -106,7 +106,8 @@ export type WaitForParams = {
 
 export type TraceEvent = { seq: number; t: number } & (
   | { kind: 'route'; route?: string; path: string[] }
-  | { kind: 'request'; method: string; url: string; status?: number; ms?: number; error?: string }
+  /** `mocked`: answered (or lost) by a rule the driver set (`netmock`, a case's `app.mock`), not by the server. */
+  | { kind: 'request'; method: string; url: string; status?: number; ms?: number; error?: string; mocked?: boolean }
   | { kind: 'store'; store: string; changed: Record<string, { from: unknown; to: unknown }> }
   /** Something the app told its analytics, through `qa.event`. */
   | { kind: 'event'; name: string; props?: Record<string, unknown>; route?: string }
@@ -130,6 +131,8 @@ export type RequestRecord = {
   startedAt: number;
   ms?: number;
   error?: string;
+  /** Answered (or lost) by a rule the driver set (`netmock`, a case's `app.mock`), not by the server. */
+  mocked?: boolean;
   /** Only while a driver asked for bodies (`networkBodies`). */
   request?: Exchange;
   response?: Exchange;
