@@ -30,6 +30,19 @@ export type HostOptions = Omit<ClientOptions, 'navigation' | 'backend' | 'create
 };
 
 const FOREVER = 2_147_483_647;
+const FORGET_MOCK_CALLS_MS = 10_000;
+
+/**
+ * A jest.fn() keeps the arguments and result of every call, for a test to assert on. A host runs for hours and nothing
+ * reads them, so they only grow: in a real app some 20 MB for each sign-in and screen, and its 4 GB heap ran out after
+ * about 30 cases. Clearing them keeps every mock's implementation and its once-queue; only the record goes.
+ */
+export const forgetMockCalls = (j: { clearAllMocks?: () => unknown } | undefined, everyMs = FORGET_MOCK_CALLS_MS): (() => void) => {
+  if (!j?.clearAllMocks) return () => undefined;
+  const timer = setInterval(() => j.clearAllMocks?.(), everyMs);
+  (timer as { unref?: () => void }).unref?.();
+  return () => clearInterval(timer);
+};
 
 const errorText = (error: unknown) => (error instanceof Error ? (error.stack ?? error.message) : String(error));
 
@@ -264,7 +277,7 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
 export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}): void => {
   const g = globalThis as {
     it?: (name: string, fn: () => Promise<void>, timeout?: number) => void;
-    jest?: { setTimeout: (ms: number) => void; useRealTimers?: () => void };
+    jest?: { setTimeout: (ms: number) => void; useRealTimers?: () => void; clearAllMocks?: () => unknown };
     reportError?: (error: unknown) => void;
   };
   if (!g.it) throw new Error('hostApp must be called from a jest test file');
@@ -302,7 +315,9 @@ export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}):
         throw error;
       }
       log('hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)');
+      const remember = forgetMockCalls(g.jest);
       await done;
+      remember();
       stop();
     },
     FOREVER,
