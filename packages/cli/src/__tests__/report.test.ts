@@ -63,11 +63,30 @@ test('a case cannot read a file outside its run directory', async () => {
   fs.unlinkSync(secret);
 });
 
+test('a case cannot upload a symlink that points outside its run directory', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), `lynkeus-upload-symlink-${process.pid}.txt`);
+  fs.writeFileSync(secret, 'top-secret-from-symlink');
+  fs.unlinkSync(path.join(dir, 'home/01-app-login.png'));
+  fs.symlinkSync(secret, path.join(dir, 'home/01-app-login.png'));
+  const uploaded: Uint8Array[] = [];
+  const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (init?.body instanceof Uint8Array) uploaded.push(init.body);
+    const url = new URL(String(input));
+    if (url.pathname === '/v1/runs') return new Response(JSON.stringify({ id: 'r1' }), { status: 201 });
+    if (url.pathname.endsWith('/finish')) return new Response(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    return new Response('{}');
+  }) as typeof fetch;
+  try {
+    await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /escapes the run directory/);
+    assert.ok(!uploaded.some((body) => Buffer.from(body).includes('top-secret-from-symlink')));
+  } finally {
+    fs.unlinkSync(secret);
+  }
+});
+
 test('report uploads require HTTPS outside loopback', async () => {
-  await assert.rejects(
-    pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }),
-    /HTTPS/,
-  );
+  await assert.rejects(pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /HTTPS/);
 });
 
 test('a report service redirect is not followed to another host', async () => {

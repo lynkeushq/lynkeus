@@ -78,7 +78,13 @@ const insideRun = (dir: string, file: string): string => {
   const root = path.resolve(dir);
   const candidate = path.resolve(root, file);
   if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) throw new Error(`file path escapes the run directory: ${file}`);
-  return candidate;
+  if (!fs.existsSync(candidate)) return candidate;
+  const realRoot = fs.realpathSync(root);
+  const realCandidate = fs.realpathSync(candidate);
+  if (realCandidate === realRoot || !realCandidate.startsWith(`${realRoot}${path.sep}`)) {
+    throw new Error(`file path escapes the run directory: ${file}`);
+  }
+  return realCandidate;
 };
 
 /**
