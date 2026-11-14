@@ -66,6 +66,14 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
 
 type Target = { url: string; key: string; fetch?: Fetch };
 
+const serviceBase = (url: string): string => {
+  const parsed = new URL(url);
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !loopback) throw new Error('the reports service must use HTTPS outside loopback');
+  if (parsed.username || parsed.password) throw new Error('the reports URL must not embed credentials');
+  return parsed.toString().replace(/\/+$/, '');
+};
+
 const insideRun = (dir: string, file: string): string => {
   const root = path.resolve(dir);
   const candidate = path.resolve(root, file);
@@ -81,10 +89,10 @@ const insideRun = (dir: string, file: string): string => {
 const uploader = (o: Target, id: string, dir: string) => {
   const call = o.fetch ?? fetch;
   const auth = { authorization: `Bearer ${o.key}` };
-  const base = o.url.replace(/\/+$/, '');
+  const base = serviceBase(o.url);
   const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
     for (let attempt = 1; ; attempt++) {
-      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
+      const response = await call(target, { method: 'PUT', headers: auth, body, redirect: 'manual' }).catch((error: unknown) => {
         if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
         return undefined;
       });
@@ -155,8 +163,9 @@ const uploader = (o: Target, id: string, dir: string) => {
 
 const createRun = async (o: Target & { project: string }, run: unknown, live?: { planned: number }) =>
   answer(
-    await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}/v1/runs`, {
+    await (o.fetch ?? fetch)(`${serviceBase(o.url)}/v1/runs`, {
       method: 'POST',
+      redirect: 'manual',
       headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json' },
       body: JSON.stringify({ project: o.project, run, ...(live ? { live: true, planned: live.planned } : {}) }),
     }),
@@ -285,7 +294,7 @@ export const startLiveRun = async (dir: string, o: Target & { project: string; p
 type Service = Target;
 
 const ask = async (o: Service, method: string, route: string, doing: string) =>
-  answer(await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${route}`, { method, headers: { authorization: `Bearer ${o.key}` } }), doing);
+  answer(await (o.fetch ?? fetch)(`${serviceBase(o.url)}${route}`, { method, redirect: 'manual', headers: { authorization: `Bearer ${o.key}` } }), doing);
 
 export type ListedRun = { project: string; platform: string | null; totals: Record<string, number>; createdAt: string; url: string };
 

@@ -63,6 +63,23 @@ test('a case cannot read a file outside its run directory', async () => {
   fs.unlinkSync(secret);
 });
 
+test('report uploads require HTTPS outside loopback', async () => {
+  await assert.rejects(
+    pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }),
+    /HTTPS/,
+  );
+});
+
+test('a report service redirect is not followed to another host', async () => {
+  let calls = 0;
+  const fake = (async () => {
+    calls += 1;
+    return new Response(null, { status: 302, headers: { location: 'https://evil.test/' } });
+  }) as typeof fetch;
+  await assert.rejects(pushRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /creating the run/);
+  assert.equal(calls, 1);
+});
+
 test('a case’s frames go as one tar, and one by one to a service from before bundles', async () => {
   const sent: Record<string, Uint8Array> = {};
   const older = (async (input: string | URL | Request, init?: RequestInit) => {
