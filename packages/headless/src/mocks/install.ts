@@ -145,7 +145,17 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       return fetchImpl(input, init).then(lost, () => lost());
     }
     if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
-    const result = fetchImpl(input, init).then(ownErrors, told(url));
+    const guarded = fetchImpl(input, { ...(init as object | undefined), redirect: 'manual' }).then((response) => {
+      const r = response as { status: number; url: string; headers: { get(name: string): string | null } };
+      if (![301, 302, 303, 307, 308].includes(r.status)) return response;
+      const location = r.headers.get('location');
+      if (!location) return response;
+      const next = new URL(location, r.url || url).toString();
+      const refusedNext = refuse(next);
+      if (refusedNext) throw new Error(`lynkeus headless: network to ${refusedNext} is off (networkHosts)`);
+      return response;
+    });
+    const result = guarded.then(ownErrors, told(url));
     if (!netControls.recording()) return result;
     return result.then(async (response) => {
       const r = response as { clone: () => { text: () => Promise<string> }; status: number };
@@ -233,7 +243,7 @@ const fencedWebSocket = (Real: SocketClass, hosts: string[]) => {
     constructor(url: string, protocols?: string | string[], options?: unknown) {
       if (refuse(url)) return new SilentWebSocket(url) as unknown as FencedWebSocket;
       if (connectivityControls.offline()) return SilentWebSocket.offline(url) as unknown as FencedWebSocket;
-      const socket = new Real(url, protocols, options) as FencedWebSocket;
+      const socket = new Real(url, protocols, { ...(options as object | undefined), maxRedirects: 0 }) as FencedWebSocket;
       connectivityControls.track(socket);
       return socket;
     }

@@ -51,6 +51,18 @@ test('a run goes up as its run file, its cases and the files they name, and a fi
   assert.ok(asked.every((a) => a.auth === 'Bearer lk_1'));
 });
 
+test('a case cannot read a file outside its run directory', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), 'lynkeus-upload-secret.txt');
+  fs.writeFileSync(secret, 'top-secret');
+  const escaped = path.relative(dir, secret);
+  const line = { id: 'home', result: 'passed', steps: [{ step: 'app.login', screenshot: escaped }] };
+  fs.writeFileSync(path.join(dir, 'cases.jsonl'), `${JSON.stringify(line)}\n`);
+  const { fake } = freeService();
+  await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /escapes the run directory/);
+  fs.unlinkSync(secret);
+});
+
 test('a case’s frames go as one tar, and one by one to a service from before bundles', async () => {
   const sent: Record<string, Uint8Array> = {};
   const older = (async (input: string | URL | Request, init?: RequestInit) => {

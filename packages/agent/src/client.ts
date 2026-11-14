@@ -16,10 +16,7 @@ export type ClientOptions = {
   /** Where the driver listens. Default: localhost:8123 (10.0.2.2 on the Android emulator). */
   host?: string;
   port?: number;
-  /**
-   * When set, the driver must open with this token before any command is
-   * served: a per-machine secret keeps other local processes from driving the app.
-   */
+  /** A per-machine secret the app presents in hello; the driver never transmits it. */
   token?: string;
   /** Free-form description sent in `hello` (name, version, environment). */
   app?: Record<string, unknown>;
@@ -96,6 +93,7 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
+    token: options.token,
   });
 
   // The driver resends in-flight requests verbatim after a reconnect. One the
@@ -160,7 +158,7 @@ export const start = (options: ClientOptions): (() => void) => {
           replies.clear();
           session = parsed.session;
         }
-        if (options.token === undefined || parsed.token === options.token) {
+        if (parsed.session) {
           authenticated = true;
           send(hello());
         }

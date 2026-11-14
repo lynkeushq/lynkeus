@@ -13,7 +13,7 @@ export type { AgentEvent, CoreMethods, Element, HelloEvent, Screen, Target, Requ
 export type AgentServerOptions = {
   port?: number;
   host?: string;
-  /** Must match the app's `token`; sent as the first message. */
+  /** Must match the app's `token`; only the app transmits it, in hello. */
   token?: string;
   /** How long in-flight calls wait for the app to reconnect before failing (default 2500 ms). */
   reconnectGraceMs?: number;
@@ -124,7 +124,7 @@ export class AgentServer extends EventEmitter {
   // The deadline keeps running across a reconnect: a resent request gets only the time that is left.
   async call(method: string, params?: unknown, timeoutMs = 20_000): Promise<unknown> {
     const socket = this.#socket;
-    if (!socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
+    if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
     const id = this.#nextId++;
     const request = JSON.stringify({ id, method, params });
     const result = new Promise<unknown>((resolve, reject) => {
@@ -157,7 +157,7 @@ export class AgentServer extends EventEmitter {
     this.#socket = socket;
     this.#hello = null;
     this.#cancelGrace();
-    socket.send(JSON.stringify({ event: 'auth', session: this.#session, token: this.#token }));
+    socket.send(JSON.stringify({ event: 'auth', session: this.#session }));
     const silence = setTimeout(() => {
       if (this.#socket === socket && !this.#hello && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
     }, 2000);
@@ -172,18 +172,24 @@ export class AgentServer extends EventEmitter {
       }
       if ('event' in message) {
         if (message.event === 'hello') {
+          if (this.#token !== undefined && message.token !== this.#token) {
+            this.#unanswered = true;
+            socket.close(1008, 'invalid token');
+            return;
+          }
           this.#hello = message;
           this.#unanswered = false;
           clearTimeout(silence);
           // Resend what the previous socket may have dropped, but only once this one has spoken the
-          // protocol: a bare local connection could be any process.
+          // protocol and proved the project token: a bare local connection could be any process.
           if (socket.readyState === WebSocket.OPEN) {
             for (const pending of this.#pending.values()) socket.send(pending.request);
           }
         }
-        this.emit(message.event, message);
+        if (this.#hello) this.emit(message.event, message);
         return;
       }
+      if (!this.#hello) return;
       const pending = this.#pending.get(message.id);
       if (!pending) return;
       this.#pending.delete(message.id);

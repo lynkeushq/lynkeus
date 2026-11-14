@@ -202,6 +202,8 @@ export type HelloEvent = {
   commands: string[];
   route?: string;
   app?: Record<string, unknown>;
+  /** Proof of the app's per-machine secret, sent by the app, never by the driver. */
+  token?: string;
 };
 export type NavigationEvent = { event: 'navigation'; route?: string };
 /** The driver's first message. `session` is random per driver process, so the app can tell a reconnect (whose resent requests it may have answered) from a new driver reusing request ids. */

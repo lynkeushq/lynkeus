@@ -26,7 +26,7 @@ const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = ()
   socket.on('message', (data) => {
     const m = JSON.parse(String(data)) as Message;
     seen.push(m);
-    if (m.event === 'auth') socket.send(JSON.stringify({ event: 'hello', protocolVersion: 1, platform: 'ios', native: false, commands: [] }));
+    if (m.event === 'auth') socket.send(JSON.stringify({ event: 'hello', protocolVersion: 1, platform: 'ios', native: false, commands: [], token: 'secret' }));
     else if (m.id !== undefined) {
       const reply = answer(m);
       if (reply !== undefined) socket.send(JSON.stringify({ id: m.id, ...(reply as object) }));
@@ -36,14 +36,14 @@ const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = ()
   return { socket, seen };
 };
 
-test('an app that dials in is sent the token first and is ready once it says hello', async () => {
+test('an app proves its token in hello instead of receiving it from the driver', async () => {
   const server = await serve({ token: 'secret' });
   const app = await fakeApp(server);
   const hello = await server.waitForApp(2000);
   assert.equal(hello.platform, 'ios');
   assert.equal(server.connected, true);
   assert.equal(app.seen[0]?.event, 'auth');
-  assert.equal(app.seen[0]?.token, 'secret');
+  assert.equal(app.seen[0]?.token, undefined);
   app.socket.close();
 });
 

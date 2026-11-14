@@ -66,6 +66,13 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
 
 type Target = { url: string; key: string; fetch?: Fetch };
 
+const insideRun = (dir: string, file: string): string => {
+  const root = path.resolve(dir);
+  const candidate = path.resolve(root, file);
+  if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) throw new Error(`file path escapes the run directory: ${file}`);
+  return candidate;
+};
+
 /**
  * What a run's upload sends besides its cases, shared by a push at the end and a report filled as the run goes:
  * a case's frames as one tar, its film on its own, each tried again on a dropped connection, a 5xx or a 429. A
@@ -88,7 +95,7 @@ const uploader = (o: Target, id: string, dir: string) => {
   const done = { files: 0, refused: [] as string[] };
   const sendFile = async (file: string) => {
     const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
-    const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);
+    const response = await sendWithRetries(target, fs.readFileSync(insideRun(dir, file)), `sending ${file}`);
     if (response.status === 402) done.refused.push(file);
     else {
       await answer(response, `sending ${file}`);
@@ -103,7 +110,7 @@ const uploader = (o: Target, id: string, dir: string) => {
     if (bundles && fits.length > 0) {
       const response = await sendWithRetries(
         `${base}/v1/runs/${id}/bundle`,
-        tarOf(fits.map((f) => [f, fs.readFileSync(path.join(dir, f))])),
+        tarOf(fits.map((f) => [f, fs.readFileSync(insideRun(dir, f))])),
         `sending ${fits.length} frames`,
       );
       if (response.status === 404 || response.status === 405) bundles = false;
@@ -118,8 +125,8 @@ const uploader = (o: Target, id: string, dir: string) => {
   };
   /** What a case's line names that is on disk: its frames, once each, and its film. */
   const filesOf = (c: { video?: string; steps?: { screenshot?: string }[] }) => {
-    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
-    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(insideRun(dir, p)));
+    const film = c.video && fs.existsSync(insideRun(dir, c.video)) ? c.video : undefined;
     return { frames: [...new Set(frames)], ...(film ? { film } : {}) };
   };
   const sendCase = async (c: { frames: string[]; film?: string }) => {
@@ -199,7 +206,7 @@ export const pushRun = async (
   let bytes = 0;
   const started = Date.now();
   const sizeOf = (c: { frames: string[]; film?: string }) =>
-    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(insideRun(dir, f)).size, 0);
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
       for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
