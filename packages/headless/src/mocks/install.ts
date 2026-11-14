@@ -59,21 +59,20 @@ export type InstallOptions = {
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '10.0.2.2'];
 
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
-};
-
 // A hosted app must not reach third parties (analytics, auth providers): refuse
 // fast and say so once per host.
-const hostFence = (hosts: string[], kind: string) => {
+const hostFence = (hosts: string[], kind: string, protocols?: Set<string>) => {
   const allowed = new Set(hosts);
   const refused = new Set<string>();
   return (url: string): string | undefined => {
-    const host = hostOf(url);
+    let parsed: URL | undefined;
+    try {
+      parsed = new URL(url);
+    } catch {
+      // The network implementation rejects malformed URLs without connecting.
+    }
+    if (protocols && (!parsed || !protocols.has(parsed.protocol))) return parsed?.protocol ?? 'invalid URL';
+    const host = parsed?.hostname ?? '';
     if (!host || allowed.has(host)) return undefined;
     if (!refused.has(host)) {
       refused.add(host);
@@ -231,7 +230,7 @@ type SocketClass = new (url: string, protocols?: string | string[], options?: un
 // open. A refused host gets the silent stub, so the realtime layer sees
 // "connected" and nothing more.
 const fencedWebSocket = (Real: SocketClass, hosts: string[]) => {
-  const refuse = hostFence(hosts, 'websocket');
+  const refuse = hostFence(hosts, 'websocket', new Set(['ws:', 'wss:']));
   // A client compares readyState against the constants on the class it was
   // handed, so the fence must carry them.
   return class FencedWebSocket {
