@@ -1,6 +1,7 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
 import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
+import { redactText, SENSITIVE, sensitiveKey } from './redact';
 
 const KEEP = 200;
 /**
@@ -8,7 +9,6 @@ const KEEP = 200;
  * headless host's network fence, a host's own netmock): such a request is the case's doing, not the backend's.
  */
 export const MOCKED_HEADER = 'x-lynkeus-mocked';
-const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)(=|%3d)[^&#]*/gi;
 const SENSITIVE_QUERY = /token|key|secret|code|otp|password|pin|session|auth|credential|jwt|signature|csrf|xsrf/i;
 const REDACTED = '__lynkeus_redacted__';
 
@@ -52,39 +52,21 @@ export const redactUrl = (input: string): string => {
 // Bodies are kept only while a driver asks for them: a test run's report shows what was sent and answered.
 let keepBodies = false;
 const MOST = 16_000;
-const SECRET_KEY =
-  /pass(word|code)?|^pin$|pin_?code|otp|^code$|token|secret|authorization|cookie|session|credential|jwt|signature|csrf|xsrf|cvv|cvc|card_?number|pan$|ssn|api_?key|^key$/i;
-const SECRET_TEXT =
-  /["']?(?:pass(?:word|code)?|pin(?:_?code)?|otp|code|token|secret|authorization|cookie|session|credential|jwt|signature|csrf|xsrf|cvv|cvc|card_?number|pan|ssn|api_?key|key)["']?\s*:\s*/i;
-
 /** The `networkBodies` command: `{ on }` keeps headers and bodies of the requests that follow. */
 export const setNetworkBodies = (params: unknown): { bodies: boolean } => {
   keepBodies = (params as { on?: unknown } | undefined)?.on === true;
   return { bodies: keepBodies };
 };
 
-const redactValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(redactValue);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) ? '…' : redactValue(v)]));
-  return value;
-};
-
 /** A body as text a report can show: JSON with its secrets replaced, a form's secret fields too, anything else named. */
 export const redactBody = (body: unknown): (Exchange['body'] & {}) | undefined => {
   if (body === undefined || body === null || body === '') return undefined;
   if (typeof body !== 'string') return `[${(body as object).constructor?.name ?? typeof body}]`;
-  try {
-    return JSON.stringify(redactValue(JSON.parse(body)), null, 2);
-  } catch {
-    // An unparsed body cannot be walked safely. Do not return malformed JSON or
-    // header-like text just because its secret has an unfamiliar shape.
-    if (SECRET_TEXT.test(body)) return '[unparsed body redacted]';
-    return body.replace(SENSITIVE, '$1=…');
-  }
+  return redactText(body);
 };
 
 export const redactHeaders = (headers: Record<string, string>): Record<string, string> =>
-  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), SECRET_KEY.test(k) || /^(x-)?(api-)?key$/i.test(k) ? '…' : v]));
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), sensitiveKey(k) || /^(x-)?(api-)?key$/i.test(k) ? '…' : v]));
 
 const exchange = (headers: Record<string, string>, body: unknown): Exchange => {
   const text = redactBody(body);

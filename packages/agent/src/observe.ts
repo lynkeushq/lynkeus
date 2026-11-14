@@ -1,4 +1,5 @@
 import { record } from './trace';
+import { redactValue, sensitiveKey } from './redact';
 
 type Store = { getState(): unknown; subscribe(listener: () => void): () => void };
 type AppEvent = { t: number; name: string; props?: Record<string, unknown>; route?: string };
@@ -23,14 +24,15 @@ const plain = (value: unknown, depth = 0): unknown => {
   return out;
 };
 
-const SENSITIVE = /token|key|secret|code|otp|password|pin|session|auth/i;
+const scrub = (value: unknown): unknown => redactValue(plain(value));
+
 const LONGEST = 80;
 
 // The trace leaves the machine with a report, so it says that a value changed without carrying secrets or
 // payloads: objects are reduced to their size, a long string to its start, and a key named like a secret to nothing.
 const summarize = (key: string, value: unknown): unknown => {
   if (value === null || value === undefined) return value;
-  if (SENSITIVE.test(key)) return '…';
+  if (sensitiveKey(key)) return '…';
   if (typeof value === 'string') return value.length > LONGEST ? `${value.slice(0, LONGEST)}…` : value;
   if (typeof value !== 'object') return value;
   return Array.isArray(value) ? `[${value.length}]` : `{${Object.keys(value).length}}`;
@@ -64,7 +66,7 @@ export const observe = (name: string, store: Store): (() => void) => {
 };
 
 export const event = (name: string, props?: Record<string, unknown>, route?: string): void => {
-  const entry: AppEvent = { t: Date.now(), name, ...(props ? { props: plain(props) as Record<string, unknown> } : {}), ...(route ? { route } : {}) };
+  const entry: AppEvent = { t: Date.now(), name, ...(props ? { props: scrub(props) as Record<string, unknown> } : {}), ...(route ? { route } : {}) };
   buffer.push(entry);
   if (buffer.length > KEEP) buffer.shift();
   record({ kind: 'event', name, props: entry.props, route });
@@ -83,5 +85,5 @@ export const readStores = (params: unknown): unknown => {
   if (!name) return { stores: [...stores.keys()].sort() };
   const store = stores.get(name);
   if (!store) throw new Error(`No store observed as "${name}"; observed: ${[...stores.keys()].join(', ') || 'none'}`);
-  return plain(store.getState());
+  return scrub(store.getState());
 };
