@@ -153,12 +153,13 @@ const uploader = (o: Target, id: string, dir: string) => {
     return sent.part !== undefined;
   };
   const sendWhole = async (text: string) =>
-    answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: text }), 'sending its cases');
+    answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: text, redirect: 'manual' }), 'sending its cases');
   /** The run closed, with its manifest as it ended (a service from before reads none and keeps the first). */
   const finish = async (manifest?: unknown) =>
     answer(
       await call(`${base}/v1/runs/${id}/finish`, {
         method: 'POST',
+        redirect: 'manual',
         headers: manifest ? { ...auth, 'content-type': 'application/json' } : auth,
         ...(manifest ? { body: JSON.stringify({ run: manifest }) } : {}),
       }),

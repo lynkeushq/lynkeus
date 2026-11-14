@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -20,6 +21,18 @@ const runDir = () => {
   fs.writeFileSync(path.join(dir, 'home/01-app-login.png'), 'png');
   fs.writeFileSync(path.join(dir, 'home/video.mp4'), 'film');
   return dir;
+};
+
+const localService = async (handler: RequestListener) => {
+  const server = createServer(handler);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('no port');
+  return { server, url: `http://127.0.0.1:${address.port}` };
+};
+
+const closeService = async (server: Server) => {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
 };
 
 // A service on the Free plan: it keeps frames and refuses films.
@@ -97,6 +110,66 @@ test('a report service redirect is not followed to another host', async () => {
   }) as typeof fetch;
   await assert.rejects(pushRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /creating the run/);
   assert.equal(calls, 1);
+});
+
+test('a legacy whole-case upload is not redirected with its report data', async () => {
+  const received: string[] = [];
+  const capture = await localService((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      received.push(body);
+      res.end('{}');
+    });
+  });
+  const service = await localService((req, res) => {
+    if (req.url === '/v1/runs') {
+      res.writeHead(201).end(JSON.stringify({ id: 'r1' }));
+    } else if (req.url?.startsWith('/v1/runs/r1/cases?part=')) {
+      res.end(JSON.stringify({ cases: 1 }));
+    } else if (req.url === '/v1/runs/r1/cases') {
+      res.writeHead(307, { location: `${capture.url}/stolen` }).end();
+    } else if (req.url?.endsWith('/finish')) {
+      res.end(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    } else {
+      res.end('{}');
+    }
+  });
+  try {
+    await assert.rejects(pushRun(runDir(), { url: service.url, key: 'lk_1', project: 'x' }), /sending its cases:.*307/);
+    assert.ok(!received.some((body) => body.includes('"id":"home"')));
+  } finally {
+    await closeService(service.server);
+    await closeService(capture.server);
+  }
+});
+
+test('finishing a run is not redirected to another service', async () => {
+  let captured = 0;
+  const capture = await localService((_req, res) => {
+    captured += 1;
+    res.end(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+  });
+  const service = await localService((req, res) => {
+    if (req.url === '/v1/runs') {
+      res.writeHead(201).end(JSON.stringify({ id: 'r1' }));
+    } else if (req.url?.startsWith('/v1/runs/r1/cases?part=')) {
+      res.end(JSON.stringify({ cases: 1, part: 0 }));
+    } else if (req.url?.endsWith('/finish')) {
+      res.writeHead(307, { location: `${capture.url}/stolen` }).end();
+    } else {
+      res.end('{}');
+    }
+  });
+  try {
+    await assert.rejects(pushRun(runDir(), { url: service.url, key: 'lk_1', project: 'x' }), /finishing the run:.*307/);
+    assert.equal(captured, 0);
+  } finally {
+    await closeService(service.server);
+    await closeService(capture.server);
+  }
 });
 
 test('a case’s frames go as one tar, and one by one to a service from before bundles', async () => {
