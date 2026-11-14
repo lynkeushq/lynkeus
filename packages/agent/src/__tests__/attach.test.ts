@@ -51,7 +51,7 @@ describe('dialing the driver', () => {
 
   it('dials every 100 ms for three seconds, then backs off to the ceiling while nobody listens', () => {
     const d = dialer();
-    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
     for (let i = 0; i < 36; i++) {
       d.refuse();
       jest.runOnlyPendingTimers();
@@ -68,7 +68,7 @@ describe('dialing the driver', () => {
     Platform.OS = 'android';
     try {
       const d = dialer();
-      const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+      const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
       d.refuse();
       jest.runOnlyPendingTimers();
       d.refuse();
@@ -85,7 +85,7 @@ describe('dialing the driver', () => {
 
   it('starts fast again after a link that was up drops', () => {
     const d = dialer();
-    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
     for (let i = 0; i < 34; i++) {
       d.refuse();
       jest.runOnlyPendingTimers();
@@ -103,7 +103,7 @@ describe('hello', () => {
   it('names the agent release, which package.json and the driver agree on', () => {
     const d = dialer();
     const sent: string[] = [];
-    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket });
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
     const socket = d.sockets[0]! as { readyState: number; send: (data: string) => void };
     socket.readyState = 1;
     socket.send = (data) => sent.push(data);

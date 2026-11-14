@@ -18,6 +18,8 @@ export type ClientOptions = {
   port?: number;
   /** A per-machine secret the app presents in hello; the driver never transmits it. */
   token?: string;
+  /** Intentionally serve any peer without a token. Unsafe outside an isolated test environment. */
+  allowUnauthenticated?: boolean;
   /** Free-form description sent in `hello` (name, version, environment). */
   app?: Record<string, unknown>;
   /** The longest wait between dials. For 3 s after a link drops (or the app starts) it dials every 100 ms; then each wait doubles up to this. Default 1500. */
@@ -54,8 +56,8 @@ const openSocket = (url: string): Socket => new (globalThis as unknown as { WebS
 
 /** The app end of the link: dials the driver, retries quietly while nobody listens, serves requests. Returns a stop function. */
 export const start = (options: ClientOptions): (() => void) => {
-  // A token that was asked for and did not arrive must not turn into serving anyone who connects.
-  if ('token' in options && !options.token) {
+  // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
+  if (!options.token && options.allowUnauthenticated !== true) {
     console.warn(NO_TOKEN);
     return () => undefined;
   }
@@ -132,7 +134,7 @@ export const start = (options: ClientOptions): (() => void) => {
     const ws = (options.createSocket ?? openSocket)(`ws://${hosts[at]}:${options.port ?? 8123}`);
     socket = ws;
     let opened = false;
-    let authenticated = options.token === undefined;
+    let authenticated = options.token === undefined && options.allowUnauthenticated === true;
     // hello goes out on the driver's auth event, which always arrives first.
     ws.onopen = () => {
       opened = true;
