@@ -107,6 +107,27 @@ steps:
   assert.equal(calls.filter((x) => x.method === 'press').length, 1);
 });
 
+test('a wait accepts any of several targets', async () => {
+  const c = parseCase('---\nid: alternatives\n---\nsteps:\n  - app.wait: { anyOf: ["Goodbye", "Hello"] }\n', 'alternatives.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const waitFor = device.waitFor;
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return waitFor(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  const wait = calls.find((x) => x.method === 'waitFor');
+  assert.deepEqual(wait?.params, {
+    anyOf: [{ text: 'Goodbye' }, { text: 'Hello' }],
+    gone: undefined,
+    scroll: undefined,
+    timeoutMs: 10000,
+    since: undefined,
+  });
+});
+
 test('a press names its control by testId, and a type takes a deadline for its field', async () => {
   const c = parseCase('---\nid: named\n---\nsteps:\n  - app.press: { testId: refresh }\n  - app.type: { text: "x", timeoutMs: 200 }\n', 'named.md');
   const { base, calls } = fakeApp();

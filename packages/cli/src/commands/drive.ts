@@ -168,10 +168,11 @@ export const driveCommands = [
     mcp: 'core',
     mcpOmit: ['nth', 'since'],
     group: 'drive',
-    summary: 'Until a route or element appears (or leaves), or a number of ms',
-    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP} | 800 (ms)`, required: true }],
+    summary: 'Until a route or element appears (or leaves), any of several targets appears, or a number of ms',
+    positionals: [{ name: 'what', help: `Route | route:index | ${TARGET_HELP} | 800 (ms)` }],
     flags: {
       ...SCOPE_FLAGS,
+      anyOf: { type: 'list', help: 'accept any of these targets (repeatable)', value: 'target' },
       gone: { type: 'boolean', help: 'until it leaves the screen' },
       scroll: { type: 'boolean', help: 'scroll until it is in the window' },
       timeout: { type: 'number', help: 'give up after', default: 10000, value: 'ms' },
@@ -179,14 +180,17 @@ export const driveCommands = [
     },
     needs: 'app',
     run: async (ctx) => {
-      const raw = ctx.args[0]!;
-      if (/^\d+$/.test(raw)) {
+      const raw = ctx.args[0];
+      if (raw && /^\d+$/.test(raw)) {
         await new Promise((r) => setTimeout(r, Number(raw)));
         return { json: { waitedMs: Number(raw) } };
       }
+      const anyOf = (ctx.flags.anyOf as string[] | undefined)?.map((target) => scopedTarget(target, ctx.flags));
+      if (!raw && !anyOf?.length) throw new Error('wait needs a route, target, milliseconds, or --anyOf');
       return {
         json: await (await ctx.device()).waitFor({
-          ...(isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }),
+          ...(raw ? (isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }) : {}),
+          ...(anyOf?.length ? { anyOf } : {}),
           gone: ctx.flags.gone ? true : undefined,
           scroll: ctx.flags.scroll ? true : undefined,
           timeoutMs: ctx.flags.timeout as number,
