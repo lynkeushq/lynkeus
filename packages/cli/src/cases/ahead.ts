@@ -11,7 +11,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { Case } from './format.js';
+import { caseArtifactId, type Case } from './format.js';
 import type { Prepared } from './runner.js';
 
 // What a backend held a quarter of an hour ago may have moved on (a session, a rate).
@@ -59,7 +59,7 @@ export class Ahead implements Store {
   constructor(private readonly dir: string) {}
 
   #file(c: Case, suffix = '.json') {
-    return path.join(this.dir, `${c.id.replace(/[^\w.-]+/g, '_')}${suffix}`);
+    return path.join(this.dir, `${caseArtifactId(c.id)}${suffix}`);
   }
 
   clear(): void {

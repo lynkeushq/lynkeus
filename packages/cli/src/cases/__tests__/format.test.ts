@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { dig, interpolate, matcherOf, matches, parseCase, readCases } from '../format.js';
+import { caseArtifactId, dig, interpolate, matcherOf, matches, parseCase, readCases } from '../format.js';
 
 const CASE = `---
 id: gift
@@ -73,6 +73,15 @@ test('a case with a matrix runs once per combination, named after it', () => {
   );
   assert.deepEqual(cases[1]!.setup, []);
   assert.deepEqual(cases[1]!.steps[0]!.value, { locale: 'fr' });
+});
+
+test('case ids cannot escape artifact directories', () => {
+  const root = path.join(os.tmpdir(), 'seen');
+  for (const id of ['../escaped', '..\\escaped', '/tmp/absolute', 'nested/case']) {
+    const file = path.join(root, `${caseArtifactId(id)}.json`);
+    assert.equal(path.dirname(file), root);
+  }
+  assert.equal(caseArtifactId('m[locale=en,login=phone]'), 'm_locale=en_login=phone_');
 });
 
 test('a numbered comment opens a section of the steps, which every step after it falls under', () => {

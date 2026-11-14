@@ -84,6 +84,8 @@ export const sectionsOf = (body: string): (string | undefined)[] => {
   return sections;
 };
 
+export const caseArtifactId = (id: string) => id.replace(/[^\w.=-]+/g, '_');
+
 export const parseCase = (text: string, file: string): Case => {
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
   if (!match) throw new Error(`${file}: no frontmatter (a case starts with --- and its id)`);
