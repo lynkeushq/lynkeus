@@ -96,6 +96,21 @@ describe('request and response bodies', () => {
     });
   });
 
+  it('redacts nested secrets, malformed JSON and session headers', async () => {
+    const { redactBody, redactHeaders } = await import('../requests');
+    expect(JSON.parse(redactBody('{"token":{"value":"nested-secret"},"session":{"id":"session-secret"},"key":"key-secret"}')!)).toEqual({
+      token: '…',
+      session: '…',
+      key: '…',
+    });
+    expect(redactBody('{"token":"malformed-secret"')).toBe('[unparsed body redacted]');
+    expect(redactHeaders({ 'X-Session-Id': 'session-secret', 'X-JWT': 'jwt-secret', 'X-Credential': 'credential-secret' })).toEqual({
+      'x-session-id': '…',
+      'x-jwt': '…',
+      'x-credential': '…',
+    });
+  });
+
   it('records what an XHR sent and got only while bodies are asked for', () => {
     class FakeXhr {
       status = 0;

@@ -32,7 +32,10 @@ export const redactUrl = (url: string): string => url.replace(SENSITIVE, '$1=…
 // Bodies are kept only while a driver asks for them: a test run's report shows what was sent and answered.
 let keepBodies = false;
 const MOST = 16_000;
-const SECRET_KEY = /pass(word|code)?|^pin$|pin_?code|otp|^code$|token|secret|authorization|cookie|cvv|cvc|card_?number|pan$|ssn|api_?key/i;
+const SECRET_KEY =
+  /pass(word|code)?|^pin$|pin_?code|otp|^code$|token|secret|authorization|cookie|session|credential|jwt|signature|csrf|xsrf|cvv|cvc|card_?number|pan$|ssn|api_?key|^key$/i;
+const SECRET_TEXT =
+  /["']?(?:pass(?:word|code)?|pin(?:_?code)?|otp|code|token|secret|authorization|cookie|session|credential|jwt|signature|csrf|xsrf|cvv|cvc|card_?number|pan|ssn|api_?key|key)["']?\s*:\s*/i;
 
 /** The `networkBodies` command: `{ on }` keeps headers and bodies of the requests that follow. */
 export const setNetworkBodies = (params: unknown): { bodies: boolean } => {
@@ -42,8 +45,7 @@ export const setNetworkBodies = (params: unknown): { bodies: boolean } => {
 
 const redactValue = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(redactValue);
-  if (value && typeof value === 'object')
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) && v !== null && typeof v !== 'object' ? '…' : redactValue(v)]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, SECRET_KEY.test(k) ? '…' : redactValue(v)]));
   return value;
 };
 
@@ -54,6 +56,9 @@ export const redactBody = (body: unknown): (Exchange['body'] & {}) | undefined =
   try {
     return JSON.stringify(redactValue(JSON.parse(body)), null, 2);
   } catch {
+    // An unparsed body cannot be walked safely. Do not return malformed JSON or
+    // header-like text just because its secret has an unfamiliar shape.
+    if (SECRET_TEXT.test(body)) return '[unparsed body redacted]';
     return body.replace(SENSITIVE, '$1=…');
   }
 };
