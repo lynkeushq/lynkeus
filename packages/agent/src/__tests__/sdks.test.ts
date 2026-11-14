@@ -42,6 +42,15 @@ describe('analytics SDK calls', () => {
     ]);
   });
 
+  it('redacts secrets in analytics properties without changing the SDK call', () => {
+    const track = jest.fn(() => Promise.resolve());
+    const modules = { MixpanelReactNative: { track } };
+    expect(tapSdks(modules)).toBe(1);
+    (modules.MixpanelReactNative.track as (...a: unknown[]) => unknown)('token', 'Login', { session: { id: 'sdk-secret' }, safe: 'ok' });
+    expect(track).toHaveBeenCalledWith('token', 'Login', { session: { id: 'sdk-secret' }, safe: 'ok' });
+    expect(readSdkCalls({ take: true })).toEqual([{ sdk: 'mixpanel', name: 'Login', properties: { session: '…', safe: 'ok' } }]);
+  });
+
   it('leaves a module it cannot change alone', () => {
     const frozen = Object.freeze({ track: () => undefined });
     expect(tapSdks({ MixpanelReactNative: frozen })).toBe(0);

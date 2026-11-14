@@ -66,6 +66,27 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
 
 type Target = { url: string; key: string; fetch?: Fetch };
 
+const serviceBase = (url: string): string => {
+  const parsed = new URL(url);
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  if (parsed.protocol !== 'https:' && !loopback) throw new Error('the reports service must use HTTPS outside loopback');
+  if (parsed.username || parsed.password) throw new Error('the reports URL must not embed credentials');
+  return parsed.toString().replace(/\/+$/, '');
+};
+
+const insideRun = (dir: string, file: string): string => {
+  const root = path.resolve(dir);
+  const candidate = path.resolve(root, file);
+  if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) throw new Error(`file path escapes the run directory: ${file}`);
+  if (!fs.existsSync(candidate)) return candidate;
+  const realRoot = fs.realpathSync(root);
+  const realCandidate = fs.realpathSync(candidate);
+  if (realCandidate === realRoot || !realCandidate.startsWith(`${realRoot}${path.sep}`)) {
+    throw new Error(`file path escapes the run directory: ${file}`);
+  }
+  return realCandidate;
+};
+
 /**
  * What a run's upload sends besides its cases, shared by a push at the end and a report filled as the run goes:
  * a case's frames as one tar, its film on its own, each tried again on a dropped connection, a 5xx or a 429. A
@@ -74,10 +95,10 @@ type Target = { url: string; key: string; fetch?: Fetch };
 const uploader = (o: Target, id: string, dir: string) => {
   const call = o.fetch ?? fetch;
   const auth = { authorization: `Bearer ${o.key}` };
-  const base = o.url.replace(/\/+$/, '');
+  const base = serviceBase(o.url);
   const sendWithRetries = async (target: string, body: Uint8Array, doing: string): Promise<Response> => {
     for (let attempt = 1; ; attempt++) {
-      const response = await call(target, { method: 'PUT', headers: auth, body }).catch((error: unknown) => {
+      const response = await call(target, { method: 'PUT', headers: auth, body, redirect: 'manual' }).catch((error: unknown) => {
         if (attempt >= UPLOAD_ATTEMPTS) throw new Error(`${doing}: ${error instanceof Error ? error.message : String(error)}`);
         return undefined;
       });
@@ -88,7 +109,7 @@ const uploader = (o: Target, id: string, dir: string) => {
   const done = { files: 0, refused: [] as string[] };
   const sendFile = async (file: string) => {
     const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
-    const response = await sendWithRetries(target, fs.readFileSync(path.join(dir, file)), `sending ${file}`);
+    const response = await sendWithRetries(target, fs.readFileSync(insideRun(dir, file)), `sending ${file}`);
     if (response.status === 402) done.refused.push(file);
     else {
       await answer(response, `sending ${file}`);
@@ -103,7 +124,7 @@ const uploader = (o: Target, id: string, dir: string) => {
     if (bundles && fits.length > 0) {
       const response = await sendWithRetries(
         `${base}/v1/runs/${id}/bundle`,
-        tarOf(fits.map((f) => [f, fs.readFileSync(path.join(dir, f))])),
+        tarOf(fits.map((f) => [f, fs.readFileSync(insideRun(dir, f))])),
         `sending ${fits.length} frames`,
       );
       if (response.status === 404 || response.status === 405) bundles = false;
@@ -118,8 +139,8 @@ const uploader = (o: Target, id: string, dir: string) => {
   };
   /** What a case's line names that is on disk: its frames, once each, and its film. */
   const filesOf = (c: { video?: string; steps?: { screenshot?: string }[] }) => {
-    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(path.join(dir, p)));
-    const film = c.video && fs.existsSync(path.join(dir, c.video)) ? c.video : undefined;
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(insideRun(dir, p)));
+    const film = c.video && fs.existsSync(insideRun(dir, c.video)) ? c.video : undefined;
     return { frames: [...new Set(frames)], ...(film ? { film } : {}) };
   };
   const sendCase = async (c: { frames: string[]; film?: string }) => {
@@ -132,12 +153,13 @@ const uploader = (o: Target, id: string, dir: string) => {
     return sent.part !== undefined;
   };
   const sendWhole = async (text: string) =>
-    answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: text }), 'sending its cases');
+    answer(await call(`${base}/v1/runs/${id}/cases`, { method: 'PUT', headers: auth, body: text, redirect: 'manual' }), 'sending its cases');
   /** The run closed, with its manifest as it ended (a service from before reads none and keeps the first). */
   const finish = async (manifest?: unknown) =>
     answer(
       await call(`${base}/v1/runs/${id}/finish`, {
         method: 'POST',
+        redirect: 'manual',
         headers: manifest ? { ...auth, 'content-type': 'application/json' } : auth,
         ...(manifest ? { body: JSON.stringify({ run: manifest }) } : {}),
       }),
@@ -148,8 +170,9 @@ const uploader = (o: Target, id: string, dir: string) => {
 
 const createRun = async (o: Target & { project: string }, run: unknown, live?: { planned: number }) =>
   answer(
-    await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}/v1/runs`, {
+    await (o.fetch ?? fetch)(`${serviceBase(o.url)}/v1/runs`, {
       method: 'POST',
+      redirect: 'manual',
       headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json' },
       body: JSON.stringify({ project: o.project, run, ...(live ? { live: true, planned: live.planned } : {}) }),
     }),
@@ -199,7 +222,7 @@ export const pushRun = async (
   let bytes = 0;
   const started = Date.now();
   const sizeOf = (c: { frames: string[]; film?: string }) =>
-    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(path.join(dir, f)).size, 0);
+    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(insideRun(dir, f)).size, 0);
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
       for (let c = queue.shift(); c !== undefined; c = queue.shift()) {
@@ -278,7 +301,7 @@ export const startLiveRun = async (dir: string, o: Target & { project: string; p
 type Service = Target;
 
 const ask = async (o: Service, method: string, route: string, doing: string) =>
-  answer(await (o.fetch ?? fetch)(`${o.url.replace(/\/+$/, '')}${route}`, { method, headers: { authorization: `Bearer ${o.key}` } }), doing);
+  answer(await (o.fetch ?? fetch)(`${serviceBase(o.url)}${route}`, { method, redirect: 'manual', headers: { authorization: `Bearer ${o.key}` } }), doing);
 
 export type ListedRun = { project: string; platform: string | null; totals: Record<string, number>; createdAt: string; url: string };
 

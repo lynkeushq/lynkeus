@@ -6,6 +6,14 @@ describe('redactUrl', () => {
   it('keeps the shape of a query string but hides secrets', () => {
     expect(redactUrl('https://api/x?page=2&token=abc&otp=123456#f')).toBe('https://api/x?page=2&token=…&otp=…#f');
   });
+
+  it('redacts userinfo, encoded query keys and fragment credentials', () => {
+    expect(redactUrl('https://user:pass@api/x?%74%6F%6B%65%6E=query-secret&session=session-secret#access_token=fragment-secret')).toBe(
+      'https://…:…@api/x?token=…&session=…#access_token=…',
+    );
+    expect(redactUrl('https://api/x?token%3Dencoded-secret')).not.toContain('encoded-secret');
+    expect(redactUrl('/x?token%3Drelative-secret')).toBe('/x?token=…');
+  });
 });
 
 describe('the trace context', () => {
@@ -93,6 +101,21 @@ describe('request and response bodies', () => {
       authorization: '…',
       'content-type': 'application/json',
       'x-api-key': '…',
+    });
+  });
+
+  it('redacts nested secrets, malformed JSON and session headers', async () => {
+    const { redactBody, redactHeaders } = await import('../requests');
+    expect(JSON.parse(redactBody('{"token":{"value":"nested-secret"},"session":{"id":"session-secret"},"key":"key-secret"}')!)).toEqual({
+      token: '…',
+      session: '…',
+      key: '…',
+    });
+    expect(redactBody('{"token":"malformed-secret"')).toBe('[unparsed body redacted]');
+    expect(redactHeaders({ 'X-Session-Id': 'session-secret', 'X-JWT': 'jwt-secret', 'X-Credential': 'credential-secret' })).toEqual({
+      'x-session-id': '…',
+      'x-jwt': '…',
+      'x-credential': '…',
     });
   });
 

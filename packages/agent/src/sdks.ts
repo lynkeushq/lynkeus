@@ -1,3 +1,5 @@
+import { redactValue } from './redact';
+
 // What the app tells its analytics, crash and support SDKs, on any host: a simulator, an emulator or a phone. The SDKs' JavaScript
 // calls their native modules; each call is kept here and goes on to the SDK as it would have. fastsim and the
 // headless host record the same calls in their stand-ins for those modules; the `analytics` command reads them
@@ -13,7 +15,7 @@ const note = (sdk: string, name: unknown, properties?: unknown) => {
   sent.push({
     sdk,
     name,
-    ...(properties && typeof properties === 'object' && !Array.isArray(properties) ? { properties: properties as Record<string, unknown> } : {}),
+    ...(properties && typeof properties === 'object' && !Array.isArray(properties) ? { properties: redactValue(properties) as Record<string, unknown> } : {}),
   });
   if (sent.length > KEEP) sent.shift();
 };

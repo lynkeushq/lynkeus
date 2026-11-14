@@ -66,6 +66,16 @@ describe('what every app exposes without writing a command', () => {
     expect(change.changed.note?.to).toBe(`${'x'.repeat(80)}…`);
   });
 
+  it('redacts event properties and store state before they reach a report', async () => {
+    qa.event('login', { token: { value: 'event-secret' }, safe: 'ok' });
+    const events = (await dispatch(handlers, 'events', { clear: true })) as { props?: Record<string, unknown> }[];
+    expect(events[0]?.props).toEqual({ token: '…', safe: 'ok' });
+    const session = storeOf({ session: { id: 'store-secret' }, safe: 1 });
+    const stop = qa.observe('secrets', session);
+    expect(await dispatch(handlers, 'stores', { name: 'secrets' })).toEqual({ session: '…', safe: 1 });
+    stop();
+  });
+
   it('an app that keeps its own events can still register over the default', async () => {
     const off = qa.register('events', () => ['from the app']);
     expect(await dispatch(handlers, 'events', undefined)).toEqual(['from the app']);

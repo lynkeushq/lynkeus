@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createServer, type RequestListener, type Server } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -20,6 +21,18 @@ const runDir = () => {
   fs.writeFileSync(path.join(dir, 'home/01-app-login.png'), 'png');
   fs.writeFileSync(path.join(dir, 'home/video.mp4'), 'film');
   return dir;
+};
+
+const localService = async (handler: RequestListener) => {
+  const server = createServer(handler);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('no port');
+  return { server, url: `http://127.0.0.1:${address.port}` };
+};
+
+const closeService = async (server: Server) => {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
 };
 
 // A service on the Free plan: it keeps frames and refuses films.
@@ -49,6 +62,114 @@ test('a run goes up as its run file, its cases and the files they name, and a fi
     ['POST /v1/runs', 'PUT /v1/runs/r1/cases', 'POST /v1/runs/r1/finish', 'PUT /v1/runs/r1/bundle', 'PUT /v1/runs/r1/files/home/video.mp4'],
   );
   assert.ok(asked.every((a) => a.auth === 'Bearer lk_1'));
+});
+
+test('a case cannot read a file outside its run directory', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), 'lynkeus-upload-secret.txt');
+  fs.writeFileSync(secret, 'top-secret');
+  const escaped = path.relative(dir, secret);
+  const line = { id: 'home', result: 'passed', steps: [{ step: 'app.login', screenshot: escaped }] };
+  fs.writeFileSync(path.join(dir, 'cases.jsonl'), `${JSON.stringify(line)}\n`);
+  const { fake } = freeService();
+  await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /escapes the run directory/);
+  fs.unlinkSync(secret);
+});
+
+test('a case cannot upload a symlink that points outside its run directory', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), `lynkeus-upload-symlink-${process.pid}.txt`);
+  fs.writeFileSync(secret, 'top-secret-from-symlink');
+  fs.unlinkSync(path.join(dir, 'home/01-app-login.png'));
+  fs.symlinkSync(secret, path.join(dir, 'home/01-app-login.png'));
+  const uploaded: Uint8Array[] = [];
+  const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    if (init?.body instanceof Uint8Array) uploaded.push(init.body);
+    const url = new URL(String(input));
+    if (url.pathname === '/v1/runs') return new Response(JSON.stringify({ id: 'r1' }), { status: 201 });
+    if (url.pathname.endsWith('/finish')) return new Response(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    return new Response('{}');
+  }) as typeof fetch;
+  try {
+    await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /escapes the run directory/);
+    assert.ok(!uploaded.some((body) => Buffer.from(body).includes('top-secret-from-symlink')));
+  } finally {
+    fs.unlinkSync(secret);
+  }
+});
+
+test('report uploads require HTTPS outside loopback', async () => {
+  await assert.rejects(pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /HTTPS/);
+});
+
+test('a report service redirect is not followed to another host', async () => {
+  let calls = 0;
+  const fake = (async () => {
+    calls += 1;
+    return new Response(null, { status: 302, headers: { location: 'https://evil.test/' } });
+  }) as typeof fetch;
+  await assert.rejects(pushRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /creating the run/);
+  assert.equal(calls, 1);
+});
+
+test('a legacy whole-case upload is not redirected with its report data', async () => {
+  const received: string[] = [];
+  const capture = await localService((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      received.push(body);
+      res.end('{}');
+    });
+  });
+  const service = await localService((req, res) => {
+    if (req.url === '/v1/runs') {
+      res.writeHead(201).end(JSON.stringify({ id: 'r1' }));
+    } else if (req.url?.startsWith('/v1/runs/r1/cases?part=')) {
+      res.end(JSON.stringify({ cases: 1 }));
+    } else if (req.url === '/v1/runs/r1/cases') {
+      res.writeHead(307, { location: `${capture.url}/stolen` }).end();
+    } else if (req.url?.endsWith('/finish')) {
+      res.end(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+    } else {
+      res.end('{}');
+    }
+  });
+  try {
+    await assert.rejects(pushRun(runDir(), { url: service.url, key: 'lk_1', project: 'x' }), /sending its cases:.*307/);
+    assert.ok(!received.some((body) => body.includes('"id":"home"')));
+  } finally {
+    await closeService(service.server);
+    await closeService(capture.server);
+  }
+});
+
+test('finishing a run is not redirected to another service', async () => {
+  let captured = 0;
+  const capture = await localService((_req, res) => {
+    captured += 1;
+    res.end(JSON.stringify({ url: 'https://reports.test/r/abc' }));
+  });
+  const service = await localService((req, res) => {
+    if (req.url === '/v1/runs') {
+      res.writeHead(201).end(JSON.stringify({ id: 'r1' }));
+    } else if (req.url?.startsWith('/v1/runs/r1/cases?part=')) {
+      res.end(JSON.stringify({ cases: 1, part: 0 }));
+    } else if (req.url?.endsWith('/finish')) {
+      res.writeHead(307, { location: `${capture.url}/stolen` }).end();
+    } else {
+      res.end('{}');
+    }
+  });
+  try {
+    await assert.rejects(pushRun(runDir(), { url: service.url, key: 'lk_1', project: 'x' }), /finishing the run:.*307/);
+    assert.equal(captured, 0);
+  } finally {
+    await closeService(service.server);
+    await closeService(capture.server);
+  }
 });
 
 test('a case’s frames go as one tar, and one by one to a service from before bundles', async () => {
