@@ -8,7 +8,9 @@ const KEEP = 200;
  * headless host's network fence, a host's own netmock): such a request is the case's doing, not the backend's.
  */
 export const MOCKED_HEADER = 'x-lynkeus-mocked';
-const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)=[^&#]*/gi;
+const SENSITIVE = /(token|key|secret|code|otp|password|pin|session|auth)(=|%3d)[^&#]*/gi;
+const SENSITIVE_QUERY = /token|key|secret|code|otp|password|pin|session|auth|credential|jwt|signature|csrf|xsrf/i;
+const REDACTED = '__lynkeus_redacted__';
 
 const records: RequestRecord[] = [];
 // The test step a driver is running, as W3C trace context: a backend that traces files what it did under it.
@@ -27,7 +29,25 @@ let inFlight = 0;
 let installed = false;
 
 // Query strings are kept for their shape (page, filters), never for secrets.
-export const redactUrl = (url: string): string => url.replace(SENSITIVE, '$1=…');
+export const redactUrl = (input: string): string => {
+  try {
+    const url = new URL(input);
+    for (const key of [...url.searchParams.keys()]) {
+      if (!SENSITIVE_QUERY.test(key)) continue;
+      // An encoded '=' becomes part of the decoded key, so remove that whole
+      // parameter instead of retaining a secret inside its name.
+      if (key.includes('=')) url.searchParams.delete(key);
+      else url.searchParams.set(key, REDACTED);
+    }
+    const serialized =
+      url.username || url.password
+        ? `${url.protocol}//${REDACTED}${url.password ? `:${REDACTED}` : ''}@${url.host}${url.pathname}${url.search}${url.hash}`
+        : url.toString();
+    return serialized.replaceAll(REDACTED, '…').replace(SENSITIVE, '$1=…');
+  } catch {
+    return input.replace(SENSITIVE, '$1=…');
+  }
+};
 
 // Bodies are kept only while a driver asks for them: a test run's report shows what was sent and answered.
 let keepBodies = false;
