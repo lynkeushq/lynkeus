@@ -3,6 +3,7 @@ import { WebSocket } from 'ws';
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '10.0.2.2']);
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 const REQUEST_MAX = 1024 * 1024;
+const FRAME_MAX_CHARS = Math.ceil((REQUEST_MAX * 4) / 3) + 64 * 1024;
 const RESPONSE_MAX = 8 * 1024 * 1024;
 const AT_ONCE = 8;
 const TIMEOUT_MS = 30_000;
@@ -110,7 +111,7 @@ export class RelayClient {
     socket.on('message', (data, isBinary) => {
       if (isBinary) return;
       const text = String(data);
-      if (text.length > REQUEST_MAX + 64 * 1024) {
+      if (text.length > FRAME_MAX_CHARS) {
         try {
           const oversized = JSON.parse(text) as { id?: unknown };
           if (typeof oversized.id === 'string') this.#send(relayError(oversized.id, 413, 'the relay request exceeds 1 MB'));

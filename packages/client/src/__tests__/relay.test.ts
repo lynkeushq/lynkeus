@@ -68,6 +68,11 @@ test('a relay forwards only allowed requests to the loopback backend', async () 
     app.send(JSON.stringify({ id: 'five', method: 'GET', path: '/api/mobile/v3/large', headers: {} }));
     assert.equal((await large).status, 413);
     assert.equal(backendHits, 2);
+
+    const valid = next(app);
+    app.send(JSON.stringify({ id: 'six', method: 'POST', path: '/api/mobile/v3/upload', headers: {}, body: Buffer.alloc(900 * 1024).toString('base64') }));
+    assert.equal((await valid).status, 200);
+    assert.equal(backendHits, 3);
   } finally {
     client.close();
     await client.finished;
@@ -80,5 +85,8 @@ test('the relay refuses non-loopback backends and malformed tokens', () => {
   assert.throws(() => relayBackend('https://example.test'), /loopback/);
   assert.throws(() => relayBackend('http://user:pass@127.0.0.1'), /credentials/);
   assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: 'short', backend: 'http://127.0.0.1' }), /token/);
-  assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1', prefix: '/admin' }), /prefix/);
+  assert.throws(
+    () => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1', prefix: '/admin' }),
+    /prefix/,
+  );
 });
