@@ -227,6 +227,27 @@ test('a case’s frames go as one tar, and one by one to a service from before b
   assert.equal(Buffer.from(tar.subarray(512, 515)).toString(), 'png');
 });
 
+test('frame bundles stay below the service byte limit', async () => {
+  const dir = runDir();
+  const screenshots = Array.from({ length: 4 }, (_, n) => {
+    const file = `home/frame-${n}.png`;
+    fs.writeFileSync(path.join(dir, file), '');
+    fs.truncateSync(path.join(dir, file), 20 * 1024 * 1024);
+    return { step: `step-${n}`, screenshot: file };
+  });
+  fs.writeFileSync(path.join(dir, 'cases.jsonl'), `${JSON.stringify({ id: 'home', result: 'passed', steps: screenshots })}\n`);
+  const { fake: service } = freeService();
+  const sizes: number[] = [];
+  const fake = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith('/bundle') && init?.body instanceof Uint8Array) sizes.push(init.body.byteLength);
+    return service(input, init);
+  }) as typeof fetch;
+  await pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake });
+  assert.equal(sizes.length, 2);
+  assert.ok(sizes.every((size) => size <= 64 * 1024 * 1024));
+});
+
 test('a refusal from the service comes back as what it said', async () => {
   const fake = (async () => new Response(JSON.stringify({ error: 'run schema 2 is not one this service reads (1)' }), { status: 422 })) as typeof fetch;
   await assert.rejects(pushRun(runDir(), { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: fake }), /creating the run: run schema 2/);

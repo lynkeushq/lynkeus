@@ -159,21 +159,38 @@ const uploader = (o: Target, id: string, dir: string) => {
   let bundles = true;
   const sendFrames = async (frames: string[]) => {
     const fits = frames.filter(fitsTar);
-    if (bundles && fits.length > 0) {
-      const response = await sendWithRetries(
-        `${base}/v1/runs/${id}/bundle`,
-        tarOf(fits.map((f) => [f, readInsideRun(dir, f)])),
-        `sending ${fits.length} frames`,
-      );
-      if (response.status === 404 || response.status === 405) bundles = false;
+    const groups: { files: string[]; bytes: number }[] = [];
+    for (const file of fits) {
+      const size = statInsideRun(dir, file).size;
+      const entry = 512 + Math.ceil(size / 512) * 512;
+      const current = groups.at(-1);
+      if (!current || current.bytes + entry > 64 * 1024 * 1024) groups.push({ files: [file], bytes: 1024 + entry });
       else {
-        await answer(response, `sending ${fits.length} frames`);
-        done.files += fits.length;
-        for (const f of frames.filter((f) => !fitsTar(f))) await sendFile(f);
-        return;
+        current.files.push(file);
+        current.bytes += entry;
       }
     }
-    for (const f of frames) await sendFile(f);
+    for (const group of groups) {
+      if (group.bytes > 64 * 1024 * 1024) {
+        for (const file of group.files) await sendFile(file);
+        continue;
+      }
+      if (bundles) {
+        const response = await sendWithRetries(
+          `${base}/v1/runs/${id}/bundle`,
+          tarOf(group.files.map((f) => [f, readInsideRun(dir, f)])),
+          `sending ${group.files.length} frames`,
+        );
+        if (response.status === 404 || response.status === 405) bundles = false;
+        else {
+          await answer(response, `sending ${group.files.length} frames`);
+          done.files += group.files.length;
+          continue;
+        }
+      }
+      for (const file of group.files) await sendFile(file);
+    }
+    for (const file of frames.filter((f) => !fitsTar(f))) await sendFile(file);
   };
   /** What a case's line names that is on disk: its frames, once each, and its film. */
   const filesOf = (c: { video?: string; steps?: { screenshot?: string }[] }) => {
