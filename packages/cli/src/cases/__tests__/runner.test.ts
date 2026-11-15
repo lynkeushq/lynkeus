@@ -557,6 +557,18 @@ test('a setup that drives the app is not made ahead', () => {
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
 });
 
+test('a request match tolerates the trailing slash added by Android HTTP stacks', async () => {
+  const c = parseCase('---\nid: slash\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "POST /api/points", status: 422, timeoutMs: 100 }\n', 'slash.md');
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { press: () => Promise<unknown> }).press = async () => {
+    requests.push({ id: requests.length + 1, method: 'POST', url: 'http://x/api/points/?', status: 422, startedAt: 0, mocked: true });
+    return { x: 0, y: 0, mode: 'native' };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(report.steps.map((s) => s.status), ['passed', 'passed']);
+});
+
 test('a step waits only for requests started after the action before it began', async () => {
   const c = parseCase(
     '---\nid: req\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "GET /api/points", timeoutMs: 400 }\n  - app.press: "#refresh"\n  - app.see: { request: "POST /api/points", timeoutMs: 200 }\n',

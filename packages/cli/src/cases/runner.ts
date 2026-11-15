@@ -307,7 +307,9 @@ const requestMatches = (event: RequestRecord, wanted: string, status?: number): 
     pathname = event.url.split('?')[0]!;
   }
   if (method !== '*' && event.method.toUpperCase() !== method!.toUpperCase()) return false;
-  if (!pathname.endsWith(route!)) return false;
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const normalizedRoute = route!.replace(/\/+$/, '') || '/';
+  if (!normalizedPath.endsWith(normalizedRoute)) return false;
   return status === undefined ? true : event.status === status;
 };
 
