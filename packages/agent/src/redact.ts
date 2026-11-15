@@ -7,7 +7,7 @@ const SECRET_TEXT =
 
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
 const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
-const PATH_KEYS = new Set(['token', 'tokens', 'key', 'keys', 'secret', 'secrets', 'code', 'codes', 'otp', 'password', 'password-reset', 'reset-password', 'pin', 'session', 'sessions', 'credential', 'credentials', 'jwt', 'signature', 'csrf', 'xsrf']);
+const PATH_KEYS = new Set(['token', 'key', 'keys', 'secret', 'secrets', 'code', 'codes', 'otp', 'password', 'password-reset', 'reset-password', 'pin', 'session', 'sessions', 'credential', 'credentials', 'jwt', 'signature', 'csrf', 'xsrf']);
 const redactPathSecrets = (value: string): string =>
   value
     .split('/')
