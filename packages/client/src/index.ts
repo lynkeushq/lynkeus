@@ -125,15 +125,20 @@ export class AgentServer extends EventEmitter {
   async call<T = unknown>(method: string, params?: unknown, timeoutMs?: number): Promise<T>;
   // The deadline keeps running across a reconnect: a resent request gets only the time that is left.
   async call(method: string, params?: unknown, timeoutMs = 20_000): Promise<unknown> {
-    const socket = this.#socket;
-    if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
+    const deadline = Date.now() + timeoutMs;
+    let socket = this.#socket;
+    if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) {
+      await this.waitForApp(timeoutMs);
+      socket = this.#socket;
+      if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
+    }
     const id = this.#nextId++;
     const request = JSON.stringify({ id, method, params });
     const result = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id);
         reject(new AgentError(`${method} timed out after ${timeoutMs}ms`, 'timeout'));
-      }, timeoutMs);
+      }, Math.max(1, deadline - Date.now()));
       this.#pending.set(id, { resolve, reject, timer, request });
     });
     socket.send(request);

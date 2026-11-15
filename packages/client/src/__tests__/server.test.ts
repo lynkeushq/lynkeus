@@ -64,10 +64,19 @@ test('a call the app never answers times out with the timeout code', async () =>
   app.socket.close();
 });
 
-test('with no app attached, waiting says so and a call refuses at once', async () => {
+test('with no app attached, waiting and a call use their timeout', async () => {
   const server = await serve();
   await assert.rejects(server.waitForApp(50), /No app attached/);
-  await assert.rejects(server.call('ping'), /No app attached/);
+  await assert.rejects(server.call('ping', undefined, 50), /No app attached/);
+});
+
+test('a call made before the app reconnects waits and uses the new socket', async () => {
+  const server = await serve();
+  const pending = server.call('ping', undefined, 2000);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  const app = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await pending, { pong: true });
+  app.socket.close();
 });
 
 test('a call in flight when the app drops is resent to the app that comes back', async () => {
