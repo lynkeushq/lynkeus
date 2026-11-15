@@ -8,6 +8,8 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import type { AgentEvent, CoreMethods, HelloEvent, Response } from 'lynkeus-protocol';
 
+export { RelayClient, relayBackend } from './relay.js';
+
 export type { AgentEvent, CoreMethods, Element, HelloEvent, Screen, Target, RequestRecord } from 'lynkeus-protocol';
 
 export type AgentServerOptions = {
