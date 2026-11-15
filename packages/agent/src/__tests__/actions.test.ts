@@ -76,6 +76,22 @@ describe('navigating right after a launch', () => {
   });
 });
 
+describe('waiting for an enabled control', () => {
+  it('does not return while the target is present but disabled', async () => {
+    const target = element({ testId: 'next', enabled: false });
+    const { backend } = fakeBackend([target]);
+    let enabled = false;
+    backend.snapshot = () => ({ elements: [{ ...target, enabled }] });
+    setTimeout(() => {
+      enabled = true;
+    }, 120);
+    const handlers = createHandlers(noNavigation, backend);
+
+    await dispatch(handlers, 'waitFor', { target: { testId: 'next' }, enabled: true, timeoutMs: 500 });
+    expect(enabled).toBe(true);
+  });
+});
+
 describe('typing into a field the keyboard moves', () => {
   it('types once the field has landed', async () => {
     let pressedAt: number | undefined;

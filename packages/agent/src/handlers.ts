@@ -309,9 +309,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const routeOk = params.route === undefined || route === params.route;
       const all = params.target || params.anyOf ? elements() : [];
       const found = params.target ? pick(all, params.target) : undefined;
-      const present = params.target ? found !== undefined && !(params.scroll && !inWindow(found)) : true;
+      const stateOk = (element: Element | undefined) => element !== undefined && (params.enabled === undefined || element.enabled === params.enabled);
+      const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
       const targetOk = params.gone ? !present : present;
-      const matched = params.anyOf?.find((t) => pick(all, t) !== undefined);
+      const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
       if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
       if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {

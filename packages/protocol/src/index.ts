@@ -94,6 +94,8 @@ export type WaitForParams = {
   /** Satisfied by whichever of these shows up first. */
   anyOf?: Target[];
   gone?: boolean;
+  /** Require the target's enabled state, rather than only its presence (with `gone`, wait for that state to disappear). */
+  enabled?: boolean;
   /** Swipe the nearest scrolling container towards the target until it is in the window. */
   scroll?: boolean;
   timeoutMs?: number;
