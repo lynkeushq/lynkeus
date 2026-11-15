@@ -74,17 +74,55 @@ const serviceBase = (url: string): string => {
   return parsed.toString().replace(/\/+$/, '');
 };
 
-const insideRun = (dir: string, file: string): string => {
-  const root = path.resolve(dir);
-  const candidate = path.resolve(root, file);
-  if (candidate === root || !candidate.startsWith(`${root}${path.sep}`)) throw new Error(`file path escapes the run directory: ${file}`);
-  if (!fs.existsSync(candidate)) return candidate;
-  const realRoot = fs.realpathSync(root);
-  const realCandidate = fs.realpathSync(candidate);
-  if (realCandidate === realRoot || !realCandidate.startsWith(`${realRoot}${path.sep}`)) {
-    throw new Error(`file path escapes the run directory: ${file}`);
+const openInsideRun = (dir: string, file: string): number => {
+  const realRoot = fs.realpathSync(dir);
+  const candidate = path.resolve(realRoot, file);
+  if (candidate === realRoot || !candidate.startsWith(`${realRoot}${path.sep}`)) throw new Error(`file path escapes the run directory: ${file}`);
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(candidate, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const resolved = fs.realpathSync(candidate);
+    if (resolved === realRoot || !resolved.startsWith(`${realRoot}${path.sep}`) || !fs.statSync(resolved).isFile()) {
+      throw new Error(`file path escapes the run directory: ${file}`);
+    }
+    const opened = fs.fstatSync(fd);
+    const current = fs.statSync(resolved);
+    if (opened.dev !== current.dev || opened.ino !== current.ino) throw new Error(`file path escapes the run directory: ${file}`);
+    return fd;
+  } catch (error) {
+    if (fd !== undefined) fs.closeSync(fd);
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw error;
+    throw new Error(`file path escapes the run directory: ${file}`, { cause: error });
   }
-  return realCandidate;
+};
+
+const readInsideRun = (dir: string, file: string): Buffer => {
+  const fd = openInsideRun(dir, file);
+  try {
+    return fs.readFileSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+};
+
+const existsInsideRun = (dir: string, file: string): boolean => {
+  try {
+    const fd = openInsideRun(dir, file);
+    fs.closeSync(fd);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+};
+
+const statInsideRun = (dir: string, file: string): fs.Stats => {
+  const fd = openInsideRun(dir, file);
+  try {
+    return fs.fstatSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
 };
 
 /**
@@ -109,7 +147,7 @@ const uploader = (o: Target, id: string, dir: string) => {
   const done = { files: 0, refused: [] as string[] };
   const sendFile = async (file: string) => {
     const target = `${base}/v1/runs/${id}/files/${file.split('/').map(encodeURIComponent).join('/')}`;
-    const response = await sendWithRetries(target, fs.readFileSync(insideRun(dir, file)), `sending ${file}`);
+    const response = await sendWithRetries(target, readInsideRun(dir, file), `sending ${file}`);
     if (response.status === 402) done.refused.push(file);
     else {
       await answer(response, `sending ${file}`);
@@ -124,7 +162,7 @@ const uploader = (o: Target, id: string, dir: string) => {
     if (bundles && fits.length > 0) {
       const response = await sendWithRetries(
         `${base}/v1/runs/${id}/bundle`,
-        tarOf(fits.map((f) => [f, fs.readFileSync(insideRun(dir, f))])),
+        tarOf(fits.map((f) => [f, readInsideRun(dir, f)])),
         `sending ${fits.length} frames`,
       );
       if (response.status === 404 || response.status === 405) bundles = false;
@@ -139,8 +177,8 @@ const uploader = (o: Target, id: string, dir: string) => {
   };
   /** What a case's line names that is on disk: its frames, once each, and its film. */
   const filesOf = (c: { video?: string; steps?: { screenshot?: string }[] }) => {
-    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && fs.existsSync(insideRun(dir, p)));
-    const film = c.video && fs.existsSync(insideRun(dir, c.video)) ? c.video : undefined;
+    const frames = (c.steps ?? []).map((s) => s.screenshot).filter((p): p is string => !!p && existsInsideRun(dir, p));
+    const film = c.video && existsInsideRun(dir, c.video) ? c.video : undefined;
     return { frames: [...new Set(frames)], ...(film ? { film } : {}) };
   };
   const sendCase = async (c: { frames: string[]; film?: string }) => {
@@ -221,8 +259,7 @@ export const pushRun = async (
   let sent = 0;
   let bytes = 0;
   const started = Date.now();
-  const sizeOf = (c: { frames: string[]; film?: string }) =>
-    [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + fs.statSync(insideRun(dir, f)).size, 0);
+  const sizeOf = (c: { frames: string[]; film?: string }) => [...c.frames, ...(c.film ? [c.film] : [])].reduce((n, f) => n + statInsideRun(dir, f).size, 0);
   await Promise.all(
     Array.from({ length: Math.min(UPLOADS_AT_ONCE, queue.length) }, async () => {
       for (let c = queue.shift(); c !== undefined; c = queue.shift()) {

@@ -98,6 +98,26 @@ test('a case cannot upload a symlink that points outside its run directory', asy
   }
 });
 
+test('a symlink swapped after realpath validation cannot leak a file', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), `lynkeus-race-secret-${process.pid}.txt`);
+  fs.writeFileSync(secret, 'top-secret-from-race');
+  const originalOpen = fs.openSync;
+  fs.openSync = ((target: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    if (String(target).endsWith('01-app-login.png')) {
+      fs.unlinkSync(target);
+      fs.symlinkSync(secret, target);
+    }
+    return originalOpen(target, flags, mode);
+  }) as typeof fs.openSync;
+  try {
+    await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /escapes the run directory/);
+  } finally {
+    fs.openSync = originalOpen;
+    fs.unlinkSync(secret);
+  }
+});
+
 test('report uploads require HTTPS outside loopback', async () => {
   await assert.rejects(pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /HTTPS/);
 });
