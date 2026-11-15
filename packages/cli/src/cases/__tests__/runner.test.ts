@@ -557,6 +557,20 @@ test('a setup that drives the app is not made ahead', () => {
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
 });
 
+test('a wait accepts anyOf targets through the device protocol', async () => {
+  const c = parseCase('---\nid: any\n---\nsteps:\n  - app.wait: { anyOf: [{ testId: open }, { testId: closed }], timeoutMs: 100 }\n', 'any.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  let asked: unknown;
+  (device as unknown as { waitFor: (params: unknown) => Promise<unknown> }).waitFor = async (params) => {
+    asked = params;
+    return { waitedMs: 0 };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.steps[0]!.status, 'passed');
+  assert.deepEqual(asked, { anyOf: [{ testId: 'open' }, { testId: 'closed' }], gone: undefined, scroll: undefined, timeoutMs: 100 });
+});
+
 test('a request match tolerates the trailing slash added by Android HTTP stacks', async () => {
   const c = parseCase('---\nid: slash\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "POST /api/points", status: 422, timeoutMs: 100 }\n', 'slash.md');
   const { base, requests } = fakeApp();

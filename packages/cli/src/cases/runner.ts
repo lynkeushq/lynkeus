@@ -805,7 +805,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         else if (params?.request) await waitForRequest(params);
         else {
           const what = typeof value === 'string' ? value : String(params?.what ?? '');
-          const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
+          if (params && typeof params === 'object' && !Array.isArray(params) && 'anyOf' in params) {
+          await d.waitFor({
+            anyOf: params.anyOf as Target[],
+            gone: params.gone === true ? true : undefined,
+            scroll: params.scroll === true ? true : undefined,
+            timeoutMs: typeof params.timeoutMs === 'number' ? params.timeoutMs : undefined,
+          });
+          return undefined;
+        }
+        const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
             const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
