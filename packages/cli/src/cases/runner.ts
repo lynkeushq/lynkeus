@@ -807,7 +807,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           const what = typeof value === 'string' ? value : String(params?.what ?? '');
           if (params && typeof params === 'object' && !Array.isArray(params) && 'anyOf' in params) {
           await d.waitFor({
-            anyOf: params.anyOf as Target[],
+            anyOf: (params.anyOf as (string | Target)[]).map((target) => (typeof target === 'string' ? parseTarget(target) : target)),
             gone: params.gone === true ? true : undefined,
             scroll: params.scroll === true ? true : undefined,
             timeoutMs: typeof params.timeoutMs === 'number' ? params.timeoutMs : undefined,
