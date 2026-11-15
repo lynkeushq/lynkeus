@@ -26,6 +26,9 @@ describe('redactUrl', () => {
     expect(redactUrl('https://api.example.test/sessions/session-secret')).toBe('https://api.example.test/sessions/…');
     expect(redactUrl('https://api.example.test/auth/login')).toBe('https://api.example.test/auth/login');
     expect(redactUrl('/sessions/session-secret')).toBe('/sessions/…');
+    expect(redactUrl('https://api.example.test/otp/123456')).toBe('https://api.example.test/otp/…');
+    expect(redactUrl('https://api.example.test/pin/1234')).toBe('https://api.example.test/pin/…');
+    expect(redactUrl('https://api.example.test/code/verify')).toBe('https://api.example.test/code/verify');
   });
 });
 

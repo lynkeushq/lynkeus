@@ -8,8 +8,9 @@ const SECRET_TEXT =
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
 const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
 const PATH_SECRET = /\/(tokens?|keys?|secrets?|codes?|otp|password(?:-reset)?|reset-password|pin|sessions?|credentials?|jwt|signature|csrf|xsrf)\/[^/?#]{12,}(?=\/|$)/gi;
+const PATH_SHORT_SECRET = /\/(otp|pin|code)\/\d{4,8}(?=\/|$)/gi;
 
-export const redactString = (value: string) => value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…').replace(PATH_SECRET, '/$1/…');
+export const redactString = (value: string) => value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…').replace(PATH_SECRET, '/$1/…').replace(PATH_SHORT_SECRET, '/$1/…');
 
 export const sensitiveKey = (key: string): boolean => SECRET_KEY.test(key);
 
