@@ -152,7 +152,12 @@ const onScreen = (frame: Frame, window: { w: number; h: number }): boolean =>
 const markCovered = (elements: Element[]): void => {
   const controls = elements.filter((e) => e.hidden === undefined && (e.kind === 'button' || e.kind === 'input') && e.tag !== undefined);
   if (controls.length === 0) return;
-  const chains = touch.hitTest(controls.map(centre));
+  let chains: number[][] | null;
+  try {
+    chains = touch.hitTest(controls.map(centre));
+  } catch {
+    return;
+  }
   if (!chains) return;
   controls.forEach((e, index) => {
     if (chains[index]?.includes(e.tag as number)) delete e.covered;
@@ -191,7 +196,12 @@ export const moveToViews = (elements: Element[], frameOf: (tag: number) => numbe
 const placeAsViews = (elements: Element[]): void => {
   if (Platform.OS !== 'android') return;
   const tags = elements.flatMap((e) => (e.tag === undefined ? [] : [e.tag]));
-  const frames = touch.frames(tags);
+  let frames: (number[] | null)[] | null;
+  try {
+    frames = touch.frames(tags);
+  } catch {
+    return;
+  }
   if (!frames) return;
   const byTag = new Map(tags.map((tag, index) => [tag, frames[index]]));
   moveToViews(elements, (tag) => byTag.get(tag));
@@ -224,7 +234,12 @@ type Field = { element: Element; secure: boolean };
 // saying that in its props. So the view is asked, and the props stand wherever it does not answer.
 const readFields = (fields: Field[]): void => {
   const asked = fields.filter((f) => f.element.tag !== undefined);
-  const texts = touch.texts(asked.map((f) => f.element.tag as number));
+  let texts: (string | null)[] | null;
+  try {
+    texts = touch.texts(asked.map((f) => f.element.tag as number));
+  } catch {
+    return;
+  }
   if (!texts) return;
   asked.forEach(({ element, secure }, index) => {
     const text = texts[index];

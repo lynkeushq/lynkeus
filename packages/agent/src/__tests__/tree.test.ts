@@ -106,6 +106,18 @@ describe('snapshotElements', () => {
     expect(input?.value).toBe('••••');
   });
 
+  it('keeps a snapshot when a native view disappears during the read', () => {
+    install(composite([host('RCTSinglelineTextInputView', { testID: 'phone' }, [10, 10, 100, 40])]));
+    const failure = () => {
+      throw new Error('getChildAt(...) must not be null');
+    };
+    jest.spyOn(touch, 'frames').mockImplementation(failure);
+    jest.spyOn(touch, 'texts').mockImplementation(failure);
+    jest.spyOn(touch, 'hitTest').mockImplementation(failure);
+
+    expect(() => snapshotElements()).not.toThrow();
+  });
+
   it('reads what a field holds from its view, where React only knows what it was given', () => {
     install(
       composite([

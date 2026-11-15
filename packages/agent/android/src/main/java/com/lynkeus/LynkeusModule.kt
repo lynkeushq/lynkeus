@@ -167,30 +167,31 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
 
   private fun collect(view: View, wanted: Set<Int>, found: MutableMap<Int, View>) {
     if (view.id in wanted) found[view.id] = view
-    if (view is ViewGroup) for (i in 0 until view.childCount) collect(view.getChildAt(i), wanted, found)
+    if (view is ViewGroup) for (i in 0 until view.childCount) view.getChildAt(i)?.let { collect(it, wanted, found) }
   }
 
   // Where each tag's view stands: [x, y, width, height] in points from the
-  // window's corner, null for a tag with no view. Read like hitTest, on
-  // whichever thread asks.
+  // window's corner, null for a tag with no view. Read on the main thread, where the view hierarchy cannot change mid-walk.
   override fun frames(tags: ReadableArray): String {
     if (!debuggable) return "[]"
-    val wanted = HashSet<Int>()
-    for (i in 0 until tags.size()) wanted.add(tags.getDouble(i).toInt())
-    val found = HashMap<Int, View>()
-    rootView()?.let { collect(it, wanted, found) }
-    val density = reactApplicationContext.resources.displayMetrics.density.toDouble()
-    val frames = JSONArray()
-    for (i in 0 until tags.size()) {
-      val view = found[tags.getDouble(i).toInt()]
-      if (view == null) {
-        frames.put(JSONObject.NULL)
-      } else {
-        val box = boundsInWindow(view)
-        frames.put(JSONArray(listOf(box.left / density, box.top / density, box.width() / density, box.height() / density)))
+    return onMain("[]") {
+      val wanted = HashSet<Int>()
+      for (i in 0 until tags.size()) wanted.add(tags.getDouble(i).toInt())
+      val found = HashMap<Int, View>()
+      rootView()?.let { collect(it, wanted, found) }
+      val density = reactApplicationContext.resources.displayMetrics.density.toDouble()
+      val frames = JSONArray()
+      for (i in 0 until tags.size()) {
+        val view = found[tags.getDouble(i).toInt()]
+        if (view == null) {
+          frames.put(JSONObject.NULL)
+        } else {
+          val box = boundsInWindow(view)
+          frames.put(JSONArray(listOf(box.left / density, box.top / density, box.width() / density, box.height() / density)))
+        }
       }
+      frames.toString()
     }
-    return frames.toString()
   }
 
   // The box a view covers in the window once every transform on the way up is
@@ -214,19 +215,21 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
     }
   }
 
-  // What each tag's field holds, null for a tag that is not a text field. Read like hitTest.
+  // What each tag's field holds, null for a tag that is not a text field. Read on the main thread, like hitTest.
   override fun texts(tags: ReadableArray): String {
     if (!debuggable) return "[]"
-    val wanted = HashSet<Int>()
-    for (i in 0 until tags.size()) wanted.add(tags.getDouble(i).toInt())
-    val found = HashMap<Int, View>()
-    rootView()?.let { collect(it, wanted, found) }
-    val texts = JSONArray()
-    for (i in 0 until tags.size()) {
-      val view = found[tags.getDouble(i).toInt()]
-      texts.put(if (view is EditText) view.text.toString() else JSONObject.NULL)
+    return onMain("[]") {
+      val wanted = HashSet<Int>()
+      for (i in 0 until tags.size()) wanted.add(tags.getDouble(i).toInt())
+      val found = HashMap<Int, View>()
+      rootView()?.let { collect(it, wanted, found) }
+      val texts = JSONArray()
+      for (i in 0 until tags.size()) {
+        val view = found[tags.getDouble(i).toInt()]
+        texts.put(if (view is EditText) view.text.toString() else JSONObject.NULL)
+      }
+      texts.toString()
     }
-    return texts.toString()
   }
 
   companion object {
