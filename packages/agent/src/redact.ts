@@ -8,7 +8,7 @@ const SECRET_TEXT =
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
 const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
 
-const redactString = (value: string) => value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…');
+export const redactString = (value: string) => value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…');
 
 export const sensitiveKey = (key: string): boolean => SECRET_KEY.test(key);
 

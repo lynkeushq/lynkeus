@@ -1,7 +1,7 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
 import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
-import { redactText, SENSITIVE, sensitiveKey } from './redact';
+import { redactString, redactText, SENSITIVE, sensitiveKey } from './redact';
 
 const KEEP = 200;
 /**
@@ -43,9 +43,9 @@ export const redactUrl = (input: string): string => {
       url.username || url.password
         ? `${url.protocol}//${REDACTED}${url.password ? `:${REDACTED}` : ''}@${url.host}${url.pathname}${url.search}${url.hash}`
         : url.toString();
-    return serialized.replaceAll(REDACTED, '…').replace(SENSITIVE, '$1=…');
+    return redactString(serialized.replaceAll(REDACTED, '…').replace(SENSITIVE, '$1=…'));
   } catch {
-    return input.replace(SENSITIVE, '$1=…');
+    return redactString(input.replace(SENSITIVE, '$1=…'));
   }
 };
 

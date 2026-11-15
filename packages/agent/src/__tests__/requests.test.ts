@@ -14,6 +14,13 @@ describe('redactUrl', () => {
     expect(redactUrl('https://api/x?token%3Dencoded-secret')).not.toContain('encoded-secret');
     expect(redactUrl('/x?token%3Drelative-secret')).toBe('/x?token=…');
   });
+  it('redacts JWTs in ordinary query parameters, paths and fragments', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYS11cmwtc2VjcmV0In0.c2VjcmV0';
+    const redacted = redactUrl(`https://api.example.test/tokens/${jwt}?payload=${jwt}#${jwt}`);
+    expect(redacted).not.toContain(jwt);
+    expect(redacted).toContain('…');
+    expect(redactUrl(`/x?payload=${jwt}`)).not.toContain(jwt);
+  });
 });
 
 describe('the trace context', () => {
