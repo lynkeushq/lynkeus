@@ -119,6 +119,16 @@ describe('request and response bodies', () => {
     });
   });
 
+  it('redacts JWT and Bearer values under innocent keys and in plain text', async () => {
+    const { redactBody } = await import('../requests');
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYS1hZ2VudC1qd3QifQ.c2VjcmV0';
+    expect(JSON.parse(redactBody(JSON.stringify({ payload: jwt, note: 'Bearer qa-agent-secret' }))!)).toEqual({
+      payload: '…',
+      note: 'Bearer …',
+    });
+    expect(redactBody('upstream Bearer qa-agent-secret')).toBe('upstream Bearer …');
+  });
+
   it('records what an XHR sent and got only while bodies are asked for', () => {
     class FakeXhr {
       status = 0;
