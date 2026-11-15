@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals
 import type { Backend } from '../backend';
 import { type Socket, start } from '../client';
 import { noNavigation } from '../navigation';
+import { qa } from '../registry';
 
 const backend = {
   name: 'fake',
@@ -95,6 +96,36 @@ describe('dialing the driver', () => {
     d.refuse();
     jest.runOnlyPendingTimers();
     expect(d.dials[d.dials.length - 1]! - before).toBe(100);
+    stop();
+  });
+});
+
+describe('replayed requests', () => {
+  it('runs an in-flight command once and sends one reply', async () => {
+    const d = dialer();
+    const sent: string[] = [];
+    let calls = 0;
+    let release!: (value: { done: boolean }) => void;
+    const pending = new Promise<{ done: boolean }>((resolve) => (release = resolve));
+    const unregister = qa.register('slowReset', () => {
+      calls += 1;
+      return pending;
+    });
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const socket = d.sockets[0]! as { readyState: number; send: (data: string) => void };
+    socket.readyState = 1;
+    socket.send = (data) => sent.push(data);
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's' }) });
+    sent.length = 0;
+    const request = JSON.stringify({ id: 1, method: 'slowReset' });
+    d.sockets[0]!.onmessage?.({ data: request });
+    d.sockets[0]!.onmessage?.({ data: request });
+    expect(calls).toBe(1);
+    release({ done: true });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(sent.filter((line) => JSON.parse(line).id === 1)).toHaveLength(1);
+    unregister();
     stop();
   });
 });

@@ -103,6 +103,7 @@ export const start = (options: ClientOptions): (() => void) => {
   // a press is not idempotent. Keyed by driver session, since every driver
   // numbers its requests from 1.
   const replies = new Map<string, Response>();
+  const running = new Map<string, Promise<void>>();
   let session = '';
 
   const serve = async (request: Request) => {
@@ -112,21 +113,34 @@ export const start = (options: ClientOptions): (() => void) => {
       send(seen);
       return;
     }
-    const started = Date.now();
-    let reply: Response;
-    try {
-      const result = await dispatch(handlers, request.method, request.params, navigation);
-      if (!UNTRACED.has(request.method)) trace({ kind: 'command', method: request.method, ms: Date.now() - started });
-      reply = { id: request.id, result };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      trace({ kind: 'command', method: request.method, ms: Date.now() - started, error: message });
-      options.onError?.(error, request.method);
-      reply = { id: request.id, error: { message } };
+    const active = running.get(key);
+    if (active) {
+      await active;
+      return;
     }
-    replies.set(key, reply);
-    if (replies.size > REPLAY_WINDOW) replies.delete(replies.keys().next().value as string);
-    send(reply);
+    const run = (async () => {
+      const started = Date.now();
+      let reply: Response;
+      try {
+        const result = await dispatch(handlers, request.method, request.params, navigation);
+        if (!UNTRACED.has(request.method)) trace({ kind: 'command', method: request.method, ms: Date.now() - started });
+        reply = { id: request.id, result };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        trace({ kind: 'command', method: request.method, ms: Date.now() - started, error: message });
+        options.onError?.(error, request.method);
+        reply = { id: request.id, error: { message } };
+      }
+      replies.set(key, reply);
+      if (replies.size > REPLAY_WINDOW) replies.delete(replies.keys().next().value as string);
+      send(reply);
+    })();
+    running.set(key, run);
+    try {
+      await run;
+    } finally {
+      running.delete(key);
+    }
   };
 
   const connect = () => {
