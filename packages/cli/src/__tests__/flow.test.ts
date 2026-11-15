@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { Device } from '../device/driver.js';
+import type { Element } from 'lynkeus-protocol';
 import { runFlow } from '../flow/runner.js';
 
 // A keypad sliding in: its keys are listed before they can take a press, first disabled, then moving.
@@ -32,6 +33,20 @@ test('a keypad presses each key only once it is enabled and has stopped moving',
   const report = await runFlow({ name: 'pin', steps: [{ keypad: { digits: '12', pattern: 'numpad-{d}-button' } }] }, { device });
   assert.equal(report.ok, true);
   assert.deepEqual(pressed, ['numpad-1-button', 'numpad-2-button']);
+});
+
+test('a keypad tolerates sub-pixel measurement jitter but not real movement', async () => {
+  const { device, pressed } = slidingKeypad(0);
+  const find = device.server.call;
+  let looks = 0;
+  device.server.call = async (method: string, params: { testId: string }) => {
+    const found = (await find(method, params)) as Element;
+    looks += 1;
+    return { ...found, frame: { x: 0, y: 400 + (looks % 2) * 0.25, w: 80, h: 80 } };
+  };
+  const report = await runFlow({ name: 'pin', steps: [{ keypad: { digits: '1', pattern: 'numpad-{d}-button', timeoutMs: 100 } }] }, { device });
+  assert.equal(report.ok, true);
+  assert.deepEqual(pressed, ['numpad-1-button']);
 });
 
 test('a keypad key that never settles fails the step and says why', async () => {
