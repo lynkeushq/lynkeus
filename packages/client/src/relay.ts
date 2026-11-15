@@ -23,12 +23,17 @@ export const relayBackend = (value: string): URL => {
   return url;
 };
 
-const relaySocketUrl = (cloud: string, token: string) => {
-  const url = new URL(cloud);
+export const relayService = (value: string): URL => {
+  const url = new URL(value);
   if (!['https:', 'http:', 'wss:', 'ws:'].includes(url.protocol)) throw new Error('the relay service must use HTTP(S) or WS(S)');
+  if (url.username || url.password) throw new Error('the relay service URL must not embed credentials');
   const loopback = LOCAL_HOSTS.has(url.hostname);
   if (!loopback && !['https:', 'wss:'].includes(url.protocol)) throw new Error('the relay service must use TLS outside loopback');
-  if (url.username || url.password) throw new Error('the relay service URL must not embed credentials');
+  return url;
+};
+
+const relaySocketUrl = (cloud: string, token: string) => {
+  const url = relayService(cloud);
   url.protocol = url.protocol === 'https:' ? 'wss:' : url.protocol === 'http:' ? 'ws:' : url.protocol;
   url.pathname = `/relay/${token}/ws`;
   url.search = '';

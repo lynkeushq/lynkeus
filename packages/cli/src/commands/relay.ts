@@ -1,4 +1,4 @@
-import { RelayClient } from 'lynkeus-client';
+import { RelayClient, relayService } from 'lynkeus-client';
 
 import { define } from '../registry.js';
 
@@ -9,6 +9,22 @@ const apiUrl = (cloud: string, token: string, prefix: string) => {
   url.search = '';
   url.hash = '';
   return url.toString();
+};
+
+export const createRelaySession = async (
+  cloud: string,
+  key: string,
+  ttlSeconds: number,
+  prefix: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> => {
+  relayService(cloud);
+  return fetchImpl(`${cloud.replace(/\/$/, '')}/v1/relay`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ ttlSeconds, prefix }),
+    redirect: 'manual',
+  });
 };
 
 export const relayCommands = [
@@ -32,12 +48,7 @@ export const relayCommands = [
       if (!key) return { text: 'set LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY) in mise.local.toml to create a relay session', code: 2 };
       const cloud = typeof ctx.flags.cloud === 'string' ? ctx.flags.cloud : (process.env.LYNKEUS_REPORTS_URL ?? 'https://lynkeus.io');
       const prefix = typeof ctx.flags.prefix === 'string' ? ctx.flags.prefix : '/api/mobile/';
-      const created = await fetch(`${cloud.replace(/\/$/, '')}/v1/relay`, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ ttlSeconds: ctx.flags.ttl, prefix }),
-        redirect: 'manual',
-      });
+      const created = await createRelaySession(cloud, key, Number(ctx.flags.ttl), prefix);
       if (!created.ok) return { text: `could not create the relay session (${created.status})`, code: 1 };
       const session = (await created.json()) as { token: string; expiresAt: string };
       const client = new RelayClient({ cloud, token: session.token, backend: String(ctx.flags.backend), prefix });
