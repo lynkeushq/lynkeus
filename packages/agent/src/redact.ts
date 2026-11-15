@@ -7,10 +7,26 @@ const SECRET_TEXT =
 
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
 const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
-const PATH_SECRET = /\/(tokens?|keys?|secrets?|codes?|otp|password(?:-reset)?|reset-password|pin|sessions?|credentials?|jwt|signature|csrf|xsrf)\/[^/?#]{12,}(?=\/|$)/gi;
-const PATH_SHORT_SECRET = /\/(otp|pin|code)\/\d{4,8}(?=\/|$)/gi;
+const PATH_KEYS = new Set(['token', 'tokens', 'key', 'keys', 'secret', 'secrets', 'code', 'codes', 'otp', 'password', 'password-reset', 'reset-password', 'pin', 'session', 'sessions', 'credential', 'credentials', 'jwt', 'signature', 'csrf', 'xsrf']);
+const redactPathSecrets = (value: string): string =>
+  value
+    .split('/')
+    .map((part, index, parts) => {
+      if (index === 0) return part;
+      const [secret = '', suffix = ''] = part.match(/^([^?#]*)(.*)$/)!.slice(1);
+      let name: string;
+      try {
+        name = decodeURIComponent(parts[index - 1]!).toLowerCase();
+      } catch {
+        return part;
+      }
+      if (!PATH_KEYS.has(name)) return part;
+      if (secret.length >= 12 || ((name === 'otp' || name === 'pin' || name === 'code') && /^\d{4,8}$/.test(secret))) return `…${suffix}`;
+      return part;
+    })
+    .join('/');
 
-export const redactString = (value: string) => value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…').replace(PATH_SECRET, '/$1/…').replace(PATH_SHORT_SECRET, '/$1/…');
+export const redactString = (value: string) => redactPathSecrets(value.replace(JWT_VALUE, '…').replace(BEARER_VALUE, '$1…'));
 
 export const sensitiveKey = (key: string): boolean => SECRET_KEY.test(key);
 
