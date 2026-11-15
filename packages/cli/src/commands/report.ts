@@ -82,7 +82,7 @@ const openInsideRun = (dir: string, file: string): number => {
   try {
     fd = fs.openSync(candidate, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
     const resolved = fs.realpathSync(candidate);
-    if (resolved === realRoot || !resolved.startsWith(`${realRoot}${path.sep}`) || !fs.statSync(resolved).isFile()) {
+    if (resolved === realRoot || !resolved.startsWith(`${realRoot}${path.sep}`) || !fs.statSync(resolved).isFile() || fs.lstatSync(candidate).nlink !== 1) {
       throw new Error(`file path escapes the run directory: ${file}`);
     }
     const opened = fs.fstatSync(fd);

@@ -118,6 +118,19 @@ test('a symlink swapped after realpath validation cannot leak a file', async () 
   }
 });
 
+test('a hardlink to a file outside the run is refused', async () => {
+  const dir = runDir();
+  const secret = path.join(os.tmpdir(), `lynkeus-hardlink-secret-${process.pid}.txt`);
+  fs.writeFileSync(secret, 'top-secret-from-hardlink');
+  fs.unlinkSync(path.join(dir, 'home/01-app-login.png'));
+  fs.linkSync(secret, path.join(dir, 'home/01-app-login.png'));
+  try {
+    await assert.rejects(pushRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /escapes the run directory/);
+  } finally {
+    fs.unlinkSync(secret);
+  }
+});
+
 test('report uploads require HTTPS outside loopback', async () => {
   await assert.rejects(pushRun(runDir(), { url: 'http://reports.test', key: 'lk_1', project: 'x', fetch: freeService().fake }), /HTTPS/);
 });
