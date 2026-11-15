@@ -30,10 +30,11 @@ export const redactString = (value: string) => redactPathSecrets(value.replace(J
 
 export const sensitiveKey = (key: string): boolean => SECRET_KEY.test(key);
 
-export const redactValue = (value: unknown): unknown => {
-  if (Array.isArray(value)) return value.map(redactValue);
+export const redactValue = (value: unknown, depth = 0): unknown => {
+  if (depth >= 100) return '[nested data removed]';
+  if (Array.isArray(value)) return value.map((item) => redactValue(item, depth + 1));
   if (value && typeof value === 'object')
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey(key) ? '…' : redactValue(item)]));
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey(key) ? '…' : redactValue(item, depth + 1)]));
   if (typeof value === 'string') return redactString(value);
   return value;
 };

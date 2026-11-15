@@ -138,6 +138,14 @@ describe('request and response bodies', () => {
     });
   });
 
+  it('bounds deeply nested request data instead of exhausting the stack', async () => {
+    const { redactValue } = await import('../redact');
+    let nested: unknown = 'deep-secret';
+    for (let i = 0; i < 10_000; i += 1) nested = { x: nested };
+    const redacted = redactValue(nested);
+    expect(JSON.stringify(redacted)).toContain('[nested data removed]');
+  });
+
   it('redacts JWT and Bearer values under innocent keys and in plain text', async () => {
     const { redactBody } = await import('../requests');
     const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYS1hZ2VudC1qd3QifQ.c2VjcmV0';
