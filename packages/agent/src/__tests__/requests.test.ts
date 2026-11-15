@@ -21,6 +21,12 @@ describe('redactUrl', () => {
     expect(redacted).toContain('…');
     expect(redactUrl(`/x?payload=${jwt}`)).not.toContain(jwt);
   });
+  it('redacts secrets in sensitive URL path segments without hiding ordinary routes', () => {
+    expect(redactUrl('https://api.example.test/password-reset/s3cr3t-token')).toBe('https://api.example.test/password-reset/…');
+    expect(redactUrl('https://api.example.test/sessions/session-secret')).toBe('https://api.example.test/sessions/…');
+    expect(redactUrl('https://api.example.test/auth/login')).toBe('https://api.example.test/auth/login');
+    expect(redactUrl('/sessions/session-secret')).toBe('/sessions/…');
+  });
 });
 
 describe('the trace context', () => {
