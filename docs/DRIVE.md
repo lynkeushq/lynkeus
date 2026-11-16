@@ -72,7 +72,7 @@ socket and the second stays quiet.
 | `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` (Android: `10.0.2.2`, then `localhost`), `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
-| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
+| `token` | — | The app sends it in `hello` and the driver drops the connection when it differs, so another local process posing as the driver is not talked to. The driver never sends the token. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
 | `app` | — | Free-form, sent in `hello` (name, version, environment). |
 
 ## Drive it

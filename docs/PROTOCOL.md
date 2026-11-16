@@ -14,7 +14,7 @@ an MCP server, an LLM harness.
 Driver → app, always the first message on a new socket:
 
 ```json
-{ "event": "auth", "session": "b7e1…", "token": "…" }
+{ "event": "auth", "session": "b7e1…" }
 ```
 
 - `session`: random per driver process. A driver that reconnects resends the
@@ -22,16 +22,22 @@ Driver → app, always the first message on a new socket:
   reply it kept (the last 64), so a press is not done twice. A new `session`
   means a new driver whose request ids start over, and the kept replies are
   dropped.
-- `token`: present when the driver has one. An app configured with a `token`
-  answers every request with `{"error": {"code": "unauthenticated"}}` until an
-  `auth` carrying the same value arrives.
+- The driver never sends the project token. A process that merely listens on
+  the port therefore learns nothing from the handshake.
 
 App → driver, in answer to an `auth` it accepts:
 
 ```json
 { "event": "hello", "protocolVersion": 1, "agentVersion": "0.6.0", "platform": "ios", "native": true,
-  "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" } }
+  "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" }, "token": "…" }
 ```
+
+- `token`: the app's `token`, which proves it shares the driver's secret. A
+  driver that has a token closes the socket (code 1008) when `hello` carries a
+  different one, compares in constant time, and drops the field before it
+  stores or forwards the message, so it never reaches `lynkeus hello`, logs or
+  an MCP client. The app serves requests after any `auth`; the proof runs one
+  way (app to driver), so the driver does not prove itself to the app.
 
 - `agentVersion`: the `lynkeus-agent` release in the app; agents older than
   the field do not send it.

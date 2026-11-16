@@ -107,6 +107,27 @@ steps:
   assert.equal(calls.filter((x) => x.method === 'press').length, 1);
 });
 
+test('a wait accepts any of several targets', async () => {
+  const c = parseCase('---\nid: alternatives\n---\nsteps:\n  - app.wait: { anyOf: ["Goodbye", "Hello"] }\n', 'alternatives.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const waitFor = device.waitFor;
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return waitFor(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  const wait = calls.find((x) => x.method === 'waitFor');
+  assert.deepEqual(wait?.params, {
+    anyOf: [{ text: 'Goodbye' }, { text: 'Hello' }],
+    gone: undefined,
+    scroll: undefined,
+    timeoutMs: 10000,
+    since: undefined,
+  });
+});
+
 test('a press names its control by testId, and a type takes a deadline for its field', async () => {
   const c = parseCase('---\nid: named\n---\nsteps:\n  - app.press: { testId: refresh }\n  - app.type: { text: "x", timeoutMs: 200 }\n', 'named.md');
   const { base, calls } = fakeApp();
@@ -571,22 +592,11 @@ test('a setup that drives the app is not made ahead', () => {
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
 });
 
-test('a wait accepts anyOf targets through the device protocol', async () => {
-  const c = parseCase('---\nid: any\n---\nsteps:\n  - app.wait: { anyOf: ["Open", "Closed"], timeoutMs: 100 }\n', 'any.md');
-  const { base } = fakeApp();
-  const device = await base.device();
-  let asked: unknown;
-  (device as unknown as { waitFor: (params: unknown) => Promise<unknown> }).waitFor = async (params) => {
-    asked = params;
-    return { waitedMs: 0 };
-  };
-  const report = await runCase(c, { base, config, fixtures });
-  assert.equal(report.steps[0]!.status, 'passed');
-  assert.deepEqual(asked, { anyOf: [{ text: 'Open' }, { text: 'Closed' }], gone: undefined, scroll: undefined, timeoutMs: 100 });
-});
-
 test('a request match tolerates the trailing slash added by Android HTTP stacks', async () => {
-  const c = parseCase('---\nid: slash\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "POST /api/points", status: 422, timeoutMs: 100 }\n', 'slash.md');
+  const c = parseCase(
+    '---\nid: slash\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "POST /api/points", status: 422, timeoutMs: 100 }\n',
+    'slash.md',
+  );
   const { base, requests } = fakeApp();
   const device = await base.device();
   (device as unknown as { press: () => Promise<unknown> }).press = async () => {
@@ -594,7 +604,10 @@ test('a request match tolerates the trailing slash added by Android HTTP stacks'
     return { x: 0, y: 0, mode: 'native' };
   };
   const report = await runCase(c, { base, config, fixtures });
-  assert.deepEqual(report.steps.map((s) => s.status), ['passed', 'passed']);
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed'],
+  );
 });
 
 test('a step waits only for requests started after the action before it began', async () => {

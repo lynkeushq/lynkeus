@@ -143,10 +143,13 @@ export class AgentServer extends EventEmitter {
     const id = this.#nextId++;
     const request = JSON.stringify({ id, method, params });
     const result = new Promise<unknown>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.#pending.delete(id);
-        reject(new AgentError(`${method} timed out after ${timeoutMs}ms`, 'timeout'));
-      }, Math.max(1, deadline - Date.now()));
+      const timer = setTimeout(
+        () => {
+          this.#pending.delete(id);
+          reject(new AgentError(`${method} timed out after ${timeoutMs}ms`, 'timeout'));
+        },
+        Math.max(1, deadline - Date.now()),
+      );
       this.#pending.set(id, { resolve, reject, timer, request });
     });
     socket.send(request);

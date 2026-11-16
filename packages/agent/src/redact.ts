@@ -7,8 +7,24 @@ export const SENSITIVE = new RegExp(
 );
 
 const SECRET_WORDS = new Set([
-  'password', 'passcode', 'passwd', 'pin', 'otp', 'secret', 'authorization', 'cookie', 'credential', 'credentials',
-  'jwt', 'signature', 'csrf', 'xsrf', 'cvv', 'cvc', 'ssn', 'token',
+  'password',
+  'passcode',
+  'passwd',
+  'pin',
+  'otp',
+  'secret',
+  'authorization',
+  'cookie',
+  'credential',
+  'credentials',
+  'jwt',
+  'signature',
+  'csrf',
+  'xsrf',
+  'cvv',
+  'cvc',
+  'ssn',
+  'token',
 ]);
 const SECRET_PAIRS = new Set(['api key', 'card number', 'pin code', 'session token', 'session id', 'private key']);
 const SECRET_WHOLE = new Set(['auth', 'code', 'key', 'session', 'pan', 'apikey', 'x-api-key']);
@@ -37,7 +53,28 @@ const hasSecretKey = (body: string): boolean => {
 
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
 const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
-const PATH_KEYS = new Set(['token', 'key', 'keys', 'secret', 'secrets', 'code', 'codes', 'otp', 'password', 'password-reset', 'reset-password', 'pin', 'session', 'sessions', 'credential', 'credentials', 'jwt', 'signature', 'csrf', 'xsrf']);
+const PATH_KEYS = new Set([
+  'token',
+  'key',
+  'keys',
+  'secret',
+  'secrets',
+  'code',
+  'codes',
+  'otp',
+  'password',
+  'password-reset',
+  'reset-password',
+  'pin',
+  'session',
+  'sessions',
+  'credential',
+  'credentials',
+  'jwt',
+  'signature',
+  'csrf',
+  'xsrf',
+]);
 const redactPathSecrets = (value: string): string =>
   value
     .split('/')
