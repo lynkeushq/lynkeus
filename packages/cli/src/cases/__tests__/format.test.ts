@@ -124,3 +124,12 @@ test('a case says in its frontmatter that it runs alone', () => {
   // Only true itself: a string or a number is not read as a yes.
   assert.equal(parseCase(CASE.replace('id: gift', 'id: gift\nexclusive: "yes"'), 'x.md').exclusive, undefined);
 });
+
+test('caseArtifactId never yields an empty, dot or dotted-leading name', () => {
+  for (const id of ['.', '..', '', '.hidden', '../x', '/']) {
+    const safe = caseArtifactId(id);
+    assert.ok(safe !== '' && !safe.startsWith('.'), `${JSON.stringify(id)} -> ${safe}`);
+    assert.ok(!safe.includes('/'));
+  }
+  assert.equal(caseArtifactId('login.2'), 'login.2');
+});

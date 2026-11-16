@@ -84,7 +84,11 @@ export const sectionsOf = (body: string): (string | undefined)[] => {
   return sections;
 };
 
-export const caseArtifactId = (id: string) => id.replace(/[^\w.=-]+/g, '_');
+// An id names a folder or file under the run, so it can never be empty, `.`, `..` or start with a dot.
+export const caseArtifactId = (id: string) => {
+  const safe = id.replace(/[^\w.=-]+/g, '_');
+  return safe === '' || safe.startsWith('.') ? `_${safe}` : safe;
+};
 
 export const parseCase = (text: string, file: string): Case => {
   const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
