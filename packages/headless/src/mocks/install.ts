@@ -107,6 +107,55 @@ const ownErrors = (response: unknown): unknown => {
   return response;
 };
 
+const REDIRECTS = [301, 302, 303, 307, 308];
+const MAX_REDIRECTS = 5;
+
+// The fence must see every hop, so redirects are followed here one at a time instead of by the underlying fetch.
+// Method and body follow what fetch does: 303 (and 301/302 after a POST) become a GET without a body.
+const followAllowed = async (
+  fetchImpl: Fetch,
+  refuse: (url: string) => string | undefined,
+  input: Parameters<Fetch>[0],
+  init: RequestInit | undefined,
+  firstUrl: string,
+  firstMethod: string,
+): Promise<Awaited<ReturnType<Fetch>>> => {
+  const mode = init?.redirect ?? (input as { redirect?: string } | null)?.redirect ?? 'follow';
+  let target: Parameters<Fetch>[0] = input;
+  let options: RequestInit = { ...init, redirect: 'manual' };
+  let url = firstUrl;
+  let method = firstMethod;
+  for (let hop = 0; ; hop++) {
+    const response = await fetchImpl(target, options);
+    const r = response as { status: number; url: string; headers: { get(name: string): string | null } };
+    const location = REDIRECTS.includes(r.status) ? r.headers.get('location') : null;
+    if (!location) return response;
+    const next = new URL(location, r.url || url).toString();
+    const refusedNext = refuse(next);
+    if (refusedNext) throw new Error(`lynkeus headless: network to ${refusedNext} is off (networkHosts)`);
+    if (mode === 'manual') return response;
+    if (mode === 'error') throw new TypeError('Network request failed: unexpected redirect');
+    if (hop >= MAX_REDIRECTS) throw new TypeError(`Network request failed: more than ${MAX_REDIRECTS} redirects`);
+    const toGet = r.status === 303 ? method !== 'HEAD' : (r.status === 301 || r.status === 302) && method === 'POST';
+    const headers = new Headers(options.headers ?? (typeof input === 'object' && input !== null ? (input as { headers?: RequestInit["headers"] }).headers : undefined));
+    if (new URL(next).origin !== new URL(url).origin) {
+      headers.delete('authorization');
+      headers.delete('cookie');
+    }
+    options = { ...options, headers };
+    options.method = method;
+    if (toGet) {
+      method = 'GET';
+      options.method = 'GET';
+      delete options.body;
+      headers.delete('content-type');
+      headers.delete('content-length');
+    }
+    target = next;
+    url = next;
+  }
+};
+
 const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
   const refuse = hostFence(hosts, 'network');
   // A backend that is not up, or an API base the app took from its default because the env var was not set,
@@ -144,16 +193,7 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       return fetchImpl(input, init).then(lost, () => lost());
     }
     if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
-    const guarded = fetchImpl(input, { ...(init as object | undefined), redirect: 'manual' }).then((response) => {
-      const r = response as { status: number; url: string; headers: { get(name: string): string | null } };
-      if (![301, 302, 303, 307, 308].includes(r.status)) return response;
-      const location = r.headers.get('location');
-      if (!location) return response;
-      const next = new URL(location, r.url || url).toString();
-      const refusedNext = refuse(next);
-      if (refusedNext) throw new Error(`lynkeus headless: network to ${refusedNext} is off (networkHosts)`);
-      return response;
-    });
+    const guarded = followAllowed(fetchImpl, refuse, input, init as RequestInit | undefined, url, method);
     const result = guarded.then(ownErrors, told(url));
     if (!netControls.recording()) return result;
     return result.then(async (response) => {

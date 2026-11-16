@@ -68,3 +68,32 @@ test('an allowed hostname cannot select a local Unix socket', async () => {
   socket.close();
   expect(connections).toBe(0);
 });
+
+test('an allowed redirect is followed, and a POST answered 303 becomes a GET', async () => {
+  const seen: string[] = [];
+  const port = await listen((req, res) => {
+    seen.push(`${req.method} ${req.url}`);
+    if (req.url === '/old') {
+      res.writeHead(301, { location: '/new/' });
+      res.end();
+    } else if (req.url === '/submit') {
+      res.writeHead(303, { location: '/done' });
+      res.end();
+    } else res.end('arrived');
+  });
+  installDefaultMocks({ network: 'real', networkHosts: ['127.0.0.1'] });
+  const moved = await fetch(`http://127.0.0.1:${port}/old`);
+  expect(await moved.text()).toBe('arrived');
+  const posted = await fetch(`http://127.0.0.1:${port}/submit`, { method: 'POST', body: 'x' });
+  expect(await posted.text()).toBe('arrived');
+  expect(seen).toEqual(['GET /old', 'GET /new/', 'POST /submit', 'GET /done']);
+});
+
+test('a redirect loop stops instead of spinning', async () => {
+  const port = await listen((_req, res) => {
+    res.writeHead(302, { location: '/again' });
+    res.end();
+  });
+  installDefaultMocks({ network: 'real', networkHosts: ['127.0.0.1'] });
+  await expect(fetch(`http://127.0.0.1:${port}/`)).rejects.toThrow('redirects');
+});
