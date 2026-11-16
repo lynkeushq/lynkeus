@@ -142,6 +142,8 @@ lynkeus case run --out run --screenshots --push
 
 The key is a secret: in CI, keep it in the CI's secret store. See [Reports](/guides/reports/).
 
+`lynkeus relay` reads the same two variables, and `LYNKEUS_CLOUD_KEY` as a fallback for the key. See [Backend relay](/guides/backend-relay/).
+
 ## Variables that are not lynkeus's own
 
 lynkeus reads or sets a few variables that belong to other tools.

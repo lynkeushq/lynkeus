@@ -93,6 +93,15 @@ keeps the protocol. `lynkeus fixtures init` (planned) would write the skeleton f
 loop, `describe`, and a guard that refuses any database that is not local), and the MCP would tell a model how to fill
 it from the backend's models.
 
+## Reaching a loopback backend from another device
+
+A simulator, an emulator and the headless host reach a backend on the developer's machine directly. An app that runs
+elsewhere (a cloud device, a runner on another network) does not. `lynkeus relay` (`packages/cli/src/commands/relay.ts`,
+client in `packages/client/src/relay.ts`) covers that: the CLI opens one outbound WSS connection to the report service
+and forwards the app's `/api/mobile/` requests to the loopback backend, with a per-run token in the app's URL and a
+separate socket secret that only the CLI holds. Nothing listens inbound. Service side: `docs/RELAY.md` in lynkeus-cloud;
+user side: the website guide `guides/backend-relay`.
+
 ## Plan
 
 Done: the fixtures protocol as a contract (its own page, types in `lynkeus-protocol`, a version, `describe`, and

@@ -1348,6 +1348,25 @@ Deletes the run folders that `case run --out` left, when they ended more than a 
 lynkeus report prune runs --older 3d --dry-run
 ```
 
+### `lynkeus relay`
+
+```bash
+lynkeus relay [--cloud <url>] [--backend <url>] [--prefix <path>] [--ttl <seconds>]
+```
+
+Lets an app that runs away from your machine reach a backend that listens only on loopback. It creates a short-lived session on the report service, opens one outbound WebSocket to it and forwards the app's requests to the backend. Nothing listens for inbound connections. See [Backend relay](/guides/backend-relay/).
+
+It needs `LYNKEUS_REPORTS_KEY` (or `LYNKEUS_CLOUD_KEY`). It prints `relay listening: <API_URL> (expires <time>)` on stderr, where `API_URL` ends in `/api/mobile/` and is what the app calls. It then stays in the foreground until Ctrl-C or until the session expires, and prints `relay closed`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The relay service. TLS is required outside loopback. |
+| `--backend <url>` | `http://127.0.0.1:3000` | The backend. HTTP(S) on `localhost`, `127.0.0.1` or `::1` only. |
+| `--prefix <path>` | `/api/mobile/` | The path prefix forwarded. It must start with `/api/mobile/`. |
+| `--ttl <seconds>` | `900` | Session lifetime, at most `3600`. |
+
+Exits with `2` when there is no key, and with `1` when the session cannot be created, the service gives no socket secret (it is older than the CLI) or the connection cannot open.
+
 ## headless
 
 Commands for the headless host: the app hosted in Node under jest, with no simulator. See [Headless](/platforms/headless/).

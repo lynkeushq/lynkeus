@@ -35,6 +35,7 @@ export default defineConfig({
             'guides/fixtures',
             'guides/reports',
             'guides/backend-traces',
+            'guides/backend-relay',
             'guides/analytics-events',
             'guides/lint-and-contrast',
             'guides/flaky-tests',

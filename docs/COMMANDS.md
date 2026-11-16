@@ -866,6 +866,19 @@ Newest first: ✓ passed, ↻ passed on a retry, ✗ failed, with how long it to
 | `--project <name>` | the project (default: the app’s folder name) |
 | `--runs <n>` | how many of the latest runs to read (default 50) |
 
+### `lynkeus relay [--cloud <url>] [--backend <url>] [--prefix <path>] [--ttl <seconds>]`
+
+Expose a loopback backend to one app session through a short-lived outbound WSS relay
+
+Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connects outbound to the reports service and forwards only /api/mobile/ requests to the loopback backend. Prints the API_URL to give that app session on stderr and stays connected until Ctrl-C or the session expires. Exit code 2 without a key, 1 when the session cannot be created or the service is too old. No project token or listener is exposed to the internet.
+
+| Flag | |
+|---|---|
+| `--cloud <url>` | relay service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
+| `--backend <url>` | loopback backend URL (default `http://127.0.0.1:3000`) |
+| `--prefix <path>` | allowed backend path prefix (default `/api/mobile/`) |
+| `--ttl <seconds>` | session lifetime in seconds (max 3600) (default `900`) |
+
 ## headless
 
 the app hosted in Node under jest, no simulator.

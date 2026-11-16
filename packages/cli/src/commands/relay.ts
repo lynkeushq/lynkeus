@@ -33,7 +33,7 @@ export const relayCommands = [
     group: 'runs',
     summary: 'Expose a loopback backend to one app session through a short-lived outbound WSS relay',
     details:
-      'Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connects outbound to the reports service and forwards only /api/mobile/ requests to the loopback backend. Prints the API_URL to give that app session. No project token or listener is exposed to the internet.',
+      'Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connects outbound to the reports service and forwards only /api/mobile/ requests to the loopback backend. Prints the API_URL to give that app session on stderr and stays connected until Ctrl-C or the session expires. Exit code 2 without a key, 1 when the session cannot be created or the service is too old. No project token or listener is exposed to the internet.',
     flags: {
       cloud: { type: 'string', help: 'relay service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)', value: 'url' },
       backend: { type: 'string', help: 'loopback backend URL', default: 'http://127.0.0.1:3000', value: 'url' },
