@@ -9,7 +9,6 @@ const KEEP = 200;
  * headless host's network fence, a host's own netmock): such a request is the case's doing, not the backend's.
  */
 export const MOCKED_HEADER = 'x-lynkeus-mocked';
-const SENSITIVE_QUERY = /token|key|secret|code|otp|password|pin|session|auth|credential|jwt|signature|csrf|xsrf/i;
 const REDACTED = '__lynkeus_redacted__';
 
 const records: RequestRecord[] = [];
@@ -33,7 +32,7 @@ export const redactUrl = (input: string): string => {
   try {
     const url = new URL(input);
     for (const key of [...url.searchParams.keys()]) {
-      if (!SENSITIVE_QUERY.test(key)) continue;
+      if (!key.includes('=') && !sensitiveKey(key)) continue;
       // An encoded '=' becomes part of the decoded key, so remove that whole
       // parameter instead of retaining a secret inside its name.
       if (key.includes('=')) url.searchParams.delete(key);
@@ -66,7 +65,7 @@ export const redactBody = (body: unknown): (Exchange['body'] & {}) | undefined =
 };
 
 export const redactHeaders = (headers: Record<string, string>): Record<string, string> =>
-  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), sensitiveKey(k) || /^(x-)?(api-)?key$/i.test(k) ? '…' : v]));
+  Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), sensitiveKey(k) ? '…' : v]));
 
 const exchange = (headers: Record<string, string>, body: unknown): Exchange => {
   const text = redactBody(body);
