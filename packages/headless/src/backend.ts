@@ -546,7 +546,11 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     // library's own jest utility with a synthetic event list.
     swipeOn: async (element, dx, dy) => {
       const { gesture, chain } = gestureNear(instanceFor(element));
-      if (!gesture) throw new Error(`No GestureDetector near the element (searched around ${chain.join(' < ')})`);
+      // No gesture of its own: a finger on a row of pills drags the scroller they sit in, as `swipe` does.
+      if (!gesture) {
+        log(`swipe: no GestureDetector near the element (searched around ${chain.join(' < ')}); dragging what scrolls under it`);
+        return false;
+      }
       // A composed gesture (Race/Simultaneous) holds several; drive the first pan.
       const handlers = (gesture.toGestureArray?.() ?? [gesture]) as { handlerName?: string }[];
       const pan = handlers.find((h) => h.handlerName === 'PanGestureHandler') ?? handlers[0];

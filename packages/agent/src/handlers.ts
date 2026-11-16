@@ -254,8 +254,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
         x: Math.max(inset, Math.min(width - inset, from.x + dx)),
         y: Math.max(inset, Math.min(height - inset, from.y + dy)),
       };
-      if (backend.swipeOn) await backend.swipeOn(element, dx, dy);
-      else await backend.swipe(from, to, durationMs);
+      if (!backend.swipeOn || (await backend.swipeOn(element, dx, dy)) === false) await backend.swipe(from, to, durationMs);
       return { from, to };
     }
     const presets = {
