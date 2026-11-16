@@ -154,6 +154,9 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   // it out, or the screen depends on when the tap came.
   const settled = async (target: Target, timeoutMs = 3000): Promise<Point> => {
     const deadline = Date.now() + timeoutMs;
+    // A control still becoming interactive (a pager's last page arriving, a sheet sliding in) reads as inert for a
+    // moment, more so on a loaded machine: wait for it within the same deadline before calling it not presented.
+    while (!('x' in target) && find(target)?.hidden === 'inert' && Date.now() < deadline) await sleep(40);
     let previous = pointOf(target);
     while (Date.now() < deadline) {
       await sleep(40);

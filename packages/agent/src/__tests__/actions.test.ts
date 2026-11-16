@@ -52,6 +52,17 @@ describe('acting on what the platform does not present', () => {
     expect(swipe).not.toHaveBeenCalled();
   });
 
+  it('waits for an element that is still becoming interactive', async () => {
+    const live = { ...slider };
+    const { backend, swipeOn } = fakeBackend([live]);
+    const handlers = createHandlers(noNavigation, backend);
+    setTimeout(() => {
+      live.hidden = undefined;
+    }, 200);
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
   it('swipes the same element once it is presented', async () => {
     const { backend, swipeOn } = fakeBackend([{ ...slider, hidden: undefined }]);
     const handlers = createHandlers(noNavigation, backend);
