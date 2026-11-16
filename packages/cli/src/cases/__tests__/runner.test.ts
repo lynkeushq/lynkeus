@@ -192,6 +192,20 @@ test('an optional press of something that is not there is skipped, not failed', 
   );
 });
 
+test('an optional press is skipped when its one-time control disappears before the native tap', async () => {
+  const c = parseCase('---\nid: opt-race\n---\nsteps:\n  - app.press: { target: "#refresh", optional: true }\n', 'opt-race.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  device.press = async () => {
+    throw new Error('No element matches {"testId":"refresh"}');
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['skipped'],
+  );
+});
+
 test('a macro is the steps a project gave a name to, with what the case passed', async () => {
   const c = parseCase(
     '---\nid: m\n---\nsetup:\n  - create_user: { as: u }\nsteps:\n  - app.enter: { as: u, then: "#refresh" }\n  - app.enter: { as: u }\n',

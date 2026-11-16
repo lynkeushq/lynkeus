@@ -92,6 +92,24 @@ describe('waiting for an enabled control', () => {
   });
 });
 
+it('a targeted swipe starts after the target stops moving', async () => {
+  const started = Date.now();
+  const fieldY = () => Math.max(200, 600 - ((Date.now() - started) / 300) * 400);
+  const { backend } = fakeBackend([]);
+  let from: { x: number; y: number } | undefined;
+  const handlers = createHandlers(noNavigation, {
+    ...backend,
+    snapshot: () => ({ elements: [element({ kind: 'button', testId: 'row', frame: { x: 0, y: fieldY(), w: 300, h: 40 } })] }),
+    swipeOn: undefined,
+    swipe: async (start) => {
+      from = start;
+    },
+  });
+
+  await dispatch(handlers, 'swipe', { target: { testId: 'row' }, direction: 'left', distance: 100 });
+  expect(from).toEqual({ x: 292, y: 220 });
+});
+
 describe('typing into a field the keyboard moves', () => {
   it('types once the field has landed', async () => {
     let pressedAt: number | undefined;

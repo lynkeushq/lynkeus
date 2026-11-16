@@ -108,15 +108,16 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
 
   // Editing through the IME follows the same TextWatchers as a hardware keyboard, including controlled React inputs.
   override fun typeText(text: String, promise: Promise) = withFocusedInput(promise) { input ->
-    val connection = input.inputConnection
+    val connection = input.onCreateInputConnection(EditorInfo())
     if (connection != null) connection.commitText(text, 1)
     else input.text.insert(input.selectionEnd.coerceAtLeast(0), text)
   }
 
   override fun deleteBackward(count: Double, promise: Promise) = withFocusedInput(promise) { input ->
-    val connection = input.inputConnection
-    if (connection != null) connection.deleteSurroundingText(count.toInt(), 0)
-    else input.text.delete((input.selectionEnd.coerceAtLeast(0) - count.toInt()).coerceAtLeast(0), input.selectionEnd.coerceAtLeast(0))
+    // Replacing a controlled React field must clear both sides of a caret that may be mid-text. The IME wrapper
+    // applies large deletions only before the caret on Android, leaving the suffix in the native field.
+    input.text.clear()
+    input.setSelection(0)
   }
 
   // The return key sends the field's own editor action, which React Native turns into onSubmitEditing.

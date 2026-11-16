@@ -158,7 +158,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     while (Date.now() < deadline) {
       await sleep(40);
       const current = pointOf(target);
-      if (!current.element || (previous.element && sameFrame(current.element, previous.element))) return current;
+      if (!current.element || (previous.element && current.element && sameFrame(current.element, previous.element))) return current;
       previous = current;
     }
     return previous;
@@ -234,17 +234,26 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const { w: width, h: height } = backend.window();
     const durationMs = params.durationMs ?? 250;
     if (params.target) {
+      await settled(params.target);
       const element = presented(params.target);
       const direction = params.direction ?? 'up';
       const distance = params.distance ?? (direction === 'up' || direction === 'down' ? height : width) * 0.6;
       const dx = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
       const dy = direction === 'up' ? -distance : direction === 'down' ? distance : 0;
-      // A touch that leaves the window is cancelled: slide the whole drag back inside rather than cut it short.
+      // Keep the finger inside the target. Moving the start to force the requested distance used to put it on the
+      // outer pager for small cards; clip the end at the window instead and use the edge that maximizes the drag.
       const inset = 8;
-      const along = (start: number, delta: number, size: number) => Math.min(Math.max(start, inset - Math.min(delta, 0)), size - inset - Math.max(delta, 0));
       const middle = centre(element);
-      const from = { x: along(middle.x, dx, width), y: along(middle.y, dy, height) };
-      const to = { x: from.x + dx, y: from.y + dy };
+      const from = {
+        x: dx < 0 ? element.frame.x + element.frame.w - inset : dx > 0 ? element.frame.x + inset : middle.x,
+        y: dy < 0 ? element.frame.y + element.frame.h - inset : dy > 0 ? element.frame.y + inset : middle.y,
+      };
+      from.x = Math.max(inset, Math.min(width - inset, from.x));
+      from.y = Math.max(inset, Math.min(height - inset, from.y));
+      const to = {
+        x: Math.max(inset, Math.min(width - inset, from.x + dx)),
+        y: Math.max(inset, Math.min(height - inset, from.y + dy)),
+      };
       if (backend.swipeOn) await backend.swipeOn(element, dx, dy);
       else await backend.swipe(from, to, durationMs);
       return { from, to };

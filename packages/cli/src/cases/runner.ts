@@ -696,7 +696,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
     }
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
-    await cli(argvFor(find('press')!, rest as StepValue));
+    try {
+      await cli(argvFor(find('press')!, rest as StepValue));
+    } catch (error) {
+      // A one-time sheet can disappear between the presence check and the native press.
+      if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';
+      throw error;
+    }
     return undefined;
   };
 
