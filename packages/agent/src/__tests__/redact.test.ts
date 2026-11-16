@@ -105,7 +105,15 @@ describe('sensitiveKey', () => {
   ])('keeps %s', (key) => expect(sensitiveKey(key)).toBe(false));
 
   it('redacts header pairs by name, Basic credentials and pwd in text', () => {
-    expect(redactValue([['X-Api-Key', 'k'], ['Accept', 'json']])).toEqual([['X-Api-Key', '…'], ['Accept', 'json']]);
+    expect(
+      redactValue([
+        ['X-Api-Key', 'k'],
+        ['Accept', 'json'],
+      ]),
+    ).toEqual([
+      ['X-Api-Key', '…'],
+      ['Accept', 'json'],
+    ]);
     expect(redactValue({ note: 'sent Basic dXNlcjpodW50ZXIy' })).toEqual({ note: 'sent Basic …' });
     expect(redactText('pwd=hunter2&user=a')).toBe('pwd=…&user=a');
     expect(redactText('{"pwd":"hunter2"}')).not.toContain('hunter2');
@@ -163,7 +171,12 @@ describe('redactValue', () => {
   it('redacts names written as one word, and headers given as name/value objects', () => {
     for (const key of ['accesstoken', 'refreshtoken', 'privatekey', 'sessionid', 'pincode', 'cardnumber']) expect(sensitiveKey(key)).toBe(true);
     for (const key of ['zipcode', 'statuscode', 'username']) expect(sensitiveKey(key)).toBe(false);
-    expect(redactValue([{ name: 'X-Api-Key', value: 'k1' }, { name: 'Accept', value: 'json' }])).toEqual([
+    expect(
+      redactValue([
+        { name: 'X-Api-Key', value: 'k1' },
+        { name: 'Accept', value: 'json' },
+      ]),
+    ).toEqual([
       { name: 'X-Api-Key', value: '…' },
       { name: 'Accept', value: 'json' },
     ]);

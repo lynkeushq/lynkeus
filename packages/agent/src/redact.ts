@@ -36,7 +36,17 @@ const SECRET_WORDS = new Set([
   'ssn',
   'token',
 ]);
-const SECRET_PAIRS = new Set(['api key', 'card number', 'pin code', 'session token', 'session id', 'private key', 'recovery phrase', 'seed phrase', 'secret phrase']);
+const SECRET_PAIRS = new Set([
+  'api key',
+  'card number',
+  'pin code',
+  'session token',
+  'session id',
+  'private key',
+  'recovery phrase',
+  'seed phrase',
+  'secret phrase',
+]);
 const SECRET_WHOLE = new Set(['auth', 'code', 'key', 'session', 'pan', 'apikey', 'x-api-key']);
 // Names written as one lowercase word, which keyWords cannot split (`accesstoken`, `sessionid`).
 const SECRET_FUSED = new Set([
@@ -68,9 +78,61 @@ const keyWords = (key: string): string[] =>
 // An auth word anywhere in a longer name is a secret's name (`authHeader`); a key is one after these words
 // (`sessionKey`, `accessKeyId`, `licenseKey`), not after `item`, `cache` or `sort`.
 const SECRET_ANY = new Set(['auth']);
-const SECRET_KEY_AFTER = new Set(['session', 'access', 'license', 'encryption', 'private', 'secret', 'signing', 'master', 'client', 'crypto', 'aes', 'hmac', 'ssh', 'gpg', 'pgp', 'account', 'product', 'activation', 'recovery', 'wallet', 'root', 'admin', 'service', 'storage', 'app', 'auth', 'refresh', 'decryption']);
+const SECRET_KEY_AFTER = new Set([
+  'session',
+  'access',
+  'license',
+  'encryption',
+  'private',
+  'secret',
+  'signing',
+  'master',
+  'client',
+  'crypto',
+  'aes',
+  'hmac',
+  'ssh',
+  'gpg',
+  'pgp',
+  'account',
+  'product',
+  'activation',
+  'recovery',
+  'wallet',
+  'root',
+  'admin',
+  'service',
+  'storage',
+  'app',
+  'auth',
+  'refresh',
+  'decryption',
+]);
 // A code is secret after these words (`authCode`, `inviteCode`), not after `status`, `error`, `country` or `zip`.
-const SECRET_CODE_AFTER = new Set(['auth', 'invite', 'invitation', 'verification', 'verify', 'access', 'reset', 'promo', 'otp', 'sms', 'confirmation', 'confirm', 'security', 'recovery', 'activation', 'pairing', 'login', 'mfa', 'totp', 'backup', 'one', 'time']);
+const SECRET_CODE_AFTER = new Set([
+  'auth',
+  'invite',
+  'invitation',
+  'verification',
+  'verify',
+  'access',
+  'reset',
+  'promo',
+  'otp',
+  'sms',
+  'confirmation',
+  'confirm',
+  'security',
+  'recovery',
+  'activation',
+  'pairing',
+  'login',
+  'mfa',
+  'totp',
+  'backup',
+  'one',
+  'time',
+]);
 // A name that ends in one of these describes a secret, it is not one (`tokenCount`, `passwordLength`, `keyType`).
 const ABOUT_A_SECRET = new Set(['count', 'counts', 'length', 'type', 'limit', 'limits', 'usage', 'used']);
 
