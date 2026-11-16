@@ -2,7 +2,7 @@ const SENSITIVE_NAMES = ['token', 'key', 'secret', 'code', 'otp', 'password', 'p
 // `name=value` inside free text. A name counts as its own word (`monkey=` and `spin=` do not) or as the tail of a camelCase
 // name (`accessToken=`).
 export const SENSITIVE = new RegExp(
-  `(${SENSITIVE_NAMES.map((n) => `(?<![A-Za-z0-9])(?:${n}|${n.toUpperCase()}|${n[0]!.toUpperCase()}${n.slice(1)})|(?<=[a-z0-9])${n[0]!.toUpperCase()}${n.slice(1)}`).join('|')})(=|%3d)[^&#]*`,
+  `(${SENSITIVE_NAMES.map((n) => `(?<![A-Za-z0-9])(?:${n}|${n.toUpperCase()}|${n[0]!.toUpperCase()}${n.slice(1)})|(?<=[a-z0-9])${n[0]!.toUpperCase()}${n.slice(1)}`).join('|')})(=|%3[dD])[^&#]*`,
   'g',
 );
 
