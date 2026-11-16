@@ -187,6 +187,8 @@ export const driveCommands = [
       }
       const anyOf = (ctx.flags.anyOf as string[] | undefined)?.map((target) => scopedTarget(target, ctx.flags));
       if (!raw && !anyOf?.length) throw new Error('wait needs a route, target, milliseconds, or --anyOf');
+      // Which of several should leave? Ambiguous, and the agent would wait for presence instead.
+      if (anyOf?.length && ctx.flags.gone) throw new Error('wait --gone takes one target, not --anyOf');
       return {
         json: await (await ctx.device()).waitFor({
           ...(raw ? (isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }) : {}),

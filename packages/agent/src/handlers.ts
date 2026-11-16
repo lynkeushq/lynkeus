@@ -302,6 +302,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     let moving = '';
     let movedAt = 0;
     const shape = (all: Element[]) => all.map((e) => `${e.testId ?? e.text ?? ''}@${Math.round(e.frame.y)}`).join('|');
+    if (params.anyOf && params.gone) throw new Error('waitFor: gone takes one target, not anyOf');
     const started = Date.now();
     const deadline = started + (params.timeoutMs ?? 5000);
     while (true) {
