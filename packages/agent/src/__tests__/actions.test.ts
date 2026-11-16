@@ -63,6 +63,20 @@ describe('acting on what the platform does not present', () => {
     expect(swipeOn).toHaveBeenCalledTimes(1);
   });
 
+  it('waits out an element that flickers inert while it lands', async () => {
+    const live = { ...slider, hidden: undefined as Element['hidden'] };
+    const { backend, swipeOn } = fakeBackend([live]);
+    const handlers = createHandlers(noNavigation, backend);
+    setTimeout(() => {
+      live.hidden = 'inert';
+    }, 20);
+    setTimeout(() => {
+      live.hidden = undefined;
+    }, 300);
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
   it('swipes the same element once it is presented', async () => {
     const { backend, swipeOn } = fakeBackend([{ ...slider, hidden: undefined }]);
     const handlers = createHandlers(noNavigation, backend);

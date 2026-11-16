@@ -155,11 +155,14 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   const settled = async (target: Target, timeoutMs = 3000): Promise<Point> => {
     const deadline = Date.now() + timeoutMs;
     // A control still becoming interactive (a pager's last page arriving, a sheet sliding in) reads as inert for a
-    // moment, more so on a loaded machine: wait for it within the same deadline before calling it not presented.
-    while (!('x' in target) && find(target)?.hidden === 'inert' && Date.now() < deadline) await sleep(40);
+    // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
+    // before calling it not presented.
+    const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    while (inert() && Date.now() < deadline) await sleep(40);
     let previous = pointOf(target);
     while (Date.now() < deadline) {
       await sleep(40);
+      if (inert()) continue;
       const current = pointOf(target);
       if (!current.element || (previous.element && current.element && sameFrame(current.element, previous.element))) return current;
       previous = current;
