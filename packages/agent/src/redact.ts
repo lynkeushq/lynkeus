@@ -38,6 +38,24 @@ const SECRET_WORDS = new Set([
 ]);
 const SECRET_PAIRS = new Set(['api key', 'card number', 'pin code', 'session token', 'session id', 'private key', 'recovery phrase', 'seed phrase', 'secret phrase']);
 const SECRET_WHOLE = new Set(['auth', 'code', 'key', 'session', 'pan', 'apikey', 'x-api-key']);
+// Names written as one lowercase word, which keyWords cannot split (`accesstoken`, `sessionid`).
+const SECRET_FUSED = new Set([
+  'accesstoken',
+  'refreshtoken',
+  'idtoken',
+  'authtoken',
+  'sessiontoken',
+  'sessionid',
+  'privatekey',
+  'secretkey',
+  'accesskey',
+  'clientsecret',
+  'apisecret',
+  'pincode',
+  'cardnumber',
+  'securitycode',
+  'verificationcode',
+]);
 
 const keyWords = (key: string): string[] =>
   key
@@ -61,6 +79,7 @@ const ABOUT_A_SECRET = new Set(['count', 'counts', 'length', 'type', 'limit', 'l
 export const sensitiveKey = (key: string): boolean => {
   const words = keyWords(key);
   if (SECRET_WHOLE.has(key.toLowerCase()) || SECRET_WHOLE.has(words.join(''))) return true;
+  if (SECRET_FUSED.has(words.join(''))) return true;
   if (words.length > 1 && ABOUT_A_SECRET.has(words[words.length - 1]!)) return false;
   return words.some(
     (word, index) =>
@@ -127,8 +146,30 @@ export const redactString = (value: string) => redactPathSecrets(value.replace(J
 const MAX_NODES = 10_000;
 type Walk = { path: WeakSet<object>; nodes: number };
 
+// A string can carry its own secrets: a URL's `?token=`, a form body, or JSON kept as text (a request body logged as a
+// prop). JSON text is walked like the value it encodes and written back compact; anything else gets the `name=` rule.
+const walkString = (value: string, depth: number, state: Walk): string => {
+  const trimmed = value.trimStart();
+  if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && depth < 100) {
+    try {
+      return JSON.stringify(walk(JSON.parse(value), depth + 1, state));
+    } catch {
+      // Not JSON after all: fall through to the text rules.
+    }
+  }
+  return redactString(value.replace(SENSITIVE, '$1=…'));
+};
+
+// A header given as an object, `{ name: 'X-Api-Key', value: '…' }`: the name decides, as a key would.
+const headerObject = (value: object): value is { value: unknown } & ({ name: string } | { key: string }) => {
+  const keys = Object.keys(value);
+  if (keys.length !== 2 || !keys.includes('value')) return false;
+  const name = (value as Record<string, unknown>).name ?? (value as Record<string, unknown>).key;
+  return typeof name === 'string' && sensitiveKey(name);
+};
+
 const walk = (value: unknown, depth: number, state: Walk): unknown => {
-  if (typeof value === 'string') return redactString(value);
+  if (typeof value === 'string') return walkString(value, depth, state);
   if (!value || typeof value !== 'object') return value;
   if (depth >= 100) return '[nested data removed]';
   if (state.path.has(value)) return '[circular]';
@@ -138,6 +179,7 @@ const walk = (value: unknown, depth: number, state: Walk): unknown => {
     // A header list keeps its pairs as [name, value]: the name decides, as an object key would.
     if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' && sensitiveKey(value[0])) return [value[0], '…'];
     if (Array.isArray(value)) return value.map((item) => walk(item, depth + 1, state));
+    if (headerObject(value)) return { ...value, value: '…' };
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey(key) ? '…' : walk(item, depth + 1, state)]));
   } finally {
     state.path.delete(value);

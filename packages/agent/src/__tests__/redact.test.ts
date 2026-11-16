@@ -151,6 +151,24 @@ describe('redactValue', () => {
     expect(() => JSON.stringify(fast(() => redactValue(node)))).not.toThrow();
   });
 
+  it('redacts secrets inside strings: a URL query, and JSON kept as text', () => {
+    expect(redactValue({ url: 'https://a.com/verify?token=abc123&lang=es' })).toEqual({ url: 'https://a.com/verify?token=…&lang=es' });
+    const body = redactValue({ body: '{"accessToken":"abcdef123456","next":"https://a.com/x?code=99"}' }) as { body: string };
+    expect(JSON.parse(body.body)).toEqual({ accessToken: '…', next: 'https://a.com/x?code=…' });
+    expect(redactText(JSON.stringify({ link: 'https://a.com/magic?token=zzz', name: 'Ana' }))).not.toContain('zzz');
+    // Text that only looks like JSON stays text, still under the name= rule.
+    expect(redactValue('{not json token=abc')).toBe('{not json token=…');
+  });
+
+  it('redacts names written as one word, and headers given as name/value objects', () => {
+    for (const key of ['accesstoken', 'refreshtoken', 'privatekey', 'sessionid', 'pincode', 'cardnumber']) expect(sensitiveKey(key)).toBe(true);
+    for (const key of ['zipcode', 'statuscode', 'username']) expect(sensitiveKey(key)).toBe(false);
+    expect(redactValue([{ name: 'X-Api-Key', value: 'k1' }, { name: 'Accept', value: 'json' }])).toEqual([
+      { name: 'X-Api-Key', value: '…' },
+      { name: 'Accept', value: 'json' },
+    ]);
+  });
+
   it('redacts by key at any depth', () => {
     expect(redactValue({ a: { accessToken: 'x', tokens: 3, passed: true } })).toEqual({ a: { accessToken: '…', tokens: 3, passed: true } });
   });
