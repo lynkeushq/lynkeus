@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 
+import { createHmac, randomBytes } from 'node:crypto';
+
 import { WebSocket } from 'ws';
 
 import { AgentError, AgentServer } from '../index.js';
@@ -18,34 +20,71 @@ const serve = async (options: ConstructorParameters<typeof AgentServer>[0] = {})
   return server;
 };
 
-type Message = { event?: string; token?: string; id?: number; method?: string };
+type Message = { event?: string; token?: string; session?: string; nonce?: string; proof?: string; id?: number; method?: string };
 
-const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = () => ({ ok: true })) => {
+const hmac = (token: string, text: string) => createHmac('sha256', token).update(text).digest('hex');
+
+/** An app holding `token` (the real agent's handshake): proves it in hello and checks the driver's proof. */
+const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = () => ({ ok: true }), token = 'secret') => {
   const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
   const seen: Message[] = [];
+  let expected = '';
+  let verified: boolean | undefined;
   socket.on('message', (data) => {
     const m = JSON.parse(String(data)) as Message;
     seen.push(m);
-    if (m.event === 'auth') socket.send(JSON.stringify({ event: 'hello', protocolVersion: 1, platform: 'ios', native: false, commands: [], token: 'secret' }));
+    if (m.event === 'auth') {
+      const nonce = randomBytes(16).toString('hex');
+      expected = hmac(token, `lynkeus/driver/${m.session}/${m.nonce}/${nonce}`);
+      const proof = hmac(token, `lynkeus/app/${m.session}/${m.nonce}/${nonce}`);
+      socket.send(JSON.stringify({ event: 'hello', protocolVersion: 2, platform: 'ios', native: false, commands: [], nonce, proof }));
+    } else if (m.event === 'verified') verified = m.proof === expected;
     else if (m.id !== undefined) {
       const reply = answer(m);
       if (reply !== undefined) socket.send(JSON.stringify({ id: m.id, ...(reply as object) }));
     }
   });
   await new Promise((r) => socket.once('open', r));
-  return { socket, seen };
+  return { socket, seen, verified: () => verified };
 };
 
-test('an app proves its token in hello instead of receiving it from the driver', async () => {
+test('the app and the driver each prove the token without either sending it', async () => {
   const server = await serve({ token: 'secret' });
   const app = await fakeApp(server);
   const hello = await server.waitForApp(2000);
   assert.equal(hello.platform, 'ios');
   assert.equal(server.connected, true);
   assert.equal(app.seen[0]?.event, 'auth');
+  assert.match(app.seen[0]?.nonce ?? '', /^[0-9a-f]{32}$/);
   assert.equal(app.seen[0]?.token, undefined);
-  assert.equal('token' in hello, false);
-  assert.equal('token' in (server.hello ?? {}), false);
+  for (const key of ['token', 'nonce', 'proof']) assert.equal(key in hello, false);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(app.verified(), true);
+  assert.equal(JSON.stringify(app.seen).includes('secret'), false);
+  app.socket.close();
+});
+
+test('an app with another token is refused, and does not knock the real app off', async () => {
+  const server = await serve({ token: 'secret' });
+  const app = await fakeApp(server, () => ({ result: { real: true } }));
+  await server.waitForApp(2000);
+  const intruder = await fakeApp(server, () => ({ result: { hijacked: true } }), 'guess');
+  await new Promise((resolve) => intruder.socket.once('close', resolve));
+  assert.equal(intruder.seen.some((m) => m.event === 'verified'), false);
+  assert.equal(server.connected, true);
+  assert.deepEqual(await server.call('ping', undefined, 1000), { real: true });
+  app.socket.close();
+});
+
+test('a frame that is not an object does not bring the driver down', async () => {
+  const server = await serve({ token: 'secret' });
+  const peer = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  await new Promise((r) => peer.once('open', r));
+  for (const frame of ['null', '5', '"x"', 'true']) peer.send(frame);
+  await new Promise((r) => setTimeout(r, 50));
+  peer.close();
+  const app = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await server.call('ping', undefined, 1000), { pong: true });
   app.socket.close();
 });
 

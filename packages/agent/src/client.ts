@@ -4,7 +4,8 @@ import type { Backend } from './backend';
 import { fabricBackend } from './backends/fabric';
 import { createHandlers, dispatch } from './handlers';
 import type { NavigationAdapter } from './navigation';
-import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response } from './protocol';
+import { hmacSha256Hex, sameHex } from './hmac';
+import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response, type VerifiedEvent } from './protocol';
 import { addDefault, host } from './registry';
 import { trackRequests } from './requests';
 import { readLogs, tapLogs } from './logs';
@@ -16,7 +17,7 @@ export type ClientOptions = {
   /** Where the driver listens. Default: localhost:8123 (10.0.2.2 on the Android emulator). */
   host?: string;
   port?: number;
-  /** A per-machine secret the app presents in hello; the driver never transmits it. */
+  /** A per-machine secret both ends prove they hold (HMAC over fresh nonces); neither ever sends it. */
   token?: string;
   /** Intentionally serve any peer without a token. Unsafe outside an isolated test environment. */
   allowUnauthenticated?: boolean;
@@ -54,6 +55,16 @@ const NO_TOKEN =
 
 const openSocket = (url: string): Socket => new (globalThis as unknown as { WebSocket: new (url: string) => Socket }).WebSocket(url);
 
+// Hermes has no WebCrypto everywhere; where it lacks getRandomValues, time and Math.random still make the nonce
+// unique per connection, which is what the driver's proof needs (a fresh value it cannot have seen before).
+const randomHex = (): string => {
+  const bytes = new Uint8Array(16);
+  const crypto = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
+  if (crypto?.getRandomValues) crypto.getRandomValues(bytes);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256) ^ ((Date.now() >>> (i % 4) * 8) & 0xff);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
 /** The app end of the link: dials the driver, retries quietly while nobody listens, serves requests. Returns a stop function. */
 export const start = (options: ClientOptions): (() => void) => {
   // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
@@ -86,7 +97,7 @@ export const start = (options: ClientOptions): (() => void) => {
     if (socket?.readyState === OPEN) socket.send(JSON.stringify(message));
   };
 
-  const hello = (): HelloEvent => ({
+  const hello = (proof: { nonce: string; proof: string } | null): HelloEvent => ({
     event: 'hello',
     protocolVersion: PROTOCOL_VERSION,
     agentVersion: AGENT_VERSION,
@@ -95,7 +106,7 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
-    token: options.token,
+    ...proof,
   });
 
   // The driver resends in-flight requests verbatim after a reconnect. One the
@@ -149,6 +160,8 @@ export const start = (options: ClientOptions): (() => void) => {
     socket = ws;
     let opened = false;
     let authenticated = options.token === undefined && options.allowUnauthenticated === true;
+    let driverNonce = '';
+    let appNonce = '';
     // hello goes out on the driver's auth event, which always arrives first.
     ws.onopen = () => {
       opened = true;
@@ -162,21 +175,36 @@ export const start = (options: ClientOptions): (() => void) => {
       }
     };
     ws.onmessage = (message) => {
-      let parsed: Request | AuthEvent;
+      let parsed: Request | AuthEvent | VerifiedEvent;
       try {
         parsed = JSON.parse(String(message.data));
       } catch {
         return;
       }
+      if (!parsed || typeof parsed !== 'object') return;
       if ('event' in parsed) {
-        if (parsed.event !== 'auth') return;
-        if (parsed.session !== session) {
-          replies.clear();
-          session = parsed.session;
+        if (parsed.event === 'auth') {
+          if (typeof parsed.session !== 'string' || !parsed.session) return;
+          if (parsed.session !== session) {
+            replies.clear();
+            session = parsed.session;
+          }
+          if (!options.token) {
+            send(hello(null));
+            return;
+          }
+          // A driver that sends no nonce speaks the old handshake, which handed the token to whoever listened.
+          if (typeof parsed.nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(parsed.nonce)) return;
+          authenticated = false;
+          driverNonce = parsed.nonce;
+          appNonce = randomHex();
+          send(hello({ nonce: appNonce, proof: hmacSha256Hex(options.token, `lynkeus/app/${session}/${driverNonce}/${appNonce}`) }));
+          return;
         }
-        if (parsed.session) {
-          authenticated = true;
-          send(hello());
+        if (parsed.event === 'verified' && options.token && appNonce) {
+          // Whatever listens on the port gets nothing but our proof unless it proves the token too.
+          if (sameHex(parsed.proof, hmacSha256Hex(options.token, `lynkeus/driver/${session}/${driverNonce}/${appNonce}`))) authenticated = true;
+          else ws.close();
         }
         return;
       }

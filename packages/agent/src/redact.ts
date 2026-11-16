@@ -37,11 +37,27 @@ const keyWords = (key: string): string[] =>
     .filter(Boolean)
     .map((word) => word.toLowerCase());
 
-// Matches whole words, so `passed`, `bypass`, `span` and `tokens` stay readable while `accessToken` and `X-Api-Key` do not.
+// A key or auth word anywhere in a longer name is a secret's name (`sessionKey`, `accessKeyId`, `authHeader`).
+const SECRET_ANY = new Set(['key', 'keys', 'auth']);
+// A code is secret after these words (`authCode`, `inviteCode`), not after `status`, `error`, `country` or `zip`.
+const SECRET_CODE_AFTER = new Set(['auth', 'invite', 'invitation', 'verification', 'verify', 'access', 'reset', 'promo', 'otp', 'sms', 'confirmation', 'confirm', 'security', 'recovery', 'activation', 'pairing', 'login', 'mfa', 'totp', 'backup', 'one', 'time']);
+// A name that ends in one of these describes a secret, it is not one (`tokenCount`, `passwordLength`, `keyType`).
+const ABOUT_A_SECRET = new Set(['count', 'counts', 'length', 'type', 'limit', 'limits', 'usage', 'used']);
+
+// Matches words, so `passed`, `bypass`, `span`, `tokens` and `statusCode` stay readable while `accessToken`,
+// `sessionKey`, `authCode` and `X-Api-Key` do not.
 export const sensitiveKey = (key: string): boolean => {
   const words = keyWords(key);
   if (SECRET_WHOLE.has(key.toLowerCase()) || SECRET_WHOLE.has(words.join(''))) return true;
-  return words.some((word, index) => SECRET_WORDS.has(word) || (index > 0 && SECRET_PAIRS.has(`${words[index - 1]} ${word}`)));
+  if (words.length > 1 && ABOUT_A_SECRET.has(words[words.length - 1]!)) return false;
+  return words.some(
+    (word, index) =>
+      SECRET_WORDS.has(word) ||
+      (words.length > 1 && SECRET_ANY.has(word)) ||
+      (word === 'code' && index > 0 && SECRET_CODE_AFTER.has(words[index - 1]!)) ||
+      (word === 'session' && index === words.length - 1 && words.length > 1) ||
+      (index > 0 && SECRET_PAIRS.has(`${words[index - 1]} ${word}`)),
+  );
 };
 
 // A key only counts in key position (start of a line, or after `{ , ; &`), so prose like "Waiting for monkey: x" is kept.

@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import type { Backend } from '../backend';
@@ -26,6 +28,29 @@ const dialer = () => {
   };
   const refuse = () => sockets[sockets.length - 1]?.onclose?.();
   return { dials, urls, sockets, createSocket, refuse };
+};
+
+const hmac = (token: string, text: string) => createHmac('sha256', token).update(text).digest('hex');
+const DRIVER_NONCE = 'd'.repeat(32);
+
+/** Plays a driver holding `token` through the handshake on an opened socket; returns the app's hello. */
+const handshake = (socket: Socket, sent: string[], token = 'secret', session = 's') => {
+  socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session, nonce: DRIVER_NONCE }) });
+  const hello = JSON.parse(sent.find((line) => JSON.parse(line).event === 'hello')!) as { nonce: string; proof: string };
+  socket.onmessage?.({ data: JSON.stringify({ event: 'verified', proof: hmac(token, `lynkeus/driver/${session}/${DRIVER_NONCE}/${hello.nonce}`) }) });
+  return hello;
+};
+
+const opened = (d: ReturnType<typeof dialer>) => {
+  const sent: string[] = [];
+  const socket = d.sockets[0]! as Socket & { readyState: number };
+  socket.readyState = 1;
+  socket.send = (data: string) => sent.push(data);
+  let closed = false;
+  socket.close = () => {
+    closed = true;
+  };
+  return { socket, sent, closed: () => closed };
 };
 
 describe('a token that did not arrive', () => {
@@ -103,7 +128,6 @@ describe('dialing the driver', () => {
 describe('replayed requests', () => {
   it('runs an in-flight command once and sends one reply', async () => {
     const d = dialer();
-    const sent: string[] = [];
     let calls = 0;
     let release!: (value: { done: boolean }) => void;
     const pending = new Promise<{ done: boolean }>((resolve) => (release = resolve));
@@ -112,11 +136,9 @@ describe('replayed requests', () => {
       return pending;
     });
     const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
-    const socket = d.sockets[0]! as { readyState: number; send: (data: string) => void };
-    socket.readyState = 1;
-    socket.send = (data) => sent.push(data);
-    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's' }) });
-    sent.length = 0;
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    link.sent.length = 0;
     const request = JSON.stringify({ id: 1, method: 'slowReset' });
     d.sockets[0]!.onmessage?.({ data: request });
     d.sockets[0]!.onmessage?.({ data: request });
@@ -124,7 +146,7 @@ describe('replayed requests', () => {
     release({ done: true });
     await Promise.resolve();
     await Promise.resolve();
-    expect(sent.filter((line) => JSON.parse(line).id === 1)).toHaveLength(1);
+    expect(link.sent.filter((line) => JSON.parse(line).id === 1)).toHaveLength(1);
     unregister();
     stop();
   });
@@ -133,14 +155,48 @@ describe('replayed requests', () => {
 describe('hello', () => {
   it('names the agent release, which package.json and the driver agree on', () => {
     const d = dialer();
-    const sent: string[] = [];
     const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
-    const socket = d.sockets[0]! as { readyState: number; send: (data: string) => void };
-    socket.readyState = 1;
-    socket.send = (data) => sent.push(data);
-    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's' }) });
+    const link = opened(d);
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's', nonce: DRIVER_NONCE }) });
     const { version } = jest.requireActual<{ version: string }>('../../package.json');
-    expect(JSON.parse(sent[0]!)).toMatchObject({ event: 'hello', agentVersion: version });
+    expect(JSON.parse(link.sent[0]!)).toMatchObject({ event: 'hello', agentVersion: version });
+    stop();
+  });
+});
+
+describe('the handshake', () => {
+  it('proves the token in hello without sending it', () => {
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    const hello = handshake(link.socket, link.sent);
+    expect(hello.nonce).toMatch(/^[0-9a-f]{32}$/);
+    expect(hello.proof).toBe(hmac('secret', `lynkeus/app/s/${DRIVER_NONCE}/${hello.nonce}`));
+    expect(link.sent.join('\n')).not.toContain('secret');
+    stop();
+  });
+
+  it('serves nothing to a driver that has not proved the token, and drops one whose proof is wrong', () => {
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's', nonce: DRIVER_NONCE }) });
+    link.socket.onmessage?.({ data: JSON.stringify({ id: 1, method: 'screen' }) });
+    expect(JSON.parse(link.sent[1]!)).toMatchObject({ id: 1, error: { code: 'unauthenticated' } });
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'verified', proof: 'f'.repeat(64) }) });
+    expect(link.closed()).toBe(true);
+    link.socket.onmessage?.({ data: JSON.stringify({ id: 2, method: 'screen' }) });
+    expect(JSON.parse(link.sent[2]!)).toMatchObject({ id: 2, error: { code: 'unauthenticated' } });
+    stop();
+  });
+
+  it('says nothing to a driver of the old handshake, which would have taken the token', () => {
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's' }) });
+    for (const frame of ['null', '5', '"x"']) link.socket.onmessage?.({ data: frame });
+    expect(link.sent).toHaveLength(0);
     stop();
   });
 });

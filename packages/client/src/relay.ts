@@ -2,7 +2,8 @@ import { WebSocket } from 'ws';
 
 // `URL.hostname` keeps the brackets of an IPv6 literal.
 const bareHost = (url: URL) => url.hostname.replace(/^\[|\]$/g, '');
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '10.0.2.2']);
+// Loopback only. 10.0.2.2 is the Mac from inside an Android emulator; on the Mac itself it can be another machine.
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 const REQUEST_MAX = 1024 * 1024;
 const FRAME_MAX_CHARS = Math.ceil((REQUEST_MAX * 4) / 3) + 64 * 1024;

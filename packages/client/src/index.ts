@@ -2,7 +2,7 @@
  * The driver end of the link. The app dials in and keeps redialing, so the
  * server is the stable side: start it once, and every app launch reattaches.
  */
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import { WebSocket, WebSocketServer } from 'ws';
@@ -12,6 +12,9 @@ import type { AgentEvent, CoreMethods, HelloEvent, Response } from 'lynkeus-prot
 export { RelayClient, relayBackend, relayService } from './relay.js';
 
 export type { AgentEvent, CoreMethods, Element, HelloEvent, Screen, Target, RequestRecord } from 'lynkeus-protocol';
+
+const proof = (token: string, role: 'app' | 'driver', session: string, driverNonce: string, appNonce: string) =>
+  createHmac('sha256', token).update(`lynkeus/${role}/${session}/${driverNonce}/${appNonce}`).digest('hex');
 
 const sameToken = (given: unknown, expected: string): boolean => {
   if (typeof given !== 'string') return false;
@@ -23,7 +26,7 @@ const sameToken = (given: unknown, expected: string): boolean => {
 export type AgentServerOptions = {
   port?: number;
   host?: string;
-  /** Must match the app's `token`; only the app transmits it, in hello. */
+  /** Must match the app's `token`. Each end proves it holds it over fresh nonces; neither sends it. */
   token?: string;
   /** How long in-flight calls wait for the app to reconnect before failing (default 2500 ms). */
   reconnectGraceMs?: number;
@@ -170,14 +173,13 @@ export class AgentServer extends EventEmitter {
   }
 
   #attach(socket: WebSocket): void {
-    // A relaunch reconnects before the old socket notices; the newest wins.
-    this.#socket?.close();
-    this.#socket = socket;
-    this.#hello = null;
-    this.#cancelGrace();
-    socket.send(JSON.stringify({ event: 'auth', session: this.#session }));
+    // A new connection is only a candidate: the app it replaces keeps the link until this one proves the token, so a
+    // local process that connects in a loop cannot knock the real app off.
+    const driverNonce = randomBytes(16).toString('hex');
+    socket.send(JSON.stringify({ event: 'auth', session: this.#session, nonce: driverNonce }));
+    let candidate = true;
     const silence = setTimeout(() => {
-      if (this.#socket === socket && !this.#hello && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
+      if (candidate && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
     }, 2000);
     socket.once('close', () => clearTimeout(silence));
 
@@ -188,29 +190,35 @@ export class AgentServer extends EventEmitter {
       } catch {
         return;
       }
+      // Anything can connect to the port: a frame that is not an object is noise, not a reason to throw.
+      if (!message || typeof message !== 'object') return;
       if ('event' in message) {
-        if (message.event === 'hello') {
-          if (this.#token !== undefined && !sameToken(message.token, this.#token)) {
+        if (message.event === 'hello' && candidate) {
+          const { nonce, proof: given, ...safe } = message;
+          if (this.#token !== undefined && (typeof nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(nonce) || !sameToken(given, proof(this.#token, 'app', this.#session, driverNonce, nonce)))) {
             this.#unanswered = true;
             socket.close(1008, 'invalid token');
             return;
           }
-          // The token proved itself once; nothing after this, nor anything that prints or forwards a hello, carries it.
-          const { token: _proved, ...safe } = message;
-          message = safe as HelloEvent;
-          this.#hello = message;
-          this.#unanswered = false;
+          candidate = false;
           clearTimeout(silence);
-          // Resend what the previous socket may have dropped, but only once this one has spoken the
-          // protocol and proved the project token: a bare local connection could be any process.
-          if (socket.readyState === WebSocket.OPEN) {
-            for (const pending of this.#pending.values()) socket.send(pending.request);
-          }
+          // A relaunch reconnects before the old socket notices; the newest proven one wins.
+          const previous = this.#socket;
+          this.#socket = socket;
+          if (previous && previous !== socket) previous.close();
+          this.#cancelGrace();
+          this.#hello = safe as HelloEvent;
+          this.#unanswered = false;
+          socket.send(JSON.stringify(this.#token !== undefined && typeof nonce === 'string' ? { event: 'verified', proof: proof(this.#token, 'driver', this.#session, driverNonce, nonce) } : { event: 'verified' }));
+          // Resend what the previous socket may have dropped, now that this one has proved the project token.
+          for (const pending of this.#pending.values()) socket.send(pending.request);
+          this.emit('hello', this.#hello);
+          return;
         }
-        if (this.#hello) this.emit(message.event, message);
+        if (this.#socket === socket && this.#hello) this.emit(message.event, message);
         return;
       }
-      if (!this.#hello) return;
+      if (this.#socket !== socket || !this.#hello) return;
       const pending = this.#pending.get(message.id);
       if (!pending) return;
       this.#pending.delete(message.id);

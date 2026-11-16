@@ -1,6 +1,6 @@
 # Protocol
 
-Version 1. JSON messages over a WebSocket. The **app** is the client: in
+Version 2. JSON messages over a WebSocket. The **app** is the client: in
 development it dials the **driver** (`ws://localhost:8123` on iOS; on Android
 `ws://10.0.2.2:8123` for an emulator, then `ws://localhost:8123`, which a phone on USB
 reaches through the `adb reverse` the CLI sets up when it starts listening). While nothing answers it dials again every 100 ms
@@ -14,7 +14,7 @@ an MCP server, an LLM harness.
 Driver → app, always the first message on a new socket:
 
 ```json
-{ "event": "auth", "session": "b7e1…" }
+{ "event": "auth", "session": "b7e1…", "nonce": "3f9a…" }
 ```
 
 - `session`: random per driver process. A driver that reconnects resends the
@@ -22,22 +22,40 @@ Driver → app, always the first message on a new socket:
   reply it kept (the last 64), so a press is not done twice. A new `session`
   means a new driver whose request ids start over, and the kept replies are
   dropped.
-- The driver never sends the project token. A process that merely listens on
-  the port therefore learns nothing from the handshake.
+- `nonce`: 16 random bytes in hex, fresh per connection.
+- Neither end ever sends the project token. Each proves it holds it with
+  HMAC-SHA256 over both nonces, so a process that listens on the port, or one
+  that connects to it, learns nothing it can reuse.
 
 App → driver, in answer to an `auth` it accepts:
 
 ```json
-{ "event": "hello", "protocolVersion": 1, "agentVersion": "0.6.0", "platform": "ios", "native": true,
-  "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" }, "token": "…" }
+{ "event": "hello", "protocolVersion": 2, "agentVersion": "0.6.0", "platform": "ios", "native": true,
+  "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" },
+  "nonce": "a41c…", "proof": "…" }
 ```
 
-- `token`: the app's `token`, which proves it shares the driver's secret. A
-  driver that has a token closes the socket (code 1008) when `hello` carries a
-  different one, compares in constant time, and drops the field before it
-  stores or forwards the message, so it never reaches `lynkeus hello`, logs or
-  an MCP client. The app serves requests after any `auth`; the proof runs one
-  way (app to driver), so the driver does not prove itself to the app.
+- `nonce`: the app's own fresh nonce. `proof`: HMAC-SHA256, keyed by the token,
+  of `lynkeus/app/<session>/<driver nonce>/<app nonce>`, in hex. A driver that
+  has a token closes the socket (code 1008) when the proof does not check out
+  (constant-time comparison) and drops both fields before it stores or forwards
+  the message. An app with a token sends no `hello` to a driver whose `auth`
+  carries no nonce: that is the old handshake, in which the token travelled.
+- A new connection is a candidate until its `hello` checks out: the app it
+  would replace keeps the link, so a local process that connects in a loop
+  cannot knock the real app off.
+
+Driver → app, once the app's proof checks out:
+
+```json
+{ "event": "verified", "proof": "…" }
+```
+
+- `proof`: HMAC-SHA256 of `lynkeus/driver/<session>/<driver nonce>/<app nonce>`.
+  The app serves no request before a `verified` whose proof checks out (it
+  answers `unauthenticated` meanwhile) and closes the socket when one does not,
+  so whatever listens on the port cannot drive it. The `app`/`driver` labels
+  keep one side's proof from being replayed as the other's.
 
 - `agentVersion`: the `lynkeus-agent` release in the app; agents older than
   the field do not send it.

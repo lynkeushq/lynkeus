@@ -88,6 +88,8 @@ test('a relay forwards only allowed requests to the loopback backend', async () 
 
 test('the relay refuses non-loopback backends and malformed tokens', () => {
   assert.throws(() => relayBackend('https://example.test'), /loopback/);
+  assert.throws(() => relayBackend('http://10.0.2.2:3000'), /loopback/);
+  assert.throws(() => relayService('http://10.0.2.2:8787'), /TLS/);
   assert.throws(() => relayBackend('http://user:pass@127.0.0.1'), /credentials/);
   const socketSecret = `relaysock_${'b'.repeat(64)}`;
   assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: 'short', socketSecret, backend: 'http://127.0.0.1' }), /token/);

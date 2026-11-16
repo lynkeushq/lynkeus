@@ -32,7 +32,7 @@ test('an unauthenticated peer cannot hijack pending or new commands', async () =
   const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
   socket.on('message', (data) => {
     const message = JSON.parse(String(data));
-    if (message.event === 'auth') socket.send(JSON.stringify({ event: 'hello', protocolVersion: 1, platform: 'ios', native: false, commands: [] }));
+    if (message.event === 'auth') socket.send(JSON.stringify({ event: 'hello', protocolVersion: 2, platform: 'ios', native: false, commands: [], nonce: 'a'.repeat(32), proof: 'b'.repeat(64) }));
     else if (message.id !== undefined) socket.send(JSON.stringify({ id: message.id, result: { hijacked: true } }));
   });
   await new Promise((resolve) => socket.once('open', resolve));

@@ -48,6 +48,17 @@ describe('sensitiveKey', () => {
     'key',
     'session',
     'pan',
+    'sessionKey',
+    'accessKey',
+    'accessKeyId',
+    'authCode',
+    'auth_code',
+    'inviteCode',
+    'verificationCode',
+    'licenseKey',
+    'encryptionKey',
+    'authHeader',
+    'userSession',
   ])('redacts %s', (key) => expect(sensitiveKey(key)).toBe(true));
 
   it.each([
@@ -67,6 +78,13 @@ describe('sensitiveKey', () => {
     'codec',
     'status',
     'page',
+    'tokenCount',
+    'passwordLength',
+    'statusCode',
+    'errorCode',
+    'countryCode',
+    'currencyCode',
+    'keyboardType',
   ])('keeps %s', (key) => expect(sensitiveKey(key)).toBe(false));
 });
 
