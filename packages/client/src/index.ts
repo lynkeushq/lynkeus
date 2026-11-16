@@ -2,6 +2,7 @@
  * The driver end of the link. The app dials in and keeps redialing, so the
  * server is the stable side: start it once, and every app launch reattaches.
  */
+import { timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 
 import { WebSocket, WebSocketServer } from 'ws';
@@ -11,6 +12,13 @@ import type { AgentEvent, CoreMethods, HelloEvent, Response } from 'lynkeus-prot
 export { RelayClient, relayBackend, relayService } from './relay.js';
 
 export type { AgentEvent, CoreMethods, Element, HelloEvent, Screen, Target, RequestRecord } from 'lynkeus-protocol';
+
+const sameToken = (given: unknown, expected: string): boolean => {
+  if (typeof given !== 'string') return false;
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
 
 export type AgentServerOptions = {
   port?: number;
@@ -179,11 +187,14 @@ export class AgentServer extends EventEmitter {
       }
       if ('event' in message) {
         if (message.event === 'hello') {
-          if (this.#token !== undefined && message.token !== this.#token) {
+          if (this.#token !== undefined && !sameToken(message.token, this.#token)) {
             this.#unanswered = true;
             socket.close(1008, 'invalid token');
             return;
           }
+          // The token proved itself once; nothing after this, nor anything that prints or forwards a hello, carries it.
+          const { token: _proved, ...safe } = message;
+          message = safe as HelloEvent;
           this.#hello = message;
           this.#unanswered = false;
           clearTimeout(silence);

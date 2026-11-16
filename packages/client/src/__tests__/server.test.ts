@@ -44,6 +44,8 @@ test('an app proves its token in hello instead of receiving it from the driver',
   assert.equal(server.connected, true);
   assert.equal(app.seen[0]?.event, 'auth');
   assert.equal(app.seen[0]?.token, undefined);
+  assert.equal('token' in hello, false);
+  assert.equal('token' in (server.hello ?? {}), false);
   app.socket.close();
 });
 

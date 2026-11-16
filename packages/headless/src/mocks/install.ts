@@ -137,7 +137,7 @@ const followAllowed = async (
     if (mode === 'error') throw new TypeError('Network request failed: unexpected redirect');
     if (hop >= MAX_REDIRECTS) throw new TypeError(`Network request failed: more than ${MAX_REDIRECTS} redirects`);
     const toGet = r.status === 303 ? method !== 'HEAD' : (r.status === 301 || r.status === 302) && method === 'POST';
-    const headers = new Headers(options.headers ?? (typeof input === 'object' && input !== null ? (input as { headers?: RequestInit["headers"] }).headers : undefined));
+    const headers = new Headers(options.headers ?? (typeof input === 'object' && input !== null ? (input as { headers?: RequestInit['headers'] }).headers : undefined));
     if (new URL(next).origin !== new URL(url).origin) {
       headers.delete('authorization');
       headers.delete('cookie');
