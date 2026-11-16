@@ -13,6 +13,8 @@ const TIMEOUT_MS = 30_000;
 export type RelayOptions = {
   cloud: string;
   token: string;
+  // The CLI's own secret for the socket. The token names the run and travels in the app's URL; it does not open it.
+  socketSecret: string;
   backend: string;
   prefix?: string;
   fetch?: typeof fetch;
@@ -82,19 +84,20 @@ export class RelayClient {
   #socket?: WebSocket;
   #socketFactory: (url: string, authorization: string) => WebSocket;
   #fetch: typeof fetch;
-  #token: string;
+  #socketSecret: string;
   #active = 0;
   #finished: Promise<void>;
   #finish?: () => void;
 
   constructor(options: RelayOptions) {
     if (!/^relay_[0-9a-f]{64}$/.test(options.token)) throw new Error('the relay token has an invalid shape');
+    if (!/^relaysock_[0-9a-f]{64}$/.test(options.socketSecret)) throw new Error('the relay socket secret has an invalid shape');
     this.prefix = options.prefix ?? '/api/mobile/';
     if (!this.prefix.startsWith('/api/mobile/') || this.prefix.includes('..') || this.prefix.includes('\\') || this.prefix.includes('\0'))
       throw new Error('the relay prefix must stay under /api/mobile/');
     this.backend = relayBackend(options.backend);
     this.socketUrl = relaySocketUrl(options.cloud, options.token);
-    this.#token = options.token;
+    this.#socketSecret = options.socketSecret;
     this.#socketFactory = options.socketFactory ?? ((url, authorization) => new WebSocket(url, { headers: { authorization } }));
     this.#fetch = options.fetch ?? fetch;
     this.#finished = new Promise<void>((resolve) => {
@@ -108,7 +111,7 @@ export class RelayClient {
 
   async listen(): Promise<void> {
     if (this.#socket) return;
-    const socket = this.#socketFactory(this.socketUrl, `Bearer ${this.#token}`);
+    const socket = this.#socketFactory(this.socketUrl, `Bearer ${this.#socketSecret}`);
     this.#socket = socket;
     socket.on('message', (data, isBinary) => {
       if (isBinary) return;

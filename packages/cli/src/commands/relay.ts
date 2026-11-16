@@ -50,8 +50,9 @@ export const relayCommands = [
       const prefix = typeof ctx.flags.prefix === 'string' ? ctx.flags.prefix : '/api/mobile/';
       const created = await createRelaySession(cloud, key, Number(ctx.flags.ttl), prefix);
       if (!created.ok) return { text: `could not create the relay session (${created.status})`, code: 1 };
-      const session = (await created.json()) as { token: string; expiresAt: string };
-      const client = new RelayClient({ cloud, token: session.token, backend: String(ctx.flags.backend), prefix });
+      const session = (await created.json()) as { token: string; socketSecret?: string; expiresAt: string };
+      if (!session.socketSecret) return { text: 'the relay service is older than this CLI: it gave no socket secret', code: 1 };
+      const client = new RelayClient({ cloud, token: session.token, socketSecret: session.socketSecret, backend: String(ctx.flags.backend), prefix });
       await client.listen();
       const interrupt = () => client.close();
       process.once('SIGINT', interrupt);

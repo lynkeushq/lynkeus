@@ -33,14 +33,19 @@ test('a relay forwards only allowed requests to the loopback backend', async () 
   await new Promise<void>((resolve) => cloud.once('listening', resolve));
   const cloudPort = (cloud.address() as { port: number }).port;
   let app: WebSocket | undefined;
-  cloud.on('connection', (socket) => {
+  let authorization: string | undefined;
+  cloud.on('connection', (socket, request) => {
     app = socket;
+    authorization = request.headers.authorization;
   });
   const token = `relay_${'a'.repeat(64)}`;
-  const client = new RelayClient({ cloud: `ws://127.0.0.1:${cloudPort}`, token, backend: `http://127.0.0.1:${backendPort}` });
+  const socketSecret = `relaysock_${'b'.repeat(64)}`;
+  const client = new RelayClient({ cloud: `ws://127.0.0.1:${cloudPort}`, token, socketSecret, backend: `http://127.0.0.1:${backendPort}` });
   await client.listen();
   try {
     if (!app) throw new Error('relay did not attach');
+    // The socket is opened with the CLI's secret, never with the token the app's URL carries.
+    assert.equal(authorization, `Bearer ${socketSecret}`);
 
     const requested = next(app);
     app.send(JSON.stringify({ id: 'one', method: 'GET', path: '/api/mobile/v3/ping?x=1', headers: { 'x-api-key': 'app-secret' } }));
@@ -84,9 +89,11 @@ test('a relay forwards only allowed requests to the loopback backend', async () 
 test('the relay refuses non-loopback backends and malformed tokens', () => {
   assert.throws(() => relayBackend('https://example.test'), /loopback/);
   assert.throws(() => relayBackend('http://user:pass@127.0.0.1'), /credentials/);
-  assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: 'short', backend: 'http://127.0.0.1' }), /token/);
+  const socketSecret = `relaysock_${'b'.repeat(64)}`;
+  assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: 'short', socketSecret, backend: 'http://127.0.0.1' }), /token/);
+  assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, socketSecret: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1' }), /socket secret/);
   assert.throws(
-    () => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1', prefix: '/admin' }),
+    () => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, socketSecret, backend: 'http://127.0.0.1', prefix: '/admin' }),
     /prefix/,
   );
 });
