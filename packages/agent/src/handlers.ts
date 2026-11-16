@@ -158,16 +158,27 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
     // before calling it not presented.
     const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    // On a native host the element list is read from the view tree while it changes, so two reads in a row can
+    // disagree: an inert read right after a presented one is the same flicker, not an answer.
+    const look = (): Point | undefined => {
+      try {
+        return pointOf(target);
+      } catch (error) {
+        if (Date.now() < deadline && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        throw error;
+      }
+    };
     while (inert() && Date.now() < deadline) await sleep(40);
-    let previous = pointOf(target);
+    let previous = look();
     while (Date.now() < deadline) {
       await sleep(40);
       if (inert()) continue;
-      const current = pointOf(target);
-      if (!current.element || (previous.element && current.element && sameFrame(current.element, previous.element))) return current;
+      const current = look();
+      if (!current) continue;
+      if (!current.element || (previous?.element && current.element && sameFrame(current.element, previous.element))) return current;
       previous = current;
     }
-    return previous;
+    return previous ?? pointOf(target);
   };
 
   const pressNative = async (target: Target, holdMs: number) => {
@@ -240,8 +251,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const { w: width, h: height } = backend.window();
     const durationMs = params.durationMs ?? 250;
     if (params.target) {
-      await settled(params.target);
-      const element = presented(params.target);
+      const landed = await settled(params.target);
+      const element = landed.element ?? presented(params.target);
       const direction = params.direction ?? 'up';
       const distance = params.distance ?? (direction === 'up' || direction === 'down' ? height : width) * 0.6;
       const dx = direction === 'left' ? -distance : direction === 'right' ? distance : 0;

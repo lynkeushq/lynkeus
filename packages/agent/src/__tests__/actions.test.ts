@@ -77,6 +77,20 @@ describe('acting on what the platform does not present', () => {
     expect(swipeOn).toHaveBeenCalledTimes(1);
   });
 
+  it('swipes an element whose reads disagree while a native host updates its tree', async () => {
+    // Every read of the tree comes back different for a while: inert, presented, inert, ...
+    let reads = 0;
+    const { backend, swipeOn } = fakeBackend([]);
+    backend.snapshot = () => {
+      reads += 1;
+      return { elements: [{ ...slider, hidden: reads < 12 && reads % 2 === 1 ? 'inert' : undefined }] };
+    };
+    const handlers = createHandlers(noNavigation, backend);
+
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
   it('swipes the same element once it is presented', async () => {
     const { backend, swipeOn } = fakeBackend([{ ...slider, hidden: undefined }]);
     const handlers = createHandlers(noNavigation, backend);
