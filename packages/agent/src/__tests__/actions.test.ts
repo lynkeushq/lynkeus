@@ -91,6 +91,27 @@ describe('acting on what the platform does not present', () => {
     expect(swipeOn).toHaveBeenCalledTimes(1);
   });
 
+  it('waits for a landing target on a virtual clock that jumps ahead while it sleeps', async () => {
+    // fastsim's Date.now runs on the host's virtual clock: each look finds a second gone, while the native tree is still
+    // the same few reads away from presenting the control.
+    let reads = 0;
+    const { backend, swipeOn } = fakeBackend([]);
+    backend.snapshot = () => {
+      reads += 1;
+      return { elements: [{ ...slider, hidden: reads < 16 ? 'inert' : undefined }] };
+    };
+    const realNow = Date.now;
+    let virtual = realNow();
+    Date.now = () => (virtual += 1000);
+    try {
+      const handlers = createHandlers(noNavigation, backend);
+      await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    } finally {
+      Date.now = realNow;
+    }
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
   it('swipes the same element once it is presented', async () => {
     const { backend, swipeOn } = fakeBackend([{ ...slider, hidden: undefined }]);
     const handlers = createHandlers(noNavigation, backend);

@@ -8,6 +8,8 @@ import { recentRequests, requestsInFlight } from './requests';
 import { lastSeq, traceSince } from './trace';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
+const MIN_SETTLE_LOOKS = 30;
 
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
@@ -154,6 +156,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   // it out, or the screen depends on when the tap came.
   const settled = async (target: Target, timeoutMs = 3000): Promise<Point> => {
     const deadline = Date.now() + timeoutMs;
+    // On a host with a virtual clock (fastsim) Date.now jumps ahead while JavaScript sleeps, so the deadline can pass in a
+    // few real milliseconds, before the native side has moved at all. The wait therefore also lasts a number of looks,
+    // which costs nothing where the clock is real (they fit well inside the deadline).
+    let looks = 0;
+    const waiting = () => Date.now() < deadline || looks < MIN_SETTLE_LOOKS;
     // A control still becoming interactive (a pager's last page arriving, a sheet sliding in) reads as inert for a
     // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
     // before calling it not presented.
@@ -164,13 +171,17 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       try {
         return pointOf(target);
       } catch (error) {
-        if (Date.now() < deadline && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        if (waiting() && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
         throw error;
       }
     };
-    while (inert() && Date.now() < deadline) await sleep(40);
+    while (inert() && waiting()) {
+      looks++;
+      await sleep(40);
+    }
     let previous = look();
-    while (Date.now() < deadline) {
+    while (waiting()) {
+      looks++;
       await sleep(40);
       if (inert()) continue;
       const current = look();
