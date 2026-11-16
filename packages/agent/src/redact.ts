@@ -1,4 +1,4 @@
-const SENSITIVE_NAMES = ['token', 'key', 'secret', 'code', 'otp', 'password', 'pin', 'session', 'auth'];
+const SENSITIVE_NAMES = ['token', 'key', 'secret', 'code', 'otp', 'password', 'pin', 'session', 'auth', 'pwd', 'pass', 'passphrase', 'sid'];
 // `name=value` inside free text. A name counts as its own word (`monkey=` and `spin=` do not) or as the tail of a camelCase
 // name (`accessToken=`).
 export const SENSITIVE = new RegExp(
@@ -8,6 +8,16 @@ export const SENSITIVE = new RegExp(
 
 const SECRET_WORDS = new Set([
   'password',
+  'passwords',
+  'pwd',
+  'pass',
+  'passphrase',
+  'secrets',
+  'tok',
+  'sid',
+  'iban',
+  'mnemonic',
+  'seed',
   'passcode',
   'passwd',
   'pin',
@@ -26,7 +36,7 @@ const SECRET_WORDS = new Set([
   'ssn',
   'token',
 ]);
-const SECRET_PAIRS = new Set(['api key', 'card number', 'pin code', 'session token', 'session id', 'private key']);
+const SECRET_PAIRS = new Set(['api key', 'card number', 'pin code', 'session token', 'session id', 'private key', 'recovery phrase', 'seed phrase', 'secret phrase']);
 const SECRET_WHOLE = new Set(['auth', 'code', 'key', 'session', 'pan', 'apikey', 'x-api-key']);
 
 const keyWords = (key: string): string[] =>
@@ -37,8 +47,10 @@ const keyWords = (key: string): string[] =>
     .filter(Boolean)
     .map((word) => word.toLowerCase());
 
-// A key or auth word anywhere in a longer name is a secret's name (`sessionKey`, `accessKeyId`, `authHeader`).
-const SECRET_ANY = new Set(['key', 'keys', 'auth']);
+// An auth word anywhere in a longer name is a secret's name (`authHeader`); a key is one after these words
+// (`sessionKey`, `accessKeyId`, `licenseKey`), not after `item`, `cache` or `sort`.
+const SECRET_ANY = new Set(['auth']);
+const SECRET_KEY_AFTER = new Set(['session', 'access', 'license', 'encryption', 'private', 'secret', 'signing', 'master', 'client', 'crypto', 'aes', 'hmac', 'ssh', 'gpg', 'pgp', 'account', 'product', 'activation', 'recovery', 'wallet', 'root', 'admin', 'service', 'storage', 'app', 'auth', 'refresh', 'decryption']);
 // A code is secret after these words (`authCode`, `inviteCode`), not after `status`, `error`, `country` or `zip`.
 const SECRET_CODE_AFTER = new Set(['auth', 'invite', 'invitation', 'verification', 'verify', 'access', 'reset', 'promo', 'otp', 'sms', 'confirmation', 'confirm', 'security', 'recovery', 'activation', 'pairing', 'login', 'mfa', 'totp', 'backup', 'one', 'time']);
 // A name that ends in one of these describes a secret, it is not one (`tokenCount`, `passwordLength`, `keyType`).
@@ -54,6 +66,7 @@ export const sensitiveKey = (key: string): boolean => {
     (word, index) =>
       SECRET_WORDS.has(word) ||
       (words.length > 1 && SECRET_ANY.has(word)) ||
+      ((word === 'key' || word === 'keys') && index > 0 && SECRET_KEY_AFTER.has(words[index - 1]!)) ||
       (word === 'code' && index > 0 && SECRET_CODE_AFTER.has(words[index - 1]!)) ||
       (word === 'session' && index === words.length - 1 && words.length > 1) ||
       (index > 0 && SECRET_PAIRS.has(`${words[index - 1]} ${word}`)),
@@ -68,7 +81,7 @@ const hasSecretKey = (body: string): boolean => {
 };
 
 const JWT_VALUE = /\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\b/g;
-const BEARER_VALUE = /\b(Bearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
+const BEARER_VALUE = /\b((?:Bearer|Basic)\s+)[A-Za-z0-9._~+/-]{8,}={0,2}/gi;
 const PATH_KEYS = new Set([
   'token',
   'key',
@@ -122,6 +135,8 @@ const walk = (value: unknown, depth: number, state: Walk): unknown => {
   if (++state.nodes > MAX_NODES) return '[truncated]';
   state.path.add(value);
   try {
+    // A header list keeps its pairs as [name, value]: the name decides, as an object key would.
+    if (Array.isArray(value) && value.length === 2 && typeof value[0] === 'string' && sensitiveKey(value[0])) return [value[0], '…'];
     if (Array.isArray(value)) return value.map((item) => walk(item, depth + 1, state));
     return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sensitiveKey(key) ? '…' : walk(item, depth + 1, state)]));
   } finally {

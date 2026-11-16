@@ -59,6 +59,17 @@ describe('sensitiveKey', () => {
     'encryptionKey',
     'authHeader',
     'userSession',
+    'pwd',
+    'passphrase',
+    'pass_word',
+    'passwords',
+    'secrets',
+    'refreshTok',
+    'sid',
+    'iban',
+    'mnemonic',
+    'seed',
+    'recoveryPhrase',
   ])('redacts %s', (key) => expect(sensitiveKey(key)).toBe(true));
 
   it.each([
@@ -85,7 +96,20 @@ describe('sensitiveKey', () => {
     'countryCode',
     'currencyCode',
     'keyboardType',
+    'itemKey',
+    'cacheKey',
+    'sortKey',
+    'keyExtractor',
+    'passed',
+    'bypass',
   ])('keeps %s', (key) => expect(sensitiveKey(key)).toBe(false));
+
+  it('redacts header pairs by name, Basic credentials and pwd in text', () => {
+    expect(redactValue([['X-Api-Key', 'k'], ['Accept', 'json']])).toEqual([['X-Api-Key', '…'], ['Accept', 'json']]);
+    expect(redactValue({ note: 'sent Basic dXNlcjpodW50ZXIy' })).toEqual({ note: 'sent Basic …' });
+    expect(redactText('pwd=hunter2&user=a')).toBe('pwd=…&user=a');
+    expect(redactText('{"pwd":"hunter2"}')).not.toContain('hunter2');
+  });
 });
 
 describe('redactValue', () => {
