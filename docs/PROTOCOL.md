@@ -44,6 +44,9 @@ App → driver, in answer to an `auth` it accepts:
 - A new connection is a candidate until its `hello` checks out: the app it
   would replace keeps the link, so a local process that connects in a loop
   cannot knock the real app off.
+- At most 8 connections may be proving the token at once, each for 5 s; more
+  are closed (1013) and a slow one is closed (1008). Of the app's events, a
+  proven app's `navigation` is the only one the driver emits.
 
 Driver → app, once the app's proof checks out:
 

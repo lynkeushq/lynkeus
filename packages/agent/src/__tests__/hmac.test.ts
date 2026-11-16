@@ -10,8 +10,8 @@ describe('hmacSha256Hex', () => {
   });
 
   it('matches node:crypto for short, block-sized, long and non-ASCII keys and messages', () => {
-    const keys = ['', 'k', 'x'.repeat(64), 'y'.repeat(65), 'ñandú-🔑', 'a'.repeat(200)];
-    const messages = ['', 'm', 'z'.repeat(55), 'z'.repeat(56), 'z'.repeat(64), 'lynkeus/app/s/abc/def', '日本語'.repeat(40)];
+    const keys = ['', 'k', 'x'.repeat(64), 'y'.repeat(65), 'ñandú-🔑', 'a'.repeat(200), 'lone\ud800surrogate', '\udc00'];
+    const messages = ['', 'm', 'z'.repeat(55), 'z'.repeat(56), 'z'.repeat(64), 'lynkeus/app/s/abc/def', '日本語'.repeat(40), 'x\udfffy'];
     for (const key of keys) for (const message of messages) expect(hmacSha256Hex(key, message)).toBe(createHmac('sha256', key).update(message).digest('hex'));
   });
 

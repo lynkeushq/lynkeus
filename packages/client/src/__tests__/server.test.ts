@@ -76,6 +76,35 @@ test('an app with another token is refused, and does not knock the real app off'
   app.socket.close();
 });
 
+test('an error event from the app does not bring a tokenless driver down', async () => {
+  const server = await serve();
+  const app = await fakeApp(server, () => ({ result: { pong: true } }));
+  await server.waitForApp(2000);
+  app.socket.send(JSON.stringify({ event: 'error', message: 'boom' }));
+  await new Promise((r) => setTimeout(r, 50));
+  assert.deepEqual(await server.call('ping', undefined, 1000), { pong: true });
+  app.socket.close();
+});
+
+test('connections that never prove the token are capped and closed', async () => {
+  const server = await serve({ token: 'secret' });
+  const idle = await Promise.all(
+    Array.from({ length: 12 }, async () => {
+      const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
+      const closed = new Promise<number>((resolve) => socket.once('close', (code) => resolve(code)));
+      await new Promise((r) => socket.once('open', r));
+      return closed;
+    }),
+  );
+  const codes = await Promise.race([Promise.all(idle), new Promise<number[]>((r) => setTimeout(() => r([]), 7000))]);
+  assert.equal(codes.length, 12);
+  assert.equal(codes.filter((code) => code === 1013).length, 4);
+  assert.equal(codes.filter((code) => code === 1008).length, 8);
+  const app = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await server.call('ping', undefined, 1000), { pong: true });
+  app.socket.close();
+});
+
 test('a frame that is not an object does not bring the driver down', async () => {
   const server = await serve({ token: 'secret' });
   const peer = new WebSocket(`ws://127.0.0.1:${server.port}`);

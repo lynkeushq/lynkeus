@@ -60,6 +60,11 @@ test('a relay forwards only allowed requests to the loopback backend', async () 
     const escaped = next(app);
     app.send(JSON.stringify({ id: 'three', method: 'GET', path: '//example.test/admin', headers: {} }));
     assert.equal((await escaped).status, 403);
+    for (const [n, path] of ['/api/mobile/..%2fadmin', '/api/mobile/%5cadmin', '/api/mobile/%2e%2e/admin', '/api/mobile/a%00'].entries()) {
+      const encoded = next(app);
+      app.send(JSON.stringify({ id: `enc-${n}`, method: 'GET', path, headers: {} }));
+      assert.equal((await encoded).status, 403, path);
+    }
     assert.equal(backendHits, 1);
 
     const oversized = next(app);

@@ -168,7 +168,8 @@ export class RelayClient {
     if (!id || typeof message.method !== 'string' || typeof message.path !== 'string') return;
     if (this.#active >= AT_ONCE) return this.#send(relayError(id, 429, 'too many relay requests at once'));
     if (!METHODS.has(message.method)) return this.#send(relayError(id, 405, 'method not allowed'));
-    if (!message.path.startsWith(this.prefix) || message.path.includes('\\') || message.path.includes('\0'))
+    // An encoded slash, backslash or dot can be decoded into a traversal by the backend: refused, as the cloud does.
+    if (!message.path.startsWith(this.prefix) || message.path.includes('\\') || message.path.includes('\0') || /%(2f|5c|2e|00)/i.test(message.path))
       return this.#send(relayError(id, 403, 'path is outside the relay allowlist'));
     const target = new URL(message.path, this.backend);
     if (target.origin !== this.backend.origin || !target.pathname.startsWith(this.prefix))

@@ -23,6 +23,13 @@ const sameToken = (given: unknown, expected: string): boolean => {
   return a.length === b.length && timingSafeEqual(a, b);
 };
 
+// What a proven app may tell the driver; anything else (an `error` event above all, which EventEmitter throws on
+// when nobody listens) is not emitted.
+const APP_EVENTS = new Set(['navigation']);
+// Connections still proving the token: a few at once, each for a few seconds, so a local flood holds no memory.
+const MAX_CANDIDATES = 8;
+const CANDIDATE_MS = 5000;
+
 export type AgentServerOptions = {
   port?: number;
   host?: string;
@@ -62,6 +69,7 @@ export class AgentServer extends EventEmitter {
   #hello: HelloEvent | null = null;
   #graceTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectGraceMs: number;
+  #candidates = 0;
 
   constructor(options: AgentServerOptions = {}) {
     super();
@@ -175,13 +183,30 @@ export class AgentServer extends EventEmitter {
   #attach(socket: WebSocket): void {
     // A new connection is only a candidate: the app it replaces keeps the link until this one proves the token, so a
     // local process that connects in a loop cannot knock the real app off.
+    if (this.#candidates >= MAX_CANDIDATES) {
+      socket.close(1013, 'too many connections proving the token');
+      return;
+    }
+    this.#candidates++;
     const driverNonce = randomBytes(16).toString('hex');
     socket.send(JSON.stringify({ event: 'auth', session: this.#session, nonce: driverNonce }));
     let candidate = true;
+    const settle = () => {
+      if (!candidate) return;
+      candidate = false;
+      this.#candidates--;
+    };
     const silence = setTimeout(() => {
       if (candidate && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
     }, 2000);
-    socket.once('close', () => clearTimeout(silence));
+    const expire = setTimeout(() => {
+      if (candidate) socket.close(1008, 'no proof in time');
+    }, CANDIDATE_MS);
+    socket.once('close', () => {
+      clearTimeout(silence);
+      clearTimeout(expire);
+      settle();
+    });
 
     socket.on('message', (data) => {
       let message: Response | AgentEvent;
@@ -200,8 +225,9 @@ export class AgentServer extends EventEmitter {
             socket.close(1008, 'invalid token');
             return;
           }
-          candidate = false;
+          settle();
           clearTimeout(silence);
+          clearTimeout(expire);
           // A relaunch reconnects before the old socket notices; the newest proven one wins.
           const previous = this.#socket;
           this.#socket = socket;
@@ -215,7 +241,7 @@ export class AgentServer extends EventEmitter {
           this.emit('hello', this.#hello);
           return;
         }
-        if (this.#socket === socket && this.#hello) this.emit(message.event, message);
+        if (this.#socket === socket && this.#hello && APP_EVENTS.has(message.event)) this.emit(message.event, message);
         return;
       }
       if (this.#socket !== socket || !this.#hello) return;
