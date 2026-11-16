@@ -128,6 +128,19 @@ test('a wait accepts any of several targets', async () => {
   });
 });
 
+test('a wait can ask for its target to be enabled', async () => {
+  const c = parseCase('---\nid: enabled\n---\nsteps:\n  - app.wait: { what: "#next", enabled: true }\n', 'enabled.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const waitFor = device.waitFor;
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return waitFor(params);
+  };
+  await runCase(c, { base, config, fixtures });
+  assert.equal((calls.find((x) => x.method === 'waitFor')?.params as { enabled?: boolean }).enabled, true);
+});
+
 test('a press names its control by testId, and a type takes a deadline for its field', async () => {
   const c = parseCase('---\nid: named\n---\nsteps:\n  - app.press: { testId: refresh }\n  - app.type: { text: "x", timeoutMs: 200 }\n', 'named.md');
   const { base, calls } = fakeApp();
