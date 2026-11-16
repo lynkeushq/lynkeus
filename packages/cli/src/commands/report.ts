@@ -66,9 +66,9 @@ export const tarOf = (entries: [string, Uint8Array][]): Uint8Array => {
 
 type Target = { url: string; key: string; fetch?: Fetch };
 
-const serviceBase = (url: string): string => {
+export const serviceBase = (url: string): string => {
   const parsed = new URL(url);
-  const loopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  const loopback = ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname.replace(/^\[|\]$/g, ''));
   if (parsed.protocol !== 'https:' && !loopback) throw new Error('the reports service must use HTTPS outside loopback');
   if (parsed.username || parsed.password) throw new Error('the reports URL must not embed credentials');
   return parsed.toString().replace(/\/+$/, '');

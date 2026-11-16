@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { type WebSocket, WebSocketServer } from 'ws';
 
-import { RelayClient, relayBackend } from '../relay.js';
+import { RelayClient, relayBackend, relayService } from '../relay.js';
 
 const listenHttp = async (server: http.Server) => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -89,4 +89,11 @@ test('the relay refuses non-loopback backends and malformed tokens', () => {
     () => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1', prefix: '/admin' }),
     /prefix/,
   );
+});
+
+test('an IPv6 loopback address is a loopback address', () => {
+  assert.equal(relayBackend('http://[::1]:3000').hostname, '[::1]');
+  assert.equal(relayService('ws://[::1]:8787').hostname, '[::1]');
+  assert.throws(() => relayBackend('http://[2001:db8::1]:3000'), /loopback/);
+  assert.throws(() => relayService('ws://[2001:db8::1]:8787'), /TLS/);
 });

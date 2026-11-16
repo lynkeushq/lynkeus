@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { describeChanges, flakes, listRuns, plan, pushRun, startLiveRun, tarOf } from '../commands/report.js';
+import { describeChanges, flakes, listRuns, plan, pushRun, serviceBase, startLiveRun, tarOf } from '../commands/report.js';
 
 const runDir = () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-push-'));
@@ -358,4 +358,9 @@ test('a service from before parts gets the whole run file when the run ends', as
     asked.filter((a) => a.includes('/cases')),
     ['PUT /v1/runs/r1/cases?part=0', 'PUT /v1/runs/r1/cases'],
   );
+});
+
+test('serviceBase accepts an IPv6 loopback over plain HTTP and nothing else', () => {
+  assert.equal(serviceBase('http://[::1]:8787/'), 'http://[::1]:8787');
+  assert.throws(() => serviceBase('http://[2001:db8::1]/'), /HTTPS/);
 });

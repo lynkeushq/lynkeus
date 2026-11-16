@@ -1,5 +1,7 @@
 import { WebSocket } from 'ws';
 
+// `URL.hostname` keeps the brackets of an IPv6 literal.
+const bareHost = (url: URL) => url.hostname.replace(/^\[|\]$/g, '');
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '10.0.2.2']);
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD']);
 const REQUEST_MAX = 1024 * 1024;
@@ -19,7 +21,7 @@ export type RelayOptions = {
 
 export const relayBackend = (value: string): URL => {
   const url = new URL(value);
-  if (!['http:', 'https:'].includes(url.protocol) || !LOCAL_HOSTS.has(url.hostname)) throw new Error('the relay backend must be an HTTP(S) loopback URL');
+  if (!['http:', 'https:'].includes(url.protocol) || !LOCAL_HOSTS.has(bareHost(url))) throw new Error('the relay backend must be an HTTP(S) loopback URL');
   if (url.username || url.password) throw new Error('the backend URL must not embed credentials');
   return url;
 };
@@ -28,7 +30,7 @@ export const relayService = (value: string): URL => {
   const url = new URL(value);
   if (!['https:', 'http:', 'wss:', 'ws:'].includes(url.protocol)) throw new Error('the relay service must use HTTP(S) or WS(S)');
   if (url.username || url.password) throw new Error('the relay service URL must not embed credentials');
-  const loopback = LOCAL_HOSTS.has(url.hostname);
+  const loopback = LOCAL_HOSTS.has(bareHost(url));
   if (!loopback && !['https:', 'wss:'].includes(url.protocol)) throw new Error('the relay service must use TLS outside loopback');
   return url;
 };
