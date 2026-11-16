@@ -70,7 +70,10 @@ test('an app with another token is refused, and does not knock the real app off'
   await server.waitForApp(2000);
   const intruder = await fakeApp(server, () => ({ result: { hijacked: true } }), 'guess');
   await new Promise((resolve) => intruder.socket.once('close', resolve));
-  assert.equal(intruder.seen.some((m) => m.event === 'verified'), false);
+  assert.equal(
+    intruder.seen.some((m) => m.event === 'verified'),
+    false,
+  );
   assert.equal(server.connected, true);
   assert.deepEqual(await server.call('ping', undefined, 1000), { real: true });
   app.socket.close();

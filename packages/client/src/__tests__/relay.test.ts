@@ -98,7 +98,16 @@ test('the relay refuses non-loopback backends and malformed tokens', () => {
   assert.throws(() => relayBackend('http://user:pass@127.0.0.1'), /credentials/);
   const socketSecret = `relaysock_${'b'.repeat(64)}`;
   assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: 'short', socketSecret, backend: 'http://127.0.0.1' }), /token/);
-  assert.throws(() => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, socketSecret: `relay_${'a'.repeat(64)}`, backend: 'http://127.0.0.1' }), /socket secret/);
+  assert.throws(
+    () =>
+      new RelayClient({
+        cloud: 'https://example.test',
+        token: `relay_${'a'.repeat(64)}`,
+        socketSecret: `relay_${'a'.repeat(64)}`,
+        backend: 'http://127.0.0.1',
+      }),
+    /socket secret/,
+  );
   assert.throws(
     () => new RelayClient({ cloud: 'https://example.test', token: `relay_${'a'.repeat(64)}`, socketSecret, backend: 'http://127.0.0.1', prefix: '/admin' }),
     /prefix/,

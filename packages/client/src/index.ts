@@ -28,6 +28,10 @@ const sameToken = (given: unknown, expected: string): boolean => {
 const APP_EVENTS = new Set(['navigation']);
 // Connections still proving the token: a few at once, each for a few seconds, so a local flood holds no memory.
 const MAX_CANDIDATES = 8;
+// What any local process may send before it has proved the token: a hello is well under a kilobyte. The proven app's
+// frames (element trees, logs) stay under the server's own limit.
+const CANDIDATE_MAX_FRAME = 64 * 1024;
+const MAX_FRAME = 32 * 1024 * 1024;
 const CANDIDATE_MS = 5000;
 
 export type AgentServerOptions = {
@@ -90,7 +94,7 @@ export class AgentServer extends EventEmitter {
 
   async listen(): Promise<void> {
     if (this.#server) return;
-    const server = new WebSocketServer({ port: this.port, host: this.host });
+    const server = new WebSocketServer({ port: this.port, host: this.host, maxPayload: MAX_FRAME });
     this.#server = server;
     server.on('connection', (socket) => this.#attach(socket));
     await new Promise<void>((resolve, reject) => {
@@ -183,8 +187,14 @@ export class AgentServer extends EventEmitter {
   #attach(socket: WebSocket): void {
     // A new connection is only a candidate: the app it replaces keeps the link until this one proves the token, so a
     // local process that connects in a loop cannot knock the real app off.
+    // A refused socket is let go at once: a peer that ignores the close handshake would otherwise hold its slot for ws's
+    // whole close timeout, and one reconnecting in a loop could keep the real app from ever attaching.
+    const drop = (code: number, reason: string) => {
+      socket.close(code, reason);
+      setTimeout(() => socket.terminate(), 500).unref();
+    };
     if (this.#candidates >= MAX_CANDIDATES) {
-      socket.close(1013, 'too many connections proving the token');
+      drop(1013, 'too many connections proving the token');
       return;
     }
     this.#candidates++;
@@ -200,7 +210,9 @@ export class AgentServer extends EventEmitter {
       if (candidate && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
     }, 2000);
     const expire = setTimeout(() => {
-      if (candidate) socket.close(1008, 'no proof in time');
+      if (!candidate) return;
+      settle();
+      drop(1008, 'no proof in time');
     }, CANDIDATE_MS);
     socket.once('close', () => {
       clearTimeout(silence);
@@ -208,7 +220,13 @@ export class AgentServer extends EventEmitter {
       settle();
     });
 
-    socket.on('message', (data) => {
+    socket.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
+      const size = Array.isArray(data) ? data.reduce((n, part) => n + part.length, 0) : data instanceof ArrayBuffer ? data.byteLength : data.length;
+      if (candidate && size > CANDIDATE_MAX_FRAME) {
+        settle();
+        socket.terminate();
+        return;
+      }
       let message: Response | AgentEvent;
       try {
         message = JSON.parse(String(data));
@@ -220,9 +238,13 @@ export class AgentServer extends EventEmitter {
       if ('event' in message) {
         if (message.event === 'hello' && candidate) {
           const { nonce, proof: given, ...safe } = message;
-          if (this.#token !== undefined && (typeof nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(nonce) || !sameToken(given, proof(this.#token, 'app', this.#session, driverNonce, nonce)))) {
+          if (
+            this.#token !== undefined &&
+            (typeof nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(nonce) || !sameToken(given, proof(this.#token, 'app', this.#session, driverNonce, nonce)))
+          ) {
             this.#unanswered = true;
-            socket.close(1008, 'invalid token');
+            settle();
+            drop(1008, 'invalid token');
             return;
           }
           settle();
@@ -235,7 +257,13 @@ export class AgentServer extends EventEmitter {
           this.#cancelGrace();
           this.#hello = safe as HelloEvent;
           this.#unanswered = false;
-          socket.send(JSON.stringify(this.#token !== undefined && typeof nonce === 'string' ? { event: 'verified', proof: proof(this.#token, 'driver', this.#session, driverNonce, nonce) } : { event: 'verified' }));
+          socket.send(
+            JSON.stringify(
+              this.#token !== undefined && typeof nonce === 'string'
+                ? { event: 'verified', proof: proof(this.#token, 'driver', this.#session, driverNonce, nonce) }
+                : { event: 'verified' },
+            ),
+          );
           // Resend what the previous socket may have dropped, now that this one has proved the project token.
           for (const pending of this.#pending.values()) socket.send(pending.request);
           this.emit('hello', this.#hello);
