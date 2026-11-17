@@ -182,6 +182,8 @@ export LYNKEUS_REPORTS_KEY=lk_…
 npx lynkeus case run --out run --screenshots --push
 ```
 
+La dirección tiene que ser HTTPS; solo se admite otra cosa si apunta a loopback (`localhost`, `127.0.0.1`, `::1`), para un servicio en tu propia máquina. Tampoco puede llevar usuario y clave incrustados. La subida no sigue redirecciones, de modo que un servicio que se mudó no puede desviar tu clave a otro sitio: si un push falla con `the reports service must use HTTPS outside loopback`, pon en `LYNKEUS_REPORTS_URL` la dirección que responde directamente. Si dentro de la carpeta de la ejecución hay un enlace simbólico, o un enlace duro a un archivo de afuera, se rechaza (`file path escapes the run directory`) y no se envía lo que señala.
+
 Si falta la clave, el comando termina con `set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.
 
 La clave se crea en el servicio, en la sección de claves de API, y se muestra una sola vez. Es un secreto: en CI va en los secretos del repositorio, nunca en el archivo del workflow.

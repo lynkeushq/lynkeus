@@ -150,21 +150,23 @@ lynkeus nav Checkout.Confirm '{"id":"abc"}'
 ### `lynkeus wait`
 
 ```bash
-lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]
+lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>]… [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]
 ```
 
-Espera hasta que aparezca una ruta o un elemento, hasta que se vaya, o una cantidad fija de milisegundos.
+Espera hasta que aparezca una ruta o un elemento, hasta que se vaya, hasta que aparezca cualquiera de varios objetivos, o una cantidad fija de milisegundos.
 
 | Argumento | Qué es |
 |---|---|
-| `what` | Una ruta, un objetivo, o un número de milisegundos (`800`). Una palabra con mayúscula inicial (`Settings.Main`) es una ruta, y una con el prefijo `route:` también (`route:index`). Entre comillas propias es siempre un texto: `'"Next"'`. |
+| `what` | Una ruta, un objetivo, o un número de milisegundos (`800`). Una palabra con mayúscula inicial (`Settings.Main`) es una ruta, y una con el prefijo `route:` también (`route:index`). Entre comillas propias es siempre un texto: `'"Next"'`. Con `--anyOf` se puede omitir. |
 
 | Opción | Qué hace |
 |---|---|
 | `--in <target>` | Entre varias coincidencias, elige la más cercana a este otro objetivo. |
 | `--nth <n>` | Elige la coincidencia número `n`, contando desde 0. |
+| `--anyOf <target>` | Acepta el primero que esté presente de varios objetivos. Se repite la opción, una vez por objetivo. No se combina con `--gone`, porque no queda claro cuál de ellos debería irse. |
 | `--gone` | Espera a que el elemento deje de estar en pantalla. |
 | `--scroll` | Desplaza la lista más cercana hasta que el elemento esté dentro de la ventana. |
+| `--enabled` | Espera a que el elemento esté presente y habilitado, como el botón de un formulario que depende de sus campos. |
 | `--timeout <ms>` | Cuánto espera antes de rendirse. Por defecto `10000`. |
 | `--since <seq>` | Una marca de la traza (el número de secuencia que da `lynkeus trace`): una ruta alcanzada después de esa marca cuenta, aunque la app ya se haya ido de ella. |
 
@@ -173,6 +175,8 @@ lynkeus wait Settings.Main
 lynkeus wait '"Next"'
 lynkeus wait '#row-25' --scroll
 lynkeus wait '#spinner' --gone --timeout 20000
+lynkeus wait --anyOf '#welcome' --anyOf '"Try again"'
+lynkeus wait '#submit' --enabled
 ```
 
 ### `lynkeus screenshot`
@@ -181,7 +185,7 @@ lynkeus wait '#spinner' --gone --timeout 20000
 lynkeus screenshot <file>
 ```
 
-Guarda en un archivo PNG cómo se ve la pantalla en este momento. Solo funciona en un simulador o un emulador: el host sin pantalla no dibuja nada que capturar.
+Guarda en un archivo PNG cómo se ve la pantalla en este momento. Un simulador o un emulador se captura por el sistema operativo. Un host que dibuja la app por su cuenta (fastsim) captura su propio cuadro, y solo dentro de las carpetas de salida que permite; la CLI se lo pide cuando su `hello` incluye `screenshot`. El host sin pantalla no dibuja nada que capturar, así que ahí falla.
 
 | Argumento | Qué es |
 |---|---|
@@ -1281,7 +1285,7 @@ lynkeus report push <dir> [--project <name>]
 
 Sube una ejecución al servicio de reportes e imprime la dirección del reporte.
 
-Sube lo que escribió `case run --out <dir>`: la ejecución, sus casos y cada captura y video que nombran. La dirección del servicio y la clave de la organización se leen de `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`. Un video que el plan de la organización no conserva queda fuera, y el comando lo avisa con `not kept on this plan: …`.
+Sube lo que escribió `case run --out <dir>`: la ejecución, sus casos y cada captura y video que nombran. La dirección del servicio y la clave de la organización se leen de `LYNKEUS_REPORTS_URL` y `LYNKEUS_REPORTS_KEY`. La dirección debe ser HTTPS (loopback se admite), la subida no sigue redirecciones y se rechaza todo enlace simbólico o duro de la carpeta que señale hacia afuera. Un video que el plan de la organización no conserva queda fuera, y el comando lo avisa con `not kept on this plan: …`.
 
 | Argumento | Qué es |
 |---|---|

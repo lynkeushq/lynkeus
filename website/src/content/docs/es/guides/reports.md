@@ -95,6 +95,8 @@ run folder: 48.2 MB on disk · `lynkeus report prune . --older 7d` frees old one
 
 La CLI habla con `https://lynkeus.io` salvo que `LYNKEUS_REPORTS_URL` nombre otro servicio.
 
+Adonde va la subida y qué lee están acotados. La dirección del servicio tiene que ser HTTPS (para un servicio en tu propia máquina vale loopback) y no llevar credenciales, y no se sigue ninguna redirección: tu clave solo viaja a la dirección que pusiste. Un enlace simbólico en la carpeta de la ejecución, o un enlace duro a un archivo de afuera, se rechaza en lugar de enviar lo que apunta.
+
 La presencia de la clave se comprueba antes de ejecutar nada, para que una clave faltante no aparezca recién cuando ya corrieron todos los casos. En cambio, si la subida falla al final, la ejecución no se pierde ni cambia su resultado: verás `the report was not uploaded: <motivo>` y el directorio sigue en tu disco.
 
 La última línea dice cuánto ocupa la carpeta de la ejecución. Las carpetas se acumulan: `lynkeus report prune <carpeta> --older 7d` borra las que terminaron hace más de lo que le digas (`--dry-run` lista sin borrar), y la clave `report.afterPush: "delete"` de la [configuración](/es/reference/configuration/#reportes-report) borra la carpeta apenas el servicio tiene todos sus archivos. Los reportes ya subidos no se tocan.

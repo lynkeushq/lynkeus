@@ -84,20 +84,22 @@ Jump straight to a route (a teleport, not a user action)
 | `route` | e.g. Settings.Main |
 | `params` | JSON params (optional) |
 
-### `lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]`
+### `lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>] [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]`
 
-Until a route or element appears (or leaves), or a number of ms
+Until a route or element appears (or leaves), any of several targets appears, or a number of ms
 
 | Argument | |
 |---|---|
-| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) (optional) |
 
 | Flag | |
 |---|---|
 | `--in <target>` | the match nearest this target |
 | `--nth <n>` | the nth match, from 0 |
+| `--anyOf <target>` | accept any of these targets (repeatable) |
 | `--gone` | until it leaves the screen |
 | `--scroll` | scroll until it is in the window |
+| `--enabled` | until it is present and enabled (a form button that waits on its fields) |
 | `--timeout <ms>` | give up after (default `10000`) |
 | `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
 
@@ -105,7 +107,7 @@ Until a route or element appears (or leaves), or a number of ms
 
 What the screen looks like right now, written to a file
 
-A device or simulator only: a host renders nothing to capture.
+A host that draws the app (fastsim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.
 
 | Argument | |
 |---|---|

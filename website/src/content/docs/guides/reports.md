@@ -135,6 +135,8 @@ npx lynkeus report push run --project myapp
 
 `--project <name>` is the project the run is filed under. It defaults to the name of the app's folder.
 
+The upload is strict about where it goes and what it reads. The service address must be HTTPS (a loopback address is allowed for a service on your own machine) and carry no credentials, and no redirect is followed, so your key only ever goes to the address you set. A symlink in the run folder, or a hard link to a file outside it, is refused instead of its target being sent.
+
 `--push` checks for the key before the run starts, so a missing key stops the command at once instead of after every case has run. If the upload itself fails, the run still counts: the summary says `the report was not uploaded: …` and the exit code reflects the cases.
 
 After a push the output ends with a line such as `run folder: 48 MB on disk` and the `report prune` command that frees old ones. What happens to the run folder afterward is up to `report.afterPush` in `lynkeus.config.json`: `"keep"` (the default) leaves it, `"delete"` removes it once the service took every file. `npx lynkeus report prune <dir> --older 7d` deletes old run folders either way.

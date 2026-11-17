@@ -193,21 +193,23 @@ lynkeus nav Checkout.Confirm '{"id":"abc"}'
 ### `lynkeus wait`
 
 ```bash
-lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]
+lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>]… [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]
 ```
 
-Waits until a route or an element appears (or leaves), or for a number of milliseconds.
+Waits until a route or an element appears (or leaves), until any of several targets appears, or for a number of milliseconds.
 
 | Argument | Meaning |
 |---|---|
-| `what` | A route (`Settings.Main`, or `route:index` for a lowercase name), a target, or a number of milliseconds such as `800`. A text in quotes of its own (`'"Next"'`) is always a target. |
+| `what` | A route (`Settings.Main`, or `route:index` for a lowercase name), a target, or a number of milliseconds such as `800`. A text in quotes of its own (`'"Next"'`) is always a target. Optional when `--anyOf` is given. |
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--in <target>` | | Among several matches, take the one nearest this target. |
 | `--nth <n>` | | Take the nth match, counted from 0. |
+| `--anyOf <target>` | | Accept the first of several targets that is present. Repeat the flag for each one. `--gone` cannot be combined with it, because it is not clear which target should leave. |
 | `--gone` | | Wait until it leaves the screen. |
 | `--scroll` | | Scroll until the target is in the window. |
+| `--enabled` | | Wait until the target is there and enabled, such as a form button that waits on its fields. |
 | `--timeout <ms>` | `10000` | Give up after this long. |
 | `--since <seq>` | | A trace mark, taken from `lynkeus trace`. A route the app reached after it counts, even if the app has already left it. |
 
@@ -216,6 +218,8 @@ lynkeus wait Settings.Main
 lynkeus wait '#spinner' --gone
 lynkeus wait '#row-25' --scroll
 lynkeus wait '"Next"'
+lynkeus wait --anyOf '#welcome' --anyOf '"Try again"'
+lynkeus wait '#submit' --enabled
 ```
 
 ### `lynkeus screenshot`
@@ -224,7 +228,7 @@ lynkeus wait '"Next"'
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. It needs a device, a simulator or an emulator: the headless host renders nothing to capture.
+Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (fastsim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
 
 | Argument | Meaning |
 |---|---|
@@ -1262,7 +1266,7 @@ lynkeus report push <dir> [--project <name>]
 
 Uploads a run to the report service and prints the report's address. It uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name.
 
-The service's address and the organization's key come from `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`. A film the organization's plan does not keep is left out, and the command says so.
+The service's address and the organization's key come from `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`. The address must be HTTPS (loopback is allowed), the upload follows no redirects, and a symlink or hard link in the run folder that points outside it is refused. A film the organization's plan does not keep is left out, and the command says so.
 
 | Argument | Meaning |
 |---|---|
