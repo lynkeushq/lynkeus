@@ -807,3 +807,99 @@ steps:
   assert.equal(swipedWhileInert, false);
   assert.ok(looks >= 4);
 });
+
+// A native host whose window lists only part of the page; `below` is where the button sits, or undefined when it is never in the tree.
+const longPage = async (below: number | undefined, scrolls: 'moves' | 'stuck') => {
+  const { base } = fakeApp();
+  const device = (await base.device()) as unknown as {
+    server: { hello?: { native: boolean }; call: (method: string, params: never) => Promise<unknown> };
+    screen: () => Promise<{ elements: unknown[] }>;
+    waitFor: () => Promise<never>;
+  };
+  const listed = device.screen;
+  const call = device.server.call;
+  let swipes = 0;
+  const button = (y: number) => ({ i: 9, kind: 'button', testId: 'how-it-works-button', enabled: true, depth: 0, frame: { x: 0, y, w: 100, h: 40 } });
+  device.server.hello = { native: true };
+  device.waitFor = async () => {
+    throw new Error('Timed out');
+  };
+  device.server.call = async (method, params) => {
+    if (method === 'swipe') {
+      swipes += 1;
+      return {};
+    }
+    if (method === 'find' && (params as { testId?: string }).testId === 'how-it-works-button')
+      return below === undefined ? null : { ...button(below), hidden: 'behind-modal' };
+    return call(method, params);
+  };
+  device.screen = async () => {
+    const screen = await listed();
+    const first = screen.elements[1] as { frame: { y: number } };
+    if (scrolls === 'moves') first.frame.y = 50 + swipes;
+    if (below !== undefined)
+      screen.elements.push(
+        { ...button(below), hidden: 'behind-modal' },
+        { i: 10, kind: 'text', text: 'Footer', covered: true, enabled: true, depth: 0, frame: { x: 0, y: 0, w: 1, h: 1 } },
+      );
+    return screen;
+  };
+  return { base, swipes: () => swipes };
+};
+
+test('a failed see keeps the full listing, the scrolls it made and where its target was last seen', async () => {
+  const c = parseCase('---\nid: found-below\n---\nsteps:\n  - app.see: { testId: how-it-works-button, timeoutMs: 100 }\n', 'found-below.md');
+  const { base, swipes } = await longPage(2000, 'moves');
+  const report = await runCase(c, { base, config, fixtures });
+  const step = report.steps[0]!;
+  assert.equal(step.status, 'failed');
+  assert.ok(swipes() > 0);
+  assert.match(step.error!, /^not on screen: .* \(found, below the window, hidden \(behind-modal\), after \d+ scrolls?\)$/);
+  const looked = step.looked!;
+  assert.match(looked.listing, /Footer.*~covered/);
+  assert.match(looked.listing, /#how-it-works-button.*~behind-modal/);
+  assert.equal(looked.scrollsTotal, swipes());
+  assert.equal(looked.scrolls[0]?.direction, 'down');
+  assert.equal(looked.scrolls[0]?.moved, true);
+  assert.deepEqual(looked.scrolls[0]?.before, { count: 3, first: '#refresh @y=0', last: 'Footer @y=0' });
+  assert.equal(looked.target?.found, true);
+  assert.equal(looked.target?.last, 'below the window, hidden (behind-modal)');
+});
+
+test('a failed see says when the scrolls moved nothing and its target was never in the tree', async () => {
+  const c = parseCase('---\nid: never\n---\nsteps:\n  - app.see: { testId: how-it-works-button, timeoutMs: 100 }\n', 'never.md');
+  const { base } = await longPage(undefined, 'stuck');
+  const report = await runCase(c, { base, config, fixtures });
+  const step = report.steps[0]!;
+  assert.match(step.error!, /\(never in the tree, after 2 scrolls\)$/);
+  assert.deepEqual(
+    step.looked?.scrolls.map((s) => [s.direction, s.moved]),
+    [
+      ['down', false],
+      ['up', false],
+    ],
+  );
+  assert.deepEqual(step.looked?.target, { found: false, seen: [{ atMs: step.looked!.target!.seen[0]!.atMs, scrolls: 0, state: 'not in the tree' }] });
+});
+
+test('a failed wait for a target keeps the listing and where the target stands', async () => {
+  const c = parseCase('---\nid: wait-found\n---\nsteps:\n  - app.wait: { what: "#how-it-works-button", timeoutMs: 100 }\n', 'wait-found.md');
+  const { base } = await longPage(2000, 'stuck');
+  const report = await runCase(c, { base, config, fixtures });
+  const step = report.steps[0]!;
+  assert.equal(step.status, 'failed');
+  assert.match(step.error!.split('\n')[0]!, /\(found, below the window, hidden \(behind-modal\)\)$/);
+  assert.match(step.looked!.listing, /~behind-modal/);
+  assert.deepEqual(step.looked!.scrolls, []);
+  assert.equal(step.looked!.target?.last, 'below the window, hidden (behind-modal)');
+});
+
+test('a step that passes keeps no listing', async () => {
+  const c = parseCase('---\nid: fine\n---\nsteps:\n  - app.see: { text: "Hello" }\n  - app.wait: { what: "#refresh" }\n', 'fine.md');
+  const { base } = fakeApp();
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.looked),
+    [undefined, undefined],
+  );
+});

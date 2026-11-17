@@ -51,6 +51,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
       ...(s.backend?.length ? { backend: s.backend } : {}),
       ...(s.requests?.length ? { requests: s.requests } : {}),
       ...(s.logs?.length ? { logs: s.logs } : {}),
+      ...(s.looked ? { looked: s.looked } : {}),
     };
   });
   const description = typeof c.meta.description === 'string' ? c.meta.description : undefined;
