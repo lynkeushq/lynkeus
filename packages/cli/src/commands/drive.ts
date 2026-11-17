@@ -207,7 +207,8 @@ export const driveCommands = [
     name: 'screenshot',
     group: 'drive',
     summary: 'What the screen looks like right now, written to a file',
-    details: 'A device or simulator only: a host renders nothing to capture.',
+    details:
+      'A host that draws the app (fastsim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.',
     positionals: [{ name: 'file', help: 'where to write the png', required: true }],
     needs: 'app',
     run: async (ctx) => {
