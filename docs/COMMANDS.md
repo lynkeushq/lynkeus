@@ -881,6 +881,19 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 | `--prefix <path>` | allowed backend path prefix (default `/api/mobile/`) |
 | `--ttl <seconds>` | session lifetime in seconds (max 3600) (default `900`) |
 
+### `lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]`
+
+Download fastsim for this Mac from lynkeus.io with the organization's key
+
+Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the one asked for (`latest` unless --version), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). An installed release with the same digest is kept. The package's README says how to start a host. Exit code 2 without a key, 1 when the organization has no fastsim entitlement or the download fails.
+
+| Flag | |
+|---|---|
+| `--version <version>` | release to install (default `latest`) |
+| `--variant <name>` | build to install (default `darwin-arm64`) |
+| `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
+| `--force` | download again even when that release is installed |
+
 ## headless
 
 the app hosted in Node under jest, no simulator.
