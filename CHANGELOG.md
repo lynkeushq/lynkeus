@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.2
 
 - `lynkeus fastsim install` and `lynkeus fastsim grant` start the browser sign-in themselves when there is no `LYNKEUS_CLOUD_KEY` and no saved sign-in, so a person runs one command: at a terminal (stdin and stderr are TTYs, `CI` unset) they print `No key or sign-in for <cloud>: opening the browser to sign in (lynkeus login)…`, sign in as `lynkeus login` does and carry on. A saved sign-in the service refuses (401) is renewed the same way, once. `fastsim install --no-browser` prints the address instead of opening it. Scripts, CI and the MCP server never open a browser: they keep exit code 2 and the same message.
 

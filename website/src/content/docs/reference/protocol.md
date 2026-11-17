@@ -49,7 +49,7 @@ Neither side ever sends the token. Each proves that it holds it, with an HMAC-SH
 {
   "event": "hello",
   "protocolVersion": 2,
-  "agentVersion": "0.7.1",
+  "agentVersion": "0.7.2",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "netmock", "networkBodies", "profile", "reset", "stores", "traceContext"],
