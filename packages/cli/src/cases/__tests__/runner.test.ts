@@ -143,6 +143,29 @@ test('a wait can ask for its target to be enabled', async () => {
   assert.equal((waited.params as { enabled?: boolean }).enabled, true);
 });
 
+test('a wait takes object targets in anyOf, and refuses gone with anyOf', async () => {
+  const wait = find('wait')!;
+  assert.deepEqual(argvFor(wait, { anyOf: [{ testId: 'a' }, { text: 'b', nth: 1 }, '#c'] }), ['wait', '--anyOf', '#a', '--anyOf', '"b"[1]', '--anyOf', '#c']);
+  assert.throws(() => argvFor(wait, { anyOf: [{ x: 1, y: 2 }] }), /string, \{ testId \} or \{ text \}/);
+  const c = parseCase('---\nid: objects\n---\nsteps:\n  - app.wait: { anyOf: [{ testId: nope }, { text: Hello }] }\n', 'objects.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const waitFor = device.waitFor;
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return waitFor(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  const waited = calls.find((x) => x.method === 'waitFor');
+  assert.ok(waited, 'no waitFor was sent');
+  assert.deepEqual((waited.params as { anyOf: unknown }).anyOf, [{ testId: 'nope' }, { text: 'Hello' }]);
+  const gone = parseCase('---\nid: gone\n---\nsteps:\n  - app.wait: { anyOf: ["Hello"], gone: true }\n', 'gone.md');
+  const refused = await runCase(gone, { base, config, fixtures });
+  assert.equal(refused.result, 'failed');
+  assert.match(JSON.stringify(refused.steps), /--gone takes one target/);
+});
+
 test('a press names its control by testId, and a type takes a deadline for its field', async () => {
   const c = parseCase('---\nid: named\n---\nsteps:\n  - app.press: { testId: refresh }\n  - app.type: { text: "x", timeoutMs: 200 }\n', 'named.md');
   const { base, calls } = fakeApp();

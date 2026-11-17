@@ -253,6 +253,16 @@ const holds = (condition: string, param: Record<string, unknown>, ran: Set<strin
 };
 
 /** A step's value as the argv of the command it names: what matches a positional by name goes in place, the rest are flags. */
+// A target a case writes as an object (`{ testId: a }`, `{ text: "Done", nth: 1 }`) in the CLI's own spelling.
+const targetArg = (item: unknown): string => {
+  if (typeof item !== 'object' || item === null) return String(item);
+  const t = item as { testId?: unknown; text?: unknown; nth?: unknown };
+  const nth = typeof t.nth === 'number' ? `[${t.nth}]` : '';
+  if (typeof t.testId === 'string' && t.text === undefined) return `#${t.testId}${nth}`;
+  if (typeof t.text === 'string' && t.testId === undefined) return `"${t.text}"${nth}`;
+  throw new Error(`a target in a list is a string, { testId } or { text }: ${JSON.stringify(item)}`);
+};
+
 export const argvFor = (command: Command, value: StepValue): string[] => {
   const argv = command.name.split(' ');
   if (value === null || value === undefined) return argv;
@@ -288,7 +298,7 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
     if (!(flag in (command.flags ?? {}))) throw new Error(`${command.name} has no ${key}`);
     if (v === false || v === undefined || v === null) continue;
     if (v === true) argv.push(`--${flag}`);
-    else if (Array.isArray(v)) for (const item of v) argv.push(`--${flag}`, String(item));
+    else if (Array.isArray(v)) for (const item of v) argv.push(`--${flag}`, targetArg(item));
     else argv.push(`--${flag}`, typeof v === 'object' ? JSON.stringify(v) : String(v));
   }
   return argv;
