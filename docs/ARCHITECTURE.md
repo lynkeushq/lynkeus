@@ -19,7 +19,7 @@ A piece that would only work for one app does not belong in this repository.
  └──────────────▲───────────────────────────────▲─────────────────────────────────────┘
                 │ case format, config           │ fixtures protocol (JSON lines)
  ┌──────────────┴───────────────────────────────┴─────────────────────────────────────┐
- │  lynkeus CLI / MCP: drive, cases, runs, knowledge (routes, graph), CI orchestration │
+ │  Lynkeus CLI / MCP: drive, cases, runs, knowledge (routes, graph), CI orchestration │
  └──────▲────────────────────────────▲──────────────────────────────▲─────────────────┘
         │ agent protocol (WebSocket) │ host protocol (same wire)    │ reports API (HTTPS)
  ┌──────┴──────────┐   ┌─────────────┴─────────────┐   ┌────────────┴─────────────────┐

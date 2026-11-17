@@ -265,7 +265,7 @@ A runner that starts `case run` once per case can use `case prepare` instead: st
 
 ## Common problems
 
-**`create_user is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** The configuration has no `cases.fixtures`, or Lynkeus is reading another configuration file. Check the folder you run from and `LYNKEUS_CONFIG`.
+**`create_user is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** The configuration has no `cases.fixtures`, or Lynkeus is reading another configuration file. Check the folder you run from and `LYNKEUS_CONFIG`.
 
 **`create_user: the fixtures command did not answer within 120000 ms`.** Your command received the line and wrote nothing back. Every line in needs exactly one line out, including on errors.
 

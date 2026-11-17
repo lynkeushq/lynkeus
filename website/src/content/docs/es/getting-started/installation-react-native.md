@@ -286,7 +286,7 @@ El agente no tiene de dónde sacar las rutas. Con `auto()`, eso significa que no
 ### Aviso de versiones distintas
 
 ```
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error.
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error.
 ```
 
 El agente y el CLI tienen que ser de la misma versión. Instala en la app la versión de `lynkeus-agent` que indica el aviso y recompila.

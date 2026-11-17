@@ -367,7 +367,7 @@ The runner also absorbs what only a device does. After a swipe on a device it wa
 
 **`… must be one step, as verb: value`.** A list item has two keys. Each step is exactly one key; put parameters inside braces.
 
-**`app.foo is not a step: lynkeus has no command foo, and the project declares no macro for it`.** The verb is misspelled, or the macro is missing from `cases.macros`. `--dry-run` finds these without running anything.
+**`app.foo is not a step: Lynkeus has no command foo, and the project declares no macro for it`.** The verb is misspelled, or the macro is missing from `cases.macros`. `--dry-run` finds these without running anything.
 
 **`port 8123 is held by another lynkeus case run`.** Two runs on one port would take turns at the app. Stop the other run or give this one other `--ports`.
 

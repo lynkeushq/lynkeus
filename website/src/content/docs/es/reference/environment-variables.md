@@ -99,7 +99,7 @@ LYNKEUS_PORT=8124 LYNKEUS_TOKEN=secreto npx lynkeus screen
 Una app en un simulador o en un dispositivo no lee esta variable. Se conecta al puerto que recibió en la opción `port` de `auto()` o de `<Lynkeus>`, que por defecto es `8123`. Si mueves el driver con `LYNKEUS_PORT`, pásale el mismo puerto a la app al montarla.
 :::
 
-Si el puerto ya está en uso, el CLI falla con `Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
+Si el puerto ya está en uso, el CLI falla con `Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
 
 ### `LYNKEUS_HOST`
 

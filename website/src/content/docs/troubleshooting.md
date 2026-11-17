@@ -83,7 +83,7 @@ Before 0.3.0 an empty token did not turn the agent off: it served any driver, wi
 **What you see.**
 
 ```text
-✗ Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
+✗ Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
 ```
 
 or, from `case run`:
@@ -107,7 +107,7 @@ port 8123 is held by another lynkeus case run (pid 4242), which is probably stil
 **What you see.**
 
 ```text
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the Lynkeus CLI of the agent's version).
 ```
 
 **Why.** The agent in the app and the CLI are from different releases. They may still talk, and one may misread the other without any error, such as typing into nothing.
@@ -270,13 +270,13 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 **What you see.**
 
 ```text
-app.logn is not a step: lynkeus has no command logn, and the project declares no macro for it
+app.logn is not a step: Lynkeus has no command logn, and the project declares no macro for it
 ```
 
 or
 
 ```text
-give_points is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)
+give_points is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)
 ```
 
 **Why.** The first is an `app.` step that names neither a Lynkeus command nor a macro: usually a typo, or a macro missing from `cases.macros`. The second is a fixture step in a project that has no fixtures command.

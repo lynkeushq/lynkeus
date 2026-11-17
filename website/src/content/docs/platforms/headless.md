@@ -110,12 +110,12 @@ npx lynkeus headless doctor
 ```text
 lynkeus headless doctor — headless readiness for myapp
 
-Auto-mocked by lynkeus (installDefaultMocks):
+Auto-mocked by Lynkeus (installDefaultMocks):
   ✓ react-native-mmkv
   ✓ react-native-safe-area-context
 
 Mocked in qa/headless.tsx (app-specific):
-  (none beyond the lynkeus defaults)
+  (none beyond the Lynkeus defaults)
   network: real
 
 Native modules your app's source references:

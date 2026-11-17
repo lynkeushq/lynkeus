@@ -89,7 +89,7 @@ Mientras graba, `record` ejecuta como comandos las líneas que recibe por la ent
 ### Lo que la grabación no captura
 
 - **Texto escrito.** La grabación registra toques. El toque sobre un campo queda; lo que tecleaste, no. Agrega a mano los pasos `type`.
-- **Toques sin nombre.** Un toque sobre algo sin `testID` ni texto queda como una nota: `touch at 120,340 on Home.Main hit nothing lynkeus could name`. Es la señal de que a ese control le falta un `testID`.
+- **Toques sin nombre.** Un toque sobre algo sin `testID` ni texto queda como una nota: `touch at 120,340 on Home.Main hit nothing Lynkeus could name`. Es la señal de que a ese control le falta un `testID`.
 - **Toques en el host sin pantalla.** Ahí no hay toques que rastrear, y la grabación contiene solo rutas y peticiones. Verás `(no touches were traced: …)`.
 
 ## Snapshots: la estructura de una pantalla como línea base

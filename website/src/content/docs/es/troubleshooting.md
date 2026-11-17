@@ -112,7 +112,7 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 ### `Port 8123 is already taken`
 
-**Qué ves.** `Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
+**Qué ves.** `Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
 
 **Por qué pasa.** Otro proceso de Lynkeus sigue escuchando en ese puerto: una sesión abierta, un `lynkeus mcp`, una ejecución anterior que no terminó. Dos drivers no pueden compartir un puerto, porque la app quedaría en manos del primero al que se conecte y los pasos de dos ejecuciones se mezclarían.
 
@@ -120,7 +120,7 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 ### Una advertencia sobre versiones distintas
 
-**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error.`
+**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error.`
 
 **Por qué pasa.** La versión de `lynkeus-agent` compilada en la app no es la del CLI. Los dos pueden entenderse mal sin que aparezca ningún error; por ejemplo, escribir en un campo que no es.
 
@@ -281,7 +281,7 @@ npx lynkeus crawl --overlay-when '#key-1' --overlay-flow flows/keypad.json
 
 ### `… is not a step`
 
-**Qué ves.** `app.foo is not a step: lynkeus has no command foo, and the project declares no macro for it`
+**Qué ves.** `app.foo is not a step: Lynkeus has no command foo, and the project declares no macro for it`
 
 **Por qué pasa.** El verbo empieza con `app.`, pero no es un verbo del formato, ni un comando del CLI, ni un macro de tu proyecto. Suele ser un error de tipeo, o un macro que vive en otro archivo de configuración.
 

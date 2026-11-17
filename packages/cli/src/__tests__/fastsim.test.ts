@@ -82,7 +82,7 @@ test('fastsim install refuses an archive whose digest is not the release', async
 test('fastsim install refuses a release with no signature, a tampered archive and a key that is not lynkeus', async () => {
   const body = archive({ 'README.md': 'x' });
   const release = { version: '2026.11.17', variant: 'darwin-arm64', sha256: sha(body), bytes: body.length };
-  const refused = /Lynkeus FastSim 2026\.11\.17 is not signed by lynkeus: not installed/;
+  const refused = /Lynkeus FastSim 2026\.11\.17 is not signed by Lynkeus: not installed/;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
 
   const unsigned = service([release], { '2026.11.17/darwin-arm64': body });

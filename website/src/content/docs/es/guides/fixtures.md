@@ -256,7 +256,7 @@ Para una suite que lanza `case run` una vez por caso existe `npx lynkeus case pr
 
 ## Problemas frecuentes
 
-**`create_user is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** Falta `cases.fixtures` en la configuración, o Lynkeus está leyendo otra carpeta. Revisa `--root`.
+**`create_user is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** Falta `cases.fixtures` en la configuración, o Lynkeus está leyendo otra carpeta. Revisa `--root`.
 
 **`create_user: the fixtures command did not answer within 120000 ms`.** El servidor recibió la línea y no respondió. Lo habitual es que haya escrito la respuesta en varias líneas o que no haya vaciado la salida. Cada respuesta es una sola línea.
 

@@ -382,7 +382,7 @@ Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se 
 
 Una petición que contestó un mock (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y la evidencia de un caso fallido la lista con `(mocked)`. Las reglas que explican un fallo, como «el backend respondió 500 (error del servidor, no de la app)», leen solo lo que respondió el servidor: un 500 que puso el propio caso no se le atribuye al backend.
 
-Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <clave>`. Un verbo que no corresponde a ningún comando ni a ningún macro falla con `app.<nombre> is not a step: lynkeus has no command <nombre>, and the project declares no macro for it`.
+Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <clave>`. Un verbo que no corresponde a ningún comando ni a ningún macro falla con `app.<nombre> is not a step: Lynkeus has no command <nombre>, and the project declares no macro for it`.
 
 ## Verbos que preparan y leen el backend
 
@@ -403,7 +403,7 @@ Los **fixtures** son los datos de prueba que un caso prepara en el backend: un u
 
 Antes del primer caso, Lynkeus le pregunta al servidor qué fixtures responde. Si un caso nombra uno que no está en esa lista, se rechaza antes de ejecutar nada, en lugar de fallar a la mitad con el backend ya modificado. El protocolo completo está en la guía de [Fixtures](/es/guides/fixtures/).
 
-Si el proyecto no declara `cases.fixtures`, un paso así falla con `<nombre> is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.
+Si el proyecto no declara `cases.fixtures`, un paso así falla con `<nombre> is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.
 
 ### `assert`
 

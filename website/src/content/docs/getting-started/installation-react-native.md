@@ -43,7 +43,7 @@ npm install --save-dev lynkeus-agent lynkeus
 Keep the two packages on the same version. If they differ, the CLI prints a warning when it attaches, because an agent and a CLI from different releases can misread each other without raising an error:
 
 ```text
-⚠️  The app runs lynkeus-agent 0.5.1, this CLI is lynkeus 0.6.0: they can misread each other without an error. Install lynkeus-agent@0.6.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.5.1, this CLI is Lynkeus 0.6.0: they can misread each other without an error. Install lynkeus-agent@0.6.0 in the app and rebuild it (or run the Lynkeus CLI of the agent's version).
 ```
 
 ### 2. Mount the agent
@@ -324,7 +324,7 @@ The entry file reads `process.env.LYNKEUS_TOKEN` and nothing put a value there, 
 ### The port is already taken
 
 ```text
-✗ Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
+✗ Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
 ```
 
 Only one driver can hold the port. Another `lynkeus` command, session or MCP server is still running; stop it, or run this pair on another port.

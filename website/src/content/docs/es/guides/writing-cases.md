@@ -63,7 +63,7 @@ Cada paso es una sola clave con su valor: `verbo: valor`.
 npx lynkeus case run cases/settings-dark-mode.md --dry-run
 ```
 
-`--dry-run` analiza el archivo y lista los pasos sin tocar la app. Atrapa los errores de escritura antes de gastar una ejecución: un verbo que no existe aparece como `app.pres is not a step: lynkeus has no command pres, and the project declares no macro for it`.
+`--dry-run` analiza el archivo y lista los pasos sin tocar la app. Atrapa los errores de escritura antes de gastar una ejecución: un verbo que no existe aparece como `app.pres is not a step: Lynkeus has no command pres, and the project declares no macro for it`.
 
 ## 3. Ejecútalo
 
