@@ -896,17 +896,18 @@ Asks lynkeus.io which fastsim releases the organization may install (with LYNKEU
 | `--force` | download again even when that release is installed |
 | `--no-browser` | when a sign-in is needed, print its address instead of opening it |
 
-### `lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>]`
+### `lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--print]`
 
 Print a fresh grant a fastsim host needs to start, fetched from lynkeus.io (cached for an hour)
 
-Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.
+Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout when a script reads it (stdout not a terminal, or --print): fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. At a terminal it prints a summary instead (the variant and until when it is valid), so the token does not sit on screen; --json always carries it. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.
 
 | Flag | |
 |---|---|
 | `--platform <ios|android>` | the platform it draws: ios or android (default `ios`) |
 | `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
+| `--print` | print the token even at a terminal (it is printed anyway when stdout is a pipe) |
 
 ### `lynkeus login [--cloud <url>] [--no-browser]`
 
