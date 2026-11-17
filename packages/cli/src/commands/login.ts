@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { define } from '../registry.js';
+import { failedPage, failureReason, PAGE_HEADERS, signedInPage } from './loginPage.js';
 import { serviceBase } from './report.js';
 
 export type Credential = {
@@ -17,6 +18,8 @@ export type Credential = {
   /** Epoch milliseconds. */
   expiresAt: number;
   scope: string;
+  organization?: { id: string; name: string };
+  account?: { email: string };
 };
 
 export const DEFAULT_CLOUD = 'https://lynkeus.io';
@@ -88,10 +91,14 @@ const tokenRequest = async (tokenEndpoint: string, params: Record<string, string
   });
   if (!response.ok) throw await oauthError(response, doing);
   const body = (await response.json().catch(() => undefined)) as
-    | { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown; scope?: unknown }
+    | { access_token?: unknown; refresh_token?: unknown; expires_in?: unknown; scope?: unknown; organization?: unknown; account?: unknown }
     | undefined;
   if (typeof body?.access_token !== 'string' || !body.access_token) throw new Error(`${doing}: the service answered no access token`);
+  const org = body.organization as { id?: unknown; name?: unknown } | null | undefined;
+  const account = body.account as { email?: unknown } | null | undefined;
   return {
+    ...(typeof org?.id === 'string' && typeof org.name === 'string' && { organization: { id: org.id, name: org.name } }),
+    ...(typeof account?.email === 'string' && { account: { email: account.email } }),
     accessToken: body.access_token,
     refreshToken: typeof body.refresh_token === 'string' ? body.refresh_token : undefined,
     expiresAt: Date.now() + (typeof body.expires_in === 'number' ? body.expires_in : 3600) * 1000,
@@ -109,9 +116,6 @@ const metadata = async (cloud: string, fetchImpl: Fetch) => {
     register: endpoint(cloud, body.registration_endpoint, 'registration_endpoint'),
   };
 };
-
-const page = (message: string) =>
-  `<!doctype html><meta charset="utf-8"><title>Lynkeus</title><body style="font-family:system-ui;margin:3rem"><p>${message}</p></body>`;
 
 export const openInBrowser = (url: string): Promise<boolean> =>
   new Promise((resolve) => {
@@ -132,23 +136,39 @@ export type LoginOptions = {
   tell?: (line: string) => void;
   timeoutMs?: number;
   fetchImpl?: Fetch;
+  /** What the person typed to start the sign-in; the browser page shows it. */
+  command?: string;
 };
 
-const waitForCallback = (server: ReturnType<typeof createServer>, timeoutMs: number): Promise<URLSearchParams> =>
+type Callback = { params: URLSearchParams; answer: (html: string) => void };
+
+// The browser's request stays open until the caller has the outcome, so the page can say how the sign-in ended.
+const waitForCallback = (server: ReturnType<typeof createServer>, timeoutMs: number): Promise<Callback> =>
   new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('timed out waiting for the browser sign-in (5 minutes)')), timeoutMs);
+    let taken = false;
     server.on('request', (req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
-      if (url.pathname !== '/callback') {
+      if (url.pathname !== '/callback' || taken) {
         res.writeHead(404).end();
         return;
       }
+      taken = true;
       clearTimeout(timer);
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(page(url.searchParams.has('code') ? 'Signed in, you can close this tab.' : 'The sign-in did not finish, go back to the terminal.'));
-      resolve(url.searchParams);
+      resolve({
+        params: url.searchParams,
+        answer: (html) => {
+          res.writeHead(200, PAGE_HEADERS);
+          res.end(html);
+        },
+      });
     });
   });
+
+const shortReason = (error: Error): string => {
+  const text = error.message.replace(/^cannot finish the sign-in: /, '').replace(/\.$/, '');
+  return text.length > 120 ? `${text.slice(0, 117)}...` : text;
+};
 
 export const login = async (o: LoginOptions): Promise<Credential> => {
   const fetchImpl = o.fetchImpl ?? fetch;
@@ -194,21 +214,31 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
     if (!opened) tell(`open this address in a browser to sign in:\n${authorize.toString()}`);
     else tell('waiting for the sign-in in your browser...');
 
-    const params = await callback;
-    if (params.get('state') !== state) throw new Error('the sign-in answered with a state that is not ours; it was refused');
+    const { params, answer } = await callback;
+    const command = o.command ?? 'lynkeus login';
+    const fail = (reason: string, error: Error): never => {
+      answer(failedPage(reason));
+      throw error;
+    };
+    if (params.get('state') !== state) fail(failureReason.state, new Error('the sign-in answered with a state that is not ours; it was refused'));
     const denied = params.get('error');
-    if (denied) throw new Error(`the sign-in was refused: ${[denied, params.get('error_description')].filter(Boolean).join(': ')}`);
+    if (denied) {
+      const description = params.get('error_description');
+      const error = new Error(`the sign-in was refused: ${[denied, description].filter(Boolean).join(': ')}`);
+      fail(denied === 'access_denied' ? failureReason.denied : failureReason.service(description || denied), error);
+    }
     const code = params.get('code');
-    if (!code) throw new Error('the sign-in answered without a code');
+    if (!code) fail(failureReason.service('The service answered without a code.'), new Error('the sign-in answered without a code'));
 
     const tokens = await tokenRequest(
       meta.token,
-      { grant_type: 'authorization_code', code, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier },
+      { grant_type: 'authorization_code', code: code as string, redirect_uri: redirectUri, client_id: clientId, code_verifier: verifier },
       'cannot finish the sign-in',
       fetchImpl,
-    );
+    ).catch((error: Error) => fail(failureReason.exchange(new URL(cloud).host, shortReason(error)), error));
     const credential: Credential = { cloud, clientId, ...tokens };
     saveLogin(credential);
+    answer(signedInPage({ command, cloud, organization: tokens.organization?.name, email: tokens.account?.email }));
     return credential;
   } finally {
     server.closeAllConnections();
@@ -250,10 +280,18 @@ export const loginCommands = [
     run: async (ctx) => {
       try {
         const cloud = cloudUrl(ctx.flags.cloud);
-        const credential = await login({ cloud, open: ctx.flags['no-browser'] ? undefined : openInBrowser, tell: ctx.err });
+        const credential = await login({ cloud, open: ctx.flags['no-browser'] ? undefined : openInBrowser, tell: ctx.err, command: 'lynkeus login' });
+        const who = credential.account && credential.organization ? ` as ${credential.account.email} in ${credential.organization.name}` : '';
         return {
-          text: `signed in to ${credential.cloud} (${credential.scope}); saved in ${credentialsPath()}`,
-          json: { cloud: credential.cloud, scope: credential.scope, expiresAt: credential.expiresAt, file: credentialsPath() },
+          text: `signed in to ${credential.cloud}${who} (${credential.scope}); saved in ${credentialsPath()}`,
+          json: {
+            cloud: credential.cloud,
+            ...(credential.organization && { organization: credential.organization }),
+            ...(credential.account && { account: credential.account }),
+            scope: credential.scope,
+            expiresAt: credential.expiresAt,
+            file: credentialsPath(),
+          },
         };
       } catch (error) {
         return { text: (error as Error).message, code: 1 };

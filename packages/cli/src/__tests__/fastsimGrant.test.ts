@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { grantCacheFile, makeFastsimCommands } from '../commands/fastsim.js';
+import { grantCacheFile, grantSummary, makeFastsimCommands } from '../commands/fastsim.js';
 import { saveLogin } from '../commands/login.js';
 import type { Ctx } from '../registry.js';
 
@@ -167,4 +167,37 @@ test('through the CLI the grant is the only thing on stdout; the message is on s
   assert.equal(out, 'v1.payload1.sig1\n');
   assert.match(err, /Lynkeus FastSim grant for linux-x64-ios/);
   cloud.close();
+});
+
+test('at a terminal it prints a summary and never the token; --print and --json still carry it', async () => {
+  isolate();
+  process.env.LYNKEUS_CLOUD_KEY = 'lk_abc';
+  const cloud = await fakeCloud();
+  const atTerminal = makeFastsimCommands(undefined, { stdoutTty: () => true })[1]!;
+  const ctx = (flags: Record<string, unknown> = {}) =>
+    ({ args: [], flags: { cloud: cloud.url, platform: 'ios', variant: 'linux-x64-ios', ...flags }, passthrough: [], err: () => {} }) as unknown as Ctx;
+  const shown = (await atTerminal.run(ctx())) as { text: string; json: { grant: string } };
+  assert.doesNotMatch(shown.text, /v1\.payload/);
+  assert.match(shown.text, /Lynkeus FastSim grant ready/);
+  assert.match(shown.text, /linux-x64-ios/);
+  assert.equal(shown.json.grant, 'v1.payload1.sig1');
+  const printed = (await atTerminal.run(ctx({ print: true }))) as { text: string };
+  assert.equal(printed.text, 'v1.payload1.sig1');
+  cloud.close();
+});
+
+test('the summary has a check mark, the variant, the local time and minutes left, and honours NO_COLOR', () => {
+  const now = Date.parse('2026-11-18T03:00:00Z');
+  const o = { variant: 'darwin-arm64-ios', expiresAt: '2026-11-18T04:00:00Z', cached: false, now };
+  const colored = grantSummary(o);
+  assert.ok(colored.includes('\x1b[32m✔\x1b[0m'));
+  process.env.NO_COLOR = '1';
+  try {
+    const plain = grantSummary(o);
+    assert.ok(!plain.includes('\x1b['));
+    assert.match(plain, /^✔ Lynkeus FastSim grant ready for darwin-arm64-ios\n {2}valid until .+ \(60 min left\), new from lynkeus\.io\n/);
+    assert.match(grantSummary({ ...o, cached: true }), /reused from the cache/);
+  } finally {
+    delete process.env.NO_COLOR;
+  }
 });
