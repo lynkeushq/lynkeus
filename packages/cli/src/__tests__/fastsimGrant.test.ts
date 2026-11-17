@@ -165,7 +165,7 @@ test('through the CLI the grant is the only thing on stdout; the message is on s
   const code = await new Promise((resolve) => child.on('close', resolve));
   assert.equal(code, 0, err);
   assert.equal(out, 'v1.payload1.sig1\n');
-  assert.match(err, /fastsim grant for linux-x64-ios/);
+  assert.match(err, /Lynkeus FastSim grant for linux-x64-ios/);
   cloud.close();
 });
 
@@ -178,7 +178,7 @@ test('at a terminal it prints a summary and never the token; --print and --json 
     ({ args: [], flags: { cloud: cloud.url, platform: 'ios', variant: 'linux-x64-ios', ...flags }, passthrough: [], err: () => {} }) as unknown as Ctx;
   const shown = (await atTerminal.run(ctx())) as { text: string; json: { grant: string } };
   assert.doesNotMatch(shown.text, /v1\.payload/);
-  assert.match(shown.text, /fastsim grant ready/);
+  assert.match(shown.text, /Lynkeus FastSim grant ready/);
   assert.match(shown.text, /linux-x64-ios/);
   assert.equal(shown.json.grant, 'v1.payload1.sig1');
   const printed = (await atTerminal.run(ctx({ print: true }))) as { text: string };
@@ -195,7 +195,7 @@ test('the summary has a check mark, the variant, the local time and minutes left
   try {
     const plain = grantSummary(o);
     assert.ok(!plain.includes('\x1b['));
-    assert.match(plain, /^✔ fastsim grant ready for darwin-arm64-ios\n {2}valid until .+ \(60 min left\), new from lynkeus\.io\n/);
+    assert.match(plain, /^✔ Lynkeus FastSim grant ready for darwin-arm64-ios\n {2}valid until .+ \(60 min left\), new from lynkeus\.io\n/);
     assert.match(grantSummary({ ...o, cached: true }), /reused from the cache/);
   } finally {
     delete process.env.NO_COLOR;
