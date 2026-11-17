@@ -142,7 +142,9 @@ test('a wait takes object targets in anyOf, and refuses gone with anyOf', async 
   };
   const report = await runCase(c, { base, config, fixtures });
   assert.equal(report.result, 'passed', JSON.stringify(report.steps));
-  assert.deepEqual((calls.find((x) => x.method === 'waitFor')?.params as { anyOf: unknown }).anyOf, [{ testId: 'nope' }, { text: 'Hello' }]);
+  const waited = calls.find((x) => x.method === 'waitFor');
+  assert.ok(waited, 'no waitFor was sent');
+  assert.deepEqual((waited.params as { anyOf: unknown }).anyOf, [{ testId: 'nope' }, { text: 'Hello' }]);
   const gone = parseCase('---\nid: gone\n---\nsteps:\n  - app.wait: { anyOf: ["Hello"], gone: true }\n', 'gone.md');
   const refused = await runCase(gone, { base, config, fixtures });
   assert.equal(refused.result, 'failed');
