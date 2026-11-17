@@ -67,7 +67,7 @@ LYNKEUS_TOKEN=un-secreto-por-maquina npx react-native start --reset-cache
 - **Después de cambiar el valor, arranca Metro una vez con `--reset-cache`.** Metro guarda lo que ya transformó, y sin eso la app sigue con el valor anterior.
 - **El plugin solo escribe en un bundle de desarrollo.** En un bundle de producción el token nunca se escribe.
 
-Si la app pasa un token y le llega vacío, el agente queda apagado, y la app lo dice en su log con una línea que empieza con `lynkeus: the app passed a token and it is empty`. No pasa a atender sin token. Una app que llama a `auto()` sin la clave `token` es otro caso: ahí el agente atiende a cualquier driver, sin exigir ninguno.
+Si la app pasa un token y le llega vacío, el agente queda apagado, y la app lo dice en su log con una línea que empieza con `lynkeus: the app passed a token and it is empty`. No pasa a atender sin token. Lo mismo vale para una app que llama a `auto()` sin `token`; solo `allowUnauthenticated: true` hace que atienda sin él.
 
 :::note[Desde 0.3.0]
 El plugin `lynkeus-agent/babel` y la regla del token vacío llegan con la versión 0.3.0. Antes, un token vacío se trataba como "sin token".
@@ -181,6 +181,8 @@ La dirección del servicio de reportes y la clave de API de la organización. La
 export LYNKEUS_REPORTS_KEY=lk_…
 npx lynkeus case run --out run --screenshots --push
 ```
+
+La dirección tiene que ser HTTPS; solo se admite otra cosa si apunta a loopback (`localhost`, `127.0.0.1`, `::1`), para un servicio en tu propia máquina. Tampoco puede llevar usuario y clave incrustados. La subida no sigue redirecciones, de modo que un servicio que se mudó no puede desviar tu clave a otro sitio: si un push falla con `the reports service must use HTTPS outside loopback`, pon en `LYNKEUS_REPORTS_URL` la dirección que responde directamente. Si dentro de la carpeta de la ejecución hay un enlace simbólico, o un enlace duro a un archivo de afuera, se rechaza (`file path escapes the run directory`) y no se envía lo que señala.
 
 Si falta la clave, el comando termina con `set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); LYNKEUS_REPORTS_URL names another service`.
 

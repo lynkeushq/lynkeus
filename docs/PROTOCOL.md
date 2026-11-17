@@ -30,7 +30,7 @@ Driver → app, always the first message on a new socket:
 App → driver, in answer to an `auth` it accepts:
 
 ```json
-{ "event": "hello", "protocolVersion": 2, "agentVersion": "0.6.0", "platform": "ios", "native": true,
+{ "event": "hello", "protocolVersion": 2, "agentVersion": "0.7.0", "platform": "ios", "native": true,
   "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" },
   "nonce": "a41c…", "proof": "…" }
 ```
@@ -119,7 +119,7 @@ Ties go to the later element: it draws on top.
 | `swipe` | `{ direction?, target?, distance? } \| { from, to }`, `durationMs?` | `{ from, to }` |
 | `navigate` | `{ name, params? }` | `{ route }` |
 | `back` | — | `{ route? }` |
-| `waitFor` | `{ route?, target?, anyOf?, gone?, scroll?, since?, timeoutMs? }` | `{ route?, matched?, waitedMs, passed? }` |
+| `waitFor` | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, since?, timeoutMs? }` | `{ route?, matched?, waitedMs, passed? }` |
 | `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
 | `requests` | `{ since? }` | `{ inFlight, requests: RequestRecord[] }` |
@@ -221,10 +221,15 @@ it.
   animations entirely. Use it when you want the outcome, not the gesture.
 - `type` goes through the platform's key input, so formatters and `onChange`
   behave as with a keyboard; keys are paced 25 ms apart unless `paste`.
-- `waitFor` (`since`: a trace mark, so a route reached after it counts even if the app has already left it, and `passed` says so; `scroll` swipes the nearest scroller towards the target) polls inside the app every 40 ms and returns the moment the
+- `waitFor` (`enabled`: the target must be enabled, not only present, such as a form button waiting on its fields; `since`: a trace mark, so a route reached after it counts even if the app has already left it, and `passed` says so; `scroll` swipes the nearest scroller towards the target) polls inside the app every 40 ms and returns the moment the
   condition holds; `idle` resolves after `quietMs` without commits or
   requests, or reports `idle: false` at `timeoutMs` (a ticking screen never
   settles, and that is information).
 - `requests` includes headers and bodies only after `networkBodies` turns them
-  on (a case run that keeps evidence does), with secrets replaced; query values under keys such
-  as `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session`, `auth` are redacted.
+  on (a case run that keeps evidence does), with secrets replaced. A value is
+  replaced by `…` when its name, split into words, reads as a secret (`password`,
+  `pwd`, `pin`, `otp`, `token`, `secret`, `cookie`, `authorization`, `apiKey`,
+  `accessToken`, `sessionId`, `authCode`, `cvv`, `iban`, `seed` and similar, in any
+  spelling); `item`, `cache`, `sort` or `tokenCount` stay. Strings are read too: a URL's
+  query, JSON kept as text, `name=value` pairs, `Basic`/`Bearer` credentials, JWTs,
+  `user:pass@host` and secret-like path segments.

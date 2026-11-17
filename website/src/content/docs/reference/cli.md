@@ -193,21 +193,23 @@ lynkeus nav Checkout.Confirm '{"id":"abc"}'
 ### `lynkeus wait`
 
 ```bash
-lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]
+lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>]… [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]
 ```
 
-Waits until a route or an element appears (or leaves), or for a number of milliseconds.
+Waits until a route or an element appears (or leaves), until any of several targets appears, or for a number of milliseconds.
 
 | Argument | Meaning |
 |---|---|
-| `what` | A route (`Settings.Main`, or `route:index` for a lowercase name), a target, or a number of milliseconds such as `800`. A text in quotes of its own (`'"Next"'`) is always a target. |
+| `what` | A route (`Settings.Main`, or `route:index` for a lowercase name), a target, or a number of milliseconds such as `800`. A text in quotes of its own (`'"Next"'`) is always a target. Optional when `--anyOf` is given. |
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--in <target>` | | Among several matches, take the one nearest this target. |
 | `--nth <n>` | | Take the nth match, counted from 0. |
+| `--anyOf <target>` | | Accept the first of several targets that is present. Repeat the flag for each one. `--gone` cannot be combined with it, because it is not clear which target should leave. |
 | `--gone` | | Wait until it leaves the screen. |
 | `--scroll` | | Scroll until the target is in the window. |
+| `--enabled` | | Wait until the target is there and enabled, such as a form button that waits on its fields. |
 | `--timeout <ms>` | `10000` | Give up after this long. |
 | `--since <seq>` | | A trace mark, taken from `lynkeus trace`. A route the app reached after it counts, even if the app has already left it. |
 
@@ -216,6 +218,8 @@ lynkeus wait Settings.Main
 lynkeus wait '#spinner' --gone
 lynkeus wait '#row-25' --scroll
 lynkeus wait '"Next"'
+lynkeus wait --anyOf '#welcome' --anyOf '"Try again"'
+lynkeus wait '#submit' --enabled
 ```
 
 ### `lynkeus screenshot`
@@ -224,7 +228,7 @@ lynkeus wait '"Next"'
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. It needs a device, a simulator or an emulator: the headless host renders nothing to capture.
+Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (fastsim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
 
 | Argument | Meaning |
 |---|---|
@@ -1262,7 +1266,7 @@ lynkeus report push <dir> [--project <name>]
 
 Uploads a run to the report service and prints the report's address. It uploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name.
 
-The service's address and the organization's key come from `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`. A film the organization's plan does not keep is left out, and the command says so.
+The service's address and the organization's key come from `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`. The address must be HTTPS (loopback is allowed), the upload follows no redirects, and a symlink or hard link in the run folder that points outside it is refused. A film the organization's plan does not keep is left out, and the command says so.
 
 | Argument | Meaning |
 |---|---|
@@ -1366,6 +1370,25 @@ It needs `LYNKEUS_REPORTS_KEY` (or `LYNKEUS_CLOUD_KEY`). It prints `relay listen
 | `--ttl <seconds>` | `900` | Session lifetime, at most `3600`. |
 
 Exits with `2` when there is no key, and with `1` when the session cannot be created, the service gives no socket secret (it is older than the CLI) or the connection cannot open.
+
+### `lynkeus fastsim install`
+
+```bash
+lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]
+```
+
+Downloads fastsim, the simulator that draws the app on a Mac without Xcode's simulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads one, checks its SHA-256 and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. The README inside the package says how to start a host for your app.
+
+It needs `LYNKEUS_CLOUD_KEY`, your organization's API key. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--version <version>` | `latest` | The release to install, such as `2026.11.17`. |
+| `--variant <name>` | `darwin-arm64` | The build. Apple Silicon Macs only. |
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
+| `--force` | | Download and unpack again. |
+
+`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is no key, and with `1` when your organization has no fastsim entitlement, the release does not exist or the download arrives damaged.
 
 ## headless
 

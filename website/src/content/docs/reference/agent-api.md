@@ -36,7 +36,8 @@ Calling `auto` a second time does nothing. Calling it with `enabled` false does 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
 | `enabled` | boolean | `__DEV__` | Whether the agent runs at all. |
-| `token` | string | none | The shared secret. When set, the driver must present it before any command is served. Passed but empty, it keeps the agent off. See [The token option](#the-token-option). |
+| `token` | string | none | The shared secret. The driver and the agent prove to each other that they hold it; neither sends it. Without one the agent stays off. See [The token option](#the-token-option). |
+| `allowUnauthenticated` | boolean | `false` | Serve any driver that connects, with no token. For an isolated test environment only. See [The token option](#the-token-option). |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
 | `port` | number | `8123` | The driver's port. |
 | `app` | object | none | A free-form description of the app, sent to the driver when the app attaches: name, version, environment. |
@@ -48,24 +49,24 @@ Calling `auto` a second time does nothing. Calling it with `enabled` false does 
 
 ### The token option
 
-`token` has three cases, and the difference between the last two matters.
+The agent never serves a driver it has not authenticated. `token` and `allowUnauthenticated` decide what happens.
 
 | What the app passes | What the agent does |
 |---|---|
-| A non-empty string | Serves only a driver that presents the same value. |
-| No `token` key at all: `auto()`, `auto({ enabled })` | Serves any driver that connects. |
-| A `token` key whose value is empty or `undefined` | Stays off, and logs why. It serves nobody. |
+| A non-empty string | Serves only a driver that proves it holds the same value. |
+| No `token`, or one that is empty or `undefined` | Stays off, and logs why. It serves nobody. |
+| No `token` and `allowUnauthenticated: true` | Serves any driver that connects. |
 
-The third case is what happens when the app reads a variable that never reached the bundle. The agent does not treat it as "no token": an app that asked for protection and did not get the value must not end up serving whoever connects. The line it writes to the app's log, with `console.warn`, is:
+An empty token is what happens when the app reads a variable that never reached the bundle. The agent does not treat it as "no token, serve anyone": an app that asked for protection and did not get the value must not end up serving whoever connects. A missing token behaves the same way, so an app that calls `auto()` and nothing else is off until it is given one. `allowUnauthenticated: true` turns that protection off. Use it only where no other process can reach the port, such as an isolated test environment, because any local process can then drive the app. The line the agent writes to the app's log, with `console.warn`, is:
 
 ```text
-lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
 ```
 
-The same applies to the `token` prop of `<Lynkeus>`.
+The same applies to the `token` and `allowUnauthenticated` props of `<Lynkeus>`.
 
-:::note[Since 0.3.0]
-Before 0.3.0 an empty token meant "no token", and the agent served any driver that connected.
+:::note[Since 0.3.0 and 0.7.0]
+Before 0.3.0 an empty token meant "no token", and the agent served any driver that connected. From 0.3.0 an empty token kept the agent off, but an app that passed no `token` still served anyone. From 0.7.0 that is off too, unless `allowUnauthenticated` is true.
 :::
 
 ### `lynkeus-agent/babel`
@@ -243,7 +244,7 @@ Two things follow from observing a store:
 | Under a key named like a secret | `…`, whatever the value. |
 | Anything else (a number, a boolean, a short string) | Itself. |
 
-A key is named like a secret when its name contains `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth`, in any letter case.
+A key is named like a secret when its words say so: `password`, `pwd`, `pin`, `otp`, `token`, `secret`, `apiKey`, `accessToken`, `sessionId`, `authCode` and similar, in any spelling. Names that only contain such letters (`item`, `cache`, `sort`) stay readable.
 
 :::note[Since 0.3.0]
 Redux stores work since 0.3.0. Before, the agent read the new state from the listener's argument, which Zustand passes and Redux does not, so every key of a Redux store was traced as changing to nothing. The masking of secret-named keys and the cut at 80 characters also arrived in 0.3.0.

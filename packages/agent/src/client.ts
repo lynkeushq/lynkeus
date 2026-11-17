@@ -51,7 +51,7 @@ const REPLAY_WINDOW = 64;
 const UNTRACED = new Set(['screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy']);
 
 const NO_TOKEN =
-  "lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.";
+  "lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.";
 
 const openSocket = (url: string): Socket => new (globalThis as unknown as { WebSocket: new (url: string) => Socket }).WebSocket(url);
 

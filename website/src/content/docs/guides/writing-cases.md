@@ -104,7 +104,7 @@ Steps that start with `app.` are the terminal commands you already know.
 | `app.press` | A target, or `{ target, within?, nth?, optional?, hold?, timeoutMs? }`. In place of `target`: `testId` or `text` |
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` |
-| `app.wait` | A route, a target, a number of ms, `{ target, scroll? }` or `{ request, status? }` |
+| `app.wait` | A route, a target, a number of ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` |
 | `app.see` | A target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` |
 | `app.nav` | A route, or `{ route, params }` |
 | `app.back` | No value |

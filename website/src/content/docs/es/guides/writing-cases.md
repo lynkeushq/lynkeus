@@ -113,7 +113,7 @@ Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son l
 | `app.press` | objetivo, o `{ target, within?, nth?, optional?, hold?, timeoutMs? }` | Espera a que el control esté y esté habilitado. Con `optional` solo toca si está en pantalla. También acepta `{ text }` en lugar de `target`. |
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | Toca primero `target`, cuando ya está en pantalla; `timeoutMs` es cuánto puede tardar en llegar. |
 | `app.swipe` | `{ direction, target?, distance? }` o `{ from, to }` | |
-| `app.wait` | ruta, objetivo, ms, `{ target, scroll? }` o `{ request, status? }` | Una `request` se escribe `MÉTODO /ruta`. |
+| `app.wait` | ruta, objetivo, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [objetivo, ...] }` o `{ request, status? }` | Una `request` se escribe `MÉTODO /ruta`. |
 | `app.see` | objetivo, o `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | Una afirmación. Todo lo que nombres debe cumplirse. |
 | `app.nav` | ruta, o `{ route, params }` | Un teletransporte, para llegar a donde empieza el caso. |
 | `app.back` | | |

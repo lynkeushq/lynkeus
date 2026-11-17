@@ -88,7 +88,8 @@ Se monta una sola vez, en cualquier lugar bajo el contenedor de navegación. No 
 |---|---|---|---|
 | `enabled` | booleano | `__DEV__` | Si el agente corre o no. |
 | `navigation` | `NavigationAdapter` | ninguno | Cómo lee y maneja el agente tu navegación. Sin adaptador hay pantalla, toques y esperas, pero no rutas. |
-| `token` | texto | ninguno | El secreto compartido con el driver. Si lo defines, el agente solo atiende al driver que lo presenta. Si pasas la clave y el valor llega vacío, el agente queda apagado. |
+| `token` | texto | ninguno | El secreto compartido con el driver. Cada lado demuestra al otro que lo tiene, y ninguno lo envía. Sin token, el agente queda apagado. |
+| `allowUnauthenticated` | booleano | `false` | Atiende a cualquier driver que se conecte, sin token. Solo para un entorno de pruebas aislado. |
 | `host` | texto | `localhost`; `10.0.2.2` en Android | Dónde escucha el driver. |
 | `port` | número | `8123` | El puerto del driver. |
 | `app` | objeto | ninguno | Una descripción libre de la app (nombre, versión, entorno). Se envía al driver al conectarse y `lynkeus hello` la muestra. |
@@ -105,18 +106,18 @@ Las opciones se leen una sola vez, al montar. Cambiarlas en un render posterior 
 
 ### El token tiene que llegar a la app
 
-Hay tres situaciones, y el agente las trata distinto:
+El agente nunca atiende a un driver que no autenticó. Lo que pase depende de `token` y de `allowUnauthenticated`:
 
 | Qué recibe el agente | Qué hace |
 |---|---|
-| Ninguna clave `token`: `auto()` o `auto({})` | Atiende a cualquier driver que se conecte, sin exigir token. |
-| Un `token` con valor | Atiende solo al driver que presenta ese valor. |
-| La clave `token` con un valor vacío o `undefined` | Queda apagado: no abre ninguna conexión. La app lo dice en su log. |
+| Un `token` con valor | Atiende solo al driver que demuestra tener ese valor. |
+| Sin `token`, o con un valor vacío o `undefined` | Queda apagado: no abre ninguna conexión. La app lo dice en su log. |
+| Sin `token` y con `allowUnauthenticated: true` | Atiende a cualquier driver que se conecte. |
 
-El tercer caso es el que sorprende. React Native no le da a la app ningún entorno, así que `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle mientras nada escriba ahí el valor. El agente no convierte ese descuido en atender a cualquiera: se apaga y escribe esta línea en el log de la app:
+`allowUnauthenticated` existe para un entorno de pruebas aislado, al que ningún otro proceso llega. En cualquier otro lado, quien se conecte al puerto maneja la app. Un `token` vacío es el caso que sorprende. React Native no le da a la app ningún entorno, así que `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle mientras nada escriba ahí el valor. El agente no convierte ese descuido en atender a cualquiera: se apaga y escribe esta línea en el log de la app. Con una app que no pasa token alguno ocurre lo mismo:
 
 ```text
-lynkeus: the app passed a token and it is empty, so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
+lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.
 ```
 
 El plugin `lynkeus-agent/babel` es lo que escribe el valor. Reemplaza cada `process.env.LYNKEUS_TOKEN` del código por el valor que la variable tiene en el entorno de Metro o, si no está definida, por el token del proyecto, el que `lynkeus init` guardó en `.lynkeus/token`:
@@ -136,8 +137,8 @@ Tres reglas del plugin:
 
 `npx lynkeus init` agrega el plugin a `babel.config.js`. Una app de Expo no lo necesita: lee el token de `EXPO_PUBLIC_LYNKEUS_TOKEN`, que Expo incorpora al bundle por su cuenta.
 
-:::note[Desde 0.3.0]
-El plugin y la regla del token vacío llegan con la versión 0.3.0. Antes, un token vacío significaba "sin token" y el agente atendía a cualquier driver que se conectara.
+:::note[Desde 0.3.0 y 0.7.0]
+El plugin y la regla del token vacío llegan con la versión 0.3.0. Antes, un token vacío significaba "sin token" y el agente atendía a cualquier driver que se conectara. Desde la 0.3.0 el vacío apaga el agente, pero una app sin `token` seguía atendiendo a cualquiera; desde la 0.7.0 también queda apagada, salvo con `allowUnauthenticated`.
 :::
 
 ### Cómo se conecta
@@ -250,7 +251,7 @@ La traza es parte de lo que un reporte sube, así que dice que un valor cambió 
 | una lista | su cantidad de elementos, como `[12]` |
 | cualquier valor bajo una clave con nombre de secreto | `…` |
 
-Una clave tiene nombre de secreto cuando contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`, sin distinguir mayúsculas.
+Una clave tiene nombre de secreto cuando sus palabras lo dicen: `password`, `pwd`, `pin`, `otp`, `token`, `secret`, `apiKey`, `accessToken`, `sessionId`, `authCode` y parecidos, escritos como sea. Los nombres que solo contienen esas letras (`item`, `cache`, `sort`) quedan legibles.
 
 Ese recorte vale solo para la traza. El comando `stores` sigue devolviendo el estado sin ocultar nada.
 

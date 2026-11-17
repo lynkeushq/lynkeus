@@ -100,11 +100,11 @@ export LYNKEUS_TOKEN=<the same value>
 lynkeus screen
 ```
 
-Without a token, meaning an app that passes no `token` at all, the app serves whatever process is listening on the port it dials. On a developer's own machine that may be acceptable. Set a token wherever the app can reach anything that matters: a shared staging backend, a CI runner that runs other jobs.
+Without a token the agent stays off. Since 0.7.0 an app that passes no `token` at all no longer serves whoever connects. `allowUnauthenticated: true` in the agent's options brings that back; use it only in an isolated test environment, where no other process can reach the port. Wherever the app can reach anything that matters (a shared staging backend, a CI runner that runs other jobs), give it a token.
 
 ### A token that does not arrive
 
-An app that passes a token expects protection. If the value arrives empty, the agent stays off and writes the reason to the app's log. It never falls back to serving any driver.
+If the token is missing or its value arrives empty, the agent stays off and writes the reason to the app's log. It never falls back to serving any driver.
 
 ```text
 lynkeus: the app passed a token and it is empty, so the agent stays off. …

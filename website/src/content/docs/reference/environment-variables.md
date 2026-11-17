@@ -51,7 +51,7 @@ When you set it, set it in the shell that starts Metro as well as in the one tha
 Both ends must hold the same value. When they do not, the app never attaches. See [Security](/security/) for what the token protects.
 
 :::caution[Since 0.3.0]
-If the app passes a token and the value arrives empty, because Metro was started without the variable, the plugin is missing, or Metro's cache is stale, the agent stays off and the app logs `lynkeus: the app passed a token and it is empty`. It never falls back to serving any driver. See [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
+If the app passes no token, or the value arrives empty because Metro was started without the variable, the plugin is missing, or Metro's cache is stale, the agent stays off and the app logs `lynkeus: the app passed a token and it is empty`. It never falls back to serving any driver. See [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
 :::
 
 :::note
@@ -128,6 +128,8 @@ Any value other than `1` leaves it off.
 ### `LYNKEUS_REPORTS_URL` and `LYNKEUS_REPORTS_KEY`
 
 Read by the CLI, for `lynkeus case run --push`, `lynkeus ci` with `ci.push`, and the `lynkeus report` commands that talk to the service (all but `report prune`). `LYNKEUS_REPORTS_KEY` is your organization's API key. `LYNKEUS_REPORTS_URL` is the address of the report service, `https://lynkeus.io` unless you set another.
+
+The service address must use HTTPS, with loopback (`localhost`, `127.0.0.1`, `::1`) allowed for a service on your own machine, and it must not embed credentials. An upload follows no redirects, so a service that moved cannot send your key somewhere else: if a push fails with `the reports service must use HTTPS outside loopback`, set `LYNKEUS_REPORTS_URL` to the address the service answers on directly. A file in the run folder that is a symlink, or a hard link pointing outside it, is refused (`file path escapes the run directory`) instead of its target being sent.
 
 The key is required. Without it, those commands stop with:
 

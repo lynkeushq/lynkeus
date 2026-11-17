@@ -24,7 +24,7 @@ report carries the screen, the requests and the reason.
 | `app.press` | target, or `{ target, within?, nth?, optional?, hold?, timeoutMs? }` | Waits for the control to be there and enabled. `optional` presses only if it is on screen. |
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | `target` is tapped first, once it is there (`timeoutMs` is how long that may take); `submit` ends with the return key. |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` | |
-| `app.wait` | route, target, ms, `{ target, scroll? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `anyOf` accepts the first target present. A `request` is `METHOD /path`. |
+| `app.wait` | route, target, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `enabled` waits until the target is there and enabled. `anyOf` accepts the first target present; an item is a string, `{ testId }` or `{ text, nth? }`, and `gone` cannot go with it. A `request` is `METHOD /path`, and a trailing slash on either side does not matter. |
 | `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |

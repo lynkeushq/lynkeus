@@ -7,7 +7,7 @@ Todo lo que hace el CLI de lynkeus lo hace enviando mensajes JSON a la app por u
 
 La necesitas si quieres manejar la app desde algo que no sea el CLI: un runner de tests propio, una herramienta en otro lenguaje, un arnés para un modelo de IA. Si escribes en Node, antes de implementar el protocolo mira [`AgentServer`](#el-driver-de-referencia-agentserver), que ya lo hace.
 
-La versión actual del protocolo es la `1`.
+La versión actual del protocolo es la `2`.
 
 ## Quién se conecta a quién
 
@@ -24,41 +24,41 @@ El detalle que más sorprende es la dirección de la conexión: **la app es el c
 
 Mientras nadie escucha, la app reintenta en silencio. Durante los primeros 3 segundos después de arrancar, o de perder una conexión, lo intenta cada 100 ms. Después duplica la espera en cada intento, hasta un máximo de 1,5 segundos. Para un driver esto significa que no hay un orden de arranque obligatorio: puede empezar a escuchar antes o después que la app. El máximo se cambia con la opción `reconnectMs` del agente.
 
-Hay un caso en que la app no se conecta nunca: cuando se montó con un token y el valor le llegó vacío. El agente queda apagado y la app lo dice en su log; no pasa a atender sin token. Para el driver se ve como una app que no está.
+Hay un caso en que la app no se conecta nunca: cuando se montó sin token, o con un token que le llegó vacío. El agente queda apagado y la app lo dice en su log; no pasa a atender sin token, salvo que se le dé `allowUnauthenticated`. Para el driver se ve como una app que no está.
 
 ## El saludo
 
-El saludo tiene un orden fijo: el driver habla primero, con `auth`, y la app le contesta con `hello`. En un socket nuevo, `auth` es siempre el primer mensaje.
+El saludo tiene un orden fijo y son tres mensajes: el driver abre con `auth`, la app contesta con `hello` y el driver cierra con `verified`. En un socket nuevo, `auth` es siempre el primer mensaje.
+
+Ninguno de los dos extremos envía el token. Cada uno demuestra que lo tiene con un HMAC-SHA256 sobre dos valores al azar, uno de cada lado. Así, quien solo escucha en el puerto, o quien solo se conecta a él, no se lleva nada que pueda reutilizar.
 
 **Driver → app: `auth`**
 
 ```json
-{ "event": "auth", "session": "k3j9x0m1lq8z", "token": "…" }
+{ "event": "auth", "session": "k3j9x0m1lq8z", "nonce": "3f9a5c0e7d21b84a6c13e0f9a2b7d845" }
 ```
 
 | Campo | Qué es |
 |---|---|
 | `session` | Un texto al azar, distinto para cada proceso del driver. La app lo usa para distinguir una reconexión del mismo driver de un driver nuevo. |
-| `token` | El secreto compartido. Va cuando el driver tiene uno. |
+| `nonce` | 16 bytes al azar, en hexadecimal. Cambia en cada conexión. |
 
-El driver tiene que enviar `auth` siempre, aunque no haya token. La app espera ese mensaje para presentarse: no envía `hello` por su cuenta al conectarse.
-
-Una app montada con un token contesta cada petición con el error `unauthenticated` hasta que llega un `auth` con el mismo valor.
+La app espera este mensaje para presentarse: no envía `hello` por su cuenta al conectarse. Si tiene token y el `auth` llega sin `nonce`, no contesta: ese es el saludo antiguo, en el que el token viajaba en claro.
 
 **App → driver: `hello`**
-
-Si el token coincide, o si la app no tiene token, responde:
 
 ```json
 {
   "event": "hello",
-  "protocolVersion": 1,
-  "agentVersion": "0.4.0",
+  "protocolVersion": 2,
+  "agentVersion": "0.7.0",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "profile", "reset", "stores", "traceContext"],
   "route": "Settings.Main",
-  "app": { "name": "example" }
+  "app": { "name": "example" },
+  "nonce": "a41c7e0b93d5f268c0e1a7b4d93f6e52",
+  "proof": "…"
 }
 ```
 
@@ -71,12 +71,30 @@ Si el token coincide, o si la app no tiene token, responde:
 | `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. Un host que puede filmar nombra aquí su comando `record`; es lo que mira `case run --video`. |
 | `route` | La ruta actual, si hay un adaptador de navegación. |
 | `app` | Lo que la app quiso decir de sí misma. Un host sin pantalla envía aquí `"runtime": "headless"`. |
+| `nonce` | El valor al azar de la app, nuevo en cada conexión. |
+| `proof` | El HMAC-SHA256 en hexadecimal, con el token como clave, del texto `lynkeus/app/<session>/<nonce del driver>/<nonce de la app>`. |
 
-Si el token no coincide, la app no envía `hello`. Cualquier petición que llegue antes de una autenticación correcta recibe este error:
+Un driver con token compara `proof` en tiempo constante. Si no coincide, cierra el socket con el código 1008. Con o sin coincidencia, quita `nonce` y `proof` antes de guardar o reenviar el `hello`.
+
+Una conexión nueva es solo una candidata hasta que su `hello` se comprueba. La app que ya está conectada conserva el enlace, de modo que un proceso local que se conecte en bucle no puede desplazarla. Como máximo 8 conexiones pueden estar demostrando el token a la vez, 5 segundos cada una; la que sobra se cierra con el código 1013 y la que tarda, con el 1008. Los mensajes de quien aún no demostró el token no pueden pasar de 64 KiB; una vez demostrado, el tope es de 32 MiB.
+
+**Driver → app: `verified`**
+
+Cuando la prueba de la app es correcta, el driver presenta la suya:
+
+```json
+{ "event": "verified", "proof": "…" }
+```
+
+`proof` es el HMAC-SHA256, con el token como clave, de `lynkeus/driver/<session>/<nonce del driver>/<nonce de la app>`. Las etiquetas `app` y `driver` impiden que la prueba de un lado se reenvíe como si fuera la del otro.
+
+La app no atiende ninguna petición antes de un `verified` correcto. Mientras tanto, cada petición recibe este error, y un `verified` incorrecto cierra el socket:
 
 ```json
 { "id": 1, "error": { "message": "Not authenticated", "code": "unauthenticated" } }
 ```
+
+El driver no debe enviar peticiones hasta haber enviado `verified`.
 
 **App → driver: `navigation`**
 
@@ -155,7 +173,7 @@ type Target =
 | `swipe` | `{ direction?, target?, distance?, from?, to?, durationMs? }` | `{ from, to }` |
 | `navigate` | `{ name, params? }` | `{ route }` |
 | `back` | ninguno | `{ route? }` |
-| `waitFor` | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
+| `waitFor` | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
 | `requests` | `{ since? }` | `{ inFlight, requests }` |
@@ -219,6 +237,7 @@ Espera hasta que se cumplan a la vez todas las condiciones dadas.
 | `target` | ninguno | El objetivo está en pantalla. |
 | `anyOf` | ninguno | Una lista de objetivos: alcanza con que aparezca cualquiera. El resultado dice cuál en `matched`. |
 | `gone` | `false` | Invierte la condición de `target`: espera a que no esté. |
+| `enabled` | `false` | Exige que el objetivo esté habilitado y no solo presente, por ejemplo un botón de formulario que depende de sus campos. Con `gone`, espera a que ese estado deje de cumplirse. |
 | `scroll` | `false` | Desplaza el contenedor más cercano hacia el objetivo hasta que esté dentro de la ventana. |
 | `timeoutMs` | `5000` | Cuánto esperar. |
 | `since` | ninguno | Una marca de la traza (el `last` de un `trace`). Una ruta que la app alcanzó después de esa marca cuenta como alcanzada aunque ya se haya ido de ella, y el resultado lleva `passed: true`. Sirve para una pantalla que se cierra sola (una de éxito), que puede ir y venir mientras el paso espera. |
@@ -368,7 +387,11 @@ type Exchange = { headers?: Record<string, string>; body?: string; truncated?: b
 
 `mocked` vale `true` cuando la petición la contestó (o su respuesta se perdió) una regla que fijó el driver con `netmock`, que es lo que hace `lynkeus mock` y el paso `app.mock` de un caso. Quien lee el registro puede así distinguir lo que respondió el servidor de lo que armó la prueba. El agente marca las respuestas de su propio `netmock`; una capa por debajo de él (la red del host sin pantalla, o el `netmock` de un host que no es el nuestro) las marca con la cabecera de respuesta `x-lynkeus-mocked`, y la ausencia de la marca significa que contestó el servidor.
 
-Por defecto no incluye cabeceras ni cuerpos: `request` y `response` solo se llenan mientras el driver pidió cuerpos con el comando `networkBodies`, que es lo que hace `case run` cuando guarda evidencia, y con los valores secretos reemplazados por `…` y un cuerpo largo cortado. En la URL se ocultan los valores de los parámetros de consulta cuyo nombre contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`.
+Por defecto no incluye cabeceras ni cuerpos: `request` y `response` solo se llenan mientras el driver pidió cuerpos con el comando `networkBodies`, que es lo que hace `case run` cuando guarda evidencia, y con los secretos reemplazados por `…` y un cuerpo largo cortado.
+
+Un valor se reemplaza cuando su nombre suena a secreto. El nombre se separa en palabras, sin importar cómo esté escrito (`access_token`, `accessToken`, `X-Api-Key`). Cuenta si trae una palabra como `password`, `pwd`, `passphrase`, `pin`, `otp`, `token`, `secret`, `cookie`, `authorization`, `credentials`, `jwt`, `csrf`, `cvv`, `iban`, `seed` o `mnemonic`, una combinación como `apiKey`, `accessToken`, `sessionId` o `authCode`, o `auth` dentro de un nombre más largo. Un nombre que solo contiene esas letras (`item`, `cache`, `sort`, `monkey`, `statusCode`) o que describe un secreto sin serlo (`tokenCount`, `passwordLength`) se deja legible. La misma regla se aplica a las líneas de consola y de error de la app, a los eventos de analítica y a los cambios de los stores.
+
+También se mira dentro de los valores: la consulta de una URL, un JSON guardado como texto y los pares `nombre=valor` de un texto, las listas de cabeceras escritas como objetos `{ name, value }`, las credenciales `Authorization: Basic` y `Bearer`, los JWT, el `usuario:clave` de una URL y el tramo que sigue a una palabra de la ruta como `token`, `session` o `code` (de 12 caracteres o más, o de 4 a 8 dígitos si es un `code`, un `otp` o un `pin`). Un cuerpo que no es JSON y trae una clave de aspecto secreto se reemplaza entero por `[unparsed body redacted]`.
 
 ### `TraceEvent`
 
@@ -389,19 +412,23 @@ La app guarda las últimas 500 entradas.
 
 ## Un driver mínimo
 
-Este ejemplo, en Node con el paquete `ws`, contiene todo lo que un driver necesita: escuchar, autenticarse, esperar el saludo y emparejar respuestas con peticiones.
+Este ejemplo, en Node con el paquete `ws`, contiene todo lo que un driver necesita: escuchar, completar el saludo con el token y emparejar respuestas con peticiones.
 
 ```js title="driver.mjs"
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { WebSocketServer } from 'ws';
 
 const server = new WebSocketServer({ host: '127.0.0.1', port: 8123 });
-const session = Math.random().toString(36).slice(2);
+const session = randomBytes(8).toString('hex');
+const token = process.env.LYNKEUS_TOKEN;
+const proof = (side, driverNonce, appNonce) => createHmac('sha256', token).update(`lynkeus/${side}/${session}/${driverNonce}/${appNonce}`).digest('hex');
 const pending = new Map();
 let nextId = 1;
 
 server.on('connection', (socket) => {
-  // El driver habla primero, haya token o no
-  socket.send(JSON.stringify({ event: 'auth', session, token: process.env.LYNKEUS_TOKEN }));
+  // El driver habla primero, con un valor al azar propio
+  const driverNonce = randomBytes(16).toString('hex');
+  socket.send(JSON.stringify({ event: 'auth', session, nonce: driverNonce }));
 
   const call = (method, params) =>
     new Promise((resolve, reject) => {
@@ -414,6 +441,10 @@ server.on('connection', (socket) => {
     const message = JSON.parse(String(data));
 
     if (message.event === 'hello') {
+      const expected = Buffer.from(proof('app', driverNonce, message.nonce));
+      const given = Buffer.from(String(message.proof));
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) return socket.close(1008, 'invalid token');
+      socket.send(JSON.stringify({ event: 'verified', proof: proof('driver', driverNonce, message.nonce) }));
       const screen = await call('screen');
       console.log(screen.route, `${screen.elements.length} elementos`);
       return;

@@ -84,20 +84,22 @@ Jump straight to a route (a teleport, not a user action)
 | `route` | e.g. Settings.Main |
 | `params` | JSON params (optional) |
 
-### `lynkeus wait <what> [--in <target>] [--nth <n>] [--gone] [--scroll] [--timeout <ms>] [--since <seq>]`
+### `lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>] [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]`
 
-Until a route or element appears (or leaves), or a number of ms
+Until a route or element appears (or leaves), any of several targets appears, or a number of ms
 
 | Argument | |
 |---|---|
-| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) |
+| `what` | Route | route:index | #testId | "text" | 12 (index) | 100,200 | 800 (ms) (optional) |
 
 | Flag | |
 |---|---|
 | `--in <target>` | the match nearest this target |
 | `--nth <n>` | the nth match, from 0 |
+| `--anyOf <target>` | accept any of these targets (repeatable) |
 | `--gone` | until it leaves the screen |
 | `--scroll` | scroll until it is in the window |
+| `--enabled` | until it is present and enabled (a form button that waits on its fields) |
 | `--timeout <ms>` | give up after (default `10000`) |
 | `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
 
@@ -105,7 +107,7 @@ Until a route or element appears (or leaves), or a number of ms
 
 What the screen looks like right now, written to a file
 
-A device or simulator only: a host renders nothing to capture.
+A host that draws the app (fastsim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.
 
 | Argument | |
 |---|---|
@@ -878,6 +880,19 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 | `--backend <url>` | loopback backend URL (default `http://127.0.0.1:3000`) |
 | `--prefix <path>` | allowed backend path prefix (default `/api/mobile/`) |
 | `--ttl <seconds>` | session lifetime in seconds (max 3600) (default `900`) |
+
+### `lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]`
+
+Download fastsim for this Mac from lynkeus.io with the organization's key
+
+Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the one asked for (`latest` unless --version), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). An installed release with the same digest is kept. The package's README says how to start a host. Exit code 2 without a key, 1 when the organization has no fastsim entitlement or the download fails.
+
+| Flag | |
+|---|---|
+| `--version <version>` | release to install (default `latest`) |
+| `--variant <name>` | build to install (default `darwin-arm64`) |
+| `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
+| `--force` | download again even when that release is installed |
 
 ## headless
 
