@@ -20,6 +20,8 @@ const archive = (files: Record<string, string>) => {
 };
 
 const sha = (b: Buffer) => crypto.createHash('sha256').update(b).digest('hex');
+const pair = crypto.generateKeyPairSync('ed25519');
+const sign = (b: Buffer) => crypto.sign(null, b, pair.privateKey).toString('base64');
 
 type Asked = { url: string; auth: string | null; redirect: RequestInit['redirect'] };
 
@@ -44,14 +46,15 @@ const options = (fetchImpl: typeof fetch, dir: string) => ({
   variant: 'darwin-arm64',
   dir,
   fetchImpl,
+  releaseKey: pair.publicKey,
 });
 
 test('fastsim install takes the newest release for the variant, checks its digest and unpacks it', async () => {
   const newer = archive({ 'README.md': 'how to run', 'bin/fastsim-host': 'host' });
   const older = archive({ 'README.md': 'old' });
   const releases = [
-    { version: '2026.11.3', variant: 'darwin-arm64', sha256: sha(older), bytes: older.length },
-    { version: '2026.11.17', variant: 'darwin-arm64', sha256: sha(newer), bytes: newer.length },
+    { version: '2026.11.3', variant: 'darwin-arm64', sha256: sha(older), bytes: older.length, signature: sign(older) },
+    { version: '2026.11.17', variant: 'darwin-arm64', sha256: sha(newer), bytes: newer.length, signature: sign(newer) },
   ];
   const { asked, fetchImpl } = service(releases, { '2026.11.17/darwin-arm64': newer, '2026.11.3/darwin-arm64': older });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
@@ -69,11 +72,40 @@ test('fastsim install takes the newest release for the variant, checks its diges
 
 test('fastsim install refuses an archive whose digest is not the release', async () => {
   const body = archive({ 'README.md': 'x' });
-  const releases = [{ version: '2026.11.17', variant: 'darwin-arm64', sha256: '0'.repeat(64), bytes: body.length }];
+  const releases = [{ version: '2026.11.17', variant: 'darwin-arm64', sha256: '0'.repeat(64), bytes: body.length, signature: sign(body) }];
   const { fetchImpl } = service(releases, { '2026.11.17/darwin-arm64': body });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
   await assert.rejects(installFastsim(options(fetchImpl, dir)), /arrived damaged/);
   assert.equal(fs.existsSync(path.join(dir, '2026.11.17', 'darwin-arm64')), false);
+});
+
+test('fastsim install refuses a release with no signature, a tampered archive and a key that is not lynkeus', async () => {
+  const body = archive({ 'README.md': 'x' });
+  const release = { version: '2026.11.17', variant: 'darwin-arm64', sha256: sha(body), bytes: body.length };
+  const refused = /fastsim 2026\.11\.17 is not signed by lynkeus: not installed/;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
+
+  const unsigned = service([release], { '2026.11.17/darwin-arm64': body });
+  await assert.rejects(installFastsim(options(unsigned.fetchImpl, dir)), refused);
+
+  // One byte changed after signing, with the digest of the changed bytes: only the signature can catch it.
+  const tampered = Buffer.from(body);
+  tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 1;
+  const swapped = service([{ ...release, sha256: sha(tampered), signature: sign(body) }], { '2026.11.17/darwin-arm64': tampered });
+  await assert.rejects(installFastsim(options(swapped.fetchImpl, dir)), refused);
+
+  const other = crypto.generateKeyPairSync('ed25519');
+  const wrongKey = service([{ ...release, signature: crypto.sign(null, body, other.privateKey).toString('base64') }], { '2026.11.17/darwin-arm64': body });
+  await assert.rejects(installFastsim(options(wrongKey.fetchImpl, dir)), refused);
+
+  const garbage = service([{ ...release, signature: '!!not base64!!' }], { '2026.11.17/darwin-arm64': body });
+  await assert.rejects(installFastsim(options(garbage.fetchImpl, dir)), refused);
+
+  assert.deepEqual(fs.readdirSync(dir), []);
+  // The built-in key is lynkeus's, so a test key's signature does not pass without releaseKey.
+  const signed = service([{ ...release, signature: sign(body) }], { '2026.11.17/darwin-arm64': body });
+  await assert.rejects(installFastsim({ ...options(signed.fetchImpl, dir), releaseKey: undefined }), refused);
+  assert.deepEqual(fs.readdirSync(dir), []);
 });
 
 test('fastsim install says what the organization may install when the version is not offered', async () => {

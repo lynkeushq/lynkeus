@@ -11,6 +11,14 @@ Use fastsim when a suite takes too long on a simulator, when you want many cases
 
 It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download fastsim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
 
+A member with a seat does not need a key: sign in once from your terminal.
+
+```bash
+lynkeus login
+```
+
+It opens lynkeus.io in your browser, where you sign in and pick the organization. The sign-in is saved in `~/.config/lynkeus/credentials.json`, readable only by you, and `lynkeus fastsim install` uses it whenever `LYNKEUS_CLOUD_KEY` is not set. It renews itself as it expires. `lynkeus logout` removes it. On a machine with no browser, `lynkeus login --no-browser` prints the address to open elsewhere. CI should keep using a key, since nobody is there to sign in.
+
 ## Install it
 
 Run the install once for each platform you test:
@@ -20,7 +28,7 @@ lynkeus fastsim install --platform ios
 lynkeus fastsim install --platform android
 ```
 
-The command downloads the build that fits the machine it runs on. It checks the SHA-256 and unpacks the build into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. Set `LYNKEUS_FASTSIM_DIR` to move that folder.
+The command downloads the build that fits the machine it runs on. It checks the SHA-256 and the signature and unpacks the build into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. Set `LYNKEUS_FASTSIM_DIR` to move that folder.
 
 | Machine | iOS | Android |
 |---|---|---|
@@ -30,6 +38,12 @@ The command downloads the build that fits the machine it runs on. It checks the 
 | Intel Mac | Not supported | Not supported |
 
 `--variant <name>` installs a build by name instead of the one for this machine. See the [command reference](/reference/cli/#lynkeus-fastsim-install) for every flag.
+
+## Signed packages and grants
+
+lynkeus signs every fastsim package, and `lynkeus fastsim install` checks the signature before it unpacks anything. A package with no signature, or one that was changed after signing, is refused and nothing is written.
+
+Each fastsim host also needs a fresh grant from lynkeus.io before it starts. `bin/fastsim-run` gets it by running `lynkeus fastsim grant`, which uses the same key or sign-in as the install and keeps the grant for an hour, so a suite of many cases asks the service once an hour, not once per case. This means fastsim needs to reach lynkeus.io when a host starts, even on a machine where the package is already installed. You can run `lynkeus fastsim grant --platform ios` yourself to check that it works.
 
 ## Bundle the app and run cases
 
@@ -53,7 +67,7 @@ lynkeus starts a host on a free port for each case, waits for the app to attach 
 
 ## From an AI agent over MCP
 
-The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android`, with `LYNKEUS_CLOUD_KEY` in the environment the server was started in. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side.
+The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android`, with `LYNKEUS_CLOUD_KEY` in the environment the server was started in, or with the sign-in you saved by running `lynkeus login` in a terminal. An agent cannot sign in for you: the browser step is yours. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side.
 
 ## What it stands in for, and its limits
 
@@ -73,11 +87,13 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
 
-**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Exit code 2. The command found no key. Export it, or put it under `[env]` in `mise.local.toml`, and run it again.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Exit code 2. The command found neither a key nor a sign-in. Export a key, or put it under `[env]` in `mise.local.toml`, or run `lynkeus login` if you are a member with a seat, and run it again.
 
 **`this key may not download fastsim`.** The key was made without **May download fastsim**. Ask an owner of the organization for a key made with it.
 
 **`you have no fastsim seat`.** You are signed in as a member without a seat. An owner gives seats on the Members page.
+
+**`this sign-in may not download fastsim: sign in again with lynkeus login`** (or **`the sign-in was refused`**). The saved sign-in is not accepted, for example because it expired or was made before your seat. Run `lynkeus login` again.
 
 **`this organization has no fastsim entitlement`** (or **has expired**). Your organization's plan does not include fastsim. Ask the organization's owner or write to lynkeus.io support.
 

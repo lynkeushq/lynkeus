@@ -11,6 +11,14 @@ fastsim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador 
 
 Está disponible para las organizaciones cuyo plan lo incluye, y quien es owner de la organización decide quién lo baja. Necesitas `LYNKEUS_CLOUD_KEY` con una API key que un owner creó marcando **May download fastsim**, en la página de API keys de [lynkeus.io](https://lynkeus.io). Una key pensada solo para reportes no sirve para bajarlo, así que conviene que el CI tenga la suya. En la página de Members los owners ven cada descarga, quién la hizo y cuándo, y desde ahí dan lugares a los miembros.
 
+Si eres miembro y tienes un lugar, no necesitas una key: inicia sesión una vez desde la terminal.
+
+```bash
+lynkeus login
+```
+
+Se abre lynkeus.io en tu navegador, donde entras y eliges la organización. La sesión queda guardada en `~/.config/lynkeus/credentials.json`, con permisos solo para ti, y `lynkeus fastsim install` la usa cuando no hay `LYNKEUS_CLOUD_KEY`. Se renueva sola cuando vence, y `lynkeus logout` la borra. En una máquina sin navegador, `lynkeus login --no-browser` imprime la dirección para que la abras en otro equipo. El CI debe seguir usando una key, porque no hay nadie que inicie sesión.
+
 ## Instalarlo
 
 Ejecuta la instalación una vez por cada plataforma que pruebes:
@@ -20,7 +28,7 @@ lynkeus fastsim install --platform ios
 lynkeus fastsim install --platform android
 ```
 
-El comando baja el build que corresponde a la máquina donde lo ejecutas, verifica su SHA-256 y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Con `LYNKEUS_FASTSIM_DIR` cambias esa carpeta.
+El comando baja el build que corresponde a la máquina donde lo ejecutas, verifica su SHA-256 y su firma y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Con `LYNKEUS_FASTSIM_DIR` cambias esa carpeta.
 
 | Máquina | iOS | Android |
 |---|---|---|
@@ -31,7 +39,11 @@ El comando baja el build que corresponde a la máquina donde lo ejecutas, verifi
 
 Con `--variant <nombre>` instalas un build por su nombre en lugar del de esta máquina. Todos los flags están en la [referencia de comandos](/es/reference/cli/#lynkeus-fastsim-install).
 
-## Empaquetar la app y correr casos
+## Paquetes firmados y grants
+
+Cada paquete de fastsim va firmado por lynkeus, y `lynkeus fastsim install` verifica la firma antes de descomprimir nada. Un paquete sin firma, o modificado después de firmarse, se rechaza y no se escribe nada.
+
+Además, cada host de fastsim necesita un permiso reciente (grant) de lynkeus.io para arrancar. `bin/fastsim-run` lo consigue con `lynkeus fastsim grant`, que usa la misma key o sesión que la instalación y guarda el grant una hora: una suite con muchos casos consulta al servicio una vez por hora, no una por caso. Por eso fastsim tiene que poder llegar a lynkeus.io cuando arranca un host, incluso en una máquina donde el paquete ya está instalado. Puedes ejecutar tú mismo `lynkeus fastsim grant --platform ios` para comprobar que funciona.
 
 La app necesita sus dependencias instaladas y el agente de lynkeus montado, igual que para un simulador. En la carpeta que mostró la instalación hay un `README.md` con los detalles. Hacen falta dos comandos.
 
@@ -53,7 +65,7 @@ lynkeus levanta un host en un puerto libre para cada caso, espera a que la app s
 
 ## Desde un agente de IA por MCP
 
-El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android`, con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
+El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android`, con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor, o con la sesión que guardaste al ejecutar `lynkeus login` en una terminal. Un agente no puede iniciar sesión por ti: el paso del navegador es tuyo. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
 
 ## Qué reemplaza y dónde llega
 
@@ -73,11 +85,13 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
 
-**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Código de salida 2. El comando no encontró una clave. Expórtala, o ponla en `[env]` de `mise.local.toml`, y vuelve a ejecutarlo.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Código de salida 2. El comando no encontró ni una clave ni una sesión. Exporta una clave, o ponla en `[env]` de `mise.local.toml`, o ejecuta `lynkeus login` si eres miembro con un lugar, y vuelve a ejecutarlo.
 
 **`this key may not download fastsim`.** La key se creó sin **May download fastsim**. Pídele a un owner de la organización una key creada con esa opción.
 
 **`you have no fastsim seat`.** Entraste como miembro y no tienes un lugar. Los owners los asignan en la página de Members.
+
+**`this sign-in may not download fastsim: sign in again with lynkeus login`** (o **`the sign-in was refused`**). El servicio no acepta la sesión guardada, por ejemplo porque venció o se creó antes de que tuvieras tu lugar. Ejecuta `lynkeus login` de nuevo.
 
 **`this organization has no fastsim entitlement`** (o **has expired**). El plan de tu organización no incluye fastsim. Consulta a quien administra la organización o escribe al soporte de lynkeus.io.
 
