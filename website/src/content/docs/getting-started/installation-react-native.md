@@ -152,7 +152,7 @@ lynkeus: the app passed a token and it is empty, so the agent stays off. …
 The agent does not fall back to serving any driver that connects. If you see this line, the plugin is missing from `babel.config.js`, Metro found neither `LYNKEUS_TOKEN` nor `.lynkeus/token`, or Metro is still serving what it transformed before the value changed. See [The app logs that the token is empty](#the-app-logs-that-the-token-is-empty).
 :::
 
-`auto()` called with no `token` key at all is a different case: the app asked for no protection, and the agent serves any driver that connects. That can be acceptable on a machine of your own; see [Security](/security/#the-token) for when it is not.
+`auto()` called with no `token` at all keeps the agent off too, and logs the same line. To serve without a token in an isolated test environment, pass `allowUnauthenticated: true`; see [Security](/security/#the-token).
 
 The `token` option is an ordinary string. An app that already has a configuration module for build-time values, such as the API URL, can pass the token from there instead, and then does not need the plugin.
 
@@ -273,7 +273,7 @@ export default function App() {
 | `token` | none | The shared secret from step 3. |
 | `app` | none | Free-form description sent when the app attaches (name, version, environment). |
 
-The same rule as in step 3 applies to the `token` prop: leave the prop out and the agent serves without a token; pass it with an empty or undefined value and the agent stays off and logs why.
+The same rule as in step 3 applies to the `token` prop: leave the prop out, or pass it with an empty or undefined value, and the agent stays off and logs why. `allowUnauthenticated` is the only way to serve without one.
 
 An app that uses both `auto()` and `<Lynkeus>` keeps working: the first one to start owns the connection, and the second stays quiet.
 

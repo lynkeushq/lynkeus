@@ -69,7 +69,7 @@ No. An element can be targeted by its `testID`, by its text, by its index in the
 
 It keeps other processes on your machine from driving the app. The app is given a value when it is bundled, and the driver must present the same one before the agent serves it. `lynkeus init` makes one for the project in `.lynkeus/token`, kept out of git, and the CLI, `lynkeus mcp`, the headless host and the Babel plugin read it from there. `LYNKEUS_TOKEN` in the environment wins over the file. The headless host refuses to start without a token.
 
-An app that passes no `token` at all is served to any driver. An app that passes one whose value arrives empty keeps its agent off and logs why; it never falls back to serving any driver.
+An app that passes no token, or one whose value arrives empty, keeps its agent off and logs why; it never falls back to serving any driver. `allowUnauthenticated: true` in the agent's options turns that off, for an isolated test environment only.
 
 ### Why is `process.env.LYNKEUS_TOKEN` undefined in my app?
 

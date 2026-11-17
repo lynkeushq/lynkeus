@@ -82,7 +82,7 @@ Expo no lo necesita: la app lee `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
 ### ¿Qué pasa si el token llega vacío a la app?
 
-El agente queda apagado, y la app lo dice en su log con `lynkeus: the app passed a token and it is empty`. No pasa a atender a cualquiera. Desde la terminal lo ves como una app que no se conecta; el arreglo está en [Solución de problemas](/es/troubleshooting/).
+Si la app no pasa token, o le llega vacío, el agente queda apagado, y la app lo dice en su log con `lynkeus: the app passed a token and it is empty`. No pasa a atender a cualquiera, salvo que la app active `allowUnauthenticated`, algo pensado solo para un entorno de pruebas aislado. Desde la terminal lo ves como una app que no se conecta; el arreglo está en [Solución de problemas](/es/troubleshooting/).
 
 ### ¿Queda algo en mi build de producción?
 

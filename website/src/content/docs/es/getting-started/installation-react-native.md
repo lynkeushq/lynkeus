@@ -151,7 +151,7 @@ Tres cosas a tener presentes:
 
 Si la app tiene un token y el CLI presenta otro, la app no responde. Desde la terminal se ve igual que una app que no se conectó.
 
-Llamar a `auto()` sin la clave `token` es otra cosa: ahí el agente no exige ninguno y atiende a cualquier proceso local que se conecte.
+Llamar a `auto()` sin `token` también deja al agente apagado, con la misma línea en el log. Para atender sin token en un entorno de pruebas aislado, pasa `allowUnauthenticated: true`.
 
 ### 4. Recompila la app
 

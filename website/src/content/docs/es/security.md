@@ -65,15 +65,15 @@ El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN` o, si no est
 
 A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo: el token nunca se escribe en un build de producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
-**Un token vacío no abre la puerta.** Si la app pasa un token y el valor llega vacío, porque falta el plugin o porque Metro arrancó sin la variable, el agente queda apagado y la app lo dice en su log. No se convierte en un agente sin token que atiende a cualquiera. Solo una app que monta el agente sin la clave `token` atiende sin exigir ninguno.
+**Un token vacío no abre la puerta.** Si la app pasa un token y el valor llega vacío, porque falta el plugin o porque Metro arrancó sin la variable, el agente queda apagado y la app lo dice en su log. No se convierte en un agente sin token que atiende a cualquiera. Con una app que monta el agente sin `token` pasa igual. Atender sin token solo ocurre con la opción `allowUnauthenticated: true`, pensada para un entorno de pruebas aislado, al que ningún otro proceso llega.
 
 :::note[Desde 0.3.0]
-Antes de la versión 0.3.0, un token vacío significaba "sin token". Como `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle, una app de React Native que montaba el agente con esa expresión atendía a cualquier driver que se conectara. Si actualizas desde una versión anterior, agrega el plugin (`npx lynkeus init` lo hace) y arranca Metro con la variable definida.
+Hasta la versión 0.6.x una app sin `token` atendía a cualquiera; desde la 0.7.0 queda apagada. Antes de la versión 0.3.0, un token vacío significaba "sin token". Como `process.env.LYNKEUS_TOKEN` vale `undefined` dentro de un bundle, una app de React Native que montaba el agente con esa expresión atendía a cualquier driver que se conectara. Si actualizas desde una versión anterior, agrega el plugin (`npx lynkeus init` lo hace) y arranca Metro con la variable definida.
 :::
 
 Tres recomendaciones:
 
-- **Úsalo siempre.** Sin token, cualquier proceso de tu máquina que escuche en ese puerto maneja tu build de depuración.
+- **Úsalo siempre.** Sin token, el agente queda apagado. Con `allowUnauthenticated`, cualquier proceso de tu máquina que escuche en ese puerto maneja tu build de depuración.
 - **Que sea por máquina y no esté en el repositorio.** El token protege contra otros procesos de la misma máquina. Un valor fijo que todos conocen protege menos.
 - **Tenlo por lo que es.** El valor queda dentro del bundle de desarrollo. Protege una app en desarrollo contra procesos locales; no es una credencial para proteger datos de producción.
 

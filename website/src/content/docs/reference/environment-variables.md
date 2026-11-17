@@ -51,7 +51,7 @@ When you set it, set it in the shell that starts Metro as well as in the one tha
 Both ends must hold the same value. When they do not, the app never attaches. See [Security](/security/) for what the token protects.
 
 :::caution[Since 0.3.0]
-If the app passes a token and the value arrives empty, because Metro was started without the variable, the plugin is missing, or Metro's cache is stale, the agent stays off and the app logs `lynkeus: the app passed a token and it is empty`. It never falls back to serving any driver. See [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
+If the app passes no token, or the value arrives empty because Metro was started without the variable, the plugin is missing, or Metro's cache is stale, the agent stays off and the app logs `lynkeus: the app passed a token and it is empty`. It never falls back to serving any driver. See [Troubleshooting](/troubleshooting/#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
 :::
 
 :::note
