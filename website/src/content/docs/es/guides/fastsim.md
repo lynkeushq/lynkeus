@@ -1,9 +1,9 @@
 ---
-title: Correr casos en fastsim
-description: Corre tus casos en fastsim, un simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, e instálalo para la plataforma que pruebas.
+title: Correr casos en Lynkeus FastSim
+description: Corre tus casos en Lynkeus FastSim, un simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, e instálalo para la plataforma que pruebas.
 ---
 
-fastsim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
+Lynkeus FastSim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
 
 ## Cuándo usarlo
 
@@ -41,9 +41,9 @@ Con `--variant <nombre>` instalas un build por su nombre en lugar del de esta m�
 
 ## Paquetes firmados y grants
 
-Cada paquete de fastsim va firmado por lynkeus, y `lynkeus fastsim install` verifica la firma antes de descomprimir nada. Un paquete sin firma, o modificado después de firmarse, se rechaza y no se escribe nada.
+Cada paquete de FastSim va firmado por lynkeus, y `lynkeus fastsim install` verifica la firma antes de descomprimir nada. Un paquete sin firma, o modificado después de firmarse, se rechaza y no se escribe nada.
 
-Además, cada host de fastsim necesita un permiso reciente (grant) de lynkeus.io para arrancar. `bin/fastsim-run` lo consigue con `lynkeus fastsim grant`, que usa la misma key o sesión que la instalación y guarda el grant una hora: una suite con muchos casos consulta al servicio una vez por hora, no una por caso. Por eso fastsim tiene que poder llegar a lynkeus.io cuando arranca un host, incluso en una máquina donde el paquete ya está instalado. Puedes ejecutar tú mismo `lynkeus fastsim grant --platform ios` para comprobar que funciona.
+Además, cada host de FastSim necesita un permiso reciente (grant) de lynkeus.io para arrancar. `bin/fastsim-run` lo consigue con `lynkeus fastsim grant`, que usa la misma key o sesión que la instalación y guarda el grant una hora: una suite con muchos casos consulta al servicio una vez por hora, no una por caso. Por eso FastSim tiene que poder llegar a lynkeus.io cuando arranca un host, incluso en una máquina donde el paquete ya está instalado. Puedes ejecutar tú mismo `lynkeus fastsim grant --platform ios` para comprobar que funciona.
 
 La app necesita sus dependencias instaladas y el agente de lynkeus montado, igual que para un simulador. En la carpeta que mostró la instalación hay un `README.md` con los detalles. Hacen falta dos comandos.
 
@@ -69,12 +69,12 @@ El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramient
 
 ## Qué reemplaza y dónde llega
 
-fastsim no tiene el sistema operativo de un teléfono debajo, así que reemplaza la parte nativa:
+FastSim no tiene el sistema operativo de un teléfono debajo, así que reemplaza la parte nativa:
 
 - Las librerías que son solo JavaScript corren tal cual.
-- Los componentes y APIs centrales de React Native, react-native-reanimated, react-native-svg, lottie-react-native, rive-react-native, react-native-screens y los módulos comunes de Expo corren sobre la parte nativa propia de fastsim.
-- Un módulo nativo para el que fastsim no tiene reemplazo se ve como ausente, igual que en un teléfono que no lo tiene. Si es el módulo de un paquete de Expo, el archivo `.err` del host lo nombra con una línea `[fastsim] <nombre> has no stand-in yet`.
-- Las vistas nativas que fastsim no dibuja, como mapas, web views y vistas previas de cámara, ocupan su lugar y su tamaño pero no muestran nada.
+- Los componentes y APIs centrales de React Native, react-native-reanimated, react-native-svg, lottie-react-native, rive-react-native, react-native-screens y los módulos comunes de Expo corren sobre la parte nativa propia de FastSim.
+- Un módulo nativo para el que FastSim no tiene reemplazo se ve como ausente, igual que en un teléfono que no lo tiene. Si es el módulo de un paquete de Expo, el archivo `.err` del host lo nombra con una línea `[fastsim] <nombre> has no stand-in yet`.
+- Las vistas nativas que FastSim no dibuja, como mapas, web views y vistas previas de cámara, ocupan su lugar y su tamaño pero no muestran nada.
 
 Cuánto se parece a un dispositivo real depende de la plataforma:
 
@@ -93,10 +93,10 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 **`this sign-in may not download fastsim: sign in again with lynkeus login`** (o **`the sign-in was refused`**). El servicio no acepta la sesión guardada, por ejemplo porque venció o se creó antes de que tuvieras tu lugar. Ejecuta `lynkeus login` de nuevo.
 
-**`this organization has no fastsim entitlement`** (o **has expired**). El plan de tu organización no incluye fastsim. Consulta a quien administra la organización o escribe al soporte de lynkeus.io.
+**`this organization has no fastsim entitlement`** (o **has expired**). El plan de tu organización no incluye FastSim. Consulta a quien administra la organización o escribe al soporte de lynkeus.io.
 
-**`fastsim runs on Windows inside WSL2`.** Abre una terminal de WSL2, instala lynkeus ahí y ejecuta la instalación de nuevo: instala el build de Linux.
+**`Lynkeus FastSim runs on Windows inside WSL2`.** Abre una terminal de WSL2, instala lynkeus ahí y ejecuta la instalación de nuevo: instala el build de Linux.
 
-**`fastsim runs on Apple Silicon Macs only`.** Los Mac con Intel no tienen build. Usa un simulador, o corre fastsim en una máquina Linux.
+**`Lynkeus FastSim runs on Apple Silicon Macs only`.** Los Mac con Intel no tienen build. Usa un simulador, o corre FastSim en una máquina Linux.
 
-**`no fastsim release ... for <variant>`.** El servicio no tiene ese build para tu organización. El mensaje lista lo que sí puedes instalar.
+**`no Lynkeus FastSim release ... for <variant>`.** El servicio no tiene ese build para tu organización. El mensaje lista lo que sí puedes instalar.

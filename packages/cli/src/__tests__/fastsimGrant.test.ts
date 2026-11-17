@@ -165,6 +165,6 @@ test('through the CLI the grant is the only thing on stdout; the message is on s
   const code = await new Promise((resolve) => child.on('close', resolve));
   assert.equal(code, 0, err);
   assert.equal(out, 'v1.payload1.sig1\n');
-  assert.match(err, /fastsim grant for linux-x64-ios/);
+  assert.match(err, /Lynkeus FastSim grant for linux-x64-ios/);
   cloud.close();
 });

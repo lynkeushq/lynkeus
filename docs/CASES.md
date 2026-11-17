@@ -280,7 +280,7 @@ lynkeus needs to know nothing about it:
 
 The agent puts the header on the app's requests itself (its `traceContext`
 command), so this works on a simulator, an emulator or a device as well as on
-fastsim; an app with an agent older than this release goes untraced. A
+Lynkeus FastSim; an app with an agent older than this release goes untraced. A
 backend's spans that no step's request caused, such as a scheduler's, are left
 out. Turn
 the backend's exporter on only for test runs: it costs a little on every
@@ -357,9 +357,9 @@ did. What turns each on:
 | In the report | How |
 | --- | --- |
 | Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
-| Film | `--video`, on a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
+| Film | `--video`, on a host that films: FastSim. A simulator, an emulator and headless keep frames only. |
 | Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
-| The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on fastsim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
+| The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on FastSim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
 | What the app printed | `--out`: the agent keeps its console and uncaught errors, with their stacks, under the step that printed them |
 | The backend's analytics | `cases.serverEvents` in the config |
 | What the backend did | `--traces` (above) |

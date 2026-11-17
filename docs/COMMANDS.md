@@ -107,7 +107,7 @@ Until a route or element appears (or leaves), any of several targets appears, or
 
 What the screen looks like right now, written to a file
 
-A host that draws the app (fastsim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.
+A host that draws the app (Lynkeus FastSim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.
 
 | Argument | |
 |---|---|
@@ -655,7 +655,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--push` | with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case |
 | `--project <name>` | with --push: the project the run is filed under (default: the app’s folder name) |
 | `--video-fps <n>` | frames per second of the film (default `30`) |
-| `--video-scale <n>` | pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told) |
+| `--video-scale <n>` | pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told) |
 | `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
 | `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
 | `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
@@ -883,9 +883,9 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 
 ### `lynkeus fastsim install [--version <version>] [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--force] [--no-browser]`
 
-Download fastsim for this machine and a platform from lynkeus.io with the organization's key
+Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which fastsim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a fastsim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
+Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
@@ -898,9 +898,9 @@ Asks lynkeus.io which fastsim releases the organization may install (with LYNKEU
 
 ### `lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>]`
 
-Print a fresh grant a fastsim host needs to start, fetched from lynkeus.io (cached for an hour)
+Print a fresh grant a Lynkeus FastSim host needs to start, fetched from lynkeus.io (cached for an hour)
 
-Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.
+Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: FastSim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no FastSim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.
 
 | Flag | |
 |---|---|
@@ -910,9 +910,9 @@ Asks lynkeus.io for a grant for the build this machine runs (--platform ios unle
 
 ### `lynkeus login [--cloud <url>] [--no-browser]`
 
-Sign in to lynkeus.io in a browser, so a member with a fastsim seat can download it without a key
+Sign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key
 
-Opens the sign-in page of the reports service (LYNKEUS_REPORTS_URL, https://lynkeus.io by default) in your browser, where you sign in and pick the organization. A short-lived listener on 127.0.0.1 receives the answer, once, for at most 5 minutes; the sign-in uses PKCE, and the CLI registers itself with the service for each login. The tokens are saved in ~/.config/lynkeus/credentials.json (XDG_CONFIG_HOME moves it; the file is readable only by you), one entry per service address. fastsim install uses them when LYNKEUS_CLOUD_KEY is not set, and renews them as they expire. lynkeus logout removes them. Exit code 1 when the sign-in fails or is refused.
+Opens the sign-in page of the reports service (LYNKEUS_REPORTS_URL, https://lynkeus.io by default) in your browser, where you sign in and pick the organization. A short-lived listener on 127.0.0.1 receives the answer, once, for at most 5 minutes; the sign-in uses PKCE, and the CLI registers itself with the service for each login. The tokens are saved in ~/.config/lynkeus/credentials.json (XDG_CONFIG_HOME moves it; the file is readable only by you), one entry per service address. `lynkeus fastsim install` uses them when LYNKEUS_CLOUD_KEY is not set, and renews them as they expire. lynkeus logout removes them. Exit code 1 when the sign-in fails or is refused.
 
 | Flag | |
 |---|---|

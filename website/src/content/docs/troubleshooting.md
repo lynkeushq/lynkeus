@@ -337,7 +337,7 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **Why.** A case is filmed only where the host offers a `record` command, which it names in `hello`.
 
-**Fix.** Nothing failed. Use a host that films, such as fastsim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
+**Fix.** Nothing failed. Use a host that films, such as Lynkeus FastSim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
 
 ### A case fails and its evidence shows `(mocked)` on a request
 

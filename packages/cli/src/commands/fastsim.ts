@@ -53,13 +53,13 @@ const refusal = async (response: Response, what: string, signedIn: boolean | und
 // iOS matches the simulator only on a Mac; Linux draws it with the Inter stand-in. Windows runs the Linux build in WSL2.
 export const fastsimVariant = (platform: string, os: NodeJS.Platform = process.platform, arch: string = process.arch): string => {
   if (platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);
-  if (os === 'win32') throw new Error('fastsim runs on Windows inside WSL2: run lynkeus there, where it installs the Linux build');
+  if (os === 'win32') throw new Error('Lynkeus FastSim runs on Windows inside WSL2: run lynkeus there, where it installs the Linux build');
   if (os === 'darwin') {
-    if (arch !== 'arm64') throw new Error('fastsim runs on Apple Silicon Macs only');
+    if (arch !== 'arm64') throw new Error('Lynkeus FastSim runs on Apple Silicon Macs only');
     return `darwin-arm64-${platform}`;
   }
   if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${platform}`;
-  throw new Error(`fastsim has no build for ${os} on ${arch}`);
+  throw new Error(`Lynkeus FastSim has no build for ${os} on ${arch}`);
 };
 
 export const pickRelease = (releases: FastsimRelease[], version: string, variant: string): FastsimRelease | undefined =>
@@ -96,12 +96,12 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
   const auth = { authorization: `Bearer ${o.key}` };
   // A redirect could carry the key to another host.
   const listed = await fetchImpl(`${base}/v1/fastsim/releases`, { headers: auth, redirect: 'manual' });
-  if (!listed.ok) throw await refusal(listed, 'cannot list fastsim releases', o.signedIn);
+  if (!listed.ok) throw await refusal(listed, 'cannot list Lynkeus FastSim releases', o.signedIn);
   const { releases } = (await listed.json()) as { releases: FastsimRelease[] };
   const release = pickRelease(newestFirst(releases ?? []), o.version, o.variant);
   if (!release) {
     const offered = [...new Set((releases ?? []).map((r) => `${r.version} ${r.variant}`))].join(', ') || 'none';
-    throw new Error(`no fastsim release ${o.version} for ${o.variant}; this organization can install: ${offered}`);
+    throw new Error(`no Lynkeus FastSim release ${o.version} for ${o.variant}; this organization can install: ${offered}`);
   }
   if (!RELEASE_PART.test(release.version) || !RELEASE_PART.test(release.variant) || !/^[0-9a-f]{64}$/.test(release.sha256))
     throw new Error('the service answered a release that is not well formed');
@@ -111,12 +111,14 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
   if (!o.force && fs.existsSync(marker) && fs.readFileSync(marker, 'utf8').trim() === release.sha256) return { release, dir: target, installed: false };
 
   const download = await fetchImpl(`${base}/v1/fastsim/releases/${release.version}/${release.variant}`, { headers: auth, redirect: 'manual' });
-  if (!download.ok) throw new Error(await failure(download, `cannot download fastsim ${release.version}`, o.signedIn));
+  if (!download.ok) throw new Error(await failure(download, `cannot download Lynkeus FastSim ${release.version}`, o.signedIn));
   const archive = Buffer.from(await download.arrayBuffer());
   const digest = crypto.createHash('sha256').update(archive).digest('hex');
-  if (digest !== release.sha256) throw new Error(`fastsim ${release.version} arrived damaged: its digest is ${digest}, the release says ${release.sha256}`);
+  if (digest !== release.sha256)
+    throw new Error(`Lynkeus FastSim ${release.version} arrived damaged: its digest is ${digest}, the release says ${release.sha256}`);
 
-  if (!isSigned(archive, release.signature, o.releaseKey ?? RELEASE_KEY)) throw new Error(`fastsim ${release.version} is not signed by lynkeus: not installed`);
+  if (!isSigned(archive, release.signature, o.releaseKey ?? RELEASE_KEY))
+    throw new Error(`Lynkeus FastSim ${release.version} is not signed by lynkeus: not installed`);
 
   fs.mkdirSync(path.dirname(target), { recursive: true });
   const staging = fs.mkdtempSync(path.join(path.dirname(target), `.${release.variant}-`));
@@ -127,7 +129,7 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
     fs.mkdirSync(unpacked);
     // bsdtar and GNU tar both refuse absolute paths and `..` unless told otherwise.
     const tar = spawnSync('tar', ['-xzf', file, '-C', unpacked, '--no-same-owner'], { encoding: 'utf8' });
-    if (tar.status !== 0) throw new Error(`cannot unpack fastsim ${release.version}: ${(tar.stderr || tar.error?.message || '').trim()}`);
+    if (tar.status !== 0) throw new Error(`cannot unpack Lynkeus FastSim ${release.version}: ${(tar.stderr || tar.error?.message || '').trim()}`);
     fs.writeFileSync(path.join(unpacked, '.sha256'), `${release.sha256}\n`);
     fs.rmSync(target, { recursive: true, force: true });
     fs.renameSync(unpacked, target);
@@ -173,7 +175,7 @@ export type GrantOptions = {
 
 /** The cached grant while it has more than 5 minutes left, else a new one from the service (cached, private). */
 export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boolean }> => {
-  if (!RELEASE_PART.test(o.variant)) throw new Error(`${o.variant} is not a fastsim build name`);
+  if (!RELEASE_PART.test(o.variant)) throw new Error(`${o.variant} is not a Lynkeus FastSim build name`);
   const file = grantCacheFile(o.cloud, o.variant);
   const hit = readCachedGrant(file, o.now ?? Date.now());
   if (hit) return { ...hit, cached: true };
@@ -183,10 +185,10 @@ export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boo
     headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({ variant: o.variant }),
   });
-  if (!response.ok) throw await refusal(response, 'cannot get a fastsim grant', o.signedIn);
+  if (!response.ok) throw await refusal(response, 'cannot get a Lynkeus FastSim grant', o.signedIn);
   const body = (await response.json().catch(() => undefined)) as Partial<Grant> | undefined;
   if (typeof body?.grant !== 'string' || !body.grant.startsWith('v1.') || typeof body.expiresAt !== 'string' || Number.isNaN(Date.parse(body.expiresAt)))
-    throw new Error('cannot get a fastsim grant: the service answered a grant that is not well formed');
+    throw new Error('cannot get a Lynkeus FastSim grant: the service answered a grant that is not well formed');
   const grant = { grant: body.grant, expiresAt: body.expiresAt };
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -199,7 +201,7 @@ export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boo
 };
 
 const NO_CREDENTIALS = (cloud: string) =>
-  `no way to sign in to ${cloud}: set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim" on lynkeus.io (in mise.local.toml or your CI secrets), or run lynkeus login to sign in as a member with a fastsim seat`;
+  `no way to sign in to ${cloud}: set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim" on lynkeus.io (in mise.local.toml or your CI secrets), or run lynkeus login to sign in as a member with a FastSim seat`;
 
 export type SignInDeps = {
   /** Whether stdin and stderr are terminals; only tests pass another. */
@@ -257,11 +259,11 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
   define({
     name: 'fastsim install',
     group: 'runs',
-    summary: "Download fastsim for this machine and a platform from lynkeus.io with the organization's key",
+    summary: "Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key",
     details:
-      "Asks lynkeus.io which fastsim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a fastsim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.",
+      "Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.",
     mcpDetails:
-      "Downloads fastsim (the fast simulator, for organizations whose plan includes it) for this machine and the platform asked for, and answers where it went. Needs LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download fastsim”; other keys are refused with that message), or else the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it.",
+      "Downloads Lynkeus FastSim (the fast simulator, for organizations whose plan includes it) for this machine and the platform asked for, and answers where it went. Needs LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download fastsim”; other keys are refused with that message), or else the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it.",
     flags: {
       version: { type: 'string', help: 'release to install', default: 'latest', value: 'version' },
       platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
@@ -291,7 +293,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
           const readme = path.join(dir, 'README.md');
           const how = fs.existsSync(readme) ? `; how to run it: ${readme}` : '';
           return {
-            text: `${installed ? 'installed' : 'already installed:'} fastsim ${release.version} (${release.variant}) in ${dir}${how}`,
+            text: `${installed ? 'installed' : 'already installed:'} Lynkeus FastSim ${release.version} (${release.variant}) in ${dir}${how}`,
             json: { ...release, dir, installed },
           };
         });
@@ -304,9 +306,9 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
   define({
     name: 'fastsim grant',
     group: 'runs',
-    summary: 'Print a fresh grant a fastsim host needs to start, fetched from lynkeus.io (cached for an hour)',
+    summary: 'Print a fresh grant a Lynkeus FastSim host needs to start, fetched from lynkeus.io (cached for an hour)',
     details:
-      "Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.",
+      "Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: FastSim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no FastSim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.",
     flags: {
       platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
       variant: { type: 'string', help: "a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)", value: 'name' },
@@ -321,7 +323,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const got = await fetchGrant({ cloud, key, variant, signedIn });
-          ctx.err(`${got.cached ? 'cached' : 'new'} fastsim grant for ${variant}, valid until ${got.expiresAt}`);
+          ctx.err(`${got.cached ? 'cached' : 'new'} Lynkeus FastSim grant for ${variant}, valid until ${got.expiresAt}`);
           return { text: got.grant, json: { grant: got.grant, expiresAt: got.expiresAt, variant } };
         });
         return result ?? { text: NO_CREDENTIALS(cloud), code: 2 };

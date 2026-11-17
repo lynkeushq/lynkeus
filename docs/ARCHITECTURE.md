@@ -24,14 +24,14 @@ A piece that would only work for one app does not belong in this repository.
         │ agent protocol (WebSocket) │ host protocol (same wire)    │ reports API (HTTPS)
  ┌──────┴──────────┐   ┌─────────────┴─────────────┐   ┌────────────┴─────────────────┐
  │ lynkeus-agent   │   │ hosts: simulator/emulator, │   │ lynkeus cloud: reports,      │
- │ inside the app  │   │ fastsim, headless          │   │ history, search, team, forge │
+ │ inside the app  │   │ FastSim, headless          │   │ history, search, team, forge │
  └─────────────────┘   └────────────────────────────┘   └──────────────────────────────┘
 ```
 
 | Layer | Knows | Lives in |
 |---|---|---|
 | Agent | The running React Native app: its tree, touches, keys, requests, SDK calls, console | `packages/agent` |
-| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, fastsim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
+| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, Lynkeus FastSim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
 | CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration | `packages/cli` |
 | Cloud | Runs over time, reports, people, the forge (GitHub) | lynkeus-cloud |
 | Product | Its cases and flows, what its screens mean, its backend's state | the product's repositories |
@@ -116,7 +116,7 @@ Later, when a team needs it: record and replay, an optional mode for running a c
 holds what the app received (each step's responses and the fixtures' answers), never what it produced, and is kept
 next to its case. Running against the real backend stays the default.
 
-Alongside, as before: pixel parity on fastsim (Android first, then iOS on Linux) and the headless cases that still
+Alongside, as before: pixel parity on FastSim (Android first, then iOS on Linux) and the headless cases that still
 fail.
 
 ## Open questions

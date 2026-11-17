@@ -228,7 +228,7 @@ lynkeus wait '#submit' --enabled
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (fastsim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
+Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (Lynkeus FastSim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
 
 | Argument | Meaning |
 |---|---|
@@ -1028,14 +1028,14 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. |
 | `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
 | `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
-| `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (fastsim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
-| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as fastsim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
+| `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (Lynkeus FastSim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
+| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as FastSim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
 | `--traces` | | Listen for the backend's OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it. Point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:<traces-port>`. |
 | `--traces-port <port>` | `4318` | Where `--traces` listens. |
 | `--push` | | With `--out`: upload the run to the report service and print the report's address. The report is made when the run starts and fills case by case, so the address works from the first case. See [Reports](/guides/reports/). |
 | `--project <name>` | the app's folder name | With `--push`: the project the run is filed under. |
 | `--video-fps <n>` | `30` | Frames per second of the film. |
-| `--video-scale <n>` | | Pixels per point of the film, where the host can choose one. fastsim takes 1 to 3 and uses 2 unless told. |
+| `--video-scale <n>` | | Pixels per point of the film, where the host can choose one. FastSim takes 1 to 3 and uses 2 unless told. |
 | `--flakes <file>` | `.lynkeus/flakes.json` | The ledger of how each case did across runs. |
 | `--prepared <dir>` | | Where `case prepare` leaves setups made ahead. A case found there skips its setup. |
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
@@ -1377,7 +1377,7 @@ Exits with `2` when there is no key, and with `1` when the session cannot be cre
 lynkeus login [--cloud <url>] [--no-browser]
 ```
 
-Signs you in to lynkeus.io from a browser, so a member of an organization with a fastsim seat can download fastsim without an API key. It opens the service's sign-in page, where you sign in and pick the organization, and a listener on `127.0.0.1` receives the answer: one request, on a random port, for at most 5 minutes. The sign-in uses PKCE, and the CLI registers itself with the service for each login. With `--no-browser`, or when no browser opens, it prints the address instead.
+Signs you in to lynkeus.io from a browser, so a member of an organization with a Lynkeus FastSim seat can download FastSim without an API key. It opens the service's sign-in page, where you sign in and pick the organization, and a listener on `127.0.0.1` receives the answer: one request, on a random port, for at most 5 minutes. The sign-in uses PKCE, and the CLI registers itself with the service for each login. With `--no-browser`, or when no browser opens, it prints the address instead.
 
 It saves the tokens in `~/.config/lynkeus/credentials.json` (`XDG_CONFIG_HOME` moves the folder), readable only by you, with one entry per service address, so several services can coexist. It prints which service you signed in to and where the file is, never the tokens. `lynkeus fastsim install` uses the sign-in when `LYNKEUS_CLOUD_KEY` is not set and renews it before it expires. Exits with `1` when the sign-in fails or is refused. It is not an MCP tool: a browser sign-in is a person's step.
 
@@ -1400,9 +1400,9 @@ Removes the saved sign-in for that service from this machine. The tokens stay va
 lynkeus fastsim install [--version <version>] [--platform ios|android] [--variant <name>] [--cloud <url>] [--force] [--no-browser]
 ```
 
-Downloads fastsim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and its Ed25519 signature, and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). lynkeus signs every package, and the CLI carries the public key: a release with no signature, or one that does not match the bytes, is refused with `fastsim <version> is not signed by lynkeus: not installed`, and nothing is written. The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
+Downloads Lynkeus FastSim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and its Ed25519 signature, and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). lynkeus signs every package, and the CLI carries the public key: a release with no signature, or one that does not match the bytes, is refused with `fastsim <version> is not signed by lynkeus: not installed`, and nothing is written. The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
 
-It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a fastsim seat; with neither, a person at a terminal (stdin and stderr are terminals, `CI` unset) is signed in first, as `lynkeus login` does, and the install goes on; a sign-in the service refuses (ended or revoked) is renewed the same way, once. Scripts, CI and the MCP server never open a browser: they exit with `2` and need the key, and a refused sign-in says to run `lynkeus login` again. `--no-browser` prints the sign-in address instead of opening it. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
+It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a FastSim seat; with neither, a person at a terminal (stdin and stderr are terminals, `CI` unset) is signed in first, as `lynkeus login` does, and the install goes on; a sign-in the service refuses (ended or revoked) is renewed the same way, once. Scripts, CI and the MCP server never open a browser: they exit with `2` and need the key, and a refused sign-in says to run `lynkeus login` again. `--no-browser` prints the sign-in address instead of opening it. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
 
 | Machine | `--platform ios` | `--platform android` |
 |---|---|---|
@@ -1419,7 +1419,7 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 | `--force` | | Download and unpack again. |
 
-`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is neither a key nor a sign-in, and with `1` when your organization has no fastsim entitlement, the release does not exist or the download arrives damaged or unsigned.
+`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is neither a key nor a sign-in, and with `1` when your organization has no FastSim entitlement, the release does not exist or the download arrives damaged or unsigned.
 
 ### `lynkeus fastsim grant`
 
@@ -1427,7 +1427,7 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 lynkeus fastsim grant [--platform ios|android] [--variant <name>] [--cloud <url>]
 ```
 
-Prints the grant a fastsim host needs to start. Each host asks for a fresh one from lynkeus.io, and fastsim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
+Prints the grant a Lynkeus FastSim host needs to start. Each host asks for a fresh one from lynkeus.io, and FastSim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
 
 A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim/grants/<service>/<variant>.json` (`XDG_CACHE_HOME` moves the folder; the file is readable only by you) and reuses it while it has more than 5 minutes left. It prints only the grant on stdout, so a script can read it; messages go to stderr. Exits with `2` when there is neither a key nor a sign-in, and with `1` when the service refuses (no entitlement, a key or sign-in it does not accept, no grants set up) or cannot be reached. It is not an MCP tool.
 

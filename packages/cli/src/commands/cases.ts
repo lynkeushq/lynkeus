@@ -259,7 +259,7 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
           '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
         ]),
     ...(asked.video && !reports.some((r) => r.video)
-      ? ['⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).']
+      ? ['⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).']
       : []),
   ];
 };
@@ -359,7 +359,7 @@ export const caseCommands = [
       },
       project: { type: 'string', help: 'with --push: the project the run is filed under (default: the app’s folder name)', value: 'name' },
       'video-fps': { type: 'number', help: 'frames per second of the film', default: 30, value: 'n' },
-      'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (fastsim: 1 to 3, 2 unless told)', value: 'n' },
+      'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told)', value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
       jobs: { type: 'number', help: 'cases at once, each on its own host (needs --ports)', value: 'n', default: 1 },
