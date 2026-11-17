@@ -232,7 +232,13 @@ const withCredentials = async <T>(
     return credential.accessToken;
   };
   if (envKey) return attempt(envKey, false);
-  const saved = await signedInToken(cloud);
+  // A sign-in past its 30 days, or whose refresh the service no longer takes, is signed in again the same way.
+  const saved = await signedInToken(cloud).catch((error: unknown) => {
+    if (!mayAsk) throw error;
+    ctx.err(`The saved sign-in for ${cloud} has ended (${(error as Error).message}): signing in again (lynkeus login)…`);
+    return null;
+  });
+  if (saved === null) return attempt(await signIn(), true);
   if (!saved && !mayAsk) return undefined;
   if (!saved) {
     ctx.err(`No key or sign-in for ${cloud}: opening the browser to sign in (lynkeus login)…`);

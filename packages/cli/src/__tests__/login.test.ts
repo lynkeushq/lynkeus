@@ -358,3 +358,27 @@ test('a refused saved sign-in without a terminal keeps the old message and opens
   assert.equal(opened.length, 0);
   cloud.close();
 });
+
+test('an ended saved sign-in at a terminal signs in again, then installs', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  const file = credentialsPath();
+  const all = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, Record<string, unknown>>;
+  all[cloud.url] = { ...all[cloud.url], expiresAt: 0, refreshToken: undefined };
+  fs.writeFileSync(file, JSON.stringify(all), { mode: 0o600 });
+  const { opened, install: cmd } = withTty(cloud, {
+    answer: () => {
+      cloud.issued.access = 'lka_two';
+    },
+  });
+  cloud.seen.length = 0;
+  const messages: string[] = [];
+  const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), err: (l: string) => messages.push(l) } as Ctx)) as Out;
+  assert.equal(result.code, undefined, JSON.stringify(result));
+  assert.equal(opened.length, 1);
+  assert.ok(messages.some((m) => /has ended/.test(m)));
+  assert.deepEqual(attempts(cloud), ['Bearer lka_two']);
+  cloud.close();
+});
