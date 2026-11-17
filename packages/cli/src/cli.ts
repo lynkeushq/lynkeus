@@ -15,6 +15,7 @@ import { ciCommands } from './commands/ci.js';
 import { coverageCommands } from './commands/coverage.js';
 import { fixturesCommands } from './commands/fixtures.js';
 import { reportCommands } from './commands/report.js';
+import { fastsimCommands } from './commands/fastsim.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
@@ -35,6 +36,7 @@ register([
   ...fixturesCommands,
   ...reportCommands,
   ...relayCommands,
+  ...fastsimCommands,
   ...headlessCommands,
 ]);
 

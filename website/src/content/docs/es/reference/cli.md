@@ -1369,6 +1369,25 @@ Necesita `LYNKEUS_REPORTS_KEY` (o `LYNKEUS_CLOUD_KEY`). Escribe por stderr `rela
 
 Termina con `2` si falta la clave y con `1` si no se puede crear la sesión, si el servicio no entrega el secreto del socket (es más viejo que la CLI) o si la conexión no se abre.
 
+### `lynkeus fastsim install`
+
+```bash
+lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]
+```
+
+Baja fastsim a tu Mac. fastsim es el simulador que dibuja la app sin el simulador de Xcode, y está disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja la que pediste, verifica su SHA-256 y la descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Adentro del paquete hay un README que explica cómo levantar un host para tu app.
+
+Usa `LYNKEUS_CLOUD_KEY`, la API key de tu organización, y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar.
+
+| Flag | Por defecto | Para qué |
+|---|---|---|
+| `--version <version>` | `latest` | La versión a instalar, por ejemplo `2026.11.17`. |
+| `--variant <name>` | `darwin-arm64` | El build. Solo Macs con Apple Silicon. |
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
+| `--force` | | Baja y descomprime de nuevo. |
+
+Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si falta la key, y con `1` si tu organización no tiene fastsim habilitado, si la versión no existe o si la descarga llega dañada.
+
 ## Host sin pantalla (`headless`)
 
 El host sin pantalla ejecuta la app en Node, bajo jest, sin simulador. Habla el mismo protocolo que un dispositivo, así que todos los comandos de [Manejar la app](#manejar-la-app) funcionan igual. Lo específico de este host está en [Host sin pantalla](/es/platforms/headless/).

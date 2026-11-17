@@ -1367,6 +1367,25 @@ It needs `LYNKEUS_REPORTS_KEY` (or `LYNKEUS_CLOUD_KEY`). It prints `relay listen
 
 Exits with `2` when there is no key, and with `1` when the session cannot be created, the service gives no socket secret (it is older than the CLI) or the connection cannot open.
 
+### `lynkeus fastsim install`
+
+```bash
+lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]
+```
+
+Downloads fastsim, the simulator that draws the app on a Mac without Xcode's simulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads one, checks its SHA-256 and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. The README inside the package says how to start a host for your app.
+
+It needs `LYNKEUS_CLOUD_KEY`, your organization's API key. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--version <version>` | `latest` | The release to install, such as `2026.11.17`. |
+| `--variant <name>` | `darwin-arm64` | The build. Apple Silicon Macs only. |
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
+| `--force` | | Download and unpack again. |
+
+`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is no key, and with `1` when your organization has no fastsim entitlement, the release does not exist or the download arrives damaged.
+
 ## headless
 
 Commands for the headless host: the app hosted in Node under jest, with no simulator. See [Headless](/platforms/headless/).
