@@ -24,7 +24,7 @@ El comando baja el build que corresponde a la máquina donde lo ejecutas, verifi
 
 | Máquina | iOS | Android |
 |---|---|---|
-| Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 45 MB) |
+| Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 65 MB) |
 | Linux x64 o arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 | Windows | Ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux | Igual |
 | Mac con Intel | No está soportado | No está soportado |

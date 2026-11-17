@@ -24,7 +24,7 @@ The command downloads the build that fits the machine it runs on. It checks the 
 
 | Machine | iOS | Android |
 |---|---|---|
-| Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 45 MB) |
+| Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 65 MB) |
 | Linux x64 or arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 | Windows | Run lynkeus inside WSL2, where it installs the Linux build | Same |
 | Intel Mac | Not supported | Not supported |

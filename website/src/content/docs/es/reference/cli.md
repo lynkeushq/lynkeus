@@ -1385,7 +1385,7 @@ Usa `LYNKEUS_CLOUD_KEY`, la API key de tu organización, y al terminar te dice d
 
 | Máquina | `--platform ios` | `--platform android` |
 |---|---|---|
-| Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 45 MB) |
+| Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 65 MB) |
 | Linux x64 o arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 
 En Windows, ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux. Los Mac con Intel no están soportados.

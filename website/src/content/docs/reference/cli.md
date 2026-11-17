@@ -1383,7 +1383,7 @@ It needs `LYNKEUS_CLOUD_KEY`, your organization's API key. It prints where the r
 
 | Machine | `--platform ios` | `--platform android` |
 |---|---|---|
-| Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 45 MB) |
+| Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 65 MB) |
 | Linux x64 or arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 
 On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Macs are not supported.
