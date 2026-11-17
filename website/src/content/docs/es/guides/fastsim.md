@@ -9,7 +9,7 @@ fastsim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador 
 
 Úsalo cuando una suite tarda demasiado en un simulador, cuando quieres correr muchos casos a la vez o cuando la máquina no tiene simulador, como un servidor Linux o un runner de CI.
 
-Está disponible para las organizaciones cuyo plan lo incluye. Necesitas `LYNKEUS_CLOUD_KEY`, la API key de tu organización en [lynkeus.io](https://lynkeus.io).
+Está disponible para las organizaciones cuyo plan lo incluye, y quien es owner de la organización decide quién lo baja. Necesitas `LYNKEUS_CLOUD_KEY` con una API key que un owner creó marcando **May download fastsim**, en la página de API keys de [lynkeus.io](https://lynkeus.io). Una key pensada solo para reportes no sirve para bajarlo, así que conviene que el CI tenga la suya. En la página de Members los owners ven cada descarga, quién la hizo y cuándo, y desde ahí dan lugares a los miembros.
 
 ## Instalarlo
 
@@ -73,9 +73,13 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
 
-**`set LYNKEUS_CLOUD_KEY to your organization's API key`.** Código de salida 2. El comando no encontró una clave. Expórtala, o ponla en `[env]` de `mise.local.toml`, y vuelve a ejecutarlo.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Código de salida 2. El comando no encontró una clave. Expórtala, o ponla en `[env]` de `mise.local.toml`, y vuelve a ejecutarlo.
 
-**El servicio responde 403.** El plan de tu organización no incluye fastsim. Consulta a quien administra la organización o escribe al soporte de lynkeus.io.
+**`this key may not download fastsim`.** La key se creó sin **May download fastsim**. Pídele a un owner de la organización una key creada con esa opción.
+
+**`you have no fastsim seat`.** Entraste como miembro y no tienes un lugar. Los owners los asignan en la página de Members.
+
+**`this organization has no fastsim entitlement`** (o **has expired**). El plan de tu organización no incluye fastsim. Consulta a quien administra la organización o escribe al soporte de lynkeus.io.
 
 **`fastsim runs on Windows inside WSL2`.** Abre una terminal de WSL2, instala lynkeus ahí y ejecuta la instalación de nuevo: instala el build de Linux.
 

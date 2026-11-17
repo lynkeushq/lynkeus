@@ -1381,7 +1381,7 @@ lynkeus fastsim install [--version <versión>] [--platform ios|android] [--varia
 
 Baja fastsim, el simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja el build de esta máquina y de `--platform`, verifica su SHA-256 y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/` (`LYNKEUS_FASTSIM_DIR` cambia esa carpeta). Adentro del paquete hay un README que explica cómo levantar un host para tu app. La [guía de fastsim](/es/guides/fastsim/) cuenta el flujo completo.
 
-Usa `LYNKEUS_CLOUD_KEY`, la API key de tu organización, y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
+Usa `LYNKEUS_CLOUD_KEY`, una API key que un owner de tu organización creó con **May download fastsim** (con otra key el servicio responde `this key may not download fastsim`), y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
 
 | Máquina | `--platform ios` | `--platform android` |
 |---|---|---|
