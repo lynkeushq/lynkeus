@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `lynkeus login [--cloud <url>] [--no-browser]` and `lynkeus logout [--cloud <url>]` let a member of an organization with a fastsim seat download fastsim with their own sign-in instead of an API key. `login` opens the service's sign-in page (OAuth with PKCE, answered on a one-request listener on `127.0.0.1`) and saves the tokens in `~/.config/lynkeus/credentials.json` (mode 0600, one entry per service; `XDG_CONFIG_HOME` moves it). `fastsim install` and the `fastsim_install` MCP tool use that sign-in when `LYNKEUS_CLOUD_KEY` is not set, renew it before it expires, and exit 2 naming both ways when there is neither. Neither command is an MCP tool: a browser sign-in is a person's step. It needs a reports service that supports the sign-in.
+
 ## 0.7.0
 
 - The agent and the driver prove they hold the project token to each other, and neither sends it any more. Before, the driver's first message carried `LYNKEUS_TOKEN` in the clear, so any local process listening on port 8123 read it, and any process that connected could pose as the driver. Now the driver sends a random nonce, the app answers `hello` with an HMAC of both nonces, and only a driver that checked that proof sends its own (`verified`); the app serves no request before it. The protocol is version 2 (`PROTOCOL_VERSION`, docs/PROTOCOL.md). The agent and the CLI of different releases no longer attach to each other when the app has a token: update `lynkeus-agent` and `lynkeus` together.

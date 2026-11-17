@@ -1371,6 +1371,29 @@ It needs `LYNKEUS_REPORTS_KEY` (or `LYNKEUS_CLOUD_KEY`). It prints `relay listen
 
 Exits with `2` when there is no key, and with `1` when the session cannot be created, the service gives no socket secret (it is older than the CLI) or the connection cannot open.
 
+### `lynkeus login`
+
+```bash
+lynkeus login [--cloud <url>] [--no-browser]
+```
+
+Signs you in to lynkeus.io from a browser, so a member of an organization with a fastsim seat can download fastsim without an API key. It opens the service's sign-in page, where you sign in and pick the organization, and a listener on `127.0.0.1` receives the answer: one request, on a random port, for at most 5 minutes. The sign-in uses PKCE, and the CLI registers itself with the service for each login. With `--no-browser`, or when no browser opens, it prints the address instead.
+
+It saves the tokens in `~/.config/lynkeus/credentials.json` (`XDG_CONFIG_HOME` moves the folder), readable only by you, with one entry per service address, so several services can coexist. It prints which service you signed in to and where the file is, never the tokens. `lynkeus fastsim install` uses the sign-in when `LYNKEUS_CLOUD_KEY` is not set and renews it before it expires. Exits with `1` when the sign-in fails or is refused. It is not an MCP tool: a browser sign-in is a person's step.
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
+| `--no-browser` | | Print the sign-in address instead of opening it. |
+
+### `lynkeus logout`
+
+```bash
+lynkeus logout [--cloud <url>]
+```
+
+Removes the saved sign-in for that service from this machine. The tokens stay valid on the service until they expire. It is not an MCP tool.
+
 ### `lynkeus fastsim install`
 
 ```bash
@@ -1379,7 +1402,7 @@ lynkeus fastsim install [--version <version>] [--platform ios|android] [--varian
 
 Downloads fastsim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
 
-It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
+It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a fastsim seat; a refused sign-in says to run `lynkeus login` again. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
 
 | Machine | `--platform ios` | `--platform android` |
 |---|---|---|
@@ -1396,7 +1419,7 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 | `--force` | | Download and unpack again. |
 
-`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is no key, and with `1` when your organization has no fastsim entitlement, the release does not exist or the download arrives damaged.
+`LYNKEUS_FASTSIM_DIR` moves the install folder. Exits with `2` when there is neither a key nor a sign-in, and with `1` when your organization has no fastsim entitlement, the release does not exist or the download arrives damaged.
 
 ## headless
 

@@ -1373,6 +1373,29 @@ Necesita `LYNKEUS_REPORTS_KEY` (o `LYNKEUS_CLOUD_KEY`). Escribe por stderr `rela
 
 Termina con `2` si falta la clave y con `1` si no se puede crear la sesión, si el servicio no entrega el secreto del socket (es más viejo que la CLI) o si la conexión no se abre.
 
+### `lynkeus login`
+
+```bash
+lynkeus login [--cloud <url>] [--no-browser]
+```
+
+Inicia tu sesión en lynkeus.io desde el navegador, para que un miembro de una organización con un lugar de fastsim pueda bajarlo sin una API key. Abre la página de acceso del servicio, donde entras y eliges la organización, y un listener en `127.0.0.1` recibe la respuesta: una sola petición, en un puerto al azar, durante 5 minutos como máximo. El acceso usa PKCE, y la CLI se registra en el servicio en cada inicio de sesión. Con `--no-browser`, o si no se logra abrir un navegador, imprime la dirección para que la abras tú.
+
+Guarda los tokens en `~/.config/lynkeus/credentials.json` (`XDG_CONFIG_HOME` cambia la carpeta), con permisos solo para ti y una entrada por dirección de servicio, así que pueden convivir varios. Imprime en qué servicio entraste y dónde quedó el archivo, nunca los tokens. `lynkeus fastsim install` usa esa sesión cuando no hay `LYNKEUS_CLOUD_KEY` y la renueva antes de que venza. Sale con `1` si el acceso falla o se rechaza. No es una herramienta de MCP: iniciar sesión en el navegador es un paso de una persona.
+
+| Flag | Por defecto | Para qué |
+|---|---|---|
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
+| `--no-browser` | | Imprime la dirección de acceso en lugar de abrirla. |
+
+### `lynkeus logout`
+
+```bash
+lynkeus logout [--cloud <url>]
+```
+
+Borra de esta máquina la sesión guardada de ese servicio. Los tokens siguen siendo válidos en el servicio hasta que vencen. No es una herramienta de MCP.
+
 ### `lynkeus fastsim install`
 
 ```bash
@@ -1381,7 +1404,7 @@ lynkeus fastsim install [--version <versión>] [--platform ios|android] [--varia
 
 Baja fastsim, el simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja el build de esta máquina y de `--platform`, verifica su SHA-256 y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/` (`LYNKEUS_FASTSIM_DIR` cambia esa carpeta). Adentro del paquete hay un README que explica cómo levantar un host para tu app. La [guía de fastsim](/es/guides/fastsim/) cuenta el flujo completo.
 
-Usa `LYNKEUS_CLOUD_KEY`, una API key que un owner de tu organización creó con **May download fastsim** (con otra key el servicio responde `this key may not download fastsim`), y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
+Usa `LYNKEUS_CLOUD_KEY`, una API key que un owner de tu organización creó con **May download fastsim** (con otra key el servicio responde `this key may not download fastsim`). Si esa variable no está, usa la sesión que guardó [`lynkeus login`](#lynkeus-login) para el servicio, que sirve a un miembro con un lugar de fastsim; si la rechazan, el mensaje te pide ejecutar `lynkeus login` otra vez. Al terminar al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
 
 | Máquina | `--platform ios` | `--platform android` |
 |---|---|---|
@@ -1398,7 +1421,7 @@ En Windows, ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux. Los 
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 | `--force` | | Baja y descomprime de nuevo. |
 
-Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si falta la key, y con `1` si tu organización no tiene fastsim habilitado, si la versión no existe o si la descarga llega dañada.
+Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si no hay ni una key ni una sesión, y con `1` si tu organización no tiene fastsim habilitado, si la versión no existe o si la descarga llega dañada.
 
 ## Host sin pantalla (`headless`)
 

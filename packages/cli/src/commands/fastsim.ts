@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { define } from '../registry.js';
+import { cloudUrl, signedInToken } from './login.js';
 import { serviceBase } from './report.js';
 
 export type FastsimRelease = { version: string; variant: string; sha256: string; bytes: number };
@@ -14,9 +15,10 @@ const RELEASE_PART = /^[a-z0-9.-]{1,32}$/;
 export const fastsimCacheDir = (): string =>
   process.env.LYNKEUS_FASTSIM_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lynkeus', 'fastsim');
 
-const failure = async (response: Response, what: string): Promise<string> => {
+const failure = async (response: Response, what: string, signedIn = false): Promise<string> => {
   const body = (await response.json().catch(() => undefined)) as { error?: unknown } | undefined;
   const reason = typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`;
+  if (response.status === 401 && signedIn) return `${what}: the sign-in was refused (${reason}); sign in again with lynkeus login`;
   if (response.status === 401)
     return `${what}: the key was refused (${reason}); LYNKEUS_CLOUD_KEY is an API key an owner of your organization made with "May download fastsim" on lynkeus.io`;
   return `${what}: ${reason}`;
@@ -53,6 +55,8 @@ export type InstallOptions = {
   variant: string;
   dir: string;
   force?: boolean;
+  /** The key is a browser sign-in's token, not an API key: only the 401 advice changes. */
+  signedIn?: boolean;
   fetchImpl?: typeof fetch;
 };
 
@@ -64,7 +68,7 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
   const auth = { authorization: `Bearer ${o.key}` };
   // A redirect could carry the key to another host.
   const listed = await fetchImpl(`${base}/v1/fastsim/releases`, { headers: auth, redirect: 'manual' });
-  if (!listed.ok) throw new Error(await failure(listed, 'cannot list fastsim releases'));
+  if (!listed.ok) throw new Error(await failure(listed, 'cannot list fastsim releases', o.signedIn));
   const { releases } = (await listed.json()) as { releases: FastsimRelease[] };
   const release = pickRelease(newestFirst(releases ?? []), o.version, o.variant);
   if (!release) {
@@ -79,7 +83,7 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
   if (!o.force && fs.existsSync(marker) && fs.readFileSync(marker, 'utf8').trim() === release.sha256) return { release, dir: target, installed: false };
 
   const download = await fetchImpl(`${base}/v1/fastsim/releases/${release.version}/${release.variant}`, { headers: auth, redirect: 'manual' });
-  if (!download.ok) throw new Error(await failure(download, `cannot download fastsim ${release.version}`));
+  if (!download.ok) throw new Error(await failure(download, `cannot download fastsim ${release.version}`, o.signedIn));
   const archive = Buffer.from(await download.arrayBuffer());
   const digest = crypto.createHash('sha256').update(archive).digest('hex');
   if (digest !== release.sha256) throw new Error(`fastsim ${release.version} arrived damaged: its digest is ${digest}, the release says ${release.sha256}`);
@@ -109,9 +113,9 @@ export const fastsimCommands = [
     group: 'runs',
     summary: "Download fastsim for this machine and a platform from lynkeus.io with the organization's key",
     details:
-      "Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY: an API key an owner of the organization made with “May download fastsim”; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.",
+      "Asks lynkeus.io which fastsim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a fastsim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key or a sign-in, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.",
     mcpDetails:
-      "Downloads fastsim (the fast simulator, for organizations whose plan includes it) for this machine and the platform asked for, and answers where it went. Needs LYNKEUS_CLOUD_KEY in this server's environment: an API key an owner of the organization made with “May download fastsim” (other keys are refused with that message). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it.",
+      "Downloads fastsim (the fast simulator, for organizations whose plan includes it) for this machine and the platform asked for, and answers where it went. Needs LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download fastsim”; other keys are refused with that message), or else the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it.",
     flags: {
       version: { type: 'string', help: 'release to install', default: 'latest', value: 'version' },
       platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
@@ -123,14 +127,15 @@ export const fastsimCommands = [
     session: false,
     mcp: 'core',
     run: async (ctx) => {
-      const key = process.env.LYNKEUS_CLOUD_KEY ?? process.env.LYNKEUS_REPORTS_KEY;
-      if (!key)
-        return {
-          text: 'set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim" on lynkeus.io (in mise.local.toml or your CI secrets)',
-          code: 2,
-        };
-      const cloud = typeof ctx.flags.cloud === 'string' ? ctx.flags.cloud : (process.env.LYNKEUS_REPORTS_URL ?? 'https://lynkeus.io');
+      const envKey = process.env.LYNKEUS_CLOUD_KEY ?? process.env.LYNKEUS_REPORTS_KEY;
       try {
+        const cloud = cloudUrl(ctx.flags.cloud);
+        const key = envKey ?? (await signedInToken(cloud));
+        if (!key)
+          return {
+            text: `no way to sign in to ${cloud}: set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim" on lynkeus.io (in mise.local.toml or your CI secrets), or run lynkeus login to sign in as a member with a fastsim seat`,
+            code: 2,
+          };
         const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
         const { release, dir, installed } = await installFastsim({
           cloud,
@@ -139,6 +144,7 @@ export const fastsimCommands = [
           variant,
           dir: fastsimCacheDir(),
           force: ctx.flags.force === true,
+          signedIn: !envKey,
         });
         const readme = path.join(dir, 'README.md');
         const how = fs.existsSync(readme) ? `; how to run it: ${readme}` : '';
