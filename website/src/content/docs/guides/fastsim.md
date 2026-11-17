@@ -9,7 +9,7 @@ fastsim runs your React Native app without Xcode's simulator or an Android emula
 
 Use fastsim when a suite takes too long on a simulator, when you want many cases side by side, or when the machine has no simulator at all, such as a Linux server or a CI runner.
 
-It is available to organizations whose plan includes it. You need `LYNKEUS_CLOUD_KEY`, your organization's API key from [lynkeus.io](https://lynkeus.io).
+It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download fastsim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
 
 ## Install it
 
@@ -73,9 +73,13 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
 
-**`set LYNKEUS_CLOUD_KEY to your organization's API key`.** Exit code 2. The command found no key. Export it, or put it under `[env]` in `mise.local.toml`, and run it again.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Exit code 2. The command found no key. Export it, or put it under `[env]` in `mise.local.toml`, and run it again.
 
-**The service answers 403.** Your organization's plan does not include fastsim. Ask the organization's owner or write to lynkeus.io support.
+**`this key may not download fastsim`.** The key was made without **May download fastsim**. Ask an owner of the organization for a key made with it.
+
+**`you have no fastsim seat`.** You are signed in as a member without a seat. An owner gives seats on the Members page.
+
+**`this organization has no fastsim entitlement`** (or **has expired**). Your organization's plan does not include fastsim. Ask the organization's owner or write to lynkeus.io support.
 
 **`fastsim runs on Windows inside WSL2`.** Open a WSL2 shell, install lynkeus there and run the install again. It installs the Linux build.
 
