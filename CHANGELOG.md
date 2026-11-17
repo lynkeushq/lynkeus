@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `app.wait` and `lynkeus wait` with `enabled` also wait until the target takes touches: a control under a view that blocks them (a pager whose last page has not landed) reads as enabled but inert, and the wait returned while a swipe on it would still be refused.
 - `lynkeus fastsim grant` at a terminal shows a summary instead of the token: a check mark, the build and until when the grant is valid (colored unless `NO_COLOR` is set). Scripts that read its stdout, such as Lynkeus FastSim's `bin/fastsim-run`, still get only the grant; `--print` shows it at a terminal and `--json` always carries it.
 - The page `lynkeus login` shows in the browser is new: it answers only after the code is exchanged for tokens, so a failed exchange shows "The sign-in did not finish" instead of "signed in". When the service sends them, it names the organization and the account, and `lynkeus login` prints `signed in to <cloud> as <email> in <organization> (fastsim:download); saved in <path>` and saves both with the sign-in. It uses no web fonts or outside requests, follows the system's light or dark setting, and shows the command that started the sign-in.
 

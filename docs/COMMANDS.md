@@ -99,7 +99,7 @@ Until a route or element appears (or leaves), any of several targets appears, or
 | `--anyOf <target>` | accept any of these targets (repeatable) |
 | `--gone` | until it leaves the screen |
 | `--scroll` | scroll until it is in the window |
-| `--enabled` | until it is present and enabled (a form button that waits on its fields) |
+| `--enabled` | until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed) |
 | `--timeout <ms>` | give up after (default `10000`) |
 | `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
 

@@ -346,7 +346,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const routeOk = params.route === undefined || route === params.route;
       const all = params.target || params.anyOf ? elements() : [];
       const found = params.target ? pick(all, params.target) : undefined;
-      const stateOk = (element: Element | undefined) => element !== undefined && (params.enabled === undefined || element.enabled === params.enabled);
+      // Enabled means it takes a touch now: a control under a view that blocks touches (a pager whose last page has
+      // not landed) reads as enabled but inert, and a swipe or press on it would be refused.
+      const stateOk = (element: Element | undefined) =>
+        element !== undefined && (params.enabled === undefined || (element.enabled === params.enabled && (!params.enabled || element.hidden !== 'inert')));
       const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));

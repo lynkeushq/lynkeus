@@ -166,7 +166,7 @@ Espera hasta que aparezca una ruta o un elemento, hasta que se vaya, hasta que a
 | `--anyOf <target>` | Acepta el primero que esté presente de varios objetivos. Se repite la opción, una vez por objetivo. No se combina con `--gone`, porque no queda claro cuál de ellos debería irse. |
 | `--gone` | Espera a que el elemento deje de estar en pantalla. |
 | `--scroll` | Desplaza la lista más cercana hasta que el elemento esté dentro de la ventana. |
-| `--enabled` | Espera a que el elemento esté presente y habilitado, como el botón de un formulario que depende de sus campos. |
+| `--enabled` | Espera a que el elemento esté presente, habilitado y recibiendo toques, como el botón de un formulario que depende de sus campos o un control en una página de un carrusel que todavía se está acomodando. |
 | `--timeout <ms>` | Cuánto espera antes de rendirse. Por defecto `10000`. |
 | `--since <seq>` | Una marca de la traza (el número de secuencia que da `lynkeus trace`): una ruta alcanzada después de esa marca cuenta, aunque la app ya se haya ido de ella. |
 

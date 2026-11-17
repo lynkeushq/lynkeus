@@ -150,6 +150,25 @@ describe('waiting for an enabled control', () => {
     await dispatch(handlers, 'waitFor', { target: { testId: 'next' }, enabled: true, timeoutMs: 500 });
     expect(enabled).toBe(true);
   });
+  it('does not return while the target is enabled but inert (a pager whose last page has not landed)', async () => {
+    const target = element({ testId: 'slide-to-confirm' });
+    const { backend } = fakeBackend([target]);
+    let inert = true;
+    backend.snapshot = () => ({ elements: [{ ...target, ...(inert ? { hidden: 'inert' as const } : {}) }] });
+    setTimeout(() => {
+      inert = false;
+    }, 120);
+    const handlers = createHandlers(noNavigation, backend);
+
+    await dispatch(handlers, 'waitFor', { target: { testId: 'slide-to-confirm' }, enabled: true, timeoutMs: 500 });
+    expect(inert).toBe(false);
+  });
+
+  it('without enabled, an inert target still counts as there', async () => {
+    const { backend } = fakeBackend([element({ testId: 'slide-to-confirm', hidden: 'inert' })]);
+    const handlers = createHandlers(noNavigation, backend);
+    await expect(dispatch(handlers, 'waitFor', { target: { testId: 'slide-to-confirm' }, timeoutMs: 100 })).resolves.toBeDefined();
+  });
 });
 
 it('a targeted swipe starts after the target stops moving', async () => {

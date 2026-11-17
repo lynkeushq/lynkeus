@@ -209,7 +209,7 @@ Waits until a route or an element appears (or leaves), until any of several targ
 | `--anyOf <target>` | | Accept the first of several targets that is present. Repeat the flag for each one. `--gone` cannot be combined with it, because it is not clear which target should leave. |
 | `--gone` | | Wait until it leaves the screen. |
 | `--scroll` | | Scroll until the target is in the window. |
-| `--enabled` | | Wait until the target is there and enabled, such as a form button that waits on its fields. |
+| `--enabled` | | Wait until the target is there, enabled and taking touches, such as a form button that waits on its fields or a control on a pager page still landing. |
 | `--timeout <ms>` | `10000` | Give up after this long. |
 | `--since <seq>` | | A trace mark, taken from `lynkeus trace`. A route the app reached after it counts, even if the app has already left it. |
 
