@@ -24,7 +24,7 @@ const body = (req: IncomingMessage) =>
   });
 
 // A fake lynkeus.io: OAuth endpoints, and fastsim routes that need the bearer it issued.
-const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string } = {}) => {
+const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string; who?: object; rejectCode?: boolean } = {}) => {
   const seen: Seen[] = [];
   const issued = { code: 'code-1', access: 'lka_one', refresh: 'lkr_one', challenge: '', clientId: 'client-1', redirectUri: '', refreshes: 0 };
   const archive = (() => {
@@ -54,8 +54,9 @@ const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string
             .createHash('sha256')
             .update(form.get('code_verifier') ?? '')
             .digest('base64url') === issued.challenge;
+        if (opts.rejectCode) return json({ error: 'invalid_grant', error_description: 'the code is unknown, used or expired' }, 400);
         if (form.get('code') !== issued.code || !verifierOk || form.get('redirect_uri') !== issued.redirectUri) return json({ error: 'invalid_grant' }, 400);
-        return json({ access_token: issued.access, refresh_token: issued.refresh, expires_in: opts.expiresIn ?? 3600, scope: 'fastsim:download' });
+        return json({ access_token: issued.access, refresh_token: issued.refresh, expires_in: opts.expiresIn ?? 3600, scope: 'fastsim:download', ...opts.who });
       }
       if (form.get('grant_type') === 'refresh_token' && form.get('refresh_token') === issued.refresh) {
         issued.refreshes++;
@@ -380,5 +381,189 @@ test('an ended saved sign-in at a terminal signs in again, then installs', async
   assert.equal(opened.length, 1);
   assert.ok(messages.some((m) => /has ended/.test(m)));
   assert.deepEqual(attempts(cloud), ['Bearer lka_two']);
+  cloud.close();
+});
+
+// Like `browser`, but keeps what the loopback answered so the page can be read.
+const browserPage = (cloud: Awaited<ReturnType<typeof fakeCloud>>, answer: (url: URL) => string) => {
+  const page: { response?: Response; html: string } = { html: '' };
+  const open = async (authorizeUrl: string) => {
+    const url = new URL(authorizeUrl);
+    cloud.issued.challenge = url.searchParams.get('code_challenge') ?? '';
+    setTimeout(
+      () =>
+        void fetch(answer(url))
+          .then(async (r) => {
+            page.response = r;
+            page.html = await r.text();
+          })
+          .catch(() => {}),
+      10,
+    );
+    return true;
+  };
+  return { page, open };
+};
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
+const who = { organization: { id: 'org-1', name: 'Ugly Cash' }, account: { email: 'ana@example.test' } };
+
+test('the success page names the organization and the account, with the command and the security headers', async () => {
+  isolate();
+  const cloud = await fakeCloud({ who });
+  const b = browserPage(cloud, goodAnswer);
+  const saved = await login({ cloud: cloud.url, open: b.open, command: 'lynkeus fastsim install --platform android' });
+  await settle();
+  assert.equal(saved.organization?.name, 'Ugly Cash');
+  assert.equal(savedLogin(cloud.url)?.account?.email, 'ana@example.test');
+  assert.equal(savedLogin(cloud.url)?.organization?.id, 'org-1');
+  assert.match(b.page.html, /You're signed in/);
+  assert.match(b.page.html, /signed in to <b>Ugly Cash<\/b> as <b>ana@example\.test<\/b>\. Go back to your terminal: it carries on from here\./);
+  assert.match(b.page.html, /<code>lynkeus fastsim install --platform android<\/code>/);
+  assert.ok(b.page.html.includes(`<a href="${cloud.url}/#members">Members</a> on 127.0.0.1:`));
+  const h = b.page.response!.headers;
+  assert.equal(h.get('content-type'), 'text/html; charset=utf-8');
+  assert.equal(h.get('cache-control'), 'no-store');
+  assert.equal(h.get('content-security-policy'), "default-src 'none'; style-src 'unsafe-inline'; img-src data:");
+  assert.equal(h.get('referrer-policy'), 'no-referrer');
+  assert.ok(!/<script|<link|src="http|url\(http/i.test(b.page.html));
+  cloud.close();
+});
+
+test('the success page escapes the names the service sent', async () => {
+  isolate();
+  const cloud = await fakeCloud({ who: { organization: { id: 'o', name: '<script>alert(1)</script>' }, account: { email: 'a"<b>@x.test' } } });
+  const b = browserPage(cloud, goodAnswer);
+  await login({ cloud: cloud.url, open: b.open });
+  await settle();
+  assert.ok(!b.page.html.includes('<script>'));
+  assert.ok(b.page.html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+  assert.ok(b.page.html.includes('a&quot;&lt;b&gt;@x.test'));
+  cloud.close();
+});
+
+test('an older service that names nobody gets the short success page and the old printed line', async () => {
+  isolate();
+  const cloud = await fakeCloud();
+  const b = browserPage(cloud, goodAnswer);
+  const saved = await login({ cloud: cloud.url, open: b.open });
+  await settle();
+  assert.match(b.page.html, /The lynkeus CLI is signed in\. Go back to your terminal: it carries on from here\./);
+  assert.match(b.page.html, /<code>lynkeus login<\/code>/);
+  assert.equal(saved.organization, undefined);
+  assert.equal(savedLogin(cloud.url)?.account, undefined);
+  cloud.close();
+});
+
+// Runs `lynkeus login --no-browser`, plays the browser from the address it prints, and returns its answer.
+const runLogin = async (cloud: Awaited<ReturnType<typeof fakeCloud>>) => {
+  const told: string[] = [];
+  const run = loginCommands[0]!.run({ ...ctx({ cloud: cloud.url, 'no-browser': true }), err: (l: string) => told.push(l) } as Ctx) as Promise<{
+    text: string;
+    json: Record<string, unknown>;
+  }>;
+  for (let i = 0; i < 100 && !told.some((l) => l.includes('/authorize?')); i++) await settle();
+  const url = new URL(told.join('\n').match(/https?:\/\/\S+\/authorize\?\S+/)![0]);
+  cloud.issued.challenge = url.searchParams.get('code_challenge') ?? '';
+  await fetch(goodAnswer(url));
+  return run;
+};
+
+test('lynkeus login prints who it signed in as and never a token', async () => {
+  isolate();
+  const cloud = await fakeCloud({ who });
+  const result = await runLogin(cloud);
+  assert.equal(result.text, `signed in to ${cloud.url} as ana@example.test in Ugly Cash (fastsim:download); saved in ${credentialsPath()}`);
+  assert.ok(!JSON.stringify(result).includes('lka_') && !JSON.stringify(result).includes('lkr_'));
+  cloud.close();
+});
+
+test("lynkeus login prints today's line when the service names nobody", async () => {
+  isolate();
+  const cloud = await fakeCloud();
+  const result = await runLogin(cloud);
+  assert.equal(result.text, `signed in to ${cloud.url} (fastsim:download); saved in ${credentialsPath()}`);
+  cloud.close();
+});
+
+const failure = async (opts: Parameters<typeof fakeCloud>[0], answer: (url: URL) => string) => {
+  isolate();
+  const cloud = await fakeCloud(opts);
+  const b = browserPage(cloud, answer);
+  const outcome = await login({ cloud: cloud.url, open: b.open }).then(
+    () => undefined,
+    (e: Error) => e,
+  );
+  await settle();
+  cloud.close();
+  return { page: b.page, outcome, cloud };
+};
+
+const redirectWith = (query: (url: URL) => string) => (url: URL) => `${url.searchParams.get('redirect_uri')}?${query(url)}`;
+
+test('the failure page for Deny says nothing was shared, and the command to try again', async () => {
+  const f = await failure(
+    {},
+    redirectWith((u) => `error=access_denied&state=${u.searchParams.get('state')}`),
+  );
+  assert.match(f.outcome?.message ?? '', /refused/);
+  assert.match(f.page.html, /The sign-in did not finish/);
+  assert.match(f.page.html, /You chose <b>Deny<\/b>, so the lynkeus CLI is not signed in\. Nothing was shared with it\./);
+  assert.match(f.page.html, /To try again, run this in your terminal:/);
+  assert.match(f.page.html, /<code>npx lynkeus login<\/code>/);
+  assert.match(f.page.html, /You can close this tab\./);
+  assert.equal(f.page.response?.headers.get('cache-control'), 'no-store');
+  assert.equal(savedLogin(f.cloud.url), undefined);
+});
+
+test('the failure page for a state that is not ours says it was ignored', async () => {
+  const f = await failure(
+    {},
+    redirectWith(() => 'code=code-1&state=forged'),
+  );
+  assert.match(f.page.html, /This answer was not for the sign-in this terminal started, so it was ignored\./);
+  assert.ok(!f.page.html.includes("You're signed in"));
+});
+
+test('the failure page shows the service error, escaped', async () => {
+  const f = await failure(
+    {},
+    redirectWith((u) => `error=server_error&error_description=${encodeURIComponent('<b>no seat</b>')}&state=${u.searchParams.get('state')}`),
+  );
+  assert.match(f.page.html, /&lt;b&gt;no seat&lt;\/b&gt;/);
+  assert.ok(!f.page.html.includes('<b>no seat'));
+  const g = await failure(
+    {},
+    redirectWith((u) => `error=temporarily_unavailable&state=${u.searchParams.get('state')}`),
+  );
+  assert.match(g.page.html, /temporarily_unavailable/);
+});
+
+test('a failed token exchange shows the failure page, not "signed in", and saves nothing', async () => {
+  const f = await failure({ rejectCode: true }, goodAnswer);
+  assert.match(f.outcome?.message ?? '', /cannot finish the sign-in/);
+  assert.match(f.page.html, /did not accept the sign-in: invalid_grant: the code is unknown, used or expired\./);
+  assert.ok(!f.page.html.includes("You're signed in"));
+  assert.equal(savedLogin(f.cloud.url), undefined);
+});
+
+test('the loopback answers only one callback', async () => {
+  isolate();
+  const cloud = await fakeCloud({ who });
+  let second = 0;
+  const open = async (authorizeUrl: string) => {
+    const url = new URL(authorizeUrl);
+    cloud.issued.challenge = url.searchParams.get('code_challenge') ?? '';
+    setTimeout(() => {
+      void fetch(goodAnswer(url)).catch(() => {});
+      void fetch(goodAnswer(url))
+        .then((r) => (second = r.status))
+        .catch(() => {});
+    }, 10);
+    return true;
+  };
+  await login({ cloud: cloud.url, open });
+  await settle();
+  assert.equal(second, 404);
   cloud.close();
 });

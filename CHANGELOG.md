@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The page `lynkeus login` shows in the browser is new: it answers only after the code is exchanged for tokens, so a failed exchange shows "The sign-in did not finish" instead of "signed in". When the service sends them, it names the organization and the account, and `lynkeus login` prints `signed in to <cloud> as <email> in <organization> (fastsim:download); saved in <path>` and saves both with the sign-in. It uses no web fonts or outside requests, follows the system's light or dark setting, and shows the command that started the sign-in.
+
 ## 0.7.2
 
 - `lynkeus fastsim install` and `lynkeus fastsim grant` start the browser sign-in themselves when there is no `LYNKEUS_CLOUD_KEY` and no saved sign-in, so a person runs one command: at a terminal (stdin and stderr are TTYs, `CI` unset) they print `No key or sign-in for <cloud>: opening the browser to sign in (lynkeus login)…`, sign in as `lynkeus login` does and carry on. A saved sign-in the service refuses (401) is renewed the same way, once. `fastsim install --no-browser` prints the address instead of opening it. Scripts, CI and the MCP server never open a browser: they keep exit code 2 and the same message.

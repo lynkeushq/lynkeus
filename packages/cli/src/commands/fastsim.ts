@@ -228,6 +228,7 @@ const withCredentials = async <T>(
       cloud,
       open: ctx.flags['no-browser'] === true ? undefined : (deps.open ?? openInBrowser),
       tell: ctx.err,
+      command: `lynkeus fastsim install --platform ${typeof ctx.flags.platform === 'string' ? ctx.flags.platform : 'ios'}`,
     });
     return credential.accessToken;
   };
