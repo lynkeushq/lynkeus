@@ -793,6 +793,18 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
           await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
         }
+        // A swipe's target still landing (a pager's page arriving, a sheet sliding in) reads as inert for a moment. The
+        // agent waits for it too, but on a host with a virtual clock its wait runs out in no real time, so the wait
+        // for the target to be presented happens here, on the wall clock, with the app moving on between looks.
+        const swiped = name === 'swipe' && params ? targetIn(params) : undefined;
+        if (swiped && 'testId' in swiped) {
+          const until = Date.now() + (typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000);
+          while (Date.now() < until) {
+            const found = (await d.server.call('find', swiped).catch(() => null)) as Element | null;
+            if (found && found.hidden !== 'inert') break;
+            await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
+          }
+        }
         const { timeoutMs: _timeout, ...typed } = params ?? {};
         await cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.

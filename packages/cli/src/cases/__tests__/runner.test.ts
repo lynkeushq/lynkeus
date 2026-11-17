@@ -736,3 +736,49 @@ test('a film made on another machine comes over a piece at a time, and a short o
   assert.equal(fs.existsSync(short), false);
   assert.equal(fs.existsSync(`${short}.part`), false);
 });
+
+test('a swipe waits, on the wall clock, for a target that is still landing', async () => {
+  const c = parseCase(
+    `---
+id: landing
+---
+steps:
+  - app.swipe: { target: "#slide-to-confirm", direction: right, distance: 330 }
+`,
+    'landing.md',
+  );
+  const { base } = fakeApp();
+  const device = await base.device();
+  const fake = device as unknown as { server: { call: (method: string, params: never) => Promise<unknown> } };
+  const call = fake.server.call;
+  let looks = 0;
+  let swipedWhileInert = false;
+  let swipes = 0;
+  // Inert for its first three looks, as a pager page arriving reads on a host whose clock runs ahead.
+  const slider = () => ({
+    i: 0,
+    kind: 'view',
+    testId: 'slide-to-confirm',
+    frame: { x: 0, y: 600, w: 300, h: 60 },
+    enabled: true,
+    depth: 1,
+    hidden: looks <= 3 ? 'inert' : undefined,
+  });
+  fake.server.call = async (method, params) => {
+    if (method === 'find') {
+      looks += 1;
+      return slider();
+    }
+    if (method === 'swipe') {
+      swipes += 1;
+      if (looks <= 3) swipedWhileInert = true;
+      return {};
+    }
+    return call(method, params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(swipes, 1);
+  assert.equal(swipedWhileInert, false);
+  assert.ok(looks >= 4);
+});
