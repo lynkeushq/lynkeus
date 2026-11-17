@@ -448,7 +448,7 @@ test('an older service that names nobody gets the short success page and the old
   const b = browserPage(cloud, goodAnswer);
   const saved = await login({ cloud: cloud.url, open: b.open });
   await settle();
-  assert.match(b.page.html, /The lynkeus CLI is signed in\. Go back to your terminal: it carries on from here\./);
+  assert.match(b.page.html, /The Lynkeus CLI is signed in\. Go back to your terminal: it carries on from here\./);
   assert.match(b.page.html, /<code>lynkeus login<\/code>/);
   assert.equal(saved.organization, undefined);
   assert.equal(savedLogin(cloud.url)?.account, undefined);
@@ -508,7 +508,7 @@ test('the failure page for Deny says nothing was shared, and the command to try 
   );
   assert.match(f.outcome?.message ?? '', /refused/);
   assert.match(f.page.html, /The sign-in did not finish/);
-  assert.match(f.page.html, /You chose <b>Deny<\/b>, so the lynkeus CLI is not signed in\. Nothing was shared with it\./);
+  assert.match(f.page.html, /You chose <b>Deny<\/b>, so the Lynkeus CLI is not signed in\. Nothing was shared with it\./);
   assert.match(f.page.html, /To try again, run this in your terminal:/);
   assert.match(f.page.html, /<code>npx lynkeus login<\/code>/);
   assert.match(f.page.html, /You can close this tab\./);
