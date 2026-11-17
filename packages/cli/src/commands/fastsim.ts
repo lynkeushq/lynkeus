@@ -21,6 +21,18 @@ const failure = async (response: Response, what: string): Promise<string> => {
   return `${what}: ${reason}`;
 };
 
+// iOS matches the simulator only on a Mac; Linux draws it with the Inter stand-in. Windows runs the Linux build in WSL2.
+export const fastsimVariant = (platform: string, os: NodeJS.Platform = process.platform, arch: string = process.arch): string => {
+  if (platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);
+  if (os === 'win32') throw new Error('fastsim runs on Windows inside WSL2: run lynkeus there, where it installs the Linux build');
+  if (os === 'darwin') {
+    if (arch !== 'arm64') throw new Error('fastsim runs on Apple Silicon Macs only');
+    return `darwin-arm64-${platform}`;
+  }
+  if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${platform}`;
+  throw new Error(`fastsim has no build for ${os} on ${arch}`);
+};
+
 export const pickRelease = (releases: FastsimRelease[], version: string, variant: string): FastsimRelease | undefined =>
   releases.find((r) => r.variant === variant && (version === 'latest' || r.version === version));
 
@@ -94,28 +106,32 @@ export const fastsimCommands = [
   define({
     name: 'fastsim install',
     group: 'runs',
-    summary: "Download fastsim for this Mac from lynkeus.io with the organization's key",
+    summary: "Download fastsim for this machine and a platform from lynkeus.io with the organization's key",
     details:
-      "Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the one asked for (`latest` unless --version), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). An installed release with the same digest is kept. The package's README says how to start a host. Exit code 2 without a key, 1 when the organization has no fastsim entitlement or the download fails.",
+      "Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 45 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.",
+    mcpDetails:
+      "Downloads fastsim (the fast simulator, for organizations whose plan includes it) for this machine and the platform asked for, and answers where it went. Needs LYNKEUS_CLOUD_KEY in this server's environment. Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it.",
     flags: {
       version: { type: 'string', help: 'release to install', default: 'latest', value: 'version' },
-      variant: { type: 'string', help: 'build to install', default: 'darwin-arm64', value: 'name' },
+      platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
+      variant: { type: 'string', help: "a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)", value: 'name' },
       cloud: { type: 'string', help: 'service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)', value: 'url' },
       force: { type: 'boolean', help: 'download again even when that release is installed' },
     },
     needs: 'nothing',
     session: false,
-    mcp: false,
+    mcp: 'core',
     run: async (ctx) => {
       const key = process.env.LYNKEUS_CLOUD_KEY ?? process.env.LYNKEUS_REPORTS_KEY;
       if (!key) return { text: "set LYNKEUS_CLOUD_KEY to your organization's API key from lynkeus.io (in mise.local.toml or your CI secrets)", code: 2 };
       const cloud = typeof ctx.flags.cloud === 'string' ? ctx.flags.cloud : (process.env.LYNKEUS_REPORTS_URL ?? 'https://lynkeus.io');
       try {
+        const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
         const { release, dir, installed } = await installFastsim({
           cloud,
           key,
           version: String(ctx.flags.version),
-          variant: String(ctx.flags.variant),
+          variant,
           dir: fastsimCacheDir(),
           force: ctx.flags.force === true,
         });
