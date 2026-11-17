@@ -229,3 +229,132 @@ test('a redirect from the service is not followed with the bearer', async () => 
   cloud.close();
   elsewhere.close();
 });
+
+const flagsFor = (cloud: string, extra: Record<string, unknown> = {}) => ({ cloud, version: 'latest', platform: 'ios', variant: 'linux-x64-ios', ...extra });
+type Out = { text: string; code?: number };
+
+const withTty = (cloud: Awaited<ReturnType<typeof fakeCloud>>, o: { tty?: boolean; answer?: (url: URL) => void } = {}) => {
+  const opened: string[] = [];
+  const open = browser(cloud, goodAnswer);
+  const command = makeFastsimCommands(pair.publicKey, {
+    tty: () => o.tty ?? true,
+    open: async (url) => {
+      opened.push(url);
+      o.answer?.(new URL(url));
+      return open(url);
+    },
+  });
+  return { opened, install: command[0]!, grant: command[1]! };
+};
+
+const attempts = (cloud: Awaited<ReturnType<typeof fakeCloud>>) => cloud.seen.filter((s) => s.url === '/v1/fastsim/releases').map((s) => s.auth);
+
+test('fastsim install with nothing saved signs in at a terminal, then installs with the new bearer', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  const { opened, install: cmd } = withTty(cloud);
+  const messages: string[] = [];
+  const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), err: (l: string) => messages.push(l) } as Ctx)) as Out;
+  assert.equal(result.code, undefined, JSON.stringify(result));
+  assert.equal(opened.length, 1);
+  assert.ok(messages.includes(`No key or sign-in for ${cloud.url}: opening the browser to sign in (lynkeus login)…`));
+  assert.deepEqual(new Set(attempts(cloud)), new Set(['Bearer lka_one']));
+  assert.equal(savedLogin(cloud.url)?.accessToken, 'lka_one');
+  cloud.close();
+});
+
+test('fastsim install --no-browser prints the sign-in address instead of opening it', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  const { opened, install: cmd } = withTty(cloud);
+  const messages: string[] = [];
+  const pending = cmd.run({ ...ctx(flagsFor(cloud.url, { 'no-browser': true })), err: (l: string) => messages.push(l) } as Ctx);
+  const address = async () => {
+    for (let i = 0; i < 200; i++) {
+      const line = messages.find((m) => m.includes('/authorize'));
+      if (line) return new URL(line.slice(line.indexOf('http')));
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    throw new Error('no address printed');
+  };
+  const url = await address();
+  cloud.issued.challenge = url.searchParams.get('code_challenge') ?? '';
+  await fetch(goodAnswer(url));
+  assert.equal(((await pending) as Out).code, undefined);
+  assert.equal(opened.length, 0);
+  cloud.close();
+});
+
+test('fastsim install without a terminal, in CI or over MCP keeps exit 2 and opens nothing', async () => {
+  isolate();
+  const cloud = await fakeCloud();
+  const cases: [string, ReturnType<typeof withTty>, Record<string, unknown>][] = [
+    ['no tty', withTty(cloud, { tty: false }), {}],
+    ['CI', withTty(cloud), { CI: '1' }],
+    ['mcp', withTty(cloud), { attached: true }],
+  ];
+  for (const [name, { opened, install: cmd }, extra] of cases) {
+    if ('CI' in extra) process.env.CI = '1';
+    else delete process.env.CI;
+    const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), attached: 'attached' in extra } as Ctx)) as Out;
+    assert.equal(result.code, 2, name);
+    assert.match(result.text, /May download fastsim/, name);
+    assert.equal(opened.length, 0, name);
+  }
+  delete process.env.CI;
+  assert.equal(cloud.seen.length, 0);
+  assert.equal(savedLogin(cloud.url), undefined);
+  cloud.close();
+});
+
+test('fastsim grant exits 2 without a terminal and signs in at one', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  const quiet = withTty(cloud, { tty: false });
+  const refused = (await quiet.grant.run(ctx(flagsFor(cloud.url)))) as Out;
+  assert.equal(refused.code, 2);
+  assert.equal(quiet.opened.length, 0);
+  const person = withTty(cloud);
+  await person.grant.run(ctx(flagsFor(cloud.url)));
+  assert.equal(person.opened.length, 1);
+  assert.equal(savedLogin(cloud.url)?.accessToken, 'lka_one');
+  cloud.close();
+});
+
+test('a refused saved sign-in at a terminal signs in once and retries once', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  cloud.issued.access = 'lka_revoked';
+  const { opened, install: cmd } = withTty(cloud, {
+    answer: () => {
+      cloud.issued.access = 'lka_two';
+    },
+  });
+  cloud.seen.length = 0;
+  const messages: string[] = [];
+  const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), err: (l: string) => messages.push(l) } as Ctx)) as Out;
+  assert.equal(result.code, undefined, JSON.stringify(result));
+  assert.equal(opened.length, 1);
+  assert.ok(messages.some((m) => /was refused \(ended or revoked\)/.test(m)));
+  assert.deepEqual(attempts(cloud), ['Bearer lka_one', 'Bearer lka_two']);
+  cloud.close();
+});
+
+test('a refused saved sign-in without a terminal keeps the old message and opens nothing', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  cloud.issued.access = 'lka_revoked';
+  const { opened, install: cmd } = withTty(cloud, { tty: false });
+  const result = (await cmd.run(ctx(flagsFor(cloud.url)))) as Out;
+  assert.equal(result.code, 1);
+  assert.match(result.text, /sign in again with lynkeus login/);
+  assert.equal(opened.length, 0);
+  cloud.close();
+});

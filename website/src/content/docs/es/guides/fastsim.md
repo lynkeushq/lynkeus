@@ -11,13 +11,13 @@ fastsim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador 
 
 Está disponible para las organizaciones cuyo plan lo incluye, y quien es owner de la organización decide quién lo baja. Necesitas `LYNKEUS_CLOUD_KEY` con una API key que un owner creó marcando **May download fastsim**, en la página de API keys de [lynkeus.io](https://lynkeus.io). Una key pensada solo para reportes no sirve para bajarlo, así que conviene que el CI tenga la suya. En la página de Members los owners ven cada descarga, quién la hizo y cuándo, y desde ahí dan lugares a los miembros.
 
-Si eres miembro y tienes un lugar, no necesitas una key: inicia sesión una vez desde la terminal.
+Si eres miembro y tienes un lugar, no necesitas una key: ejecuta `lynkeus fastsim install` en una terminal y, si no encuentra una key ni una sesión guardada, abre el navegador por sí solo (es el mismo paso que `lynkeus login`) y sigue con la instalación. También puedes iniciar sesión antes:
 
 ```bash
 lynkeus login
 ```
 
-Se abre lynkeus.io en tu navegador, donde entras y eliges la organización. La sesión queda guardada en `~/.config/lynkeus/credentials.json`, con permisos solo para ti, y `lynkeus fastsim install` la usa cuando no hay `LYNKEUS_CLOUD_KEY`. Se renueva sola cuando vence, y `lynkeus logout` la borra. En una máquina sin navegador, `lynkeus login --no-browser` imprime la dirección para que la abras en otro equipo. El CI debe seguir usando una key, porque no hay nadie que inicie sesión.
+Se abre lynkeus.io en tu navegador, donde entras y eliges la organización. La sesión queda guardada en `~/.config/lynkeus/credentials.json`, con permisos solo para ti, y `lynkeus fastsim install` la usa cuando no hay `LYNKEUS_CLOUD_KEY`. Se renueva sola cuando vence, y `lynkeus logout` la borra. En una máquina sin navegador, `lynkeus login --no-browser` imprime la dirección para que la abras en otro equipo. El navegador solo se abre si estás en una terminal (stdin y stderr son terminales y `CI` no está definida); un script, el CI o el servidor MCP nunca esperan un navegador: necesitan una key, y sin ella el comando termina con código 2. Si la sesión guardada terminó o se revocó, la instalación lo dice y te hace iniciar sesión una vez más. Con `--no-browser` en `fastsim install` se imprime la dirección en vez de abrirla.
 
 ## Instalarlo
 
@@ -65,7 +65,7 @@ lynkeus levanta un host en un puerto libre para cada caso, espera a que la app s
 
 ## Desde un agente de IA por MCP
 
-El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android`, con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor, o con la sesión que guardaste al ejecutar `lynkeus login` en una terminal. Un agente no puede iniciar sesión por ti: el paso del navegador es tuyo. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
+El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android`, con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor, o con la sesión que guardaste al ejecutar `lynkeus login` en una terminal. El servidor nunca abre un navegador: si no hay key ni sesión guardada, ejecuta tú `lynkeus fastsim install` o `lynkeus login` en una terminal. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
 
 ## Qué reemplaza y dónde llega
 
@@ -85,7 +85,7 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
 
-**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Código de salida 2. El comando no encontró ni una clave ni una sesión. Exporta una clave, o ponla en `[env]` de `mise.local.toml`, o ejecuta `lynkeus login` si eres miembro con un lugar, y vuelve a ejecutarlo.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Código de salida 2. El comando no encontró ni una clave ni una sesión. Exporta una clave, o ponla en `[env]` de `mise.local.toml`, o, si eres miembro con un lugar, vuelve a ejecutarlo desde una terminal: te hace iniciar sesión. Este código es lo que reciben un script, el CI o MCP cuando no hay con qué iniciar sesión.
 
 **`this key may not download fastsim`.** La key se creó sin **May download fastsim**. Pídele a un owner de la organización una key creada con esa opción.
 

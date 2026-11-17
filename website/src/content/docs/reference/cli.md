@@ -1397,12 +1397,12 @@ Removes the saved sign-in for that service from this machine. The tokens stay va
 ### `lynkeus fastsim install`
 
 ```bash
-lynkeus fastsim install [--version <version>] [--platform ios|android] [--variant <name>] [--cloud <url>] [--force]
+lynkeus fastsim install [--version <version>] [--platform ios|android] [--variant <name>] [--cloud <url>] [--force] [--no-browser]
 ```
 
 Downloads fastsim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and its Ed25519 signature, and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). lynkeus signs every package, and the CLI carries the public key: a release with no signature, or one that does not match the bytes, is refused with `fastsim <version> is not signed by lynkeus: not installed`, and nothing is written. The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
 
-It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a fastsim seat; a refused sign-in says to run `lynkeus login` again. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
+It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a fastsim seat; with neither, a person at a terminal (stdin and stderr are terminals, `CI` unset) is signed in first, as `lynkeus login` does, and the install goes on; a sign-in the service refuses (ended or revoked) is renewed the same way, once. Scripts, CI and the MCP server never open a browser: they exit with `2` and need the key, and a refused sign-in says to run `lynkeus login` again. `--no-browser` prints the sign-in address instead of opening it. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
 
 | Machine | `--platform ios` | `--platform android` |
 |---|---|---|
@@ -1427,7 +1427,7 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 lynkeus fastsim grant [--platform ios|android] [--variant <name>] [--cloud <url>]
 ```
 
-Prints the grant a fastsim host needs to start. Each host asks for a fresh one from lynkeus.io, and fastsim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. A redirect from the service is not followed.
+Prints the grant a fastsim host needs to start. Each host asks for a fresh one from lynkeus.io, and fastsim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
 
 A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim/grants/<service>/<variant>.json` (`XDG_CACHE_HOME` moves the folder; the file is readable only by you) and reuses it while it has more than 5 minutes left. It prints only the grant on stdout, so a script can read it; messages go to stderr. Exits with `2` when there is neither a key nor a sign-in, and with `1` when the service refuses (no entitlement, a key or sign-in it does not accept, no grants set up) or cannot be reached. It is not an MCP tool.
 
