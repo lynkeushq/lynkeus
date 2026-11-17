@@ -30,7 +30,7 @@ Driver → app, always the first message on a new socket:
 App → driver, in answer to an `auth` it accepts:
 
 ```json
-{ "event": "hello", "protocolVersion": 2, "agentVersion": "0.6.0", "platform": "ios", "native": true,
+{ "event": "hello", "protocolVersion": 2, "agentVersion": "0.7.0", "platform": "ios", "native": true,
   "commands": ["busy", "reset"], "route": "Settings.Main", "app": { "name": "example" },
   "nonce": "a41c…", "proof": "…" }
 ```
