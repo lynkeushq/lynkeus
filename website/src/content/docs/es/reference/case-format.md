@@ -214,6 +214,8 @@ Espera. Según el valor, espera un tiempo fijo, una ruta, un elemento o una peti
 - app.wait: '"Next"'                             # un texto, no la ruta Next
 - app.wait: { target: "#row-25", scroll: true }  # desplazando hasta verlo
 - app.wait: { target: "#spinner", gone: true }   # hasta que se vaya
+- app.wait: { target: "#submit", enabled: true } # hasta que esté y habilitado
+- app.wait: { anyOf: ["#welcome", { text: "Try again" }] }  # lo que aparezca primero
 - app.wait: { request: "POST /v1/orders", status: 201 }
 ```
 
@@ -225,13 +227,15 @@ Con una ruta o un objetivo:
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
+| `enabled` | booleano | `false` | Espera a que el objetivo esté presente y habilitado, como el botón de un formulario que depende de sus campos. |
+| `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |
 | `timeoutMs` | número (ms) | `10000` | Cuánto esperar antes de fallar. |
 
 Con una petición:
 
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `request` | texto | obligatorio | `MÉTODO /ruta`. Una ruta sola coincide con cualquier método. La ruta se compara con el final de la URL, sin la cadena de consulta. |
+| `request` | texto | obligatorio | `MÉTODO /ruta`. Una ruta sola coincide con cualquier método. La ruta se compara con el final de la URL, sin la cadena de consulta y sin importar una barra final: `GET /api/items` coincide con una llamada a `/api/items/`. |
 | `status` | número | cualquier `2xx` | El estado HTTP esperado. |
 | `timeoutMs` | número (ms) | `10000` | Cuánto esperar antes de fallar. |
 

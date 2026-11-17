@@ -226,6 +226,8 @@ Waits for something. The value decides for what.
 - app.wait: 800                                        # milliseconds
 - app.wait: { target: "#row-25", scroll: true }        # scroll until it is in the window
 - app.wait: { target: "#spinner", gone: true }         # until it leaves
+- app.wait: { target: "#submit", enabled: true }       # until it is there and enabled
+- app.wait: { anyOf: ["#welcome", { text: "Try again" }] }  # whichever shows up first
 - app.wait: { request: "POST /v3/payments", status: 201 }
 ```
 
@@ -242,10 +244,14 @@ Waits for something. The value decides for what.
 | `within` | target | | Among several matches, take the one nearest this target. |
 | `nth` | number | | Take the nth match, counted from 0. |
 | `gone` | boolean | `false` | Wait until it leaves the screen. |
+| `enabled` | boolean | `false` | Wait until the target is there and enabled, such as a form button that waits on its fields. |
+| `anyOf` | list of targets | | Accept the first of these that is present. `target` is not needed then. Each item is a string (`"#welcome"`, `'"Try again"'`) or an object: `{ testId }`, or `{ text, nth? }` with `nth` counted from 0. `gone` cannot be combined with it. |
 | `scroll` | boolean | `false` | Swipe until the target is in the window. |
 | `request` | string | | Wait for a request the app made, written `METHOD /path`. A bare path matches any method. The path matches when the request's path ends with it. |
 | `status` | number | any 2xx | With `request`: the status the answer must have. |
 | `timeoutMs` | number (ms) | `10000` | Give up after this long. |
+
+A trailing slash does not matter when a request is matched: `GET /api/items` meets a call to `/api/items/`.
 
 A `request` counts only the requests the app started after the previous acting step began, so an earlier screen's request to the same path does not pass for the one you mean. See [`app.requests`](#apprequests) to mark further back.
 
