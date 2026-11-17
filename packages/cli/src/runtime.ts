@@ -26,6 +26,8 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         screen,
         requests: during.slice(-40),
         inFlight: requests.inFlight,
+        pending: requests.requests.filter((r) => r.status === undefined && !r.error),
+        now: Date.now(),
         trace: trace.events.slice(-40),
         target: expected,
         fetchedBefore: during.length < requests.requests.length,

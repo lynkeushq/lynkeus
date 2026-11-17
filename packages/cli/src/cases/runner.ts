@@ -317,7 +317,9 @@ const requestMatches = (event: RequestRecord, wanted: string, status?: number): 
     pathname = event.url.split('?')[0]!;
   }
   if (method !== '*' && event.method.toUpperCase() !== method!.toUpperCase()) return false;
-  if (!pathname.endsWith(route!)) return false;
+  const normalizedPath = pathname.replace(/\/+$/, '') || '/';
+  const normalizedRoute = route!.replace(/\/+$/, '') || '/';
+  if (!normalizedPath.endsWith(normalizedRoute)) return false;
   return status === undefined ? true : event.status === status;
 };
 
@@ -704,7 +706,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
     }
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
-    await cli(argvFor(find('press')!, rest as StepValue));
+    try {
+      await cli(argvFor(find('press')!, rest as StepValue));
+    } catch (error) {
+      // A one-time sheet can disappear between the presence check and the native press.
+      if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';
+      throw error;
+    }
     return undefined;
   };
 
@@ -794,6 +802,18 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (field) {
           await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
           await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+        }
+        // A swipe's target still landing (a pager's page arriving, a sheet sliding in) reads as inert for a moment. The
+        // agent waits for it too, but on a host with a virtual clock its wait runs out in no real time, so the wait
+        // for the target to be presented happens here, on the wall clock, with the app moving on between looks.
+        const swiped = name === 'swipe' && params ? targetIn(params) : undefined;
+        if (swiped && 'testId' in swiped) {
+          const until = Date.now() + (typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000);
+          while (Date.now() < until) {
+            const found = (await d.server.call('find', swiped).catch(() => null)) as Element | null;
+            if (found && found.hidden !== 'inert') break;
+            await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
+          }
         }
         const { timeoutMs: _timeout, ...typed } = params ?? {};
         await cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value));

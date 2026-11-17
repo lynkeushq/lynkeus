@@ -59,3 +59,16 @@ test('an answer the case mocked is not blamed on the backend', () => {
   const both = explain({ screen: s, requests: [mocked(500, 'http://x/api/mocked'), req(502, 'http://x/api/real')], inFlight: 0 });
   assert.match(both.find((f) => f.rule === 'backend-error')?.message ?? '', /502 on GET \/api\/real/);
 });
+
+test('a request still in flight is named, with how long it has been open, even if it started before the command', () => {
+  const hung = { ...req(undefined, 'http://localhost:3000/api/mobile/v3/user/?x=1'), startedAt: 1_000 };
+  const found = explain({ screen: screen([el({}, 0)], 'Home'), requests: [], inFlight: 1, pending: [hung], now: 21_500 });
+  const message = found.find((f) => f.rule === 'in-flight')?.message ?? '';
+  assert.match(message, /GET \/api\/mobile\/v3\/user\/ \(open 20\.5 s\)/);
+  // On a virtual clock the age would be nonsense: the request is still named, without it.
+  const virtual = explain({ screen: screen([el({}, 0)], 'Home'), requests: [], inFlight: 1, pending: [hung], now: 1_800_000_000_000 });
+  assert.match(virtual.find((f) => f.rule === 'in-flight')?.message ?? '', /\(GET \/api\/mobile\/v3\/user\/\):/);
+  // Without the records, the count alone, as before.
+  const bare = explain({ screen: screen([el({}, 0)], 'Home'), requests: [], inFlight: 2 });
+  assert.match(bare.find((f) => f.rule === 'in-flight')?.message ?? '', /^2 request\(s\) still in flight when the command gave up:/);
+});

@@ -80,6 +80,13 @@ heap is the cause, `--host-heap <percent>` (60 by default) restarts the host
 before a case when its heap is past that share of `heapLimitMb`;
 `lynkeus call memory` reads it ([HEADLESS.md](HEADLESS.md)).
 
+**The app is on another network or device and cannot reach the backend on
+`127.0.0.1`.** Use `lynkeus relay --backend http://127.0.0.1:<port>` and give the
+app the URL it prints as its API address. It needs `LYNKEUS_REPORTS_KEY`; the
+session lasts 15 minutes by default (`--ttl`, at most 3600) and only forwards
+`/api/mobile/`. The errors it prints are listed in the website guide
+`guides/backend-relay`.
+
 **Where is a run?** `lynkeus case status` from any terminal, or the live status
 line under the run's output (`--progress none` turns it off). It reads
 `progress.ndjson`; a run whose process is gone without finishing says

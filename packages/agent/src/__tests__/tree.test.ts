@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { Dimensions } from 'react-native';
+import { Dimensions, Platform } from 'react-native';
 
 import { touch } from '../native';
 import type { Element } from '../protocol';
@@ -104,6 +104,26 @@ describe('snapshotElements', () => {
     expect(button?.frame).toEqual({ x: 10, y: 10, w: 100, h: 40 });
     expect(typeof button?.tag).toBe('number');
     expect(input?.value).toBe('••••');
+  });
+
+  it('keeps header text above the native window for assertions, but not text below it', () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    install(composite([host('RCTText', {}, [20, -40, 100, 20], [text('RECEPTOR')]), host('RCTText', {}, [20, 850, 100, 20], [text('below')])]));
+    jest.spyOn(touch, 'frames').mockImplementation((tags) => tags.map((tag) => (tag === 1 ? [20, -40, 100, 20] : [20, 850, 100, 20])));
+    const { elements } = snapshotElements();
+    expect(elements.map((e) => [e.text, e.offscreen])).toEqual([['RECEPTOR', true]]);
+  });
+
+  it('keeps a snapshot when a native view disappears during the read', () => {
+    install(composite([host('RCTSinglelineTextInputView', { testID: 'phone' }, [10, 10, 100, 40])]));
+    const failure = () => {
+      throw new Error('getChildAt(...) must not be null');
+    };
+    jest.spyOn(touch, 'frames').mockImplementation(failure);
+    jest.spyOn(touch, 'texts').mockImplementation(failure);
+    jest.spyOn(touch, 'hitTest').mockImplementation(failure);
+
+    expect(() => snapshotElements()).not.toThrow();
   });
 
   it('reads what a field holds from its view, where React only knows what it was given', () => {

@@ -148,11 +148,19 @@ const topScreenChild = (container: Fiber): Fiber | null => {
 const onScreen = (frame: Frame, window: { w: number; h: number }): boolean =>
   frame.w > 0 && frame.h > 0 && frame.x < window.w && frame.y < window.h && frame.x + frame.w > 0 && frame.y + frame.h > 0;
 
+const aboveHeaderText = (kind: Element['kind'], frame: Frame, window: { w: number; h: number }): boolean =>
+  kind === 'text' && frame.w > 0 && frame.h > 0 && frame.y + frame.h <= 0 && frame.x < window.w && frame.x + frame.w > 0;
+
 // Hidden elements cannot be reached anyway, so only presented controls are asked about.
 const markCovered = (elements: Element[]): void => {
   const controls = elements.filter((e) => e.hidden === undefined && (e.kind === 'button' || e.kind === 'input') && e.tag !== undefined);
   if (controls.length === 0) return;
-  const chains = touch.hitTest(controls.map(centre));
+  let chains: number[][] | null;
+  try {
+    chains = touch.hitTest(controls.map(centre));
+  } catch {
+    return;
+  }
   if (!chains) return;
   controls.forEach((e, index) => {
     if (chains[index]?.includes(e.tag as number)) delete e.covered;
@@ -191,7 +199,12 @@ export const moveToViews = (elements: Element[], frameOf: (tag: number) => numbe
 const placeAsViews = (elements: Element[]): void => {
   if (Platform.OS !== 'android') return;
   const tags = elements.flatMap((e) => (e.tag === undefined ? [] : [e.tag]));
-  const frames = touch.frames(tags);
+  let frames: (number[] | null)[] | null;
+  try {
+    frames = touch.frames(tags);
+  } catch {
+    return;
+  }
   if (!frames) return;
   const byTag = new Map(tags.map((tag, index) => [tag, frames[index]]));
   moveToViews(elements, (tag) => byTag.get(tag));
@@ -202,7 +215,15 @@ const placeAsViews = (elements: Element[]): void => {
 // indexes that point at elements follow.
 const keepOnScreen = (elements: Element[], layers: Layer[], window: { w: number; h: number }): void => {
   const index = new Map<number, number>();
-  const kept = elements.filter((e) => onScreen(e.frame, window));
+  // A header can center a taller title over its fixed height. Its first text ends above the native window while
+  // remaining a valid assertion target; mark it offscreen so gestures still refuse it. Pager pages and footers below
+  // the window stay out.
+  const kept = elements.filter((e) => {
+    if (onScreen(e.frame, window)) return true;
+    if (!aboveHeaderText(e.kind, e.frame, window)) return false;
+    e.offscreen = true;
+    return true;
+  });
   if (kept.length === elements.length) return;
   for (const [i, e] of kept.entries()) index.set(e.i, i);
   for (const e of kept) {
@@ -224,7 +245,12 @@ type Field = { element: Element; secure: boolean };
 // saying that in its props. So the view is asked, and the props stand wherever it does not answer.
 const readFields = (fields: Field[]): void => {
   const asked = fields.filter((f) => f.element.tag !== undefined);
-  const texts = touch.texts(asked.map((f) => f.element.tag as number));
+  let texts: (string | null)[] | null;
+  try {
+    texts = touch.texts(asked.map((f) => f.element.tag as number));
+  } catch {
+    return;
+  }
   if (!texts) return;
   asked.forEach(({ element, secure }, index) => {
     const text = texts[index];
@@ -295,7 +321,8 @@ export const snapshotElements = (): Snapshot => {
     }
 
     const frame = measure(node);
-    if (!frame || !onScreen(frame, window)) {
+    const aboveHeader = frame !== undefined && aboveHeaderText(kind, frame, window);
+    if (!frame || (!onScreen(frame, window) && !aboveHeader)) {
       if (kind !== 'text') walkChildren(node, inside);
       return;
     }
@@ -312,6 +339,7 @@ export const snapshotElements = (): Snapshot => {
       tag: instanceOf(node)?.canonical?.nativeTag,
       hidden,
     };
+    if (aboveHeader) element.offscreen = true;
     if (kind === 'input') {
       const value = p.text ?? p.value ?? p.defaultValue;
       // A masked field stays masked here too: the agent learns the length, not the secret.

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
-import { readCases } from '../cases/format.js';
+import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
@@ -704,7 +704,7 @@ export const caseCommands = [
                     }
                     if (seenDir && report.result === 'passed' && report.routes?.length) {
                       fs.mkdirSync(seenDir, { recursive: true });
-                      fs.writeFileSync(path.join(seenDir, `${c.id}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+                      fs.writeFileSync(path.join(seenDir, `${caseArtifactId(c.id)}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
                     }
                     return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
                   } finally {
@@ -748,7 +748,7 @@ export const caseCommands = [
                 if (jobs > 1) ctx.err(lines.join('\n'));
                 ledger?.note(report);
                 if (typeof ctx.flags.events === 'string' && report.events) {
-                  const dir = path.resolve(ctx.flags.events as string, c.id);
+                  const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
                   fs.mkdirSync(dir, { recursive: true });
                   fs.writeFileSync(eventsFile(dir), report.events.map((e) => `${JSON.stringify(e)}\n`).join(''));
                 }

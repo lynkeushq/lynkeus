@@ -11,6 +11,10 @@ export type Evidence = {
   screen: Screen;
   requests: RequestRecord[];
   inFlight: number;
+  /** The unanswered requests themselves, which may have started before the failed command (and so be missing from `requests`). */
+  pending?: RequestRecord[];
+  /** When the evidence was read, on the clock of the requests' startedAt. */
+  now?: number;
   trace?: TraceEvent[];
   /** What the failed command was looking for. */
   target?: { testId?: string; text?: string; route?: string };
@@ -157,11 +161,19 @@ export const explain = (e: Evidence): Finding[] => {
     }
   }
 
-  if (e.inFlight > 0)
+  if (e.inFlight > 0) {
+    // Named, so a request that never comes back (a backend thread stuck, a dropped connection) is told from a slow screen.
+    const named = (e.pending ?? []).slice(-3).map((r) => {
+      // A host on a clock of its own (fastsim's virtual time) stamps requests on that clock: no age then.
+      const age = e.now === undefined ? undefined : e.now - r.startedAt;
+      const open = age !== undefined && age >= 0 && age < 86_400_000 ? ` (open ${(age / 1000).toFixed(1)} s)` : '';
+      return `${r.method} ${pathOf(r.url)}${open}`;
+    });
     out.push({
       rule: 'in-flight',
-      message: `${e.inFlight} request(s) still in flight when the command gave up: the screen had not finished loading. A longer timeout, or wait for the request it needs.`,
+      message: `${e.inFlight} request(s) still in flight when the command gave up${named.length ? ` (${named.join(', ')})` : ''}: the screen had not finished loading. A longer timeout, or wait for the request it needs.`,
     });
+  }
 
   if (done.length === 0 && e.inFlight === 0 && e.target?.route && !e.fetchedBefore)
     out.push({

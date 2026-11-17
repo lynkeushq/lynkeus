@@ -15,6 +15,7 @@ import { ciCommands } from './commands/ci.js';
 import { coverageCommands } from './commands/coverage.js';
 import { fixturesCommands } from './commands/fixtures.js';
 import { reportCommands } from './commands/report.js';
+import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
@@ -33,6 +34,7 @@ register([
   ...ciCommands,
   ...fixturesCommands,
   ...reportCommands,
+  ...relayCommands,
   ...headlessCommands,
 ]);
 

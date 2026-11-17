@@ -1350,6 +1350,25 @@ Muestra cómo le fue a un caso en cada una de las últimas ejecuciones del proye
 | `--project <name>` | El proyecto. Por defecto, el nombre de la carpeta de la app. |
 | `--runs <n>` | Cuántas de las últimas ejecuciones leer. Por defecto `50`. |
 
+### `lynkeus relay`
+
+```bash
+lynkeus relay [--cloud <url>] [--backend <url>] [--prefix <path>] [--ttl <seconds>]
+```
+
+Permite que una app que corre lejos de tu máquina llegue a un backend que escucha solo en loopback. Crea una sesión corta en el servicio de reportes, abre hacia él una única conexión WebSocket saliente y reenvía al backend los pedidos de la app. Ningún puerto queda abierto a conexiones entrantes. Mira la guía [Relay del backend](/es/guides/backend-relay/).
+
+Necesita `LYNKEUS_REPORTS_KEY` (o `LYNKEUS_CLOUD_KEY`). Escribe por stderr `relay listening: <API_URL> (expires <hora>)`, donde `API_URL` termina en `/api/mobile/` y es la dirección que usa la app. Después sigue en primer plano hasta que pulses Ctrl-C o venza la sesión, y entonces imprime `relay closed`.
+
+| Opción | Por defecto | Qué hace |
+|---|---|---|
+| `--cloud <url>` | `LYNKEUS_REPORTS_URL`, o `https://lynkeus.io` | El servicio de relay. Fuera de loopback exige TLS. |
+| `--backend <url>` | `http://127.0.0.1:3000` | El backend. Solo HTTP(S) sobre `localhost`, `127.0.0.1` o `::1`. |
+| `--prefix <path>` | `/api/mobile/` | El prefijo de rutas que se reenvía. Debe empezar con `/api/mobile/`. |
+| `--ttl <seconds>` | `900` | Vida de la sesión, como máximo `3600`. |
+
+Termina con `2` si falta la clave y con `1` si no se puede crear la sesión, si el servicio no entrega el secreto del socket (es más viejo que la CLI) o si la conexión no se abre.
+
 ## Host sin pantalla (`headless`)
 
 El host sin pantalla ejecuta la app en Node, bajo jest, sin simulador. Habla el mismo protocolo que un dispositivo, así que todos los comandos de [Manejar la app](#manejar-la-app) funcionan igual. Lo específico de este host está en [Host sin pantalla](/es/platforms/headless/).

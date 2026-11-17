@@ -1,5 +1,5 @@
 /** JSON-RPC-shaped messages over a WebSocket the app opens towards the driver; docs/PROTOCOL.md has the prose. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export type Frame = { x: number; y: number; w: number; h: number };
 
@@ -94,6 +94,8 @@ export type WaitForParams = {
   /** Satisfied by whichever of these shows up first. */
   anyOf?: Target[];
   gone?: boolean;
+  /** Require the target's enabled state, rather than only its presence (with `gone`, wait for that state to disappear). */
+  enabled?: boolean;
   /** Swipe the nearest scrolling container towards the target until it is in the window. */
   scroll?: boolean;
   timeoutMs?: number;
@@ -202,10 +204,21 @@ export type HelloEvent = {
   commands: string[];
   route?: string;
   app?: Record<string, unknown>;
+  /** The app's half of the handshake: a fresh nonce, and HMAC-SHA256 under the token of `lynkeus/app/<session>/<driver nonce>/<app nonce>`. */
+  nonce?: string;
+  proof?: string;
 };
 export type NavigationEvent = { event: 'navigation'; route?: string };
-/** The driver's first message. `session` is random per driver process, so the app can tell a reconnect (whose resent requests it may have answered) from a new driver reusing request ids. */
-export type AuthEvent = { event: 'auth'; session: string; token?: string };
+/**
+ * The driver's first message. `session` is random per driver process, so the app can tell a reconnect (whose resent
+ * requests it may have answered) from a new driver reusing request ids; `nonce` is fresh per connection.
+ * The handshake proves the token both ways without either side sending it: the driver sends `auth`, the app answers
+ * `hello` with its proof, and only a driver that checked it sends `verified` with its own proof
+ * (HMAC-SHA256 under the token of `lynkeus/driver/<session>/<driver nonce>/<app nonce>`). The app serves no request
+ * before a `verified` that checks out, and the driver sends none before a `hello` that does.
+ */
+export type AuthEvent = { event: 'auth'; session: string; nonce?: string };
+export type VerifiedEvent = { event: 'verified'; proof?: string };
 export type AgentEvent = HelloEvent | NavigationEvent;
 
 export * from './run.js';

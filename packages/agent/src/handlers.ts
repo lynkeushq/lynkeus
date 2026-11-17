@@ -8,6 +8,8 @@ import { recentRequests, requestsInFlight } from './requests';
 import { lastSeq, traceSince } from './trace';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+// 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
+const MIN_SETTLE_LOOKS = 30;
 
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
@@ -154,14 +156,40 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   // it out, or the screen depends on when the tap came.
   const settled = async (target: Target, timeoutMs = 3000): Promise<Point> => {
     const deadline = Date.now() + timeoutMs;
-    let previous = pointOf(target);
-    while (Date.now() < deadline) {
+    // On a host with a virtual clock (fastsim) Date.now jumps ahead while JavaScript sleeps, so the deadline can pass in a
+    // few real milliseconds, before the native side has moved at all. The wait therefore also lasts a number of looks,
+    // which costs nothing where the clock is real (they fit well inside the deadline).
+    let looks = 0;
+    const waiting = () => Date.now() < deadline || looks < MIN_SETTLE_LOOKS;
+    // A control still becoming interactive (a pager's last page arriving, a sheet sliding in) reads as inert for a
+    // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
+    // before calling it not presented.
+    const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    // On a native host the element list is read from the view tree while it changes, so two reads in a row can
+    // disagree: an inert read right after a presented one is the same flicker, not an answer.
+    const look = (): Point | undefined => {
+      try {
+        return pointOf(target);
+      } catch (error) {
+        if (waiting() && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        throw error;
+      }
+    };
+    while (inert() && waiting()) {
+      looks++;
       await sleep(40);
-      const current = pointOf(target);
-      if (!current.element || (previous.element && sameFrame(current.element, previous.element))) return current;
+    }
+    let previous = look();
+    while (waiting()) {
+      looks++;
+      await sleep(40);
+      if (inert()) continue;
+      const current = look();
+      if (!current) continue;
+      if (!current.element || (previous?.element && current.element && sameFrame(current.element, previous.element))) return current;
       previous = current;
     }
-    return previous;
+    return previous ?? pointOf(target);
   };
 
   const pressNative = async (target: Target, holdMs: number) => {
@@ -234,19 +262,27 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const { w: width, h: height } = backend.window();
     const durationMs = params.durationMs ?? 250;
     if (params.target) {
-      const element = presented(params.target);
+      const landed = await settled(params.target);
+      const element = landed.element ?? presented(params.target);
       const direction = params.direction ?? 'up';
       const distance = params.distance ?? (direction === 'up' || direction === 'down' ? height : width) * 0.6;
       const dx = direction === 'left' ? -distance : direction === 'right' ? distance : 0;
       const dy = direction === 'up' ? -distance : direction === 'down' ? distance : 0;
-      // A touch that leaves the window is cancelled: slide the whole drag back inside rather than cut it short.
+      // Keep the finger inside the target. Moving the start to force the requested distance used to put it on the
+      // outer pager for small cards; clip the end at the window instead and use the edge that maximizes the drag.
       const inset = 8;
-      const along = (start: number, delta: number, size: number) => Math.min(Math.max(start, inset - Math.min(delta, 0)), size - inset - Math.max(delta, 0));
       const middle = centre(element);
-      const from = { x: along(middle.x, dx, width), y: along(middle.y, dy, height) };
-      const to = { x: from.x + dx, y: from.y + dy };
-      if (backend.swipeOn) await backend.swipeOn(element, dx, dy);
-      else await backend.swipe(from, to, durationMs);
+      const from = {
+        x: dx < 0 ? element.frame.x + element.frame.w - inset : dx > 0 ? element.frame.x + inset : middle.x,
+        y: dy < 0 ? element.frame.y + element.frame.h - inset : dy > 0 ? element.frame.y + inset : middle.y,
+      };
+      from.x = Math.max(inset, Math.min(width - inset, from.x));
+      from.y = Math.max(inset, Math.min(height - inset, from.y));
+      const to = {
+        x: Math.max(inset, Math.min(width - inset, from.x + dx)),
+        y: Math.max(inset, Math.min(height - inset, from.y + dy)),
+      };
+      if (!backend.swipeOn || (await backend.swipeOn(element, dx, dy)) === false) await backend.swipe(from, to, durationMs);
       return { from, to };
     }
     const presets = {
@@ -310,9 +346,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const routeOk = params.route === undefined || route === params.route;
       const all = params.target || params.anyOf ? elements() : [];
       const found = params.target ? pick(all, params.target) : undefined;
-      const present = params.target ? found !== undefined && !(params.scroll && !inWindow(found)) : true;
+      const stateOk = (element: Element | undefined) => element !== undefined && (params.enabled === undefined || element.enabled === params.enabled);
+      const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
       const targetOk = params.gone ? !present : present;
-      const matched = params.anyOf?.find((t) => pick(all, t) !== undefined);
+      const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
       if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
       if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {

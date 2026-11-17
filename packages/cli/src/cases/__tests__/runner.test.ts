@@ -128,6 +128,21 @@ test('a wait accepts any of several targets', async () => {
   });
 });
 
+test('a wait can ask for its target to be enabled', async () => {
+  const c = parseCase('---\nid: enabled\n---\nsteps:\n  - app.wait: { what: "#next", enabled: true }\n', 'enabled.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  const waitFor = device.waitFor;
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return waitFor(params);
+  };
+  await runCase(c, { base, config, fixtures });
+  const waited = calls.find((x) => x.method === 'waitFor');
+  assert.ok(waited, 'no waitFor was sent');
+  assert.equal((waited.params as { enabled?: boolean }).enabled, true);
+});
+
 test('a wait takes object targets in anyOf, and refuses gone with anyOf', async () => {
   const wait = find('wait')!;
   assert.deepEqual(argvFor(wait, { anyOf: [{ testId: 'a' }, { text: 'b', nth: 1 }, '#c'] }), ['wait', '--anyOf', '#a', '--anyOf', '"b"[1]', '--anyOf', '#c']);
@@ -228,6 +243,20 @@ test('an optional press of something that is not there is skipped, not failed', 
   const device = await base.device();
   (device as unknown as { waitFor: () => Promise<never> }).waitFor = async () => {
     throw new Error('Timed out');
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['skipped'],
+  );
+});
+
+test('an optional press is skipped when its one-time control disappears before the native tap', async () => {
+  const c = parseCase('---\nid: opt-race\n---\nsteps:\n  - app.press: { target: "#refresh", optional: true }\n', 'opt-race.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  device.press = async () => {
+    throw new Error('No element matches {"testId":"refresh"}');
   };
   const report = await runCase(c, { base, config, fixtures });
   assert.deepEqual(
@@ -601,6 +630,24 @@ test('a setup that drives the app is not made ahead', () => {
   assert.equal(preparable(c, { macros: { 'app.login': [] } }), false);
 });
 
+test('a request match tolerates the trailing slash added by Android HTTP stacks', async () => {
+  const c = parseCase(
+    '---\nid: slash\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "POST /api/points", status: 422, timeoutMs: 100 }\n',
+    'slash.md',
+  );
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { press: () => Promise<unknown> }).press = async () => {
+    requests.push({ id: requests.length + 1, method: 'POST', url: 'http://x/api/points/?', status: 422, startedAt: 0, mocked: true });
+    return { x: 0, y: 0, mode: 'native' };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'passed'],
+  );
+});
+
 test('a step waits only for requests started after the action before it began', async () => {
   const c = parseCase(
     '---\nid: req\n---\nsteps:\n  - app.press: "#refresh"\n  - app.wait: { request: "GET /api/points", timeoutMs: 400 }\n  - app.press: "#refresh"\n  - app.see: { request: "POST /api/points", timeoutMs: 200 }\n',
@@ -713,4 +760,50 @@ test('a film made on another machine comes over a piece at a time, and a short o
   assert.equal(await fetchFilm(host(7, true) as unknown as Pick<Device, 'command'>, short, film.length), false);
   assert.equal(fs.existsSync(short), false);
   assert.equal(fs.existsSync(`${short}.part`), false);
+});
+
+test('a swipe waits, on the wall clock, for a target that is still landing', async () => {
+  const c = parseCase(
+    `---
+id: landing
+---
+steps:
+  - app.swipe: { target: "#slide-to-confirm", direction: right, distance: 330 }
+`,
+    'landing.md',
+  );
+  const { base } = fakeApp();
+  const device = await base.device();
+  const fake = device as unknown as { server: { call: (method: string, params: never) => Promise<unknown> } };
+  const call = fake.server.call;
+  let looks = 0;
+  let swipedWhileInert = false;
+  let swipes = 0;
+  // Inert for its first three looks, as a pager page arriving reads on a host whose clock runs ahead.
+  const slider = () => ({
+    i: 0,
+    kind: 'view',
+    testId: 'slide-to-confirm',
+    frame: { x: 0, y: 600, w: 300, h: 60 },
+    enabled: true,
+    depth: 1,
+    hidden: looks <= 3 ? 'inert' : undefined,
+  });
+  fake.server.call = async (method, params) => {
+    if (method === 'find') {
+      looks += 1;
+      return slider();
+    }
+    if (method === 'swipe') {
+      swipes += 1;
+      if (looks <= 3) swipedWhileInert = true;
+      return {};
+    }
+    return call(method, params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(swipes, 1);
+  assert.equal(swipedWhileInert, false);
+  assert.ok(looks >= 4);
 });

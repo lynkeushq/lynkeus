@@ -16,6 +16,7 @@ export type Funnel = { name: string; steps: FunnelStep[] };
 const funnelsDir = (lynkeusDir: string) => path.join(lynkeusDir, 'funnels');
 
 export const loadFunnel = (lynkeusDir: string, name: string): Funnel => {
+  if (!/^[a-z0-9][a-z0-9._-]*$/i.test(name)) throw new Error(`invalid funnel name ${JSON.stringify(name)}: use letters, digits, dots, dashes and underscores`);
   const file = path.join(funnelsDir(lynkeusDir), `${name}.json`);
   if (!fs.existsSync(file)) throw new Error(`no funnel ${name}: write ${path.relative(process.cwd(), file)}`);
   const funnel = readJson<Funnel>(file);

@@ -27,8 +27,8 @@ export type Backend = {
   /** The return key on the focused field (or `target`). */
   submit(target?: Element): Promise<void>;
   swipe(from: { x: number; y: number }, to: { x: number; y: number }, durationMs: number): Promise<void>;
-  /** Drive the element's own gesture handler with a pan of (dx, dy) points; without it, a real swipe is used. */
-  swipeOn?(element: Element, dx: number, dy: number): Promise<void>;
+  /** Drives the gesture on the element itself; `false` when none is there, and the drag then goes to `swipe`. */
+  swipeOn?(element: Element, dx: number, dy: number): Promise<boolean | undefined>;
   debug(params?: unknown): unknown;
 };
 

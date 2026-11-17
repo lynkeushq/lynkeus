@@ -1,3 +1,5 @@
+import { redactText, redactValue } from './redact';
+
 // What the app writes to its console and the errors it does not catch, kept so a run can file each line under the
 // step that printed it. Every call still reaches the console as before.
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -8,10 +10,10 @@ const KEEP = 2000;
 const LONG = 4000;
 
 const show = (value: unknown): string => {
-  if (typeof value === 'string') return value;
-  if (value instanceof Error) return `${value.name}: ${value.message}`;
+  if (typeof value === 'string') return redactText(value);
+  if (value instanceof Error) return redactText(`${value.name}: ${value.message}`);
   try {
-    return JSON.stringify(value) ?? String(value);
+    return JSON.stringify(redactValue(value)) ?? String(value);
   } catch {
     return String(value);
   }
@@ -20,12 +22,13 @@ const show = (value: unknown): string => {
 const keep = (level: LogLevel, args: unknown[], stack?: string) => {
   const text = args.map(show).join(' ');
   const error = args.find((a): a is Error => a instanceof Error);
+  const stackText = stack ?? error?.stack;
   kept.push({
     at: Date.now(),
     level,
     source: 'js',
     text: text.length > LONG ? `${text.slice(0, LONG)}…` : text,
-    ...((stack ?? error?.stack) ? { stack: stack ?? error?.stack } : {}),
+    ...(stackText ? { stack: redactText(stackText) } : {}),
   });
   if (kept.length > KEEP) kept.shift();
 };

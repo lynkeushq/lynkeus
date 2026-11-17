@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { RUN_SCHEMA, type RunCase, type RunManifest, type RunStep } from 'lynkeus-protocol';
 
-import type { Case } from './format.js';
+import { caseArtifactId, type Case } from './format.js';
 import type { CaseReport } from './runner.js';
 
 export type Attempt = { report: CaseReport; attempt: number; startedAt: Date };
@@ -151,7 +151,10 @@ export class RunFile {
 
   /** Where a case's frames and film go: one folder per attempt. */
   evidenceDir(id: string, attempt: number): string {
-    return path.join(this.dir, `${id.replace(/[^\w.=-]+/g, '_')}${attempt > 1 ? `.${attempt}` : ''}`);
+    const root = path.resolve(this.dir);
+    const dir = path.resolve(root, `${caseArtifactId(id)}${attempt > 1 ? `.${attempt}` : ''}`);
+    if (path.dirname(dir) !== root) throw new Error(`case id "${id}" resolves outside the run folder`);
+    return dir;
   }
 
   /** The attempt's line, as written: what a report filled as the run goes is sent. */

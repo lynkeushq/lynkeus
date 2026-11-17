@@ -41,4 +41,20 @@ describe('console lines', () => {
     expect(before).toHaveBeenCalledWith(e, true);
     expect(readLogs({ take: true })).toEqual([expect.objectContaining({ level: 'error', text: 'Uncaught (fatal) Error: render failed' })]);
   });
+
+  it('redacts secrets in arguments and stacks while printing the originals', () => {
+    const log = jest.fn();
+    const error = jest.fn();
+    const g = { console: { log, error, warn: jest.fn(), info: jest.fn(), debug: jest.fn() } as unknown as Console };
+    tapLogs(g);
+    g.console.log({ session: { id: 'log-secret' }, safe: 'ok' }, 'password=log-secret');
+    const failure = new Error('token=log-secret');
+    g.console.error(failure);
+    expect(log).toHaveBeenCalledWith({ session: { id: 'log-secret' }, safe: 'ok' }, 'password=log-secret');
+    expect(error).toHaveBeenCalledWith(failure);
+    const lines = readLogs({ take: true });
+    expect(lines.every((line) => !line.text.includes('log-secret') && !line.stack?.includes('log-secret'))).toBe(true);
+    expect(lines[0]?.text).toContain('password=…');
+    expect(lines[0]?.text).toContain('"safe":"ok"');
+  });
 });

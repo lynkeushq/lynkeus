@@ -149,3 +149,11 @@ test('a step carries the numbered section of the case it is in, and a step befor
   // A case with no numbered comments says nothing more than before.
   assert.ok(toRunCase(c, { report: report('passed'), attempt: 1, startedAt: new Date(0) }, root).steps.every((s) => !('heading' in s)));
 });
+
+test('evidenceDir keeps every id inside the run folder', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-run-'));
+  const run = new RunFile(path.join(dir, 'run'), dir);
+  for (const id of ['..', '.', '', '../../etc', '.hidden']) {
+    for (const attempt of [1, 2]) assert.equal(path.dirname(run.evidenceDir(id, attempt)), path.join(dir, 'run'));
+  }
+});

@@ -52,6 +52,66 @@ describe('acting on what the platform does not present', () => {
     expect(swipe).not.toHaveBeenCalled();
   });
 
+  it('waits for an element that is still becoming interactive', async () => {
+    const live = { ...slider };
+    const { backend, swipeOn } = fakeBackend([live]);
+    const handlers = createHandlers(noNavigation, backend);
+    setTimeout(() => {
+      live.hidden = undefined;
+    }, 200);
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits out an element that flickers inert while it lands', async () => {
+    const live = { ...slider, hidden: undefined as Element['hidden'] };
+    const { backend, swipeOn } = fakeBackend([live]);
+    const handlers = createHandlers(noNavigation, backend);
+    setTimeout(() => {
+      live.hidden = 'inert';
+    }, 20);
+    setTimeout(() => {
+      live.hidden = undefined;
+    }, 300);
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('swipes an element whose reads disagree while a native host updates its tree', async () => {
+    // Every read of the tree comes back different for a while: inert, presented, inert, ...
+    let reads = 0;
+    const { backend, swipeOn } = fakeBackend([]);
+    backend.snapshot = () => {
+      reads += 1;
+      return { elements: [{ ...slider, hidden: reads < 12 && reads % 2 === 1 ? 'inert' : undefined }] };
+    };
+    const handlers = createHandlers(noNavigation, backend);
+
+    await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for a landing target on a virtual clock that jumps ahead while it sleeps', async () => {
+    // fastsim's Date.now runs on the host's virtual clock: each look finds a second gone, while the native tree is still
+    // the same few reads away from presenting the control.
+    let reads = 0;
+    const { backend, swipeOn } = fakeBackend([]);
+    backend.snapshot = () => {
+      reads += 1;
+      return { elements: [{ ...slider, hidden: reads < 16 ? 'inert' : undefined }] };
+    };
+    const realNow = Date.now;
+    let virtual = realNow();
+    Date.now = () => (virtual += 1000);
+    try {
+      const handlers = createHandlers(noNavigation, backend);
+      await dispatch(handlers, 'swipe', { target: { testId: 'slide-to-confirm' }, direction: 'right' });
+    } finally {
+      Date.now = realNow;
+    }
+    expect(swipeOn).toHaveBeenCalledTimes(1);
+  });
+
   it('swipes the same element once it is presented', async () => {
     const { backend, swipeOn } = fakeBackend([{ ...slider, hidden: undefined }]);
     const handlers = createHandlers(noNavigation, backend);
@@ -74,6 +134,40 @@ describe('navigating right after a launch', () => {
     expect(ready).toBe(true);
     expect(navigate).toHaveBeenCalledWith('Auth.FindAccount', undefined);
   });
+});
+
+describe('waiting for an enabled control', () => {
+  it('does not return while the target is present but disabled', async () => {
+    const target = element({ testId: 'next', enabled: false });
+    const { backend } = fakeBackend([target]);
+    let enabled = false;
+    backend.snapshot = () => ({ elements: [{ ...target, enabled }] });
+    setTimeout(() => {
+      enabled = true;
+    }, 120);
+    const handlers = createHandlers(noNavigation, backend);
+
+    await dispatch(handlers, 'waitFor', { target: { testId: 'next' }, enabled: true, timeoutMs: 500 });
+    expect(enabled).toBe(true);
+  });
+});
+
+it('a targeted swipe starts after the target stops moving', async () => {
+  const started = Date.now();
+  const fieldY = () => Math.max(200, 600 - ((Date.now() - started) / 300) * 400);
+  const { backend } = fakeBackend([]);
+  let from: { x: number; y: number } | undefined;
+  const handlers = createHandlers(noNavigation, {
+    ...backend,
+    snapshot: () => ({ elements: [element({ kind: 'button', testId: 'row', frame: { x: 0, y: fieldY(), w: 300, h: 40 } })] }),
+    swipeOn: undefined,
+    swipe: async (start) => {
+      from = start;
+    },
+  });
+
+  await dispatch(handlers, 'swipe', { target: { testId: 'row' }, direction: 'left', distance: 100 });
+  expect(from).toEqual({ x: 292, y: 220 });
 });
 
 describe('typing into a field the keyboard moves', () => {

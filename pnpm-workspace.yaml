@@ -9,3 +9,11 @@ minimumReleaseAge: 10080
 allowBuilds:
   esbuild: true
   sharp: false
+overrides:
+  fast-xml-parser: ^5.12.0
+  # The globparts DoS reaches minimatch 7 to 11.0.0, and 11 keeps the named export those lines use. Line 3 is not
+  # affected, and test-exclude (jest's coverage) calls its default export, which 11 dropped.
+  'minimatch@>=7': ^11.0.1
+  '@hono/node-server': ^2.1.6
+  hono: ^4.13.16
+  astro: ^7.4.7

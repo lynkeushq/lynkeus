@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { checkFunnel, diffEvents, funnelCoverage, type Funnel } from '../funnels.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { checkFunnel, diffEvents, funnelCoverage, loadFunnel, type Funnel } from '../funnels.js';
 
 const signup: Funnel = {
   name: 'signup',
@@ -10,6 +14,14 @@ const signup: Funnel = {
     { event: 'signup_completed', props: { method: 'email' } },
   ],
 };
+
+test('a funnel name cannot read JSON outside the funnels directory', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-funnel-'));
+  const dir = path.join(root, 'funnels');
+  fs.mkdirSync(dir);
+  fs.writeFileSync(path.join(root, 'secret.json'), JSON.stringify({ name: 'outside', steps: [] }));
+  assert.throws(() => loadFunnel(root, '../secret'), /funnel name/);
+});
 
 test('a run that produced every step in order, with the right shapes, passes', () => {
   const result = checkFunnel(signup, [

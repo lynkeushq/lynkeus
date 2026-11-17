@@ -59,21 +59,20 @@ export type InstallOptions = {
 
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '10.0.2.2'];
 
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return '';
-  }
-};
-
 // A hosted app must not reach third parties (analytics, auth providers): refuse
 // fast and say so once per host.
-const hostFence = (hosts: string[], kind: string) => {
+const hostFence = (hosts: string[], kind: string, protocols?: Set<string>) => {
   const allowed = new Set(hosts);
   const refused = new Set<string>();
   return (url: string): string | undefined => {
-    const host = hostOf(url);
+    let parsed: URL | undefined;
+    try {
+      parsed = new URL(url);
+    } catch {
+      // The network implementation rejects malformed URLs without connecting.
+    }
+    if (protocols && (!parsed || !protocols.has(parsed.protocol))) return parsed?.protocol ?? 'invalid URL';
+    const host = parsed?.hostname ?? '';
     if (!host || allowed.has(host)) return undefined;
     if (!refused.has(host)) {
       refused.add(host);
@@ -106,6 +105,57 @@ const ownErrors = (response: unknown): unknown => {
       throw Object.assign(new SyntaxError(String(outer.message)), { cause: error });
     });
   return response;
+};
+
+const REDIRECTS = [301, 302, 303, 307, 308];
+const MAX_REDIRECTS = 5;
+
+// The fence must see every hop, so redirects are followed here one at a time instead of by the underlying fetch.
+// Method and body follow what fetch does: 303 (and 301/302 after a POST) become a GET without a body.
+const followAllowed = async (
+  fetchImpl: Fetch,
+  refuse: (url: string) => string | undefined,
+  input: Parameters<Fetch>[0],
+  init: RequestInit | undefined,
+  firstUrl: string,
+  firstMethod: string,
+): Promise<Awaited<ReturnType<Fetch>>> => {
+  const mode = init?.redirect ?? (input as { redirect?: string } | null)?.redirect ?? 'follow';
+  let target: Parameters<Fetch>[0] = input;
+  let options: RequestInit = { ...init, redirect: 'manual' };
+  let url = firstUrl;
+  let method = firstMethod;
+  for (let hop = 0; ; hop++) {
+    const response = await fetchImpl(target, options);
+    const r = response as { status: number; url: string; headers: { get(name: string): string | null } };
+    const location = REDIRECTS.includes(r.status) ? r.headers.get('location') : null;
+    if (!location) return response;
+    const next = new URL(location, r.url || url).toString();
+    const refusedNext = refuse(next);
+    if (refusedNext) throw new Error(`lynkeus headless: network to ${refusedNext} is off (networkHosts)`);
+    if (mode === 'manual') return response;
+    if (mode === 'error') throw new TypeError('Network request failed: unexpected redirect');
+    if (hop >= MAX_REDIRECTS) throw new TypeError(`Network request failed: more than ${MAX_REDIRECTS} redirects`);
+    const toGet = r.status === 303 ? method !== 'HEAD' : (r.status === 301 || r.status === 302) && method === 'POST';
+    const headers = new Headers(
+      options.headers ?? (typeof input === 'object' && input !== null ? (input as { headers?: RequestInit['headers'] }).headers : undefined),
+    );
+    if (new URL(next).origin !== new URL(url).origin) {
+      headers.delete('authorization');
+      headers.delete('cookie');
+    }
+    options = { ...options, headers };
+    options.method = method;
+    if (toGet) {
+      method = 'GET';
+      options.method = 'GET';
+      delete options.body;
+      headers.delete('content-type');
+      headers.delete('content-length');
+    }
+    target = next;
+    url = next;
+  }
 };
 
 const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
@@ -145,7 +195,8 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       return fetchImpl(input, init).then(lost, () => lost());
     }
     if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
-    const result = fetchImpl(input, init).then(ownErrors, told(url));
+    const guarded = followAllowed(fetchImpl, refuse, input, init as RequestInit | undefined, url, method);
+    const result = guarded.then(ownErrors, told(url));
     if (!netControls.recording()) return result;
     return result.then(async (response) => {
       const r = response as { clone: () => { text: () => Promise<string> }; status: number };
@@ -221,7 +272,7 @@ type SocketClass = new (url: string, protocols?: string | string[], options?: un
 // open. A refused host gets the silent stub, so the realtime layer sees
 // "connected" and nothing more.
 const fencedWebSocket = (Real: SocketClass, hosts: string[]) => {
-  const refuse = hostFence(hosts, 'websocket');
+  const refuse = hostFence(hosts, 'websocket', new Set(['ws:', 'wss:']));
   // A client compares readyState against the constants on the class it was
   // handed, so the fence must carry them.
   return class FencedWebSocket {
@@ -233,7 +284,7 @@ const fencedWebSocket = (Real: SocketClass, hosts: string[]) => {
     constructor(url: string, protocols?: string | string[], options?: unknown) {
       if (refuse(url)) return new SilentWebSocket(url) as unknown as FencedWebSocket;
       if (connectivityControls.offline()) return SilentWebSocket.offline(url) as unknown as FencedWebSocket;
-      const socket = new Real(url, protocols, options) as FencedWebSocket;
+      const socket = new Real(url, protocols, { ...(options as object | undefined), maxRedirects: 0 }) as FencedWebSocket;
       connectivityControls.track(socket);
       return socket;
     }

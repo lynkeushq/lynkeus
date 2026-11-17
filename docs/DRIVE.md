@@ -72,7 +72,7 @@ socket and the second stays quiet.
 | `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` (Android: `10.0.2.2`, then `localhost`), `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
-| `token` | — | The driver must open with `{event:'auth', token}` before being served. Keeps other local processes from driving the app. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
+| `token` | — | Neither end sends it: each proves it holds it with HMAC-SHA256 over fresh nonces (see PROTOCOL.md), so another local process posing as the driver, or as the app, is not talked to and learns nothing. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
 | `app` | — | Free-form, sent in `hello` (name, version, environment). |
 
 ## Drive it
@@ -288,7 +288,13 @@ and a histogram of where it died and with what.
   router, and points `main` at it. Expo passes the app only the environment
   variables that start with `EXPO_PUBLIC_`, so the app reads its token from
   `EXPO_PUBLIC_LYNKEUS_TOKEN`; start the dev server with it set to the same
-  value the CLI has in `LYNKEUS_TOKEN`. Routes come from Expo Router as they do
+  value the CLI has in `LYNKEUS_TOKEN`. **The token is embedded in the JavaScript
+  bundle and is readable by anyone who receives it. Use only a per-machine
+  development token, never a production credential or a shared release build.**
+  Commands in `lynkeus.config.json` (fixtures, backend lifecycle and host commands) execute with the permissions of
+  the user or CI runner. Run them only for repositories you trust; an untrusted PR must never be allowed to change
+  those commands in CI.
+  Routes come from Expo Router as they do
   from React Navigation. A tab bar the system draws (the native tabs of recent
   templates) is not made of React Native views, so its tabs are not elements:
   go to a tab with `lynkeus nav <route>`.

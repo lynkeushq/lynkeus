@@ -195,6 +195,8 @@ La clave se crea en el servicio, en la sección de claves de API, y se muestra u
 
 La guía de [Reportes](/es/guides/reports/) cubre el recorrido completo.
 
+`lynkeus relay` lee estas mismas dos variables y, para la clave, también `LYNKEUS_CLOUD_KEY` si la primera no existe. Mira [Relay del backend](/es/guides/backend-relay/).
+
 ## Variables de otros que lynkeus lee o define
 
 Estas variables no son de lynkeus, pero influyen en lo que hace.

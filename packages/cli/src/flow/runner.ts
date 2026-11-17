@@ -107,10 +107,13 @@ export const runFlow = async (flow: Flow, options: RunFlowOptions): Promise<Flow
  */
 const keyReady = async (device: Device, key: { testId: string }, timeoutMs: number): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
-  let was: string | undefined;
+  let was: Element['frame'] | undefined;
   for (;;) {
     const found = (await device.server.call('find', key)) as Element | null;
-    const at = found ? JSON.stringify(found.frame) : undefined;
+    const at = found?.frame;
+    const previous = was;
+    // Native transforms can jitter below a point while the key remains a stable touch target.
+    const moving = at === undefined || previous === undefined || (['x', 'y', 'w', 'h'] as const).some((field) => Math.abs(at[field] - previous[field]) > 1);
     const why =
       !found || (found.hidden && found.hidden !== 'inert')
         ? 'not on screen'
@@ -118,7 +121,7 @@ const keyReady = async (device: Device, key: { testId: string }, timeoutMs: numb
           ? 'disabled'
           : found.covered
             ? 'covered'
-            : at !== was
+            : moving
               ? 'moving'
               : undefined;
     if (!why) return;

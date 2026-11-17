@@ -6,6 +6,35 @@ describe('redactUrl', () => {
   it('keeps the shape of a query string but hides secrets', () => {
     expect(redactUrl('https://api/x?page=2&token=abc&otp=123456#f')).toBe('https://api/x?page=2&token=…&otp=…#f');
   });
+
+  it('redacts userinfo, encoded query keys and fragment credentials', () => {
+    expect(redactUrl('https://user:pass@api/x?%74%6F%6B%65%6E=query-secret&session=session-secret#access_token=fragment-secret')).toBe(
+      'https://…:…@api/x?token=…&session=…#access_token=…',
+    );
+    expect(redactUrl('https://api/x?token%3Dencoded-secret')).not.toContain('encoded-secret');
+    expect(redactUrl('/x?token%3Drelative-secret')).toBe('/x?token=…');
+  });
+  it('redacts JWTs in ordinary query parameters, paths and fragments', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYS11cmwtc2VjcmV0In0.c2VjcmV0';
+    const redacted = redactUrl(`https://api.example.test/tokens/${jwt}?payload=${jwt}#${jwt}`);
+    expect(redacted).not.toContain(jwt);
+    expect(redacted).toContain('…');
+    expect(redactUrl(`/x?payload=${jwt}`)).not.toContain(jwt);
+  });
+  it('redacts secrets in sensitive URL path segments without hiding ordinary routes', () => {
+    expect(redactUrl('https://api.example.test/password-reset/s3cr3t-token')).toBe('https://api.example.test/password-reset/…');
+    expect(redactUrl('https://api.example.test/sessions/session-secret')).toBe('https://api.example.test/sessions/…');
+    expect(redactUrl('https://api.example.test/auth/login')).toBe('https://api.example.test/auth/login');
+    expect(redactUrl('/sessions/session-secret')).toBe('/sessions/…');
+    expect(redactUrl('https://api.example.test/otp/123456')).toBe('https://api.example.test/otp/…');
+    expect(redactUrl('https://api.example.test/pin/1234')).toBe('https://api.example.test/pin/…');
+    expect(redactUrl('https://api.example.test/code/verify')).toBe('https://api.example.test/code/verify');
+    expect(redactUrl('https://api.example.test/%6F%74%70/123456')).toBe('https://api.example.test/%6F%74%70/…');
+    expect(redactUrl('https://api.example.test/%73%65%73%73%69%6F%6E%73/session-secret')).toBe('https://api.example.test/%73%65%73%73%69%6F%6E%73/…');
+    expect(redactUrl('https://api.example.test/trading/tokens/qa00000000000000000000notatoken')).toBe(
+      'https://api.example.test/trading/tokens/qa00000000000000000000notatoken',
+    );
+  });
 });
 
 describe('the trace context', () => {
@@ -94,6 +123,39 @@ describe('request and response bodies', () => {
       'content-type': 'application/json',
       'x-api-key': '…',
     });
+  });
+
+  it('redacts nested secrets, malformed JSON and session headers', async () => {
+    const { redactBody, redactHeaders } = await import('../requests');
+    expect(JSON.parse(redactBody('{"token":{"value":"nested-secret"},"session":{"id":"session-secret"},"key":"key-secret"}')!)).toEqual({
+      token: '…',
+      session: '…',
+      key: '…',
+    });
+    expect(redactBody('{"token":"malformed-secret"')).toBe('[unparsed body redacted]');
+    expect(redactHeaders({ 'X-Session-Id': 'session-secret', 'X-JWT': 'jwt-secret', 'X-Credential': 'credential-secret' })).toEqual({
+      'x-session-id': '…',
+      'x-jwt': '…',
+      'x-credential': '…',
+    });
+  });
+
+  it('bounds deeply nested request data instead of exhausting the stack', async () => {
+    const { redactValue } = await import('../redact');
+    let nested: unknown = 'deep-secret';
+    for (let i = 0; i < 10_000; i += 1) nested = { x: nested };
+    const redacted = redactValue(nested);
+    expect(JSON.stringify(redacted)).toContain('[nested data removed]');
+  });
+
+  it('redacts JWT and Bearer values under innocent keys and in plain text', async () => {
+    const { redactBody } = await import('../requests');
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJxYS1hZ2VudC1qd3QifQ.c2VjcmV0';
+    expect(JSON.parse(redactBody(JSON.stringify({ payload: jwt, note: 'Bearer qa-agent-secret' }))!)).toEqual({
+      payload: '…',
+      note: 'Bearer …',
+    });
+    expect(redactBody('upstream Bearer qa-agent-secret')).toBe('upstream Bearer …');
   });
 
   it('records what an XHR sent and got only while bodies are asked for', () => {
