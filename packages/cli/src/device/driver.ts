@@ -61,7 +61,12 @@ export class Device {
     await this.#lifecycle.freezeChrome((await this.resolved()).id);
   }
 
+  /** A host that draws the app itself (fastsim) captures its own frame; a device or simulator is captured by its OS. */
   async screenshot(destination: string): Promise<void> {
+    if (this.server.hello?.commands?.includes('screenshot')) {
+      await this.command('screenshot', { path: destination });
+      return;
+    }
     await this.#lifecycle.screenshot((await this.resolved()).id, destination);
   }
 
