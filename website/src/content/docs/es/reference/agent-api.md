@@ -251,7 +251,7 @@ La traza es parte de lo que un reporte sube, así que dice que un valor cambió 
 | una lista | su cantidad de elementos, como `[12]` |
 | cualquier valor bajo una clave con nombre de secreto | `…` |
 
-Una clave tiene nombre de secreto cuando contiene `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` o `auth`, sin distinguir mayúsculas.
+Una clave tiene nombre de secreto cuando sus palabras lo dicen: `password`, `pwd`, `pin`, `otp`, `token`, `secret`, `apiKey`, `accessToken`, `sessionId`, `authCode` y parecidos, escritos como sea. Los nombres que solo contienen esas letras (`item`, `cache`, `sort`) quedan legibles.
 
 Ese recorte vale solo para la traza. El comando `stores` sigue devolviendo el estado sin ocultar nada.
 

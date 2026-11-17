@@ -244,7 +244,7 @@ Two things follow from observing a store:
 | Under a key named like a secret | `…`, whatever the value. |
 | Anything else (a number, a boolean, a short string) | Itself. |
 
-A key is named like a secret when its name contains `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth`, in any letter case.
+A key is named like a secret when its words say so: `password`, `pwd`, `pin`, `otp`, `token`, `secret`, `apiKey`, `accessToken`, `sessionId`, `authCode` and similar, in any spelling. Names that only contain such letters (`item`, `cache`, `sort`) stay readable.
 
 :::note[Since 0.3.0]
 Redux stores work since 0.3.0. Before, the agent read the new state from the listener's argument, which Zustand passes and Redux does not, so every key of a Redux store was traced as changing to nothing. The masking of secret-named keys and the cut at 80 characters also arrived in 0.3.0.

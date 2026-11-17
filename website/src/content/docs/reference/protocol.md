@@ -9,7 +9,7 @@ If you work in Node, you do not need this page to get started: the `lynkeus-clie
 
 ## The shape of the connection
 
-The protocol is version 1. Messages are JSON, one per WebSocket message.
+The protocol is version 2. Messages are JSON, one per WebSocket message.
 
 The roles are the reverse of what you might expect. The **driver** is the WebSocket server, and the **app** is the client: the app dials out, and nothing listens inside the app. The driver is therefore the stable side. Start it once, and every launch of the app attaches again.
 
@@ -17,7 +17,7 @@ The roles are the reverse of what you might expect. The **driver** is the WebSoc
 |---|---|
 | Where the app dials | `ws://localhost:8123` on iOS, `ws://10.0.2.2:8123` on the Android emulator. The app can be given another host and port. |
 | When nobody answers | The app retries quietly: every 100 ms for the first 3 seconds after it starts or loses a connection, then with a wait that doubles each time, up to 1.5 seconds. |
-| When the app does not dial at all | An app that was given a `token` option whose value is empty keeps its agent off and logs why. It never opens a socket, so a driver sees the same thing as with no app running. |
+| When the app does not dial at all | An app with no `token` option, or one whose value is empty, keeps its agent off and logs why (unless it was given `allowUnauthenticated`). It never opens a socket, so a driver sees the same thing as with no app running. |
 | When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. |
 
 There are three kinds of message:
@@ -30,35 +30,33 @@ There are three kinds of message:
 
 ### 1. The driver sends `auth`
 
-The driver's first message on every new connection is always `auth`, and it always carries a `session`. Send it even when no token is configured: the app says nothing until it has received it, and `hello` is its answer.
+The driver's first message on every new connection is always `auth`. It carries a `session` and a fresh `nonce`.
 
 ```json
-{ "event": "auth", "session": "k3j9x0q1mfz8", "token": "…" }
+{ "event": "auth", "session": "k3j9x0q1mfz8", "nonce": "3f9a5c0e7d21b84a6c13e0f9a2b7d845" }
 ```
 
 | Field | Type | Meaning |
 |---|---|---|
 | `session` | string | A value that is random per driver process and the same on every connection that process accepts. The app uses it to tell a reconnect from a new driver. |
-| `token` | string | The shared secret. Omit it when the app was mounted without a token. |
+| `nonce` | string | 16 random bytes in hex, new for every connection. |
 
-If the app has a token and the driver's does not match, the app does not answer `auth`, and it answers every request with:
-
-```json
-{ "id": 1, "error": { "message": "Not authenticated", "code": "unauthenticated" } }
-```
+Neither side ever sends the token. Each proves that it holds it, with an HMAC-SHA256 over both nonces, so a process that merely listens on the port, or one that merely connects to it, learns nothing it can reuse.
 
 ### 2. The app answers `hello`
 
 ```json
 {
   "event": "hello",
-  "protocolVersion": 1,
-  "agentVersion": "0.6.0",
+  "protocolVersion": 2,
+  "agentVersion": "0.7.0",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "netmock", "networkBodies", "profile", "reset", "stores", "traceContext"],
   "route": "Settings.Main",
-  "app": { "name": "example" }
+  "app": { "name": "example" },
+  "nonce": "a41c7e0b93d5f268c0e1a7b4d93f6e52",
+  "proof": "…"
 }
 ```
 
@@ -71,10 +69,32 @@ If the app has a token and the driver's does not match, the app does not answer 
 | `commands` | string[] | The commands the app answers beyond the core methods: the ones it registered with `qa.register`, and the built-in ones. The driver calls them like any method. |
 | `route` | string | The focused route, when a navigation adapter is configured. |
 | `app` | object | Whatever the app passed as its `app` option. |
+| `nonce` | string | The app's own fresh nonce. |
+| `proof` | string | HMAC-SHA256 in hex, keyed by the token, of the text `lynkeus/app/<session>/<driver nonce>/<app nonce>`. |
 
-The app is attached once `hello` has arrived. Do not send requests before it.
+A driver that has a token compares `proof` in constant time. If it does not match, the driver closes the socket with code 1008. Either way it drops `nonce` and `proof` before it stores or forwards the `hello`. An app that has a token sends no `hello` at all to an `auth` without a `nonce`: that is the old handshake, in which the token travelled in the clear.
 
-### 3. The app sends `navigation` as it moves
+Until its `hello` checks out, a new connection is only a candidate. The app that is already attached keeps the link, so a local process that connects in a loop cannot knock it off. At most 8 connections can be proving the token at once, for 5 seconds each. A refused one is closed with code 1013 and a slow one with 1008. Frames from a peer that has not proved the token are capped at 64 KiB; once it has, 32 MiB.
+
+### 3. The driver sends `verified`
+
+Once the app's proof checks out, the driver proves itself:
+
+```json
+{ "event": "verified", "proof": "…" }
+```
+
+`proof` is the HMAC-SHA256, keyed by the token, of `lynkeus/driver/<session>/<driver nonce>/<app nonce>`. The `app` and `driver` labels keep one side's proof from being replayed as the other's.
+
+The app serves no request before a `verified` that checks out. Until then every request gets this error, and a `verified` that does not check out closes the socket:
+
+```json
+{ "id": 1, "error": { "message": "Not authenticated", "code": "unauthenticated" } }
+```
+
+The app is attached once `hello` has arrived and checked out. Do not send requests before you have sent `verified`.
+
+### 4. The app sends `navigation` as it moves
 
 Whenever the focused route may have changed, the app sends:
 
@@ -158,7 +178,7 @@ Elements that are hidden are never matched, with one exception: an `inert` eleme
 | [`swipe`](#swipe) | `{ direction?, target?, distance?, from?, to?, durationMs? }` | `{ from, to }` |
 | [`navigate`](#navigate-and-back) | `{ name, params? }` | `{ route }` |
 | [`back`](#navigate-and-back) | none | `{ route? }` |
-| [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
+| [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | [`idle`](#idle) | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | [`deepLink`](#deeplink) | `{ url }` | `{ opened }` |
 | [`requests`](#requests) | `{ since? }` | `{ inFlight, requests }` |
@@ -250,6 +270,7 @@ Waits until every condition given holds.
 | `target` | `Target` | | An element must match. |
 | `anyOf` | `Target[]` | | At least one of these must match. The answer says which in `matched`. |
 | `gone` | boolean | `false` | Turn `target` around: wait until nothing matches it. |
+| `enabled` | boolean | `false` | Require the target to be enabled, not only present: a form button that waits on its fields. With `gone`, wait until that state stops holding. |
 | `scroll` | boolean | `false` | Swipe the nearest scrolling container toward the target until it is in the window. |
 | `timeoutMs` | number | `5000` | Give up after this long. |
 | `since` | number | | A trace sequence number, such as `last` from an earlier `trace`. With `route` alone, a route the app reached after it counts as arrived even if the app has already left it. The answer then has `passed: true`. |
@@ -282,7 +303,11 @@ Takes `{ url }` and opens it in the app as the OS would hand it over. It answers
 
 Answers `{ inFlight, requests }`: how many HTTP requests are in flight, and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
 
-The app keeps the last 200 requests. It records no headers and no bodies, unless a driver turned on the `networkBodies` command; then the requests that follow keep both, with secret-looking values replaced by `…` and each body cut at 16,000 characters. In the URL, the values of query parameters whose name ends with `token`, `key`, `secret`, `code`, `otp`, `password`, `pin`, `session` or `auth` are replaced with `…`.
+The app keeps the last 200 requests. It records no headers and no bodies, unless a driver turned on the `networkBodies` command; then the requests that follow keep both, with secrets replaced by `…` and each body cut at 16,000 characters.
+
+A value is replaced when its name reads as a secret. The name is split into words, in any spelling (`access_token`, `accessToken`, `X-Api-Key`). It counts when it has a word such as `password`, `pwd`, `passphrase`, `pin`, `otp`, `token`, `secret`, `cookie`, `authorization`, `credentials`, `jwt`, `csrf`, `cvv`, `iban`, `seed` or `mnemonic`, a compound such as `apiKey`, `accessToken`, `sessionId` or `authCode`, or `auth` inside a longer name. A name that only contains such letters (`item`, `cache`, `sort`, `monkey`, `statusCode`) or that describes a secret (`tokenCount`, `passwordLength`) stays readable. The same rule covers the app's console and error lines, analytics events and store changes.
+
+It also looks inside values: a URL's query, JSON kept as text and `name=value` pairs in a string, header lists written as `{ name, value }` objects, `Authorization: Basic` and `Bearer` credentials, JWTs, the `user:pass` of a URL, and the segment after a path word such as `token`, `session` or `code` (12 characters or more, or 4 to 8 digits for a code, `otp` or `pin`). A body that is not JSON and has a secret-looking key is replaced whole by `[unparsed body redacted]`.
 
 ### `trace`
 
