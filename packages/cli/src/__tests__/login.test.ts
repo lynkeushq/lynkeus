@@ -43,7 +43,10 @@ const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string
     if (req.url === '/.well-known/oauth-authorization-server')
       return json({ authorization_endpoint: `${origin}/authorize`, token_endpoint: `${origin}/token`, registration_endpoint: `${origin}/register` });
     if (req.url === '/register') {
-      issued.redirectUri = (JSON.parse(text) as { redirect_uris: string[] }).redirect_uris[0] ?? '';
+      const registered = JSON.parse(text) as { client_name: string; redirect_uris: string[] };
+      // lynkeus.io offers fastsim:download only to a client registered under exactly this name.
+      if (registered.client_name !== 'lynkeus CLI') return json({ error: 'invalid_client_metadata' }, 400);
+      issued.redirectUri = registered.redirect_uris[0] ?? '';
       return json({ client_id: issued.clientId });
     }
     if (req.url === '/token') {

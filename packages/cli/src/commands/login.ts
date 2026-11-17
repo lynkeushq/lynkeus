@@ -186,7 +186,8 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
       method: 'POST',
       redirect: 'manual',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ client_name: 'Lynkeus CLI', redirect_uris: [redirectUri] }),
+      // An identifier, not copy: lynkeus.io recognizes the CLI by this exact name (CLI_NAME in its oauth.ts).
+      body: JSON.stringify({ client_name: 'lynkeus CLI', redirect_uris: [redirectUri] }),
     });
     if (!registered.ok) throw await oauthError(registered, 'cannot register this sign-in');
     const { client_id: clientId } = (await registered.json().catch(() => ({}))) as { client_id?: unknown };
