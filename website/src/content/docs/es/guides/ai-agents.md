@@ -82,7 +82,7 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 22 | 3500 tokens |
+| `lynkeus mcp` | 23 | 3500 tokens |
 | `lynkeus mcp --full` | las 56 | 7300 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
@@ -95,6 +95,7 @@ Las herramientas básicas son:
 | `init` | Instala el agente de lynkeus, lo monta y crea el token del proyecto. |
 | `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
 | `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
+| `fastsim_install` | Baja fastsim para esta máquina y una plataforma (`ios` o `android`), para las organizaciones cuyo plan lo incluye. Su README explica cómo correr casos con `case_run` y `host_command`. Ver [Correr casos en fastsim](/es/guides/fastsim/). |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
 | `case_run` | Corre casos, de a uno o en paralelo; uno que falla vuelve con su pantalla y su motivo. |
 | `case_status` | En qué va una corrida: casos terminados, qué corre cada trabajo y en qué sección, cuánto falta. |
