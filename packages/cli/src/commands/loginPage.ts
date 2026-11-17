@@ -44,11 +44,11 @@ export type SignedInPage = { command: string; cloud: string; organization?: stri
 export const signedInPage = (o: SignedInPage): string => {
   const who =
     o.organization && o.email
-      ? `The lynkeus CLI is signed in to <b>${escapeHtml(o.organization)}</b> as <b>${escapeHtml(o.email)}</b>.`
-      : 'The lynkeus CLI is signed in.';
+      ? `The Lynkeus CLI is signed in to <b>${escapeHtml(o.organization)}</b> as <b>${escapeHtml(o.email)}</b>.`
+      : 'The Lynkeus CLI is signed in.';
   const host = new URL(o.cloud).host;
   return shell(
-    'Signed in to lynkeus',
+    'Signed in to Lynkeus',
     `${ICON('ok', '', '#2f9e6b', '<path d="M20 6L9 17l-5-5"/>')}<div class="head"><h1>You're signed in</h1><p class="lead">${who} Go back to your terminal: it carries on from here.</p></div><div class="cmd">${TERMINAL}<code>${escapeHtml(o.command)}</code></div><p class="fine">You can close this tab. Did not start this? Disconnect it under <a href="${escapeHtml(o.cloud)}/#members">Members</a> on ${escapeHtml(host)}.</p>`,
   );
 };
@@ -60,7 +60,7 @@ export const failedPage = (reason: string): string =>
   );
 
 export const failureReason = {
-  denied: 'You chose <b>Deny</b>, so the lynkeus CLI is not signed in. Nothing was shared with it.',
+  denied: 'You chose <b>Deny</b>, so the Lynkeus CLI is not signed in. Nothing was shared with it.',
   state: 'This answer was not for the sign-in this terminal started, so it was ignored.',
   service: (text: string) => escapeHtml(text),
   exchange: (host: string, reason: string) => `${escapeHtml(host)} did not accept the sign-in: ${escapeHtml(reason)}.`,
