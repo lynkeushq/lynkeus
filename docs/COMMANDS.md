@@ -885,7 +885,7 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 
 Download fastsim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which fastsim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a fastsim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key or a sign-in, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
+Asks lynkeus.io which fastsim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a fastsim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key or a sign-in, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
@@ -894,6 +894,18 @@ Asks lynkeus.io which fastsim releases the organization may install (with LYNKEU
 | `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--force` | download again even when that release is installed |
+
+### `lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>]`
+
+Print a fresh grant a fastsim host needs to start, fetched from lynkeus.io (cached for an hour)
+
+Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. Exit code 2 without a key or a sign-in, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.
+
+| Flag | |
+|---|---|
+| `--platform <ios|android>` | the platform it draws: ios or android (default `ios`) |
+| `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
+| `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 
 ### `lynkeus login [--cloud <url>] [--no-browser]`
 

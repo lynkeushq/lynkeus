@@ -28,7 +28,7 @@ lynkeus fastsim install --platform ios
 lynkeus fastsim install --platform android
 ```
 
-El comando baja el build que corresponde a la máquina donde lo ejecutas, verifica su SHA-256 y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Con `LYNKEUS_FASTSIM_DIR` cambias esa carpeta.
+El comando baja el build que corresponde a la máquina donde lo ejecutas, verifica su SHA-256 y su firma y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Con `LYNKEUS_FASTSIM_DIR` cambias esa carpeta.
 
 | Máquina | iOS | Android |
 |---|---|---|
@@ -39,7 +39,11 @@ El comando baja el build que corresponde a la máquina donde lo ejecutas, verifi
 
 Con `--variant <nombre>` instalas un build por su nombre en lugar del de esta máquina. Todos los flags están en la [referencia de comandos](/es/reference/cli/#lynkeus-fastsim-install).
 
-## Empaquetar la app y correr casos
+## Paquetes firmados y grants
+
+Cada paquete de fastsim va firmado por lynkeus, y `lynkeus fastsim install` verifica la firma antes de descomprimir nada. Un paquete sin firma, o modificado después de firmarse, se rechaza y no se escribe nada.
+
+Además, cada host de fastsim necesita un permiso reciente (grant) de lynkeus.io para arrancar. `bin/fastsim-run` lo consigue con `lynkeus fastsim grant`, que usa la misma key o sesión que la instalación y guarda el grant una hora: una suite con muchos casos consulta al servicio una vez por hora, no una por caso. Por eso fastsim tiene que poder llegar a lynkeus.io cuando arranca un host, incluso en una máquina donde el paquete ya está instalado. Puedes ejecutar tú mismo `lynkeus fastsim grant --platform ios` para comprobar que funciona.
 
 La app necesita sus dependencias instaladas y el agente de lynkeus montado, igual que para un simulador. En la carpeta que mostró la instalación hay un `README.md` con los detalles. Hacen falta dos comandos.
 

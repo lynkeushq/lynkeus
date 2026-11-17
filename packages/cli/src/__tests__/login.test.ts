@@ -8,9 +8,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { fastsimCommands } from '../commands/fastsim.js';
+import { makeFastsimCommands } from '../commands/fastsim.js';
 import { credentialsPath, login, loginCommands, savedLogin, saveLogin, signedInToken } from '../commands/login.js';
 import type { Ctx } from '../registry.js';
+
+const pair = crypto.generateKeyPairSync('ed25519');
 
 type Seen = { method?: string; url?: string; auth?: string; body: string };
 
@@ -66,7 +68,17 @@ const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string
       if (opts.redirectReleasesTo) return res.writeHead(302, { location: opts.redirectReleasesTo }).end();
       if (req.headers.authorization !== `Bearer ${issued.access}`) return json({ error: 'bad key' }, 401);
       if (req.url === '/v1/fastsim/releases')
-        return json({ releases: [{ version: '2026.11.17', variant: 'linux-x64-ios', sha256: sha, bytes: archive.length }] });
+        return json({
+          releases: [
+            {
+              version: '2026.11.17',
+              variant: 'linux-x64-ios',
+              sha256: sha,
+              bytes: archive.length,
+              signature: crypto.sign(null, archive, pair.privateKey).toString('base64'),
+            },
+          ],
+        });
       return res.writeHead(200).end(archive);
     }
     res.writeHead(404).end();
@@ -99,7 +111,7 @@ const browser = (cloud: Awaited<ReturnType<typeof fakeCloud>>, answer: (url: URL
 const goodAnswer = (url: URL) => `${url.searchParams.get('redirect_uri')}?code=code-1&state=${url.searchParams.get('state')}`;
 
 const ctx = (flags: Record<string, unknown>): Ctx => ({ args: [], flags, passthrough: [], err: () => {} }) as unknown as Ctx;
-const install = fastsimCommands[0]!;
+const install = makeFastsimCommands(pair.publicKey)[0]!;
 
 test('login runs the whole flow with PKCE, saves the sign-in with private modes and never prints the tokens', async () => {
   isolate();

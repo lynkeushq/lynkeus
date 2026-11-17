@@ -28,7 +28,7 @@ lynkeus fastsim install --platform ios
 lynkeus fastsim install --platform android
 ```
 
-The command downloads the build that fits the machine it runs on. It checks the SHA-256 and unpacks the build into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. Set `LYNKEUS_FASTSIM_DIR` to move that folder.
+The command downloads the build that fits the machine it runs on. It checks the SHA-256 and the signature and unpacks the build into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. Set `LYNKEUS_FASTSIM_DIR` to move that folder.
 
 | Machine | iOS | Android |
 |---|---|---|
@@ -38,6 +38,12 @@ The command downloads the build that fits the machine it runs on. It checks the 
 | Intel Mac | Not supported | Not supported |
 
 `--variant <name>` installs a build by name instead of the one for this machine. See the [command reference](/reference/cli/#lynkeus-fastsim-install) for every flag.
+
+## Signed packages and grants
+
+lynkeus signs every fastsim package, and `lynkeus fastsim install` checks the signature before it unpacks anything. A package with no signature, or one that was changed after signing, is refused and nothing is written.
+
+Each fastsim host also needs a fresh grant from lynkeus.io before it starts. `bin/fastsim-run` gets it by running `lynkeus fastsim grant`, which uses the same key or sign-in as the install and keeps the grant for an hour, so a suite of many cases asks the service once an hour, not once per case. This means fastsim needs to reach lynkeus.io when a host starts, even on a machine where the package is already installed. You can run `lynkeus fastsim grant --platform ios` yourself to check that it works.
 
 ## Bundle the app and run cases
 
