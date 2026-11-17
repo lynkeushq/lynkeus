@@ -28,7 +28,7 @@ export type Backend = {
   submit(target?: Element): Promise<void>;
   swipe(from: { x: number; y: number }, to: { x: number; y: number }, durationMs: number): Promise<void>;
   /** Drives the gesture on the element itself; `false` when none is there, and the drag then goes to `swipe`. */
-  swipeOn?(element: Element, dx: number, dy: number): Promise<boolean | void>;
+  swipeOn?(element: Element, dx: number, dy: number): Promise<boolean | undefined>;
   debug(params?: unknown): unknown;
 };
 

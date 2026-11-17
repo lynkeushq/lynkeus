@@ -138,7 +138,9 @@ test('a wait can ask for its target to be enabled', async () => {
     return waitFor(params);
   };
   await runCase(c, { base, config, fixtures });
-  assert.equal((calls.find((x) => x.method === 'waitFor')?.params as { enabled?: boolean }).enabled, true);
+  const waited = calls.find((x) => x.method === 'waitFor');
+  assert.ok(waited, 'no waitFor was sent');
+  assert.equal((waited.params as { enabled?: boolean }).enabled, true);
 });
 
 test('a press names its control by testId, and a type takes a deadline for its field', async () => {

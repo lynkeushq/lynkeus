@@ -108,12 +108,7 @@ describe('snapshotElements', () => {
 
   it('keeps header text above the native window for assertions, but not text below it', () => {
     jest.replaceProperty(Platform, 'OS', 'android');
-    install(
-      composite([
-        host('RCTText', {}, [20, -40, 100, 20], [text('RECEPTOR')]),
-        host('RCTText', {}, [20, 850, 100, 20], [text('below')]),
-      ]),
-    );
+    install(composite([host('RCTText', {}, [20, -40, 100, 20], [text('RECEPTOR')]), host('RCTText', {}, [20, 850, 100, 20], [text('below')])]));
     jest.spyOn(touch, 'frames').mockImplementation((tags) => tags.map((tag) => (tag === 1 ? [20, -40, 100, 20] : [20, 850, 100, 20])));
     const { elements } = snapshotElements();
     expect(elements.map((e) => [e.text, e.offscreen])).toEqual([['RECEPTOR', true]]);

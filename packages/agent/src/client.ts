@@ -61,7 +61,7 @@ const randomHex = (): string => {
   const bytes = new Uint8Array(16);
   const crypto = (globalThis as { crypto?: { getRandomValues?: (a: Uint8Array) => Uint8Array } }).crypto;
   if (crypto?.getRandomValues) crypto.getRandomValues(bytes);
-  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256) ^ ((Date.now() >>> (i % 4) * 8) & 0xff);
+  else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256) ^ ((Date.now() >>> ((i % 4) * 8)) & 0xff);
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
