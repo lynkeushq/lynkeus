@@ -8,6 +8,7 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
+import { installedFastsim } from './fastsim.js';
 import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
@@ -189,6 +190,11 @@ export const headlessCommands = [
         what: 'runs can be pushed to the reports service',
         ok: !!process.env.LYNKEUS_REPORTS_KEY,
         fix: 'set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional',
+      });
+      const hosts = installedFastsim();
+      checks.push({
+        what: hosts.length ? `Lynkeus FastSim is installed (${hosts.map((h) => `${h.version}, ${h.variant}`).join('; ')})` : 'Lynkeus FastSim is not installed',
+        ok: true,
       });
       const text = checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`).join('\n');
       return { text, json: checks };

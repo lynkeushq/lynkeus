@@ -9,7 +9,7 @@ Lynkeus FastSim runs your React Native app without Xcode's simulator or an Andro
 
 Use FastSim when a suite takes too long on a simulator, when you want many cases side by side, or when the machine has no simulator at all, such as a Linux server or a CI runner.
 
-It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download Lynkeus FastSim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
+It is optional and paid: Lynkeus FastSim is part of the Team plan ([plans](https://lynkeus.io/pricing)). The headless host and the simulator or emulator stay free and cover the same cases. It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download Lynkeus FastSim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
 
 A member with a seat does not need a key. Run `lynkeus fastsim install` in a terminal and, when it finds no key and no saved sign-in, it opens your browser by itself (the same step as `lynkeus login`) and then goes on with the install. You can also sign in first:
 

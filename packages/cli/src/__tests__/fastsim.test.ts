@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { type FastsimRelease, fastsimVariant, installFastsim, newestFirst } from '../commands/fastsim.js';
+import { type FastsimRelease, fastsimVariant, installedFastsim, installFastsim, newestFirst } from '../commands/fastsim.js';
 
 const archive = (files: Record<string, string>) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-src-'));
@@ -142,4 +142,29 @@ test('the build is chosen by the machine and the platform; Windows goes through 
   assert.throws(() => fastsimVariant('ios', 'darwin', 'x64'), /Apple Silicon/);
   assert.throws(() => fastsimVariant('ios', 'win32', 'x64'), /WSL2/);
   assert.throws(() => fastsimVariant('web', 'darwin', 'arm64'), /ios or android/);
+});
+
+test('a refusal for no plan or no seat says where to get it; a refused key and other errors add nothing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
+  const refusedWith = (error: string) => installFastsim(options((async () => new Response(JSON.stringify({ error }), { status: 403 })) as typeof fetch, dir));
+  await assert.rejects(refusedWith('this organization has no Lynkeus FastSim entitlement'), /\nPlans: https:\/\/lynkeus\.io\/pricing$/);
+  await assert.rejects(refusedWith("this organization's Lynkeus FastSim entitlement has expired"), /\nPlans: https:\/\/lynkeus\.io\/pricing$/);
+  await assert.rejects(
+    refusedWith('you have no Lynkeus FastSim seat: an owner of the organization gives you one'),
+    /\nAn owner gives seats under Members on lynkeus\.io$/,
+  );
+  await assert.rejects(
+    refusedWith('this key may not download Lynkeus FastSim: an owner makes a key that may'),
+    (e: Error) => !/Plans:|Members on/.test(e.message),
+  );
+});
+
+test('installedFastsim lists the installed releases without calling anyone', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
+  assert.deepEqual(installedFastsim(path.join(dir, 'missing')), []);
+  fs.mkdirSync(path.join(dir, '2026.11.17', 'darwin-arm64-ios'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '2026.11.17', 'darwin-arm64-ios', '.sha256'), 'x');
+  fs.mkdirSync(path.join(dir, 'grants'));
+  fs.mkdirSync(path.join(dir, '2026.11.3', 'half-unpacked'), { recursive: true });
+  assert.deepEqual(installedFastsim(dir), [{ version: '2026.11.17', variant: 'darwin-arm64-ios' }]);
 });
