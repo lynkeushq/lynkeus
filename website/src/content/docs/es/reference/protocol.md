@@ -3,7 +3,7 @@ title: Protocolo
 description: Los mensajes que intercambian la app y su driver, para quien quiera escribir un driver propio.
 ---
 
-Todo lo que hace el CLI de lynkeus lo hace enviando mensajes JSON a la app por un WebSocket. Ese intercambio es el **protocolo**, y esta página lo documenta completo: la conexión, la autenticación, cada método y la forma de cada respuesta.
+Todo lo que hace el CLI de Lynkeus lo hace enviando mensajes JSON a la app por un WebSocket. Ese intercambio es el **protocolo**, y esta página lo documenta completo: la conexión, la autenticación, cada método y la forma de cada respuesta.
 
 La necesitas si quieres manejar la app desde algo que no sea el CLI: un runner de tests propio, una herramienta en otro lenguaje, un arnés para un modelo de IA. Si escribes en Node, antes de implementar el protocolo mira [`AgentServer`](#el-driver-de-referencia-agentserver), que ya lo hace.
 

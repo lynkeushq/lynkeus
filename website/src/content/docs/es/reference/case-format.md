@@ -96,7 +96,7 @@ Hay cuatro familias de verbos:
 | `app.<algo>` | Maneja la app o comprueba algo en ella. |
 | `assert` | Lee el backend y comprueba un valor. |
 | `exec` | Ejecuta un comando de shell. |
-| cualquier otro nombre | Es un **fixture**: lynkeus se lo envía al comando declarado en `cases.fixtures`. |
+| cualquier otro nombre | Es un **fixture**: Lynkeus se lo envía al comando declarado en `cases.fixtures`. |
 
 ## Objetivos
 
@@ -307,7 +307,7 @@ Ejecuta un comando que la app registró con `qa.register`. La [API del agente](/
 
 ### `app.run`
 
-Ejecuta un flow de lynkeus desde la carpeta de flows (`cases.flows`).
+Ejecuta un flow de Lynkeus desde la carpeta de flows (`cases.flows`).
 
 ```yaml
 - app.run: login.json
@@ -339,7 +339,7 @@ Comprueban lo que la app envió a su analítica con `qa.event`. La guía [Evento
 | `app.events` | `clear` | Vacía el búfer de eventos de la app. |
 | `app.event` | el nombre, o `{ name, props?, absent?, timeoutMs? }` | Comprueba que la app envió ese evento. Con `props`, que lleva esas propiedades. |
 
-### Cualquier otro comando de lynkeus
+### Cualquier otro comando de Lynkeus
 
 Un paso `app.<comando>` que no es ninguno de los anteriores ejecuta el comando del CLI con ese nombre. Los del grupo `os` se escriben sin el prefijo: `app.deeplink`, `app.appstate`, `app.network`, `app.clock`, `app.biometrics`, `app.scan`, `app.gallery`. También `app.mock`, `app.idle`, `app.launch` y los demás de la [referencia del CLI](/es/reference/cli/).
 
@@ -388,7 +388,7 @@ Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <
 
 ### Fixtures
 
-Los **fixtures** son los datos de prueba que un caso prepara en el backend: un usuario, un pedido, un saldo. Cualquier paso cuyo nombre no empieza con `app.`, y que no es `assert` ni `exec`, es un fixture. lynkeus se lo envía a tu servidor de fixtures como una línea de JSON y lee una línea de respuesta.
+Los **fixtures** son los datos de prueba que un caso prepara en el backend: un usuario, un pedido, un saldo. Cualquier paso cuyo nombre no empieza con `app.`, y que no es `assert` ni `exec`, es un fixture. Lynkeus se lo envía a tu servidor de fixtures como una línea de JSON y lee una línea de respuesta.
 
 ```yaml
 - create_user: { as: u, name: "Ana", plan: "pro" }
@@ -401,7 +401,7 @@ Los **fixtures** son los datos de prueba que un caso prepara en el backend: un u
 | los nombres declarados en `cases.refs` | Se reemplazan por el campo correspondiente del alias que nombran. Ver [Configuración](/es/reference/configuration/#casesrefs). |
 | todo lo demás | Llega al servidor tal como está escrito. |
 
-Antes del primer caso, lynkeus le pregunta al servidor qué fixtures responde. Si un caso nombra uno que no está en esa lista, se rechaza antes de ejecutar nada, en lugar de fallar a la mitad con el backend ya modificado. El protocolo completo está en la guía de [Fixtures](/es/guides/fixtures/).
+Antes del primer caso, Lynkeus le pregunta al servidor qué fixtures responde. Si un caso nombra uno que no está en esa lista, se rechaza antes de ejecutar nada, en lugar de fallar a la mitad con el backend ya modificado. El protocolo completo está en la guía de [Fixtures](/es/guides/fixtures/).
 
 Si el proyecto no declara `cases.fixtures`, un paso así falla con `<nombre> is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.
 
@@ -451,7 +451,7 @@ Ejecuta un comando de shell, para lo que no encaja en un fixture.
 | `run` | El comando. |
 | `as` | Guarda la salida bajo ese alias. Si la salida contiene un objeto JSON, se guarda ese objeto. Si no, se guarda `{ out: "<la salida>" }`. |
 
-El comando se ejecuta desde la carpeta del archivo de configuración que declara `cases`, con el entorno de lynkeus y un límite de 120 segundos.
+El comando se ejecuta desde la carpeta del archivo de configuración que declara `cases`, con el entorno de Lynkeus y un límite de 120 segundos.
 
 ## Condiciones `on:`
 
@@ -598,7 +598,7 @@ Una **interrupción** es algo que la app puede poner en medio de cualquier paso:
 | `do` | Los pasos que la resuelven. Pueden ser macros. |
 | `unless` | Opcional. Una expresión regular, sin distinción de mayúsculas. Si el valor del paso en curso coincide, ese paso trata justamente de la interrupción y se deja en paz. |
 
-lynkeus busca las interrupciones antes de cada `app.press`, `app.type`, `app.swipe` y `app.see`, y mientras un `app.wait` espera. Si encuentra una presente, ejecuta sus pasos y después sigue con el paso original.
+Lynkeus busca las interrupciones antes de cada `app.press`, `app.type`, `app.swipe` y `app.see`, y mientras un `app.wait` espera. Si encuentra una presente, ejecuta sus pasos y después sigue con el paso original.
 
 En el ejemplo, `unless: "keypad"` evita un ciclo: un caso que prueba el teclado de desbloqueo con `app.press: "#unlock-keypad-1"` no se interrumpe a sí mismo.
 

@@ -1,4 +1,4 @@
-# lynkeus command reference
+# Lynkeus command reference
 
 Generated from the command registry (`lynkeus help --markdown`). Every command accepts the global flags at the end.
 
@@ -226,7 +226,7 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 
 ### `lynkeus init [--no-install]`
 
-Set lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
+Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
 React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
 
@@ -236,7 +236,7 @@ React Native or Expo (an Expo Router app gets an entry of its own). Safe to run 
 
 ### `lynkeus status [--offline]`
 
-What this project has of lynkeus and what is missing: the agent, the token, a running app, cases, the reports key
+What this project has of Lynkeus and what is missing: the agent, the token, a running app, cases, the reports key
 
 The first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.
 
@@ -398,7 +398,7 @@ Simulator: relaunch the app in a locale
 
 ## map
 
-what lynkeus knows before touching anything, from the app's source and from walks.
+what Lynkeus knows before touching anything, from the app's source and from walks.
 
 ### `lynkeus map build [--as-base]`
 
@@ -574,7 +574,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 Press every control it finds, learn where each leads (feeds map paths and plan)
 
-Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — lynkeus ships no list of its own, because which controls are irreversible depends on the app.
+Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
 
 | Argument | |
 |---|---|
@@ -765,7 +765,7 @@ Reads the attached app’s screen and writes a case that goes to its route (`app
 
 Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down
 
-Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
+Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
 
 | Flag | |
 |---|---|
@@ -790,7 +790,7 @@ Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints e
 
 Tell whether the project’s fixtures server keeps the fixtures protocol
 
-Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this lynkeus knows, and whether it is up. It changes nothing in the backend.
+Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.
 
 ### `lynkeus report prune [dir] [--older <age>] [--dry-run]`
 
@@ -885,7 +885,7 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 
 Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download fastsim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
+Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
@@ -960,7 +960,7 @@ Write the headless entry: default mocks, a local-backend guard, your App
 
 ### `lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]`
 
-What lynkeus mocks, and which native modules still need one
+What Lynkeus mocks, and which native modules still need one
 
 | Flag | |
 |---|---|

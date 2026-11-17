@@ -80,19 +80,19 @@ const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
   return av;
 };
 
-// What a model is told once, when it connects: the order things are done in, so "set lynkeus up" and "write me
+// What a model is told once, when it connects: the order things are done in, so "set Lynkeus up" and "write me
 // a test for this" need nothing more from the person asking.
-const INSTRUCTIONS = `lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
+const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
 
 In a project you do not know, call status first: it lists what is set up and, for what is not, the one thing that fixes it.
 
-To set lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
+To set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
 
 To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there (press with settle: true answers with the screen once the app has settled; a screen read right after a press can still be the one it left); prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
 
 To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.
 
-To test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; for organizations whose plan includes it): fastsim_install with platform ios or android (LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with "May download fastsim"; or, for a member with a seat, the sign-in the person saved by running "lynkeus login" in a terminal, which you cannot do for them), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. iOS matches the simulator only on a Mac.
+To test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; for organizations whose plan includes it): fastsim_install with platform ios or android (LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with "May download Lynkeus FastSim"; or, for a member with a seat, the sign-in the person saved by running "lynkeus login" in a terminal, which you cannot do for them), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. iOS matches the simulator only on a Mac.
 
 To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
 

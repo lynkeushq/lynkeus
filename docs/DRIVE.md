@@ -155,7 +155,7 @@ app from jest/vitest/whatever you already use. Assertions are plain code; the
 app is the fixture.
 
 **A suite that composes with backend tooling.** Cases in YAML/Markdown, UI
-steps through lynkeus, state through your own commands (whatever your backend
+steps through Lynkeus, state through your own commands (whatever your backend
 needs: a record created, a flag flipped, a status forced). Neither tool knows
 about the other; the runner interleaves them.
 
@@ -249,7 +249,7 @@ replaced by `…` and bodies cut at 16 KB.
 
 ## Why did that fail
 
-After a failed `press`, `wait`, `type` or `nav`, lynkeus reads its own
+After a failed `press`, `wait`, `type` or `nav`, Lynkeus reads its own
 evidence (the screen, the last requests, the trace) as rules and says what
 it found: the navigator is dead, every request is 401, the backend answered
 5xx, the target is there but covered or disabled, the text is a wording or

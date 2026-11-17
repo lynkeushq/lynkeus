@@ -1,11 +1,11 @@
 ---
 title: Running on CI
-description: What a CI job needs to run lynkeus cases, which host to choose, and how to push a report from every pull request.
+description: What a CI job needs to run Lynkeus cases, which host to choose, and how to push a report from every pull request.
 ---
 
 Tests earn their keep when they run on every change without anyone asking. This guide explains what a CI job needs in order to run your cases, how to choose where the app runs, and how to leave a report on each pull request.
 
-lynkeus does not ship a ready-made action for running cases. A job runs the same commands you run locally. `lynkeus ci` runs the whole suite the way a job does, bringing your backend and several hosts up around it: it is covered after the plain workflow. The one workflow lynkeus writes for you, `map ci`, is covered at the end: it needs no app at all.
+Lynkeus does not ship a ready-made action for running cases. A job runs the same commands you run locally. `lynkeus ci` runs the whole suite the way a job does, bringing your backend and several hosts up around it: it is covered after the plain workflow. The one workflow Lynkeus writes for you, `map ci`, is covered at the end: it needs no app at all.
 
 ## What every job needs
 
@@ -117,7 +117,7 @@ LYNKEUS_PORT=8125 npx lynkeus headless start &
 npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 ```
 
-The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have lynkeus start the hosts, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'` starts a fresh host for every case. Add `--keep-hosts` to start each job's host once and keep it for the job's cases: it is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. `--host-timeout <ms>` (600000 by default) is how long a host may take to attach.
+The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have Lynkeus start the hosts, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'` starts a fresh host for every case. Add `--keep-hosts` to start each job's host once and keep it for the job's cases: it is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. `--host-timeout <ms>` (600000 by default) is how long a host may take to attach.
 
 The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
 
@@ -141,7 +141,7 @@ A long-lived host clears what the app's jest mocks record about their calls ever
 npx lynkeus ci
 ```
 
-lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
+Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
 
 `--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The first host's port is `LYNKEUS_PORT` or `port` in the configuration (8123 unless told).
 
@@ -157,9 +157,9 @@ It diffs against `--base` (`origin/main` by default), finds the screens the chan
 
 Use this for what the headless host cannot show: screenshots, contrast, and anything native. The device here is a simulator or an emulator; an Android phone over USB also works, an iPhone does not.
 
-The job has more to prepare, and those steps are your platform's, not lynkeus's:
+The job has more to prepare, and those steps are your platform's, not Lynkeus's:
 
-1. Build the **debug** build of the app, with the agent enabled. lynkeus does not work in a release build: the code that synthesizes touches is not compiled into one.
+1. Build the **debug** build of the app, with the agent enabled. Lynkeus does not work in a release build: the code that synthesizes touches is not compiled into one.
 2. Give the app the token the job will use. In a React Native CLI app the token is written into the development bundle by the `lynkeus-agent/babel` plugin, so start Metro with `LYNKEUS_TOKEN` set in its environment. In an Expo app, start the development server with `EXPO_PUBLIC_LYNKEUS_TOKEN` set to the same value. Both read `.lynkeus/token` when the variable is not set, which a job that has the file (a self-hosted runner) can rely on.
 3. Boot the simulator or emulator, install the app and launch it.
 4. Run the cases.
@@ -258,7 +258,7 @@ Each of these acts on the screen the app is showing or on a recorded run, so the
 
 **`the host failed to start: …`.** The headless host hit a Jest error; the message ends with the last lines of its output. Run `npx lynkeus headless doctor` locally to see which native modules still need a mock, and `npx lynkeus headless doctor --explain "<first line of the error>"` for a specific error.
 
-**The app never leaves the splash screen under the headless host.** A native module lynkeus does not know, or Node resolving `localhost` to IPv6 while the backend listens on IPv4. Use `127.0.0.1` for the backend's address.
+**The app never leaves the splash screen under the headless host.** A native module Lynkeus does not know, or Node resolving `localhost` to IPv6 while the backend listens on IPv4. Use `127.0.0.1` for the backend's address.
 
 **An environment variable change has no effect under the headless host.** If your Babel configuration inlines environment variables, Jest's transform cache keeps the first value it saw. Remove the cache directory your Jest configuration points at.
 

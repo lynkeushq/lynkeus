@@ -119,7 +119,7 @@ Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son l
 | `app.back` | | |
 | `app.call` | `{ command, params?, expect?, as? }` | Un comando que la app registró con `qa.register`. |
 
-Cualquier otro comando de lynkeus también es un paso, con sus argumentos por nombre: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
+Cualquier otro comando de Lynkeus también es un paso, con sus argumentos por nombre: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
 
 ### Probar lo que responde (o no) el servidor
 
@@ -150,7 +150,7 @@ Una petición que contestó un mock queda marcada `(mocked)` en la evidencia del
 Un objetivo se escribe como en la terminal: `#testId`, un texto, un índice o `x,y`. Dos detalles son propios de los casos:
 
 - **Donde un paso recibe `target`, también recibe `testId`**, sin el `#`: `app.press: { testId: pay-button }` equivale a `app.press: "#pay-button"`.
-- **Un texto con comillas propias es siempre un texto.** Para `app.wait` y `app.see`, una palabra con mayúscula inicial como `Next` es una ruta. `app.wait: '"Next"'` espera el botón. Las comillas simples son las del YAML; las dobles, las que lee lynkeus.
+- **Un texto con comillas propias es siempre un texto.** Para `app.wait` y `app.see`, una palabra con mayúscula inicial como `Next` es una ruta. `app.wait: '"Next"'` espera el botón. Las comillas simples son las del YAML; las dobles, las que lee Lynkeus.
 
 :::note[Desde 0.3.0]
 `testId` en cualquier paso con `target`, `{ text }` en `app.press`, `timeoutMs` en `app.type` y las comillas propias llegan con la versión 0.3.0. Antes, esos pasos se rechazaban con `press has no testId`, `app.press needs a target` o `type has no timeoutMs`.
@@ -288,7 +288,7 @@ Una pantalla de bloqueo o una hoja de consentimiento pueden aparecer delante de 
 }
 ```
 
-Antes de tocar, escribir, deslizar o comprobar, lynkeus mira si `see` está en pantalla y, si está, ejecuta `do`. Un paso cuyo propio texto coincide con `unless` trata justamente de esa pantalla, y se deja en paz.
+Antes de tocar, escribir, deslizar o comprobar, Lynkeus mira si `see` está en pantalla y, si está, ejecuta `do`. Un paso cuyo propio texto coincide con `unless` trata justamente de esa pantalla, y se deja en paz.
 
 ## Ejecutar uno o muchos
 

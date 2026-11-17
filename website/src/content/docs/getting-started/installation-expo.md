@@ -1,13 +1,13 @@
 ---
 title: Install in an Expo app
-description: Add the lynkeus agent to an Expo app with a development build, mount it before expo-router loads, pass the token, and verify from the terminal.
+description: Add the Lynkeus agent to an Expo app with a development build, mount it before expo-router loads, pass the token, and verify from the terminal.
 ---
 
 This page takes an Expo app from nothing to a terminal that can read its screen. The steps were verified on a new Expo SDK 57 project (React Native 0.86) that uses expo-router, on the iOS simulator and on the Android emulator.
 
 Expo needs three things that a React Native CLI app does not, and each has a reason:
 
-- **A development build.** The agent contains native code, and Expo Go only runs the native code it was shipped with. lynkeus does not work in Expo Go.
+- **A development build.** The agent contains native code, and Expo Go only runs the native code it was shipped with. Lynkeus does not work in Expo Go.
 - **An entry file of your own.** An expo-router project has no `index.js`, and the agent has to be mounted before the router loads.
 - **A second name for the token.** Expo only passes the app environment variables that start with `EXPO_PUBLIC_`.
 

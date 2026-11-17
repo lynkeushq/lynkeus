@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: The vocabulary of lynkeus, defined once. Agent, driver, host, screen, element, target, route, case, step, run, fixtures and report.
+description: The vocabulary of Lynkeus, defined once. Agent, driver, host, screen, element, target, route, case, step, run, fixtures and report.
 ---
 
 The rest of the documentation uses a small set of terms, always with the same meaning. This page defines each one in a few sentences, in the order they build on each other. Read it once after [your first test](/getting-started/first-test/); come back to it when a guide uses a word you are not sure of.
@@ -13,7 +13,7 @@ The terms fall into three groups: the programs involved (agent, driver, host), w
 
 The **agent** is the code mounted inside your app, from the `lynkeus-agent` package. In a debug build it opens a WebSocket to your machine and answers requests: what is on screen, press this, type that, wait for a route.
 
-The agent is what makes lynkeus different from tools that drive an app through the operating system. It reads the tree React rendered, measures each element, and asks the platform which element a touch would reach. It synthesizes touches and keystrokes inside the app's process.
+The agent is what makes Lynkeus different from tools that drive an app through the operating system. It reads the tree React rendered, measures each element, and asks the platform which element a touch would reach. It synthesizes touches and keystrokes inside the app's process.
 
 Nothing listens inside the app. The app dials out; if nobody answers, it stays quiet and tries again. The agent runs only when it is enabled, which by default means in development (`__DEV__`).
 
@@ -102,7 +102,7 @@ Prefer `testID`s. A text target breaks when the copy changes or the app runs in 
 
 A **route** is a screen's name, as your navigation library reports it: `Settings.Main`, `Checkout.Confirm`, or `index` in an expo-router app. The **path** is the chain of navigators from the root down to the focused screen.
 
-Routes come from a navigation adapter. One for React Navigation ships with the agent, and `auto()` finds the navigation container by itself. Without an adapter lynkeus still sees elements, but no routes, so a wait for `Settings.Main` has nothing to wait for.
+Routes come from a navigation adapter. One for React Navigation ships with the agent, and `auto()` finds the navigation container by itself. Without an adapter Lynkeus still sees elements, but no routes, so a wait for `Settings.Main` has nothing to wait for.
 
 Routes are how a test says where it is. `lynkeus wait Settings.Main` blocks until that screen is focused. `lynkeus nav Settings.Main` jumps there directly, which is a teleport and not something a user does: use it to reach the place where a test starts, not to test navigation.
 
@@ -146,9 +146,9 @@ A step that fails stops the case. A step the current host has no way to perform,
 
 ### Fixtures
 
-**Fixtures** are the backend data a case needs before it can run: a user that exists, a balance, a feature flag. lynkeus does not know your backend, so it does not create that data. It asks a program of yours to.
+**Fixtures** are the backend data a case needs before it can run: a user that exists, a balance, a feature flag. Lynkeus does not know your backend, so it does not create that data. It asks a program of yours to.
 
-You declare a fixtures command in `lynkeus.config.json`. lynkeus starts it once per run (once per job when cases run side by side) and exchanges one line of JSON per step with it: the step's name and parameters go in, the result comes back.
+You declare a fixtures command in `lynkeus.config.json`. Lynkeus starts it once per run (once per job when cases run side by side) and exchanges one line of JSON per step with it: the step's name and parameters go in, the result comes back.
 
 ```text
 → {"command": "create_user", "params": {"name": "Ana"}, "env": {"NAME": "Ana"}}
@@ -177,7 +177,7 @@ A **report** is a run presented for people: each case step by step, the video in
 
 **Flow.** A JSON file of steps that `lynkeus run` replays and `lynkeus record` writes from what a person does in the app. Flows came before cases; a case can run one with `app.run`.
 
-**`.lynkeus/`.** The folder in your app where lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits; the token is kept out of git by `.lynkeus/.gitignore`.
+**`.lynkeus/`.** The folder in your app where Lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits; the token is kept out of git by `.lynkeus/.gitignore`.
 
 ## Next steps
 

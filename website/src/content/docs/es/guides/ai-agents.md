@@ -3,13 +3,13 @@ title: Agentes de IA
 description: Cómo dejar que un agente de IA maneje la app con lynkeus mcp, qué herramientas recibe, cómo lee una pantalla y qué instrucciones darle para que no gaste su contexto.
 ---
 
-Un agente de IA que prueba una app a partir de capturas de pantalla trabaja a ciegas y caro: cada imagen cuesta miles de tokens y solo le permite suponer dónde está el botón. lynkeus le da otra cosa: la pantalla como una lista de hechos. Qué ruta está abierta, qué elementos hay, cuáles se pueden tocar y cuáles están cubiertos. Con eso el modelo decide el siguiente paso a partir de datos y no de píxeles.
+Un agente de IA que prueba una app a partir de capturas de pantalla trabaja a ciegas y caro: cada imagen cuesta miles de tokens y solo le permite suponer dónde está el botón. Lynkeus le da otra cosa: la pantalla como una lista de hechos. Qué ruta está abierta, qué elementos hay, cuáles se pueden tocar y cuáles están cubiertos. Con eso el modelo decide el siguiente paso a partir de datos y no de píxeles.
 
-El puente es MCP (Model Context Protocol), el protocolo con el que un cliente como Claude Code o Cursor le ofrece herramientas a un modelo. `lynkeus mcp` sirve los comandos de lynkeus como herramientas MCP. Esta guía es para quien configura ese agente: cómo conectarlo, qué recibe y qué conviene escribir en sus instrucciones.
+El puente es MCP (Model Context Protocol), el protocolo con el que un cliente como Claude Code o Cursor le ofrece herramientas a un modelo. `lynkeus mcp` sirve los comandos de Lynkeus como herramientas MCP. Esta guía es para quien configura ese agente: cómo conectarlo, qué recibe y qué conviene escribir en sus instrucciones.
 
 ## Antes de empezar
 
-- Una app de React Native, sin framework o con Expo, que puedas compilar y abrir en un simulador o un emulador. (En esta página, "el agente" a secas es el de IA; el de lynkeus es `lynkeus-agent`.)
+- Una app de React Native, sin framework o con Expo, que puedas compilar y abrir en un simulador o un emulador. (En esta página, "el agente" a secas es el de IA; el de Lynkeus es `lynkeus-agent`.)
 - Un cliente de IA que admita servidores MCP por entrada y salida estándar.
 
 :::note[Desde 0.4.0]
@@ -32,9 +32,9 @@ En Cursor, en `.cursor/mcp.json`:
 
 El servidor trabaja en la carpeta donde lo arranca el cliente, o en la que indique `--root <carpeta>`. Para que el agente pueda subir corridas a lynkeus.io, agrega al entorno del servidor `LYNKEUS_REPORTS_KEY` con una API key de tu organización (`-e LYNKEUS_REPORTS_KEY=lk_…` en Claude Code); la página de API keys muestra la línea con la key ya puesta.
 
-Deberías ver las herramientas de lynkeus en la lista de tu cliente.
+Deberías ver las herramientas de Lynkeus en la lista de tu cliente.
 
-## 2. Pídele que configure lynkeus
+## 2. Pídele que configure Lynkeus
 
 Con palabras comunes:
 
@@ -44,7 +44,7 @@ Configura lynkeus en esta app.
 
 Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo.
 
-El agente de lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
+El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
 
 Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
 
@@ -91,8 +91,8 @@ Las herramientas básicas son:
 
 | Herramienta | Qué hace |
 |---|---|
-| `status` | Qué tiene el proyecto de lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
-| `init` | Instala el agente de lynkeus, lo monta y crea el token del proyecto. |
+| `status` | Qué tiene el proyecto de Lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
+| `init` | Instala el agente de Lynkeus, lo monta y crea el token del proyecto. |
 | `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
 | `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
 | `fastsim_install` | Baja Lynkeus FastSim para esta máquina y una plataforma (`ios` o `android`), para las organizaciones cuyo plan lo incluye. Su README explica cómo correr casos con `case_run` y `host_command`. Ver [Correr casos en Lynkeus FastSim](/es/guides/fastsim/). |
@@ -191,7 +191,7 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 ## Límites y cuidados
 
-- **Solo builds de depuración.** El agente de lynkeus no existe en un build de producción. Un agente de IA no puede manejar la app que tienen tus usuarios.
+- **Solo builds de depuración.** El agente de Lynkeus no existe en un build de producción. Un agente de IA no puede manejar la app que tienen tus usuarios.
 - **`nav` no es un usuario.** Con `--full`, el modelo puede saltar a cualquier ruta. Sirve para llegar rápido al punto de partida; un recorrido que se quiere validar debe hacerse con toques.
 - **Cuidado con el backend real.** Un modelo toca lo que le parece razonable. Apunta la app a un backend de pruebas, no a uno con cuentas reales.
 - **Elementos del sistema.** Lo que dibuja el sistema operativo y no React Native, como la barra de pestañas nativa de la plantilla más reciente de Expo, no aparece en `screen`.

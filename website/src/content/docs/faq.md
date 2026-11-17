@@ -1,21 +1,21 @@
 ---
 title: FAQ
-description: Short answers to the questions people ask first about lynkeus, with links to the page that covers each in full.
+description: Short answers to the questions people ask first about Lynkeus, with links to the page that covers each in full.
 ---
 
-Short answers to what people ask before adopting lynkeus and in their first days with it. Each one links to the page that covers the subject in full.
+Short answers to what people ask before adopting Lynkeus and in their first days with it. Each one links to the page that covers the subject in full.
 
 ## Deciding whether to use it
 
-### What is lynkeus, in one paragraph?
+### What is Lynkeus, in one paragraph?
 
 A tool that runs automated end-to-end tests on React Native apps. A small agent is mounted inside a debug build of your app; a command-line program drives it. Tests are readable files of steps, and every run can be kept as a report with each step, its screenshot and, when it fails, the reason. See the [introduction](/).
 
 ### How does it compare to Detox, Maestro or Appium?
 
-It covers the same ground: driving a real build end to end. The difference is where it stands. Those tools drive the app from outside, through the operating system. lynkeus runs inside the app and reads the tree React rendered.
+It covers the same ground: driving a real build end to end. The difference is where it stands. Those tools drive the app from outside, through the operating system. Lynkeus runs inside the app and reads the tree React rendered.
 
-That has a benefit and a cost. The benefit is speed and precision: a step takes milliseconds, a wait ends on the render that satisfies it, and a test can assert on facts a screenshot cannot show, such as the current route, an input's value, or a network request. The cost is that lynkeus needs a debug build with the agent in it, and it does not see what React Native does not draw, such as system dialogs.
+That has a benefit and a cost. The benefit is speed and precision: a step takes milliseconds, a wait ends on the render that satisfies it, and a test can assert on facts a screenshot cannot show, such as the current route, an input's value, or a network request. The cost is that Lynkeus needs a debug build with the agent in it, and it does not see what React Native does not draw, such as system dialogs.
 
 ### Does anything ship in my release build?
 
@@ -23,7 +23,7 @@ The package is in the bundle and does nothing there. The agent's native module c
 
 ### Can it test a release build, or the app from the store?
 
-No. The agent runs only in debug builds, by design. lynkeus tests your app's behavior in a development build; it is not a tool for testing a signed binary.
+No. The agent runs only in debug builds, by design. Lynkeus tests your app's behavior in a development build; it is not a tool for testing a signed binary.
 
 ### Can it run on a physical phone?
 
@@ -45,7 +45,7 @@ The hosted reports service at [lynkeus.io](https://lynkeus.io) is a separate, pa
 
 ### Does it know anything about my app?
 
-No, and that is deliberate. lynkeus has no list of your screens and no notion of a user or a session. Everything it reports was read from the running app or from your source. Where a test needs product knowledge (which user exists, how to log in, which controls are irreversible), you supply it in `lynkeus.config.json` and in your own fixtures. See [Configuration](/reference/configuration/).
+No, and that is deliberate. Lynkeus has no list of your screens and no notion of a user or a session. Everything it reports was read from the running app or from your source. Where a test needs product knowledge (which user exists, how to log in, which controls are irreversible), you supply it in `lynkeus.config.json` and in your own fixtures. See [Configuration](/reference/configuration/).
 
 ## Setting up
 
@@ -59,7 +59,7 @@ For the iOS simulator, yes, because it needs Xcode. The CLI and the headless hos
 
 ### Which navigation libraries does it understand?
 
-An adapter for React Navigation ships with the agent, and `auto()` finds the navigation container without being handed a ref. expo-router's routes are recognized. For another router, you write a small adapter and pass it to the `<Lynkeus>` component. Without any adapter lynkeus still reads the screen, presses and types; it only lacks route names. See the [agent API](/reference/agent-api/).
+An adapter for React Navigation ships with the agent, and `auto()` finds the navigation container without being handed a ref. expo-router's routes are recognized. For another router, you write a small adapter and pass it to the `<Lynkeus>` component. Without any adapter Lynkeus still reads the screen, presses and types; it only lacks route names. See the [agent API](/reference/agent-api/).
 
 ### Do I have to add `testID`s everywhere?
 
@@ -109,7 +109,7 @@ No. A press waits for its control to be there and enabled. An assertion gives a 
 
 ### How do tests get their data: users, balances, flags?
 
-Through **fixtures**. Any step in a case that is not an `app.` step is sent to a program you declare, as one line of JSON, and the answer comes back as one line. That program can be a Node script, a Rails runner or a container; it creates the user or sets the flag in your backend. lynkeus never fabricates state itself. See [Fixtures](/guides/fixtures/).
+Through **fixtures**. Any step in a case that is not an `app.` step is sent to a program you declare, as one line of JSON, and the answer comes back as one line. That program can be a Node script, a Rails runner or a container; it creates the user or sets the flag in your backend. Lynkeus never fabricates state itself. See [Fixtures](/guides/fixtures/).
 
 ### Can the same test run on iOS, Android and headless?
 

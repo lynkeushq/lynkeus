@@ -1,4 +1,4 @@
-# lynkeus documentation
+# Lynkeus documentation
 
 The documentation site, built with [Starlight](https://starlight.astro.build). English pages are in
 `src/content/docs/`, Spanish ones in `src/content/docs/es/`. The two are written separately, each for its

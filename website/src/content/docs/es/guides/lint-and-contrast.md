@@ -61,7 +61,7 @@ Por defecto `lint` informa y termina con código 0. Con `--strict` termina con c
 npx lynkeus lint --strict
 ```
 
-Dentro de un caso, cualquier comando de lynkeus es un paso, así que la misma revisión se puede fijar a una pantalla concreta del recorrido:
+Dentro de un caso, cualquier comando de Lynkeus es un paso, así que la misma revisión se puede fijar a una pantalla concreta del recorrido:
 
 ```yaml
 steps:
@@ -133,7 +133,7 @@ npx lynkeus os appearance dark  && npx lynkeus lint
 
 ### Cómo se mide
 
-lynkeus lee los píxeles de la captura de pantalla, no los estilos. Los colores que la app declara no dicen nada de una etiqueta puesta sobre una foto, un degradado o una hoja translúcida; los píxeles sí, porque son lo que ve la persona.
+Lynkeus lee los píxeles de la captura de pantalla, no los estilos. Los colores que la app declara no dicen nada de una etiqueta puesta sobre una foto, un degradado o una hoja translúcida; los píxeles sí, porque son lo que ve la persona.
 
 Para cada texto toma su rectángulo en la imagen. El fondo es el color que ocupa la mayor parte del rectángulo. El texto es, entre los colores con suficientes píxeles como para ser letras, el que más se aleja del fondo.
 

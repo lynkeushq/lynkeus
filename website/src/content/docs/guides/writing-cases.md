@@ -130,7 +130,7 @@ steps:
   - app.press: '"12"'     # the control labeled 12, not the element at index 12
 ```
 
-The outer quotes are YAML's and the inner ones reach lynkeus, so use one kind inside the other.
+The outer quotes are YAML's and the inner ones reach Lynkeus, so use one kind inside the other.
 
 :::note[Since 0.3.0]
 `testId` in place of `target`, `text` in `app.press`, `timeoutMs` in `app.type` and quoted targets arrived in 0.3.0. An earlier version refuses them with `press has no testId`, `app.press needs a target` or `type has no timeoutMs`, and keeps the quotes as part of the text.
@@ -145,7 +145,7 @@ A few behaviors are worth knowing before you write many cases:
 - `app.wait: { request: "POST /v1/orders" }` waits for the app to make that request and get a 2xx answer. Add `status` to expect another code.
 - `app.call` runs a command the app registered with `qa.register`. `expect` checks fields of its answer.
 
-Any other lynkeus command is also a step, with its arguments by name: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
+Any other Lynkeus command is also a step, with its arguments by name: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`.
 
 `app.mock` answers a request in place of the server, so an error state is one line:
 

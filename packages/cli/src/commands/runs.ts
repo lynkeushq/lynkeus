@@ -251,7 +251,7 @@ export const runsCommands = [
     group: 'runs',
     summary: 'Press every control it finds, learn where each leads (feeds map paths and plan)',
     details:
-      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — lynkeus ships no list of its own, because which controls are irreversible depends on the app.',
+      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.',
     positionals: [{ name: 'Route', help: 'where to start (default: the current screen)' }],
     flags: {
       depth: { type: 'number', help: 'how many screens deep', default: 1, value: 'n' },

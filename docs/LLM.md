@@ -1,4 +1,4 @@
-# Driving lynkeus from a model
+# Driving Lynkeus from a model
 
 What to put in an agent's system prompt so it tests an app without spending
 its context on it. Every number below was measured on a production React

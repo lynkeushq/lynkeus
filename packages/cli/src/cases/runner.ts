@@ -347,7 +347,7 @@ const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
   const name = step.verb.slice(4);
   if (BUILT_IN.includes(name)) return undefined;
   const command = find(name) ?? find(`os ${name}`);
-  if (!command) return `${step.verb} is not a step: lynkeus has no command ${name}, and the project declares no macro for it`;
+  if (!command) return `${step.verb} is not a step: Lynkeus has no command ${name}, and the project declares no macro for it`;
   try {
     argvFor(command, step.value);
   } catch (error) {
@@ -491,7 +491,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const fixture = async (name: string, value: StepValue): Promise<void> => {
-    if (!options.fixtures) throw new Error(`${name} is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`);
+    if (!options.fixtures) throw new Error(`${name} is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`);
     const given = value && typeof value === 'object' && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
     const as = typeof given.as === 'string' ? given.as : undefined;
     delete given.as;
@@ -880,7 +880,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return undefined;
       default: {
         const command = find(name) ?? find(`os ${name}`);
-        if (!command) throw new Error(`app.${name} is not a step: lynkeus has no command ${name}, and the project declares no macro for it`);
+        if (!command) throw new Error(`app.${name} is not a step: Lynkeus has no command ${name}, and the project declares no macro for it`);
         await cli(argvFor(command, value));
         return undefined;
       }

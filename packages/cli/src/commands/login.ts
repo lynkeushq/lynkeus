@@ -111,7 +111,7 @@ const metadata = async (cloud: string, fetchImpl: Fetch) => {
 };
 
 const page = (message: string) =>
-  `<!doctype html><meta charset="utf-8"><title>lynkeus</title><body style="font-family:system-ui;margin:3rem"><p>${message}</p></body>`;
+  `<!doctype html><meta charset="utf-8"><title>Lynkeus</title><body style="font-family:system-ui;margin:3rem"><p>${message}</p></body>`;
 
 export const openInBrowser = (url: string): Promise<boolean> =>
   new Promise((resolve) => {
@@ -166,7 +166,7 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
       method: 'POST',
       redirect: 'manual',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ client_name: 'lynkeus CLI', redirect_uris: [redirectUri] }),
+      body: JSON.stringify({ client_name: 'Lynkeus CLI', redirect_uris: [redirectUri] }),
     });
     if (!registered.ok) throw await oauthError(registered, 'cannot register this sign-in');
     const { client_id: clientId } = (await registered.json().catch(() => ({}))) as { client_id?: unknown };

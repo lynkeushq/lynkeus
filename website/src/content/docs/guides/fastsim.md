@@ -3,13 +3,13 @@ title: Run cases on Lynkeus FastSim
 description: Run your cases on Lynkeus FastSim, a simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, and install it for the platform you test.
 ---
 
-Lynkeus FastSim runs your React Native app without Xcode's simulator or an Android emulator. It loads the app's JavaScript, lays it out with React Native's own renderer and draws it, much faster than a simulator does. lynkeus drives it exactly as it drives a simulator, so the same cases run on both.
+Lynkeus FastSim runs your React Native app without Xcode's simulator or an Android emulator. It loads the app's JavaScript, lays it out with React Native's own renderer and draws it, much faster than a simulator does. Lynkeus drives it exactly as it drives a simulator, so the same cases run on both.
 
 ## When to use it
 
 Use FastSim when a suite takes too long on a simulator, when you want many cases side by side, or when the machine has no simulator at all, such as a Linux server or a CI runner.
 
-It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download fastsim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
+It is available to organizations whose plan includes it, and the organization's owner decides who downloads it. You need `LYNKEUS_CLOUD_KEY` set to an API key an owner made with **May download Lynkeus FastSim** checked (on the API keys page of [lynkeus.io](https://lynkeus.io)). A key made only for reports cannot download it, so give CI a key of its own. Owners see every download, by whom and when, on the Members page, where they also give seats to members.
 
 A member with a seat does not need a key. Run `lynkeus fastsim install` in a terminal and, when it finds no key and no saved sign-in, it opens your browser by itself (the same step as `lynkeus login`) and then goes on with the install. You can also sign in first:
 
@@ -34,20 +34,20 @@ The command downloads the build that fits the machine it runs on. It checks the 
 |---|---|---|
 | Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 65 MB) |
 | Linux x64 or arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
-| Windows | Run lynkeus inside WSL2, where it installs the Linux build | Same |
+| Windows | Run Lynkeus inside WSL2, where it installs the Linux build | Same |
 | Intel Mac | Not supported | Not supported |
 
 `--variant <name>` installs a build by name instead of the one for this machine. See the [command reference](/reference/cli/#lynkeus-fastsim-install) for every flag.
 
 ## Signed packages and grants
 
-lynkeus signs every FastSim package, and `lynkeus fastsim install` checks the signature before it unpacks anything. A package with no signature, or one that was changed after signing, is refused and nothing is written.
+Lynkeus signs every FastSim package, and `lynkeus fastsim install` checks the signature before it unpacks anything. A package with no signature, or one that was changed after signing, is refused and nothing is written.
 
 Each FastSim host also needs a fresh grant from lynkeus.io before it starts. `bin/fastsim-run` gets it by running `lynkeus fastsim grant`, which uses the same key or sign-in as the install and keeps the grant for an hour, so a suite of many cases asks the service once an hour, not once per case. This means FastSim needs to reach lynkeus.io when a host starts, even on a machine where the package is already installed. You can run `lynkeus fastsim grant --platform ios` yourself to check that it works.
 
 ## Bundle the app and run cases
 
-The app needs its dependencies installed and the lynkeus agent mounted, as for a simulator. The folder the install printed has a `README.md` with the details. Two commands do the work.
+The app needs its dependencies installed and the Lynkeus agent mounted, as for a simulator. The folder the install printed has a `README.md` with the details. Two commands do the work.
 
 Bundle the app, again after each change to its JavaScript:
 
@@ -63,7 +63,7 @@ Then run the cases, one host per case:
 npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <bundle folder> {port}"
 ```
 
-lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
+Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
 
 ## From an AI agent over MCP
 
@@ -87,17 +87,17 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
 
-**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download fastsim"`.** Exit code 2. The command found neither a key nor a sign-in. Export a key, or put it under `[env]` in `mise.local.toml`, or, if you are a member with a seat, run it again from a terminal: it signs you in. This code is what a script, CI or MCP gets when there is nothing to sign in with.
+**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download Lynkeus FastSim"`.** Exit code 2. The command found neither a key nor a sign-in. Export a key, or put it under `[env]` in `mise.local.toml`, or, if you are a member with a seat, run it again from a terminal: it signs you in. This code is what a script, CI or MCP gets when there is nothing to sign in with.
 
-**`this key may not download fastsim`.** The key was made without **May download fastsim**. Ask an owner of the organization for a key made with it.
+**`this key may not download Lynkeus FastSim`.** The key was made without **May download Lynkeus FastSim**. Ask an owner of the organization for a key made with it.
 
-**`you have no fastsim seat`.** You are signed in as a member without a seat. An owner gives seats on the Members page.
+**`you have no Lynkeus FastSim seat`.** You are signed in as a member without a seat. An owner gives seats on the Members page.
 
-**`this sign-in may not download fastsim: sign in again with lynkeus login`** (or **`the sign-in was refused`**). The saved sign-in is not accepted, for example because it expired or was made before your seat. Run `lynkeus login` again.
+**`this sign-in may not download Lynkeus FastSim: sign in again with lynkeus login`** (or **`the sign-in was refused`**). The saved sign-in is not accepted, for example because it expired or was made before your seat. Run `lynkeus login` again.
 
-**`this organization has no fastsim entitlement`** (or **has expired**). Your organization's plan does not include FastSim. Ask the organization's owner or write to lynkeus.io support.
+**`this organization has no Lynkeus FastSim entitlement`** (or **has expired**). Your organization's plan does not include FastSim. Ask the organization's owner or write to lynkeus.io support.
 
-**`Lynkeus FastSim runs on Windows inside WSL2`.** Open a WSL2 shell, install lynkeus there and run the install again. It installs the Linux build.
+**`Lynkeus FastSim runs on Windows inside WSL2`.** Open a WSL2 shell, install Lynkeus there and run the install again. It installs the Linux build.
 
 **`Lynkeus FastSim runs on Apple Silicon Macs only`.** Intel Macs have no build. Use a simulator, or run FastSim on a Linux machine.
 

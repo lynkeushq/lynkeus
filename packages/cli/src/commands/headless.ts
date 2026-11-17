@@ -136,7 +136,7 @@ export const headlessCommands = [
   define({
     name: 'init',
     group: 'drive',
-    summary: "Set lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
+    summary: "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
     details:
       'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
     flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
@@ -152,7 +152,7 @@ export const headlessCommands = [
   define({
     name: 'status',
     group: 'drive',
-    summary: 'What this project has of lynkeus and what is missing: the agent, the token, a running app, cases, the reports key',
+    summary: 'What this project has of Lynkeus and what is missing: the agent, the token, a running app, cases, the reports key',
     details: 'The first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.',
     flags: { offline: { type: 'boolean', help: 'check the files only; do not wait for a running app' } },
     needs: 'nothing',
@@ -305,7 +305,7 @@ export const headlessCommands = [
   define({
     name: 'headless doctor',
     group: 'headless',
-    summary: 'What lynkeus mocks, and which native modules still need one',
+    summary: 'What Lynkeus mocks, and which native modules still need one',
     flags: {
       ...ENTRY_FLAG,
       fix: { type: 'boolean', help: 'write stubs for the uncovered modules into the entry' },

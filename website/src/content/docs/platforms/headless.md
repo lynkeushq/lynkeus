@@ -86,7 +86,7 @@ It has three parts:
 
 If your app's `index.js` runs anything before rendering (polyfills, internationalization setup, service initialization), require it in the entry too, before the app.
 
-### 2. Allow lynkeus through Jest's transform
+### 2. Allow Lynkeus through Jest's transform
 
 The agent is published as ES modules. A Jest configuration that only transforms `react-native` packages will not parse it, and the host stops at `Unexpected token 'export'` in `lynkeus-agent`. Add `lynkeus-[^/]+` to the allow-list in `transformIgnorePatterns`, next to `react-native`:
 
@@ -105,7 +105,7 @@ Adapt the pattern to the one you already have; the point is that `lynkeus-agent`
 npx lynkeus headless doctor
 ```
 
-`doctor` reads your source without running anything and reports three things: which installed libraries lynkeus mocks for you, which mocks your entry adds, and which native modules your code references that nothing covers. A report looks like this:
+`doctor` reads your source without running anything and reports three things: which installed libraries Lynkeus mocks for you, which mocks your entry adds, and which native modules your code references that nothing covers. A report looks like this:
 
 ```text
 lynkeus headless doctor — headless readiness for myapp

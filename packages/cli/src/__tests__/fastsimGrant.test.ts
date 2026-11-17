@@ -27,7 +27,7 @@ const fakeCloud = async (opts: { expiresInMs?: number; redirectTo?: string; stat
       if (opts.status)
         return res
           .writeHead(opts.status, { 'content-type': 'application/json' })
-          .end(JSON.stringify({ error: 'this organization has no fastsim entitlement' }));
+          .end(JSON.stringify({ error: 'this organization has no Lynkeus FastSim entitlement' }));
       issued++;
       res
         .writeHead(201, { 'content-type': 'application/json' })
@@ -115,7 +115,7 @@ test('fastsim grant with no key and no sign-in exits 2 naming both ways', async 
   isolate();
   const result = await run('https://lynkeus.io');
   assert.equal(result.code, 2);
-  assert.match(result.text, /May download fastsim/);
+  assert.match(result.text, /May download Lynkeus FastSim/);
   assert.match(result.text, /lynkeus login/);
 });
 
@@ -125,7 +125,7 @@ test('a refusal exits 1 with the service reason, and caches nothing', async () =
   const cloud = await fakeCloud({ status: 403 });
   const result = await run(cloud.url);
   assert.equal(result.code, 1);
-  assert.match(result.text, /no fastsim entitlement/);
+  assert.match(result.text, /no Lynkeus FastSim entitlement/);
   assert.equal(fs.existsSync(grantCacheFile(cloud.url, 'linux-x64-ios')), false);
   cloud.close();
 });

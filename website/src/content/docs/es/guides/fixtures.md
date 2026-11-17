@@ -5,7 +5,7 @@ description: Cómo un caso prepara y consulta los datos del backend a través de
 
 Casi ningún test empieza de cero: necesita un usuario que exista, un saldo, un pedido en cierto estado. Los fixtures son esos datos de prueba que se preparan en el backend antes de que la app haga nada, y también la forma de leer el backend después para comprobar que la app lo dejó como debía.
 
-lynkeus no sabe nada de tu backend, y es intencional. Tú declaras un comando; lynkeus le envía una línea JSON por cada paso y lee una línea de respuesta. Esta guía es para quien conecta ese comando: suele ser alguien de backend o de QA con acceso a la API de administración.
+Lynkeus no sabe nada de tu backend, y es intencional. Tú declaras un comando; Lynkeus le envía una línea JSON por cada paso y lee una línea de respuesta. Esta guía es para quien conecta ese comando: suele ser alguien de backend o de QA con acceso a la API de administración.
 
 ## Antes de empezar
 
@@ -35,7 +35,7 @@ expected: |
   Los puntos en pantalla y los que guarda el backend son 25.
 ```
 
-`create_user` y `give_points` son nombres que inventas tú. `assert` es de lynkeus, pero lee el backend a través de otro fixture tuyo. Los tres llegan al mismo comando.
+`create_user` y `give_points` son nombres que inventas tú. `assert` es de Lynkeus, pero lee el backend a través de otro fixture tuyo. Los tres llegan al mismo comando.
 
 ## 1. Declara el comando
 
@@ -130,11 +130,11 @@ Es una conversación por la entrada y la salida estándar, una línea cada vez.
 - `env` son los mismos parámetros aplanados a texto y en mayúsculas (`userId` llega como `USER_ID`). Sirve para un servidor que se los pasa a un script de shell.
 - La respuesta es cualquier objeto JSON. Para decir que falló, responde `"ok": false` con un `error`: ese texto es el mensaje del paso fallido.
 
-El comando se inicia una vez por ejecución y se mantiene vivo; cuando hay varios trabajos en paralelo, cada uno abre su propia conexión. lynkeus ignora las líneas de la salida que no empiezan con `{`, así que un mensaje suelto no rompe la conversación, pero los registros van mejor por la salida de error.
+El comando se inicia una vez por ejecución y se mantiene vivo; cuando hay varios trabajos en paralelo, cada uno abre su propia conexión. Lynkeus ignora las líneas de la salida que no empiezan con `{`, así que un mensaje suelto no rompe la conversación, pero los registros van mejor por la salida de error.
 
 ### La lista de fixtures: `lynkeus.describe`
 
-Antes del primer caso, lynkeus pregunta qué sabe hacer el servidor:
+Antes del primer caso, Lynkeus pregunta qué sabe hacer el servidor:
 
 ```text
 → {"command": "lynkeus.describe", "params": {}, "env": {}}
@@ -179,7 +179,7 @@ Para que quien escribe un caso sepa qué pedirle al servidor, `commands` tambié
 | `example` | Los parámetros de una llamada que funciona, tal como un caso los escribiría. |
 | `answers` | Qué campos de la respuesta lee un paso posterior (`user_id`, `api_key`…). |
 | `changes` | `false` en un comando que solo lee. |
-| `protocol` (en la respuesta) | La versión del protocolo de fixtures que habla el servidor, hoy `1`. Una versión que esta lynkeus no conoce se rechaza. |
+| `protocol` (en la respuesta) | La versión del protocolo de fixtures que habla el servidor, hoy `1`. Una versión que esta Lynkeus no conoce se rechaza. |
 
 Un servidor de antes de las descripciones, que responde solo nombres, sigue siendo válido. Dos comandos del CLI sacan partido de esto:
 
@@ -188,7 +188,7 @@ npx lynkeus fixtures describe   # cada comando, qué hace y sus parámetros
 npx lynkeus fixtures check      # ¿cumple el servidor el protocolo?
 ```
 
-`fixtures describe` arranca tu comando, le pregunta `lynkeus.describe` e imprime lo que contestó; es la lista que consulta quien escribe un caso, o un agente de IA que lo hace por ti (`lynkeus case new` copia de ella el `setup` que propone). Lo último que el servidor dijo de sí mismo se guarda en `.lynkeus` y se muestra durante un día sin volver a arrancarlo; `--fresh` le pregunta de nuevo. `fixtures check` comprueba la respuesta contra el contrato: una lista de comandos, ningún nombre repetido, una versión del protocolo que conozca esta lynkeus y un servidor en pie. Avisa, sin fallar, de los comandos sin `summary`. No cambia nada en el backend, y termina con código 1 si algo del contrato no se cumple.
+`fixtures describe` arranca tu comando, le pregunta `lynkeus.describe` e imprime lo que contestó; es la lista que consulta quien escribe un caso, o un agente de IA que lo hace por ti (`lynkeus case new` copia de ella el `setup` que propone). Lo último que el servidor dijo de sí mismo se guarda en `.lynkeus` y se muestra durante un día sin volver a arrancarlo; `--fresh` le pregunta de nuevo. `fixtures check` comprueba la respuesta contra el contrato: una lista de comandos, ningún nombre repetido, una versión del protocolo que conozca esta Lynkeus y un servidor en pie. Avisa, sin fallar, de los comandos sin `summary`. No cambia nada en el backend, y termina con código 1 si algo del contrato no se cumple.
 
 Si el servidor está en marcha pero no puede atender (su base de datos está caída, por ejemplo), puede agregar `"down": "<motivo>"` a la respuesta. Ningún caso empieza, y verás `the fixtures server cannot serve: <motivo>`.
 
@@ -256,7 +256,7 @@ Para una suite que lanza `case run` una vez por caso existe `npx lynkeus case pr
 
 ## Problemas frecuentes
 
-**`create_user is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** Falta `cases.fixtures` en la configuración, o lynkeus está leyendo otra carpeta. Revisa `--root`.
+**`create_user is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** Falta `cases.fixtures` en la configuración, o Lynkeus está leyendo otra carpeta. Revisa `--root`.
 
 **`create_user: the fixtures command did not answer within 120000 ms`.** El servidor recibió la línea y no respondió. Lo habitual es que haya escrito la respuesta en varias líneas o que no haya vaciado la salida. Cada respuesta es una sola línea.
 

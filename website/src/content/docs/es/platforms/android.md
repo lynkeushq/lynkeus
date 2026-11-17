@@ -1,11 +1,11 @@
 ---
 title: Android
-description: Lo que es propio de Android al usar lynkeus, con sus requisitos, la conexión desde el emulador, los comandos del sistema disponibles y los problemas conocidos.
+description: Lo que es propio de Android al usar Lynkeus, con sus requisitos, la conexión desde el emulador, los comandos del sistema disponibles y los problemas conocidos.
 ---
 
 Esta página reúne lo que es específico de Android: qué exige el agente para funcionar, cómo llega la app del emulador hasta el CLI, qué comandos del sistema existen y cuáles no, y qué suele fallar.
 
-Supone que ya instalaste lynkeus. Si no, empieza por [Instalación en React Native](/es/getting-started/installation-react-native/) o [Instalación en Expo](/es/getting-started/installation-expo/).
+Supone que ya instalaste Lynkeus. Si no, empieza por [Instalación en React Native](/es/getting-started/installation-react-native/) o [Instalación en Expo](/es/getting-started/installation-expo/).
 
 ## Requisitos
 
@@ -105,7 +105,7 @@ Los comandos del grupo `os` actúan sobre el emulador desde afuera, a través de
 | `lynkeus os appstate <background\|active>` | Manda la app al fondo (la tecla de inicio) y la trae de vuelta (su ícono del lanzador, la misma tarea). Con `active` espera a que el agente se conecte otra vez. `--app` nombra la app. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. Lo resuelve el agente, no `adb`. |
 
-Dos diferencias con iOS en los permisos. No existe `reset`: solo `grant` y `revoke`. Y el permiso se nombra como en Android. Puedes escribir el nombre completo o solo la última parte, que lynkeus completa:
+Dos diferencias con iOS en los permisos. No existe `reset`: solo `grant` y `revoke`. Y el permiso se nombra como en Android. Puedes escribir el nombre completo o solo la última parte, que Lynkeus completa:
 
 ```bash
 npx lynkeus os permissions grant camera --app com.example.myapp
@@ -168,7 +168,7 @@ Si la app tarda en arrancar, `--attach-timeout <ms>` le da más tiempo.
 
 ### La app lleva otra versión del agente
 
-Si actualizaste el CLI sin recompilar la app, lynkeus avisa que las versiones difieren. Instala la misma versión de `lynkeus-agent` que la del CLI y recompila.
+Si actualizaste el CLI sin recompilar la app, Lynkeus avisa que las versiones difieren. Instala la misma versión de `lynkeus-agent` que la del CLI y recompila.
 
 ## Límites
 

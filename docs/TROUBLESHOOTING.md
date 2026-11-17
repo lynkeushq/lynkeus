@@ -1,7 +1,7 @@
 # Troubleshooting
 
 Headless-specific entries are in [HEADLESS.md](HEADLESS.md#troubleshooting).
-After any failed `press`, `wait`, `type` or `nav`, lynkeus already prints why;
+After any failed `press`, `wait`, `type` or `nav`, Lynkeus already prints why;
 `lynkeus why <target>` asks again at any moment.
 
 **A press does nothing.** Read the screen first: the element may be covered
@@ -57,7 +57,7 @@ with `LYNKEUS_TOKEN` set, once with `--reset-cache`. In Expo the variable is
 `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
 **An overlay the app raises eats the screen.** A lock screen, a "rate us"
-sheet, a forced-update wall: lynkeus has no idea what yours looks like, on
+sheet, a forced-update wall: Lynkeus has no idea what yours looks like, on
 purpose. Compose it from primitives in your own tooling (`lynkeus wait '#key-1'`,
 `lynkeus press '#key-1'`, `lynkeus wait '#key-1' --gone`) and hand `smoke` and
 `crawl` the same thing as `--overlay-when '#key-1' --overlay-flow

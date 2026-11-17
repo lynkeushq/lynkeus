@@ -197,7 +197,7 @@ test('fastsim install with no key and no sign-in exits 2 naming both ways', asyn
     code: number;
   };
   assert.equal(result.code, 2);
-  assert.match(result.text, /May download fastsim/);
+  assert.match(result.text, /May download Lynkeus FastSim/);
   assert.match(result.text, /lynkeus login/);
 });
 
@@ -300,7 +300,7 @@ test('fastsim install without a terminal, in CI or over MCP keeps exit 2 and ope
     else delete process.env.CI;
     const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), attached: 'attached' in extra } as Ctx)) as Out;
     assert.equal(result.code, 2, name);
-    assert.match(result.text, /May download fastsim/, name);
+    assert.match(result.text, /May download Lynkeus FastSim/, name);
     assert.equal(opened.length, 0, name);
   }
   delete process.env.CI;

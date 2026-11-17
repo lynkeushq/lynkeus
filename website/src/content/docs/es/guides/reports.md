@@ -5,7 +5,7 @@ description: Cómo guardar una ejecución en un directorio, qué contiene, cómo
 
 Cuando un test falla en tu máquina, la terminal alcanza. Cuando falla en CI a las tres de la mañana, alguien tiene que poder ver qué pasó sin repetir la ejecución. Para eso sirve un reporte: la ejecución completa, paso por paso, con sus capturas de pantalla y el motivo de cada fallo.
 
-lynkeus separa dos cosas. El **directorio de la ejecución** es un conjunto de archivos que escribe la CLI, gratis y en tu máquina. El **reporte alojado** es una página en [lynkeus.io](https://lynkeus.io) que tu equipo abre con un enlace; es el servicio de pago del proyecto, con un plan gratuito. Esta guía cubre ambos.
+Lynkeus separa dos cosas. El **directorio de la ejecución** es un conjunto de archivos que escribe la CLI, gratis y en tu máquina. El **reporte alojado** es una página en [lynkeus.io](https://lynkeus.io) que tu equipo abre con un enlace; es el servicio de pago del proyecto, con un plan gratuito. Esta guía cubre ambos.
 
 ## Antes de empezar
 
@@ -39,9 +39,9 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 | `--video-fps <n>` | Los cuadros por segundo de la película. Por defecto, 30. |
 | `--video-scale <n>` | Los píxeles por punto de la película, donde el host lo permite (fastsim: de 1 a 3, y 2 si no lo indicas). |
 
-La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
+La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye Lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
-La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
+La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye Lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
 
 Si el host que filma está en otra máquina (Lynkeus FastSim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
 
@@ -158,7 +158,7 @@ Cada línea es una ejecución, de la más reciente a la más antigua: cuándo em
 
 `report flakes` y `report history` leen las mismas ejecuciones para encontrar los casos que no siempre pasan. Están en [tests intermitentes](/es/guides/flaky-tests/).
 
-Un cliente MCP como Claude, Claude Code o Cursor también puede leer las ejecuciones de tu organización, con tu sesión y solo en modo lectura, conectándose a `https://lynkeus.io/mcp`. La primera vez, el cliente abre lynkeus para pedir tu aprobación; puedes desconectarlo en **Members**.
+Un cliente MCP como Claude, Claude Code o Cursor también puede leer las ejecuciones de tu organización, con tu sesión y solo en modo lectura, conectándose a `https://lynkeus.io/mcp`. La primera vez, el cliente abre Lynkeus para pedir tu aprobación; puedes desconectarlo en **Members**.
 
 ## Problemas frecuentes
 

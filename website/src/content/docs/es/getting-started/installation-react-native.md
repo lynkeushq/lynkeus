@@ -1,9 +1,9 @@
 ---
 title: Instalación en React Native
-description: Cómo instalar lynkeus en una app de React Native CLI, montar el agente, configurar el token y comprobar que el CLI se conecta.
+description: Cómo instalar Lynkeus en una app de React Native CLI, montar el agente, configurar el token y comprobar que el CLI se conecta.
 ---
 
-Esta página instala lynkeus en una app creada con React Native CLI. Al terminar, tendrás el agente montado en tu app y podrás leer la pantalla desde la terminal con `lynkeus screen`.
+Esta página instala Lynkeus en una app creada con React Native CLI. Al terminar, tendrás el agente montado en tu app y podrás leer la pantalla desde la terminal con `lynkeus screen`.
 
 Si tu app usa Expo, sigue [Instalación en Expo](/es/getting-started/installation-expo/): los pasos cambian.
 
@@ -70,7 +70,7 @@ next: build the app again and open it, then `lynkeus status` (over MCP: the stat
       or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute
 ```
 
-`lynkeus status` revisa en cualquier momento qué tiene el proyecto de lynkeus y qué falta: cada línea que falla dice cómo se arregla.
+`lynkeus status` revisa en cualquier momento qué tiene el proyecto de Lynkeus y qué falta: cada línea que falla dice cómo se arregla.
 
 Si el agente ya estaba montado, imprime `index.js already mounts the agent` y no toca ese archivo. Lo mismo con el plugin: `babel.config.js already has lynkeus-agent/babel`.
 

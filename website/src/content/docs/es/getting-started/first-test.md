@@ -3,13 +3,13 @@ title: Tu primer test
 description: Maneja la app a mano desde la terminal, escribe un primer caso, ejecútalo y aprende a leer lo que imprime.
 ---
 
-Esta página te lleva de una app con lynkeus instalado a un test que pasa. Primero vas a manejar la app a mano desde la terminal, para ver qué lee lynkeus y cómo se nombran las cosas. Después vas a poner esos mismos pasos en un archivo y a ejecutarlo.
+Esta página te lleva de una app con Lynkeus instalado a un test que pasa. Primero vas a manejar la app a mano desde la terminal, para ver qué lee Lynkeus y cómo se nombran las cosas. Después vas a poner esos mismos pasos en un archivo y a ejecutarlo.
 
 El orden no es casual. Un caso es la misma secuencia de comandos que escribirías a mano, guardada en un archivo. Si entiendes los comandos, el formato del caso no tiene nada nuevo que aprender.
 
 ## Antes de empezar
 
-- lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
+- Lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
 - La app abierta en un simulador o un emulador, en build de depuración.
 - `npx lynkeus screen` funcionando: imprime la pantalla actual.
 - El token del proyecto, que `lynkeus init` guardó en `.lynkeus/token` y el CLI lee solo. Si en cambio lo defines con la variable `LYNKEUS_TOKEN`, tiene que tener en tu terminal el mismo valor que recibió la app.
@@ -59,7 +59,7 @@ Un **objetivo** es la forma de señalar un elemento. Todos los comandos que toca
 
 Usa el `testID` siempre que exista. No cambia con el idioma ni con la redacción de los textos.
 
-Un objetivo que lleva sus propias comillas es siempre el texto que está adentro, nunca una ruta, un índice ni un `testID`. Para que las comillas lleguen a lynkeus hay que protegerlas de la terminal con otras: `'"Settings"'`. Cuándo hace falta está en [Errores habituales](#errores-habituales).
+Un objetivo que lleva sus propias comillas es siempre el texto que está adentro, nunca una ruta, un índice ni un `testID`. Para que las comillas lleguen a Lynkeus hay que protegerlas de la terminal con otras: `'"Settings"'`. Cuándo hace falta está en [Errores habituales](#errores-habituales).
 
 ### 3. Toca un elemento
 
@@ -183,7 +183,7 @@ Cambia el último paso para que busque algo que no existe y vuelve a ejecutar. L
   ❌ app.see testId: theme-blue-selected  — <motivo>  (<duración>ms)
 ```
 
-**Debajo viene la evidencia.** lynkeus imprime hasta tres bloques:
+**Debajo viene la evidencia.** Lynkeus imprime hasta tres bloques:
 
 - `— screen at the failure:` la pantalla tal como estaba en ese momento, en el mismo formato que `lynkeus screen`.
 - `— requests:` las peticiones que había hecho la app.
@@ -223,7 +223,7 @@ Para decir que es un texto, dale sus propias comillas. Un objetivo entre comilla
 npx lynkeus wait '"Dark"'
 ```
 
-Las comillas simples de afuera son para la terminal; las dobles de adentro son las que lee lynkeus. En un caso se escribe igual, o con la forma larga:
+Las comillas simples de afuera son para la terminal; las dobles de adentro son las que lee Lynkeus. En un caso se escribe igual, o con la forma larga:
 
 ```yaml
   - app.wait: '"Dark"'
@@ -272,7 +272,7 @@ El ejecutor también absorbe lo que solo ocurre en un dispositivo. Después de u
 
 ## El mismo caso, sin simulador
 
-El archivo que escribiste no dice dónde corre la app. Con la opción `--host`, lynkeus la aloja en Node durante la ejecución, sin simulador:
+El archivo que escribiste no dice dónde corre la app. Con la opción `--host`, Lynkeus la aloja en Node durante la ejecución, sin simulador:
 
 ```bash
 npx lynkeus case run cases/settings-dark-mode.md --host

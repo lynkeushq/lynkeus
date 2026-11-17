@@ -13,7 +13,7 @@ Use the relay when the app cannot reach your backend directly and you do not wan
 
 Do not use it when the app already reaches your machine. A simulator on the same Mac, an Android emulator (which sees the Mac as `10.0.2.2`) and the [headless host](/platforms/headless/) all talk to `127.0.0.1` or the host machine without help.
 
-The relay needs the hosted service at [lynkeus.io](https://lynkeus.io) and an API key of your organization. It carries only the app's calls to your API. It does not carry the lynkeus driver connection.
+The relay needs the hosted service at [lynkeus.io](https://lynkeus.io) and an API key of your organization. It carries only the app's calls to your API. It does not carry the Lynkeus driver connection.
 
 ## Before you start
 
@@ -64,7 +64,7 @@ The relay is deliberately narrow.
 - **Loopback only.** The CLI never forwards to another host and never follows a redirect from your backend.
 - **Size.** Request bodies up to 1 MiB, responses up to 8 MiB, and your backend has 30 seconds to answer.
 - **Volume.** 1,000 requests per session and 8 at once. At most 20 sessions are active per organization.
-- **Headers.** The app's `accept`, `content-type`, `x-api-key`, `x-version`, `x-bundleversion`, `user-agent`, `traceparent`, `tracestate` and its own `authorization` cross the relay. Cookies, `host` and your lynkeus credentials do not.
+- **Headers.** The app's `accept`, `content-type`, `x-api-key`, `x-version`, `x-bundleversion`, `user-agent`, `traceparent`, `tracestate` and its own `authorization` cross the relay. Cookies, `host` and your Lynkeus credentials do not.
 - **Answers are inert.** The service serves them with headers that stop a browser from running or rendering them, so a backend answering `text/html` cannot run script on the service's origin. The app reads them as data and is not affected.
 
 ## What the service stores
@@ -102,6 +102,6 @@ Request and response bodies, headers and the token itself are not logged and not
 
 ## Next steps
 
-- [Security](/security/): what lynkeus exposes and to whom.
+- [Security](/security/): what Lynkeus exposes and to whom.
 - [Running on CI](/guides/ci/): a job that runs the app next to its backend.
 - [CLI reference](/reference/cli/#lynkeus-relay): every option of the command.

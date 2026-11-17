@@ -165,7 +165,7 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
   const lines: string[] = [];
   lines.push(`lynkeus headless doctor — headless readiness for ${packageName(root)}\n`);
 
-  lines.push('Auto-mocked by lynkeus (installDefaultMocks):');
+  lines.push('Auto-mocked by Lynkeus (installDefaultMocks):');
   if (present.length) for (const m of present) lines.push(`  ✓ ${m}`);
   else lines.push('  (none of the known native libs are installed)');
   lines.push('');
@@ -182,7 +182,7 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
     lines.push(`Mocked in ${entry} (app-specific):`);
     const appMocks = [...specs].filter((s) => !autoMocked.includes(s));
     if (appMocks.length) for (const s of appMocks) lines.push(`  ✓ ${s}`);
-    else lines.push('  (none beyond the lynkeus defaults)');
+    else lines.push('  (none beyond the Lynkeus defaults)');
     lines.push(`  network: ${network ?? "default (jest ban) — pass { network: 'real' } to reach a backend"}`);
     lines.push('');
   }

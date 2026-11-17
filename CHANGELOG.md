@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- fastsim is now called Lynkeus FastSim in help, messages (`installed Lynkeus FastSim 2026.11.17 (...)`), MCP tool descriptions and the docs. Command, flag and tool names (`lynkeus fastsim install`, `fastsim_install`), file names, paths and environment variables (`LYNKEUS_FASTSIM_DIR`) are unchanged.
+- fastsim is now called Lynkeus FastSim in help, messages (`installed Lynkeus FastSim 2026.11.17 (...)`), MCP tool descriptions and the docs. Command, flag and tool names (`lynkeus fastsim install`, `fastsim_install`), file names, paths and environment variables (`LYNKEUS_FASTSIM_DIR`) are unchanged. The brand is written Lynkeus in prose, help and messages; commands, packages, paths and environment variables stay lowercase.
 
 ## 0.7.2
 

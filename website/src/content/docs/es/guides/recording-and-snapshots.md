@@ -15,7 +15,7 @@ Las tres sirven a quien escribe tests y prefiere partir de algo observado antes 
 
 ## Grabar lo que hace una persona
 
-Escribir un flujo a mano exige conocer cada `testID`. Grabarlo es más rápido: usas la app y lynkeus anota.
+Escribir un flujo a mano exige conocer cada `testID`. Grabarlo es más rápido: usas la app y Lynkeus anota.
 
 ### 1. Empieza a grabar
 
@@ -94,7 +94,7 @@ Mientras graba, `record` ejecuta como comandos las líneas que recibe por la ent
 
 ## Snapshots: la estructura de una pantalla como línea base
 
-Un snapshot guarda cómo es una pantalla hoy para avisarte cuando sea distinta. lynkeus guarda por defecto el **árbol**: la pantalla como líneas anidadas de significado, sin geometría.
+Un snapshot guarda cómo es una pantalla hoy para avisarte cuando sea distinta. Lynkeus guarda por defecto el **árbol**: la pantalla como líneas anidadas de significado, sin geometría.
 
 ```text
 - screen Onboarding.Welcome (Root > Onboarding.Welcome)
