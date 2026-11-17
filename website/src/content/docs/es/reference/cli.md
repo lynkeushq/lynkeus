@@ -1426,17 +1426,18 @@ Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si no
 ### `lynkeus fastsim grant`
 
 ```bash
-lynkeus fastsim grant [--platform ios|android] [--variant <nombre>] [--cloud <url>]
+lynkeus fastsim grant [--platform ios|android] [--variant <nombre>] [--print] [--cloud <url>]
 ```
 
 Imprime el permiso (grant) que un host de fastsim necesita para arrancar. Cada host pide uno nuevo a lynkeus.io, y el `bin/fastsim-run` de fastsim lo obtiene ejecutando `npx --no-install lynkeus fastsim grant --variant <variante>` antes de cada host. Elige el build igual que [`lynkeus fastsim install`](#lynkeus-fastsim-install) y usa las mismas credenciales: `LYNKEUS_CLOUD_KEY`, o si no la [sesión](#lynkeus-login) guardada, que renueva cuando vence. Si no hay ninguna, inicia sesión solo cuando stdin y stderr son terminales y `CI` no está definida; si no, termina con `2`, así que el `fastsim-run` de un script nunca espera un navegador. No sigue una redirección del servicio.
 
-Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants/<servicio>/<variante>.json` (`XDG_CACHE_HOME` cambia la carpeta; el archivo es legible solo por ti) y lo reutiliza mientras le queden más de 5 minutos. Por stdout imprime únicamente el grant, para que un script lo lea; los mensajes van a stderr. Sale con `2` si no hay ni una key ni una sesión, y con `1` si el servicio lo rechaza (sin permiso para fastsim, una key o sesión que no acepta, sin grants configurados) o no responde. No es una herramienta de MCP.
+Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants/<servicio>/<variante>.json` (`XDG_CACHE_HOME` cambia la carpeta; el archivo es legible solo por ti) y lo reutiliza mientras le queden más de 5 minutos. Cuando lo lee un script (stdout no es una terminal), imprime por stdout únicamente el grant y los mensajes van a stderr. En una terminal muestra en cambio un resumen, con un tilde, el build y hasta cuándo vale, para que el token no quede a la vista; con `--print` lo muestra igual, y `--json` siempre lo incluye. Sale con `2` si no hay ni una key ni una sesión, y con `1` si el servicio lo rechaza (sin permiso para fastsim, una key o sesión que no acepta, sin grants configurados) o no responde. No es una herramienta de MCP.
 
 | Flag | Por defecto | Para qué |
 |---|---|---|
 | `--platform <ios\|android>` | `ios` | La plataforma que dibuja el build. |
 | `--variant <nombre>` | el build de esta máquina | Un build por su nombre, que reemplaza al de la máquina. |
+| `--print` | no | Muestra el token también en una terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 
 ## Host sin pantalla (`headless`)

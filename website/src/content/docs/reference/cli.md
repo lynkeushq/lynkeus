@@ -1424,17 +1424,18 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 ### `lynkeus fastsim grant`
 
 ```bash
-lynkeus fastsim grant [--platform ios|android] [--variant <name>] [--cloud <url>]
+lynkeus fastsim grant [--platform ios|android] [--variant <name>] [--print] [--cloud <url>]
 ```
 
 Prints the grant a fastsim host needs to start. Each host asks for a fresh one from lynkeus.io, and fastsim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
 
-A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim/grants/<service>/<variant>.json` (`XDG_CACHE_HOME` moves the folder; the file is readable only by you) and reuses it while it has more than 5 minutes left. It prints only the grant on stdout, so a script can read it; messages go to stderr. Exits with `2` when there is neither a key nor a sign-in, and with `1` when the service refuses (no entitlement, a key or sign-in it does not accept, no grants set up) or cannot be reached. It is not an MCP tool.
+A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim/grants/<service>/<variant>.json` (`XDG_CACHE_HOME` moves the folder; the file is readable only by you) and reuses it while it has more than 5 minutes left. When a script reads it (stdout is not a terminal), it prints only the grant on stdout and messages go to stderr. At a terminal it prints a summary instead, a check mark with the build and until when the grant is valid, so the token does not sit on the screen; `--print` shows the token there too, and `--json` always carries it. Exits with `2` when there is neither a key nor a sign-in, and with `1` when the service refuses (no entitlement, a key or sign-in it does not accept, no grants set up) or cannot be reached. It is not an MCP tool.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--platform <ios\|android>` | `ios` | The platform the build draws. |
 | `--variant <name>` | this machine's build | A build by name, which overrides the machine's. |
+| `--print` | off | Print the token even at a terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 
 ## headless

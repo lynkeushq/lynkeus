@@ -204,6 +204,8 @@ const NO_CREDENTIALS = (cloud: string) =>
 export type SignInDeps = {
   /** Whether stdin and stderr are terminals; only tests pass another. */
   tty?: () => boolean;
+  /** Whether stdout is a terminal (a person reads it, not a script); only tests pass another. */
+  stdoutTty?: () => boolean;
   signIn?: (o: LoginOptions) => Promise<Credential>;
   open?: LoginOptions['open'];
 };
@@ -252,6 +254,20 @@ const withCredentials = async <T>(
     ctx.err(`The saved sign-in for ${cloud} was refused (ended or revoked): signing in again (lynkeus login)…`);
     return attempt(await signIn(), true);
   }
+};
+
+const paint = (code: string, text: string) => (process.env.NO_COLOR ? text : `\x1b[${code}m${text}\x1b[0m`);
+
+/** What a person at a terminal sees instead of the token: the token is for fastsim-run, not for reading. */
+export const grantSummary = (o: { variant: string; expiresAt: string; cached: boolean; now?: number }): string => {
+  const until = new Date(o.expiresAt);
+  const left = Math.max(0, Math.round((until.getTime() - (o.now ?? Date.now())) / 60_000));
+  const time = until.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return [
+    `${paint('32', '✔')} ${paint('1', 'fastsim grant ready')} for ${paint('1', o.variant)}`,
+    paint('2', `  valid until ${time} (${left} min left), ${o.cached ? 'reused from the cache' : 'new from lynkeus.io'}`),
+    paint('2', '  fastsim-run fetches it by itself; to see the token: lynkeus fastsim grant --print'),
+  ].join('\n');
 };
 
 export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, deps: SignInDeps = {}) => [
@@ -307,11 +323,12 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     group: 'runs',
     summary: 'Print a fresh grant a fastsim host needs to start, fetched from lynkeus.io (cached for an hour)',
     details:
-      "Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout, so a script can read it: fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.",
+      "Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout when a script reads it (stdout not a terminal, or --print): fastsim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. At a terminal it prints a summary instead (the variant and until when it is valid), so the token does not sit on screen; --json always carries it. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no fastsim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.",
     flags: {
       platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
       variant: { type: 'string', help: "a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)", value: 'name' },
       cloud: { type: 'string', help: 'service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)', value: 'url' },
+      print: { type: 'boolean', help: 'print the token even at a terminal (it is printed anyway when stdout is a pipe)' },
     },
     needs: 'nothing',
     session: false,
@@ -319,9 +336,12 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     run: async (ctx) => {
       try {
         const cloud = cloudUrl(ctx.flags.cloud);
+        const forPerson = ctx.flags.print !== true && !ctx.attached && (deps.stdoutTty ?? (() => process.stdout.isTTY === true))();
         const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const got = await fetchGrant({ cloud, key, variant, signedIn });
+          const json = { grant: got.grant, expiresAt: got.expiresAt, variant };
+          if (forPerson) return { text: grantSummary({ variant, expiresAt: got.expiresAt, cached: got.cached }), json };
           ctx.err(`${got.cached ? 'cached' : 'new'} fastsim grant for ${variant}, valid until ${got.expiresAt}`);
           return { text: got.grant, json: { grant: got.grant, expiresAt: got.expiresAt, variant } };
         });
