@@ -1376,17 +1376,25 @@ Termina con `2` si falta la clave y con `1` si no se puede crear la sesión, si 
 ### `lynkeus fastsim install`
 
 ```bash
-lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]
+lynkeus fastsim install [--version <versión>] [--platform ios|android] [--variant <nombre>] [--cloud <url>] [--force]
 ```
 
-Baja fastsim a tu Mac. fastsim es el simulador que dibuja la app sin el simulador de Xcode, y está disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja la que pediste, verifica su SHA-256 y la descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/`. Adentro del paquete hay un README que explica cómo levantar un host para tu app.
+Baja fastsim, el simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja el build de esta máquina y de `--platform`, verifica su SHA-256 y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/` (`LYNKEUS_FASTSIM_DIR` cambia esa carpeta). Adentro del paquete hay un README que explica cómo levantar un host para tu app. La [guía de fastsim](/es/guides/fastsim/) cuenta el flujo completo.
 
-Usa `LYNKEUS_CLOUD_KEY`, la API key de tu organización, y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar.
+Usa `LYNKEUS_CLOUD_KEY`, la API key de tu organización, y al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
+
+| Máquina | `--platform ios` | `--platform android` |
+|---|---|---|
+| Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 65 MB) |
+| Linux x64 o arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
+
+En Windows, ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux. Los Mac con Intel no están soportados.
 
 | Flag | Por defecto | Para qué |
 |---|---|---|
-| `--version <version>` | `latest` | La versión a instalar, por ejemplo `2026.11.17`. |
-| `--variant <name>` | `darwin-arm64` | El build. Solo Macs con Apple Silicon. |
+| `--version <versión>` | `latest` | La versión a instalar, por ejemplo `2026.11.17`. |
+| `--platform <ios\|android>` | `ios` | La plataforma que dibuja el build. |
+| `--variant <nombre>` | el build de esta máquina | Un build por su nombre, que reemplaza al de la máquina: `darwin-arm64-ios`, `linux-x64-android`. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 | `--force` | | Baja y descomprime de nuevo. |
 

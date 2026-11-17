@@ -881,16 +881,17 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 | `--prefix <path>` | allowed backend path prefix (default `/api/mobile/`) |
 | `--ttl <seconds>` | session lifetime in seconds (max 3600) (default `900`) |
 
-### `lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]`
+### `lynkeus fastsim install [--version <version>] [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--force]`
 
-Download fastsim for this Mac from lynkeus.io with the organization's key
+Download fastsim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the one asked for (`latest` unless --version), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). An installed release with the same digest is kept. The package's README says how to start a host. Exit code 2 without a key, 1 when the organization has no fastsim entitlement or the download fails.
+Asks lynkeus.io which fastsim releases the organization may install (LYNKEUS_CLOUD_KEY, the organization's API key), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). Exit code 2 without a key, 1 when the organization has no fastsim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
 | `--version <version>` | release to install (default `latest`) |
-| `--variant <name>` | build to install (default `darwin-arm64`) |
+| `--platform <ios|android>` | the platform it draws: ios or android (default `ios`) |
+| `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--force` | download again even when that release is installed |
 

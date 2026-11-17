@@ -1374,17 +1374,25 @@ Exits with `2` when there is no key, and with `1` when the session cannot be cre
 ### `lynkeus fastsim install`
 
 ```bash
-lynkeus fastsim install [--version <version>] [--variant <name>] [--cloud <url>] [--force]
+lynkeus fastsim install [--version <version>] [--platform ios|android] [--variant <name>] [--cloud <url>] [--force]
 ```
 
-Downloads fastsim, the simulator that draws the app on a Mac without Xcode's simulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads one, checks its SHA-256 and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/`. The README inside the package says how to start a host for your app.
+Downloads fastsim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
 
-It needs `LYNKEUS_CLOUD_KEY`, your organization's API key. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`.
+It needs `LYNKEUS_CLOUD_KEY`, your organization's API key. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
+
+| Machine | `--platform ios` | `--platform android` |
+|---|---|---|
+| Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 65 MB) |
+| Linux x64 or arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
+
+On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Macs are not supported.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--version <version>` | `latest` | The release to install, such as `2026.11.17`. |
-| `--variant <name>` | `darwin-arm64` | The build. Apple Silicon Macs only. |
+| `--platform <ios\|android>` | `ios` | The platform the build draws. |
+| `--variant <name>` | this machine's build | A build by name, which overrides the machine's: `darwin-arm64-ios`, `linux-x64-android`. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 | `--force` | | Download and unpack again. |
 

@@ -80,7 +80,7 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 22 core tools | About 3,500 tokens |
+| `npx lynkeus mcp` | The 23 core tools | About 3,500 tokens |
 | `npx lynkeus mcp --full` | All 56 commands | About 7,300 tokens |
 
 Start with the core. Add `--full` for an agent whose job is crawling, recording or snapshots.
@@ -93,6 +93,7 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `init` | Installs the agent, mounts it from the app's entry, makes the project's token. |
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
+| `fastsim_install` | Downloads fastsim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on fastsim](/guides/fastsim/). |
 | `case_init` | Writes an example case and the reference of the format. |
 | `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |

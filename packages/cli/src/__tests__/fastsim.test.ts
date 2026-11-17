@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { type FastsimRelease, installFastsim, newestFirst } from '../commands/fastsim.js';
+import { type FastsimRelease, fastsimVariant, installFastsim, newestFirst } from '../commands/fastsim.js';
 
 const archive = (files: Record<string, string>) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-src-'));
@@ -100,4 +100,14 @@ test('newestFirst orders date versions by number, not as text', () => {
     { version: '2026.11.17', variant: 'v', sha256: '', bytes: 0 },
   ]).map((r) => r.version);
   assert.deepEqual(order, ['2026.11.17', '2026.11.3', '2026.9.30']);
+});
+
+test('the build is chosen by the machine and the platform; Windows goes through WSL2', () => {
+  assert.equal(fastsimVariant('ios', 'darwin', 'arm64'), 'darwin-arm64-ios');
+  assert.equal(fastsimVariant('android', 'darwin', 'arm64'), 'darwin-arm64-android');
+  assert.equal(fastsimVariant('android', 'linux', 'x64'), 'linux-x64-android');
+  assert.equal(fastsimVariant('ios', 'linux', 'arm64'), 'linux-arm64-ios');
+  assert.throws(() => fastsimVariant('ios', 'darwin', 'x64'), /Apple Silicon/);
+  assert.throws(() => fastsimVariant('ios', 'win32', 'x64'), /WSL2/);
+  assert.throws(() => fastsimVariant('web', 'darwin', 'arm64'), /ios or android/);
 });
