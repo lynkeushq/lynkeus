@@ -348,6 +348,7 @@ Un paso `app.<comando>` que no es ninguno de los anteriores ejecuta el comando d
 - app.appstate: background
 - app.mock: { route: "GET /v3/accounts", status: 500 }
 - app.clock: { now: "2027-01-01T00:00:00Z" }
+- app.clock: { advance: 5000, settle: true }
 - app.mock: clear
 ```
 

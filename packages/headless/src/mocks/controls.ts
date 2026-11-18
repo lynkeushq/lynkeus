@@ -76,7 +76,7 @@ const installClock = () => {
     offsetMs = 0;
   });
   qa.register('clock', (params) => {
-    const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean };
+    const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean; settle?: boolean };
     if (p.reset) offsetMs = 0;
     if (p.now) {
       const target = RealDate.parse(p.now);
@@ -84,10 +84,46 @@ const installClock = () => {
       offsetMs = target - RealDate.now();
     }
     if (typeof p.advanceMs === 'number') offsetMs += p.advanceMs;
-    const now = new ControlledDate().toISOString();
-    log(`clock → ${now} (offset ${Math.round(offsetMs / 1000)}s)`);
-    return { now, offsetMs };
+    const answer = () => ({ now: new ControlledDate().toISOString(), offsetMs });
+    if (!p.settle) {
+      const done = answer();
+      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s)`);
+      return done;
+    }
+    return settle().then((settled) => {
+      const done = { ...answer(), ...settled };
+      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s), ${settled.settled ? 'settled' : 'not settled'}`);
+      return done;
+    });
   });
+};
+
+/** What `clock --settle` reads from the host: how many commits the screen has had and how many requests are out. */
+export type SettleProbe = { commits: () => number; inFlight: () => number };
+let probe: SettleProbe | undefined;
+export const setSettleProbe = (next: SettleProbe | undefined): void => {
+  probe = next;
+};
+
+const SETTLE_TURN_MS = 2;
+const SETTLE_QUIET_TURNS = 3;
+const SETTLE_MAX_TURNS = 100;
+
+// Timers here are real, so time cannot be held still. What settle does not do is wait for the app's delayed work: it
+// gives the event loop a few short turns (microtasks, immediates, a zero-delay timer or two) and stops once the screen
+// has not committed for three in a row. A timer due later stays pending; a loop that re-arms itself never goes quiet
+// and the answer says so.
+const settle = async () => {
+  if (!probe) throw new Error('clock: settle needs the host running');
+  let quiet = 0;
+  let turns = 0;
+  while (quiet < SETTLE_QUIET_TURNS && turns < SETTLE_MAX_TURNS) {
+    const before = probe.commits();
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_TURN_MS));
+    turns += 1;
+    quiet = probe.commits() === before ? quiet + 1 : 0;
+  }
+  return { settled: quiet >= SETTLE_QUIET_TURNS, turns, commit: probe.commits(), inFlight: probe.inFlight() };
 };
 
 export type NetRule = {
