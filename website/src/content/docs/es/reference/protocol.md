@@ -3,7 +3,7 @@ title: Protocolo
 description: Los mensajes que intercambian la app y su driver, para quien quiera escribir un driver propio.
 ---
 
-Todo lo que hace el CLI de lynkeus lo hace enviando mensajes JSON a la app por un WebSocket. Ese intercambio es el **protocolo**, y esta página lo documenta completo: la conexión, la autenticación, cada método y la forma de cada respuesta.
+Todo lo que hace el CLI de Lynkeus lo hace enviando mensajes JSON a la app por un WebSocket. Ese intercambio es el **protocolo**, y esta página lo documenta completo: la conexión, la autenticación, cada método y la forma de cada respuesta.
 
 La necesitas si quieres manejar la app desde algo que no sea el CLI: un runner de tests propio, una herramienta en otro lenguaje, un arnés para un modelo de IA. Si escribes en Node, antes de implementar el protocolo mira [`AgentServer`](#el-driver-de-referencia-agentserver), que ya lo hace.
 
@@ -291,7 +291,7 @@ Cualquier nombre que figure en `commands` se llama como un método más. Los par
 Algunos comandos los usa `case run` y los ofrece el host, no el agente:
 
 - **`memory`** (el host sin pantalla): lee el heap después de una recolección de basura, sin necesitar `--expose-gc`, y responde entre otros campos `heapUsedMb`, `heapTotalMb`, `rssMb` y `heapLimitMb`, que dice dónde se detiene el heap. Un ejecutor puede comparar una lectura con la del caso siguiente y con el límite. `case run --host` lo consulta antes de cada caso.
-- **`record`** (un host que filma, como fastsim): `{ path, fps, scale? }` empieza a filmar, `{ frames: true }` dice cuántos cuadros lleva, y `{ stop: true }` termina y responde `{ bytes }` con lo que pesa la película. Si el host está en otra máquina, la ruta `path` es de esa máquina; entonces `{ read: offset }` entrega la película de a trozos, `{ data, done }` con `data` en base64, hasta completar `bytes`. Así `case run --video` conserva la película de un host remoto.
+- **`record`** (un host que filma, como Lynkeus FastSim): `{ path, fps, scale? }` empieza a filmar, `{ frames: true }` dice cuántos cuadros lleva, y `{ stop: true }` termina y responde `{ bytes }` con lo que pesa la película. Si el host está en otra máquina, la ruta `path` es de esa máquina; entonces `{ read: offset }` entrega la película de a trozos, `{ data, done }` con `data` en base64, hasta completar `bytes`. Así `case run --video` conserva la película de un host remoto.
 - **`netmock`**: las reglas con las que se contestan peticiones (`add`, `clear`, `list`). El host sin pantalla además acepta `record`, `dump` y `replay`. El agente lo trae para un simulador, un emulador o un teléfono, donde solo funcionan `add`, `clear` y `list`.
 
 `reset` tiene un trato especial. La app ejecuta primero la función que registró, si registró alguna. Después el agente agrega lo que solo él alcanza: reinicia el estado nativo simulado del host y devuelve la navegación a su ruta inicial.

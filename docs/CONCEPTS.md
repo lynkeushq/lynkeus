@@ -58,7 +58,7 @@ wins: it draws on top.
 A **route** is a screen name as the navigation adapter reports it, such as
 `Settings.Main` or `Checkout.Confirm`. The **path** is the chain of navigators from
 the root down to the focused screen. Both come from the adapter
-(`reactNavigationAdapter` ships); without one, lynkeus still sees elements but
+(`reactNavigationAdapter` ships); without one, Lynkeus still sees elements but
 no routes, so `wait Settings.Main` has nothing to wait for.
 
 ## Screen
@@ -97,7 +97,7 @@ what it caused. See [KNOWLEDGE.md](KNOWLEDGE.md#record-what-a-person-does).
 
 ## Graph and observed edges
 
-The **graph** (`.lynkeus/graph.json`, from `lynkeus map build`) is static: lynkeus
+The **graph** (`.lynkeus/graph.json`, from `lynkeus map build`) is static: Lynkeus
 reads the app's source once and records every route, the file that declares
 it, the testIDs a screen is likely to have, and the navigations it can
 perform. It is a guess made from code.
@@ -131,7 +131,7 @@ same cases run on a simulator; only the way the host starts differs.
 
 ## `.lynkeus/`
 
-Everything lynkeus keeps lives under `.lynkeus/` in the app's folder. Except the
+Everything Lynkeus keeps lives under `.lynkeus/` in the app's folder. Except the
 token, all of it is a build product: safe to delete, cheap to regenerate.
 
 | Path | |
@@ -175,7 +175,7 @@ app and its driver. Global flags:
 `--root`, `--device`, `--app`, `--launch`, `--attach-timeout`, `--json`,
 `--help`.
 
-## What lynkeus does not know
+## What Lynkeus does not know
 
 Nothing about your product. It has no list of your screens, no idea what your
 buttons do, no notion of a user, a session or anything your product calls its own. Everything it
@@ -186,13 +186,13 @@ in `lynkeus.config.json` rather than in the tool:
 
 | Decision | Where it lives |
 |---|---|
-| Which controls a crawl must never press | `crawl.never`, and it starts empty: lynkeus ships no words, because which controls are irreversible depends on the app. A read-only crawl already stops at the first press that makes the app write |
+| Which controls a crawl must never press | `crawl.never`, and it starts empty: Lynkeus ships no words, because which controls are irreversible depends on the app. A read-only crawl already stops at the first press that makes the app write |
 | Which overlay the app raises on its own, and how to clear it | `--overlay-when` plus a flow you write |
 | Which components carry a value worth reading (a QR, a barcode) | `valueComponents` on the host |
 | How to log in again after a reset | `--login-flow`, flows you write |
-| What language the app speaks | `language` and `locale` — lynkeus never reads your copy, it passes them on: `os language` defaults to them, the generated headless entry mocks them, MCP reports them |
-| What a route means, what state a case needs | your own tooling; lynkeus never fabricates state |
+| What language the app speaks | `language` and `locale` — Lynkeus never reads your copy, it passes them on: `os language` defaults to them, the generated headless entry mocks them, MCP reports them |
+| What a route means, what state a case needs | your own tooling; Lynkeus never fabricates state |
 | Which of your screens is worth reaching first | `crawl --to <Route>`; without one it explores everything, in the order the app renders it |
 
-If you find product knowledge baked into lynkeus itself, that is a bug: open
+If you find product knowledge baked into Lynkeus itself, that is a bug: open
 an issue.

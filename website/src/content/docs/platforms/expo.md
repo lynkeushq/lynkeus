@@ -1,9 +1,9 @@
 ---
 title: Expo
-description: What is specific to running lynkeus in an Expo app. Development builds, the entry file, the token variable, expo-router routes, native tabs, and known limits.
+description: What is specific to running Lynkeus in an Expo app. Development builds, the entry file, the token variable, expo-router routes, native tabs, and known limits.
 ---
 
-This page collects what is particular to Expo, with the reason for each point. It is the reference to return to after the step-by-step [installation guide](/getting-started/installation-expo/), and the page a lead should read to decide whether lynkeus fits an Expo project.
+This page collects what is particular to Expo, with the reason for each point. It is the reference to return to after the step-by-step [installation guide](/getting-started/installation-expo/), and the page a lead should read to decide whether Lynkeus fits an Expo project.
 
 The facts here were verified on a new Expo SDK 57 project, with React Native 0.86 and expo-router, on the iOS simulator and on the Android emulator. On both, a development build attaches, the screen is read, and expo-router's routes are recognized.
 
@@ -142,7 +142,7 @@ The `route:` prefix arrived in version 0.3.0.
 
 ## Native tabs
 
-The newest Expo template uses a tab bar drawn by the operating system, not by React Native. lynkeus reads the tree React rendered, and those tabs are not in it. As a result:
+The newest Expo template uses a tab bar drawn by the operating system, not by React Native. Lynkeus reads the tree React rendered, and those tabs are not in it. As a result:
 
 - The tabs do not appear in `lynkeus screen`.
 - They cannot be pressed by `testID` or by label.
@@ -153,7 +153,7 @@ Move between tabs by route. For a tab whose route is `explore`:
 npx lynkeus nav explore
 ```
 
-`nav` is a teleport: it changes the route without touching anything. That is the right tool for getting a test to the tab it is about. It does not prove that the tab bar itself works; a tab bar built from React Native components, which lynkeus can see and press, is the only kind it can test directly.
+`nav` is a teleport: it changes the route without touching anything. That is the right tool for getting a test to the tab it is about. It does not prove that the tab bar itself works; a tab bar built from React Native components, which Lynkeus can see and press, is the only kind it can test directly.
 
 ## Cases in an Expo app
 

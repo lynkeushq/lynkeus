@@ -13,7 +13,7 @@ const RULES: Rule[] = [
   {
     re: /Invariant Violation: (?:requireNativeComponent: )?"?([\w.]+)"? was not found in the UIManager/,
     cause: (m) => `the native view ${m[1]} has no jest counterpart`,
-    fix: (m) => `mock the library that renders ${m[1]} with a plain View (see the vision-camera and webview stubs lynkeus ships for the shape).`,
+    fix: (m) => `mock the library that renders ${m[1]} with a plain View (see the vision-camera and webview stubs Lynkeus ships for the shape).`,
   },
   {
     re: /Cannot find module '([^']+)' from '([^']+)'/,
@@ -29,7 +29,7 @@ const RULES: Rule[] = [
   {
     re: /(\w+)\.(\w+) is not a function/,
     cause: (m) => `${m[1]}.${m[2]} is missing — usually a mock that does not implement a method the app calls`,
-    fix: (m) => `extend the mock for ${m[1]} with ${m[2]}; the lynkeus defaults can be overridden per key in installDefaultMocks({ overrides }).`,
+    fix: (m) => `extend the mock for ${m[1]} with ${m[2]}; the Lynkeus defaults can be overridden per key in installDefaultMocks({ overrides }).`,
   },
   {
     re: /Cannot read propert(?:y|ies) of undefined \(reading '(\w+)'\)/,
@@ -45,7 +45,7 @@ const RULES: Rule[] = [
   {
     re: /ECONNREFUSED (\d+\.\d+\.\d+\.\d+):(\d+)/,
     cause: (m) => `nothing is listening on ${m[1]}:${m[2]}`,
-    fix: () => `start the backend (or the lynkeus driver, if this is the agent's socket) and check the port the entry dials.`,
+    fix: () => `start the backend (or the Lynkeus driver, if this is the agent's socket) and check the port the entry dials.`,
   },
   {
     // Babel loads the project's config with require(); a plugin shipped as ESM only loads that way from Node 22.12.

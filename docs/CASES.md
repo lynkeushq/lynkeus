@@ -1,7 +1,7 @@
 # Cases
 
 Cases a person can read, run against the app. The format and the runner are
-lynkeus'; what a user is, how this app logs in and how its backend is prepared
+Lynkeus'; what a user is, how this app logs in and how its backend is prepared
 are the project's, declared in `lynkeus.config.json`.
 
 ```sh
@@ -30,9 +30,9 @@ report carries the screen, the requests and the reason.
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
 | `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
-| `app.run` | `{ flow, vars? }` | A lynkeus flow, from the flows folder. |
+| `app.run` | `{ flow, vars? }` | A Lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
-| `app.<command>` | its arguments by name | Any other lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
+| `app.<command>` | its arguments by name | Any other Lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
 
 ```yaml
   - app.mock: { route: "POST /v3/transfers", lost: true, times: 1 }   # the server gets it and acts; the app never hears back
@@ -86,7 +86,7 @@ it. Only then does the step's deadline count.
 
 ## Steps that prepare and read the backend
 
-Any other step name is a **fixture**: lynkeus sends it to the command in
+Any other step name is a **fixture**: Lynkeus sends it to the command in
 `cases.fixtures` (lynkeus.config.json) as one JSON line and reads one back.
 
 ```
@@ -99,7 +99,7 @@ the `inspect` fixture and checks one path of its answer with `equals`,
 `includes`, `gte`, `lte`, `near`, `matches`, `present` or `absent`.
 `exec: { run: "…", as? }` runs a shell command and keeps its JSON output.
 
-Before the first case lynkeus asks the fixtures command what it answers
+Before the first case Lynkeus asks the fixtures command what it answers
 (`{"command": "lynkeus.describe"}`). A server that replies with
 `{"commands": ["create_user", …]}` has every case checked against that list,
 and a case naming a fixture that is not on it is refused before anything runs,
@@ -185,7 +185,7 @@ graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map che
 
 `lynkeus ci` is a suite run the way a CI job wants one: the project's backend brought up by the project's own
 command, N hosts of the app, the cases spread across them, the report uploaded, a summary for the job, and
-everything torn down, failure or not. lynkeus knows no backend; the config says how to start one:
+everything torn down, failure or not. Lynkeus knows no backend; the config says how to start one:
 
 ```json
 "ci": {
@@ -276,7 +276,7 @@ that `heading`, and a report groups the steps by it. Any other comment is a note
 `--traces` shows, under each step, what the backend did for it: every request
 the app sent while the step ran, and the queries, jobs and calls out each one
 set off. It uses OpenTelemetry, so any backend that can export traces works and
-lynkeus needs to know nothing about it:
+Lynkeus needs to know nothing about it:
 
 1. The run listens for OTLP over HTTP on `localhost:4318` (`--traces-port`).
 2. Each app step gets its own span id, and the host puts it in the W3C
@@ -291,7 +291,7 @@ lynkeus needs to know nothing about it:
 
 The agent puts the header on the app's requests itself (its `traceContext`
 command), so this works on a simulator, an emulator or a device as well as on
-fastsim; an app with an agent older than this release goes untraced. A
+Lynkeus FastSim; an app with an agent older than this release goes untraced. A
 backend's spans that no step's request caused, such as a scheduler's, are left
 out. Turn
 the backend's exporter on only for test runs: it costs a little on every
@@ -368,9 +368,9 @@ did. What turns each on:
 | In the report | How |
 | --- | --- |
 | Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
-| Film | `--video`, on a host that films: fastsim. A simulator, an emulator and headless keep frames only. |
+| Film | `--video`, on a host that films: FastSim. A simulator, an emulator and headless keep frames only. |
 | Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
-| The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on fastsim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
+| The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on FastSim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |
 | What the app printed | `--out`: the agent keeps its console and uncaught errors, with their stacks, under the step that printed them |
 | The backend's analytics | `cases.serverEvents` in the config |
 | What the backend did | `--traces` (above) |

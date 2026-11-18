@@ -5,7 +5,7 @@ description: Cómo detectar los casos que pasan unas veces y fallan otras, medir
 
 Un test intermitente es el que pasa y falla sin que nada haya cambiado. Es más caro que un test roto: el roto se arregla, mientras que el intermitente enseña al equipo a ignorar los fallos, y un fallo ignorado ya no protege nada.
 
-El primer paso para arreglarlo es dejar de tratarlo como una impresión ("ese falla a veces") y convertirlo en un dato: cuántas veces falla, en qué paso y con qué error. lynkeus ofrece cuatro herramientas para eso, de la más inmediata a la más amplia. Esta guía las recorre en ese orden.
+El primer paso para arreglarlo es dejar de tratarlo como una impresión ("ese falla a veces") y convertirlo en un dato: cuántas veces falla, en qué paso y con qué error. Lynkeus ofrece cuatro herramientas para eso, de la más inmediata a la más amplia. Esta guía las recorre en ese orden.
 
 ## Antes de empezar
 

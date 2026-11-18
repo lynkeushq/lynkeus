@@ -8,8 +8,8 @@ test('an agent of the CLI release is not worth a word', () => {
 });
 
 test('an agent of another release, or one too old to say, is named with how to line the two up', () => {
-  assert.match(agentMismatch({ agentVersion: '0.1.9' }, '0.2.1')!, /lynkeus-agent 0\.1\.9, this CLI is lynkeus 0\.2\.1.*lynkeus-agent@0\.2\.1/);
-  assert.match(agentMismatch({}, '0.2.1')!, /too old to say its version, this CLI is lynkeus 0\.2\.1/);
+  assert.match(agentMismatch({ agentVersion: '0.1.9' }, '0.2.1')!, /lynkeus-agent 0\.1\.9, this CLI is Lynkeus 0\.2\.1.*lynkeus-agent@0\.2\.1/);
+  assert.match(agentMismatch({}, '0.2.1')!, /too old to say its version, this CLI is Lynkeus 0\.2\.1/);
 });
 
 test('a different app taking the port over is told once, a relaunch of the same one is not', () => {

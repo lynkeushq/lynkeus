@@ -5,7 +5,7 @@ description: Use --traces and OpenTelemetry to see, under each step of a test, t
 
 When a step fails, the screen shows half of the story. The other half happened on the server: the request that answered 500, the call to another service that took four seconds, the job that never ran. **Backend traces** put that half under the step that caused it.
 
-lynkeus uses OpenTelemetry for this, the open standard for traces. Any backend that can export traces works, and nothing from lynkeus is installed in the backend. This guide is for whoever runs the backend during tests.
+Lynkeus uses OpenTelemetry for this, the open standard for traces. Any backend that can export traces works, and nothing from Lynkeus is installed in the backend. This guide is for whoever runs the backend during tests.
 
 ## Before you start
 
@@ -25,7 +25,7 @@ You should see, before the first case:
 backend traces: listening on http://localhost:4318 (the backend's OTEL_EXPORTER_OTLP_ENDPOINT)
 ```
 
-For the length of the run, lynkeus listens for OTLP over HTTP on port 4318. `--traces-port <port>` moves it.
+For the length of the run, Lynkeus listens for OTLP over HTTP on port 4318. `--traces-port <port>` moves it.
 
 `--out` gives the traces a place to live: they are written into the run directory, under each step.
 
@@ -39,7 +39,7 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 <your backend start command>
 
 `OTEL_EXPORTER_OTLP_ENDPOINT` is OpenTelemetry's standard variable, so most SDKs read it without any code. How you enable the SDK depends on your language and framework; follow OpenTelemetry's instructions for yours.
 
-lynkeus accepts both encodings of OTLP over HTTP, protobuf and JSON, on the path `/v1/traces`.
+Lynkeus accepts both encodings of OTLP over HTTP, protobuf and JSON, on the path `/v1/traces`.
 
 :::caution
 Turn the backend's exporter on only for test runs. It costs a little on every request.
@@ -89,7 +89,7 @@ In the hosted report, each step lists the requests the app sent while it ran, an
 1. The run listens for OTLP over HTTP on `localhost:4318`.
 2. Each app step gets its own span id. The agent puts it in the W3C `traceparent` header of every request the app sends during that step.
 3. The backend continues that trace, as any OpenTelemetry SDK does when it receives a `traceparent` header, and exports what it did to the run.
-4. When the case ends, lynkeus waits for the backend's last batch: until nothing new has arrived for 300 ms, or 3 seconds at most. Every span whose chain of parents reaches a step is kept under that step.
+4. When the case ends, Lynkeus waits for the backend's last batch: until nothing new has arrived for 300 ms, or 3 seconds at most. Every span whose chain of parents reaches a step is kept under that step.
 
 Three consequences follow from this design.
 

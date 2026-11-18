@@ -1,4 +1,4 @@
-# Driving lynkeus from a model
+# Driving Lynkeus from a model
 
 What to put in an agent's system prompt so it tests an app without spending
 its context on it. Every number below was measured on a production React
@@ -11,7 +11,7 @@ Native app.
 ones that run and write cases (`case_run`, `case_status`, `case_init`,
 `case_coverage`, `case_impact`, `case_new`, `case_here`, `fixtures_describe`,
 `fixtures_check`) and the ones that set a project up (`init`, `status`,
-`headless_init`, `headless_doctor`) and `fastsim_install`, which downloads fastsim — about 3,500 tokens of tool definitions on
+`headless_init`, `headless_doctor`) and `fastsim_install`, which downloads Lynkeus FastSim — about 3,500 tokens of tool definitions on
 every turn (the schemas' size over 3.8 characters a token). `lynkeus mcp --full`
 serves all 56 commands for about 7,500. Start with the core; add `--full` for an
 agent whose job is crawling, recording, snapshots or mocking the network.

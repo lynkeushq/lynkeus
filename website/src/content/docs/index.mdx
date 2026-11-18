@@ -1,13 +1,13 @@
 ---
 title: Introduction
-description: What lynkeus is, what each person on a team gets from it, how its pieces fit together, and where to start.
+description: What Lynkeus is, what each person on a team gets from it, how its pieces fit together, and where to start.
 ---
 
-lynkeus runs automated tests on React Native apps and produces a report of every run. It is open source (MIT).
+Lynkeus runs automated tests on React Native apps and produces a report of every run. It is open source (MIT).
 
-Most end-to-end tools drive an app from the outside: they ask the operating system what is on screen, or take a screenshot and interpret it. lynkeus works from the inside. A small **agent** is mounted in a development build of your app. It reads the tree React rendered, so what it reports is what React knows: the current route, every `testID`, the value of each input, which element a touch would reach and which ones a sheet is covering. Touches and keystrokes are synthesized inside the app's process, and a wait ends on the render that satisfies it.
+Most end-to-end tools drive an app from the outside: they ask the operating system what is on screen, or take a screenshot and interpret it. Lynkeus works from the inside. A small **agent** is mounted in a development build of your app. It reads the tree React rendered, so what it reports is what React knows: the current route, every `testID`, the value of each input, which element a touch would reach and which ones a sheet is covering. Touches and keystrokes are synthesized inside the app's process, and a wait ends on the render that satisfies it.
 
-That design has two consequences worth knowing before you read further. Steps take milliseconds instead of seconds, because nothing leaves the process to decide what to do next. And lynkeus needs a debug build of your app with the agent in it: it cannot test a binary you downloaded from a store.
+That design has two consequences worth knowing before you read further. Steps take milliseconds instead of seconds, because nothing leaves the process to decide what to do next. And Lynkeus needs a debug build of your app with the agent in it: it cannot test a binary you downloaded from a store.
 
 ```text
 screen     2–9 ms      what is on screen: testIDs, labels, values, and what is covered
@@ -77,7 +77,7 @@ The npm packages are:
 - A debug build of the app, for iOS, Android, or both, running on a simulator, an emulator or an Android phone over USB. Expo apps need a development build; Expo Go does not work.
 - Node 22 or newer for the CLI and the headless host.
 
-## What lynkeus does not do
+## What Lynkeus does not do
 
 It does not know your product. It has no list of your screens, no idea what your buttons do, and no notion of a user or a session. Everything it reports was read from the running app or from your source code. Where a test needs product knowledge (which user exists, how to log in, what the backend holds), you supply it, through [fixtures](/guides/fixtures/) and [configuration](/reference/configuration/).
 

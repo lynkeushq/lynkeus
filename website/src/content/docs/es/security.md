@@ -3,9 +3,9 @@ title: Seguridad
 description: Qué expone el agente y a quién, por qué solo existe en builds de depuración, cómo funciona el token y qué guarda el servicio de reportes.
 ---
 
-lynkeus pone dentro de tu app un componente que acepta órdenes de afuera: leer la pantalla, pulsar, escribir, navegar. Antes de adoptarlo es razonable preguntar quién puede dar esas órdenes, qué puede ver, y si algo de eso llega a los usuarios. Esta página responde esas preguntas.
+Lynkeus pone dentro de tu app un componente que acepta órdenes de afuera: leer la pantalla, pulsar, escribir, navegar. Antes de adoptarlo es razonable preguntar quién puede dar esas órdenes, qué puede ver, y si algo de eso llega a los usuarios. Esta página responde esas preguntas.
 
-Está escrita para quien decide si lo adopta y para quien lo instala. Tiene tres partes: el agente dentro de la app, el host sin pantalla, y el servicio de reportes, que es la única parte de lynkeus que saca datos de tu máquina.
+Está escrita para quien decide si lo adopta y para quien lo instala. Tiene tres partes: el agente dentro de la app, el host sin pantalla, y el servicio de reportes, que es la única parte de Lynkeus que saca datos de tu máquina.
 
 ## El resumen
 
@@ -81,7 +81,7 @@ El token viaja sin cifrar por una conexión WebSocket local (`ws://`). Eso es ad
 
 ### Por qué solo en builds de depuración
 
-Un componente que acepta órdenes de afuera no debe existir en la app que reciben tus usuarios. lynkeus lo impide en varias capas, y ninguna depende de que te acuerdes de apagar algo.
+Un componente que acepta órdenes de afuera no debe existir en la app que reciben tus usuarios. Lynkeus lo impide en varias capas, y ninguna depende de que te acuerdes de apagar algo.
 
 | Capa | Qué garantiza |
 |---|---|
@@ -128,11 +128,11 @@ El CLI escribe sus archivos en la carpeta `.lynkeus/` de tu app: el mapa, las pa
 
 Algunos de esos archivos contienen lo que la app mostró: capturas de pantalla, textos de pantalla, URL de peticiones. Trátalos como tratarías los artefactos de cualquier suite de tests. Si tus tests corren contra datos que no deben circular, no subas `.lynkeus/` al repositorio.
 
-Los comandos `crawl` y `smoke` merecen una mención aparte, porque actúan por su cuenta. `crawl` es de solo lectura por defecto: en cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), deja de explorar más allá y no vuelve a pulsar ese control. Pero esa primera pulsación sí ocurre. Los controles que no deben tocarse nunca se declaran en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). lynkeus no trae ninguna lista propia.
+Los comandos `crawl` y `smoke` merecen una mención aparte, porque actúan por su cuenta. `crawl` es de solo lectura por defecto: en cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), deja de explorar más allá y no vuelve a pulsar ese control. Pero esa primera pulsación sí ocurre. Los controles que no deben tocarse nunca se declaran en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). Lynkeus no trae ninguna lista propia.
 
 ## El servicio de reportes
 
-El servicio de reportes, en [lynkeus.io](https://lynkeus.io), es la parte paga de lynkeus: recibe una ejecución y la muestra como una página que tu equipo puede abrir. Es opcional. Sin él, lynkeus funciona igual y nada sale de tu máquina.
+El servicio de reportes, en [lynkeus.io](https://lynkeus.io), es la parte paga de lynkeus: recibe una ejecución y la muestra como una página que tu equipo puede abrir. Es opcional. Sin él, Lynkeus funciona igual y nada sale de tu máquina.
 
 ### Qué se sube, y cuándo
 
@@ -198,7 +198,7 @@ En el plan Free, los videos no se guardan en ningún momento: el servicio los re
 
 El servicio ofrece un punto de acceso MCP para que un cliente de IA (Claude, Claude Code, Cursor y otros) lea las ejecuciones de tu organización, sus casos y lo que hizo el backend.
 
-- El cliente actúa con tu sesión: la primera vez, lynkeus te pide que apruebes el acceso y que elijas qué organización puede leer.
+- El cliente actúa con tu sesión: la primera vez, Lynkeus te pide que apruebes el acceso y que elijas qué organización puede leer.
 - Solo puede leer. No puede subir, modificar ni borrar nada.
 - Puedes desconectarlo cuando quieras, desde la sección de miembros.
 - Cuando alguien deja una organización, el acceso de sus clientes de IA a esa organización termina también.
@@ -207,7 +207,7 @@ No lo confundas con `lynkeus mcp`, el comando del CLI. Ese corre en tu máquina,
 
 ## Lista de comprobación
 
-Antes de dejar lynkeus instalado en un proyecto, repasa esto:
+Antes de dejar Lynkeus instalado en un proyecto, repasa esto:
 
 1. El agente se monta con un `token`, el valor no está en el repositorio y llega a la app: el plugin `lynkeus-agent/babel` está en `babel.config.js`, o la variable es `EXPO_PUBLIC_LYNKEUS_TOKEN` en Expo.
 2. `enabled` depende de tu entorno, no solo de `__DEV__`.

@@ -19,7 +19,7 @@ export const checkDescription = (d: Description | undefined): { ok: boolean; lin
   }
   if (d.protocol !== undefined && d.protocol > FIXTURES_PROTOCOL) {
     ok = false;
-    lines.push(`✗ it speaks fixtures protocol ${d.protocol}; this lynkeus knows ${FIXTURES_PROTOCOL}`);
+    lines.push(`✗ it speaks fixtures protocol ${d.protocol}; this Lynkeus knows ${FIXTURES_PROTOCOL}`);
   }
   const names = new Set<string>();
   for (const c of d.details) {
@@ -74,7 +74,7 @@ export const fixturesCommands = [
     group: 'runs',
     summary: 'Tell whether the project’s fixtures server keeps the fixtures protocol',
     details:
-      'Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this lynkeus knows, and whether it is up. It changes nothing in the backend.',
+      'Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.',
     needs: 'nothing',
     session: false,
     mcp: 'core',

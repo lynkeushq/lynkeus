@@ -1,9 +1,9 @@
 ---
 title: Introducción
-description: Qué es lynkeus, qué le aporta a cada persona del equipo, cómo encajan sus piezas y por dónde empezar.
+description: Qué es Lynkeus, qué le aporta a cada persona del equipo, cómo encajan sus piezas y por dónde empezar.
 ---
 
-lynkeus es una herramienta de código abierto para ejecutar tests automatizados sobre apps de React Native. Maneja la app desde adentro del proceso, y deja un reporte de cada ejecución.
+Lynkeus es una herramienta de código abierto para ejecutar tests automatizados sobre apps de React Native. Maneja la app desde adentro del proceso, y deja un reporte de cada ejecución.
 
 Esta página explica la idea de fondo, qué gana cada rol con ella y cómo se relacionan las piezas. Si ya sabes que quieres probarla, salta a [Instalación en React Native](/es/getting-started/installation-react-native/) o a [Instalación en Expo](/es/getting-started/installation-expo/).
 
@@ -11,7 +11,7 @@ Esta página explica la idea de fondo, qué gana cada rol con ella y cómo se re
 
 Las herramientas habituales de pruebas de extremo a extremo manejan la app desde afuera. Le preguntan al sistema operativo qué hay en pantalla, toman una captura y deducen el resto. Cada paso cuesta un segundo o más, y la respuesta es una imagen, no un dato.
 
-lynkeus corre **dentro** de un build de depuración de tu app. Lee el árbol de React, así que lo que informa es lo que React renderizó: las rutas, los `testID`, los valores de los campos, qué elemento recibiría un toque y cuáles quedaron tapados por una hoja o un diálogo. Los toques y las teclas se generan dentro del proceso, y las esperas terminan en el render que las satisface, no cuando vence un temporizador.
+Lynkeus corre **dentro** de un build de depuración de tu app. Lee el árbol de React, así que lo que informa es lo que React renderizó: las rutas, los `testID`, los valores de los campos, qué elemento recibiría un toque y cuáles quedaron tapados por una hoja o un diálogo. Los toques y las teclas se generan dentro del proceso, y las esperas terminan en el render que las satisface, no cuando vence un temporizador.
 
 De ahí salen los tiempos:
 
@@ -26,9 +26,9 @@ De ahí salen los tiempos:
 
 **Si desarrollas la app**, la instalación es un paquete y una línea en el punto de entrada. No hay que tocar las pantallas. En un build de producción el módulo nativo se compila vacío y el JavaScript del agente nunca se evalúa.
 
-**Si escribes y ejecutas tests**, trabajas con archivos legibles llamados casos: una lista de pasos que se ejecuta igual en un simulador, en un emulador o sin simulador. Cuando un paso falla, lynkeus guarda la pantalla tal como estaba, las peticiones que hizo la app y el motivo: el elemento estaba tapado, deshabilitado, detrás de una capa o ya no existía.
+**Si escribes y ejecutas tests**, trabajas con archivos legibles llamados casos: una lista de pasos que se ejecuta igual en un simulador, en un emulador o sin simulador. Cuando un paso falla, Lynkeus guarda la pantalla tal como estaba, las peticiones que hizo la app y el motivo: el elemento estaba tapado, deshabilitado, detrás de una capa o ya no existía.
 
-**Si decides si adoptarla**, los puntos a evaluar son tres. Los tests afirman sobre hechos (rutas, valores, peticiones de red) que una captura de pantalla no muestra. La misma suite corre en CI sin granja de dispositivos. Y la herramienta no sabe nada de tu producto: preparar datos en el backend queda en un comando tuyo, que lynkeus solo invoca.
+**Si decides si adoptarla**, los puntos a evaluar son tres. Los tests afirman sobre hechos (rutas, valores, peticiones de red) que una captura de pantalla no muestra. La misma suite corre en CI sin granja de dispositivos. Y la herramienta no sabe nada de tu producto: preparar datos en el backend queda en un comando tuyo, que Lynkeus solo invoca.
 
 ## Cómo encajan las piezas
 
@@ -54,7 +54,7 @@ En el simulador y el emulador la capa nativa es real. En el host sin pantalla es
 
 ### Los reportes alojados
 
-Una ejecución puede escribirse como un directorio (`lynkeus case run --out`) y subirse al servicio de reportes de [lynkeus.io](https://lynkeus.io) con `--push`. El reporte muestra cada caso paso a paso, con sus capturas de pantalla o su video, los eventos que envió la app y por qué falló lo que falló. Este servicio es de pago en su plan Team y tiene un plan gratuito; el resto de lynkeus funciona sin él. Los detalles están en [Reportes](/es/guides/reports/).
+Una ejecución puede escribirse como un directorio (`lynkeus case run --out`) y subirse al servicio de reportes de [lynkeus.io](https://lynkeus.io) con `--push`. El reporte muestra cada caso paso a paso, con sus capturas de pantalla o su video, los eventos que envió la app y por qué falló lo que falló. Este servicio es de pago en su plan Team y tiene un plan gratuito; el resto de Lynkeus funciona sin él. Los detalles están en [Reportes](/es/guides/reports/).
 
 ## Paquetes
 
@@ -69,14 +69,14 @@ Una ejecución puede escribirse como un directorio (`lynkeus case run --out`) y 
 ## Requisitos
 
 - React Native 0.76 o posterior, con la Nueva Arquitectura.
-- Builds de depuración de iOS y de Android, en un simulador o un emulador. lynkeus no funciona en builds de producción, a propósito. Un teléfono Android por USB funciona como un emulador; un iPhone físico no está soportado.
+- Builds de depuración de iOS y de Android, en un simulador o un emulador. Lynkeus no funciona en builds de producción, a propósito. Un teléfono Android por USB funciona como un emulador; un iPhone físico no está soportado.
 - Node 22 o posterior para el CLI y para el host sin pantalla.
 
 ## Por dónde seguir
 
 El recorrido recomendado, en orden:
 
-1. Instala lynkeus en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
+1. Instala Lynkeus en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
 2. Escribe y ejecuta [tu primer test](/es/getting-started/first-test/).
 3. Lee [Conceptos](/es/getting-started/concepts/) para fijar el vocabulario que usa el resto de la documentación.
 

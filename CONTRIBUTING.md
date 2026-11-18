@@ -1,6 +1,6 @@
 # Contributing
 
-lynkeus is published for anyone to use under the [MIT license](LICENSE), but the repository does not take contributions. Issues are disabled and pull requests are closed automatically. If you need a change, fork the repository.
+Lynkeus is published for anyone to use under the [MIT license](LICENSE), but the repository does not take contributions. Issues are disabled and pull requests are closed automatically. If you need a change, fork the repository.
 
 ## Development
 

@@ -23,7 +23,7 @@ test('a recording becomes presses with what each one caused', () => {
     { note: 'requests: GET /api/items 200' },
     { press: { text: 'Second option' } },
     { note: 'stores changed: session.step' },
-    { note: 'touch at 5,5 on Second.Screen hit nothing lynkeus could name' },
+    { note: 'touch at 5,5 on Second.Screen hit nothing Lynkeus could name' },
   ]);
 });
 

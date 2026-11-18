@@ -1,6 +1,6 @@
 ---
 title: Android
-description: What is specific to running lynkeus on Android. Requirements, how the agent reaches the driver from an emulator, limits and known problems.
+description: What is specific to running Lynkeus on Android. Requirements, how the agent reaches the driver from an emulator, limits and known problems.
 ---
 
 This page covers what is particular to Android: what the agent needs from the build, how an emulator reaches the driver on your machine, and where Android differs from iOS today. Read it after [installing the agent](/getting-started/installation-react-native/), when you start running tests on an emulator.
@@ -167,7 +167,7 @@ An `adb reverse` that fails is ignored, so if the app never attaches, run `adb -
 ## Limits
 
 - **System UI is not part of the screen.** Permission dialogs, the system keyboard, the notification shade and anything else drawn by Android rather than by React Native are not listed as elements.
-- **Debuggable builds only.** lynkeus cannot drive a release build or a build installed from Google Play.
+- **Debuggable builds only.** Lynkeus cannot drive a release build or a build installed from Google Play.
 - **An iPhone is not supported.** Android phones over USB work (see [A phone on USB](#a-phone-on-usb)), but iOS commands go through `simctl`, which drives only simulators.
 - **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. An emulator session offers none, so a run keeps its screenshots and no video.
 

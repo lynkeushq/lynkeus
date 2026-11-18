@@ -5,7 +5,7 @@ description: Cómo guardar una ejecución en un directorio, qué contiene, cómo
 
 Cuando un test falla en tu máquina, la terminal alcanza. Cuando falla en CI a las tres de la mañana, alguien tiene que poder ver qué pasó sin repetir la ejecución. Para eso sirve un reporte: la ejecución completa, paso por paso, con sus capturas de pantalla y el motivo de cada fallo.
 
-lynkeus separa dos cosas. El **directorio de la ejecución** es un conjunto de archivos que escribe la CLI, gratis y en tu máquina. El **reporte alojado** es una página en [lynkeus.io](https://lynkeus.io) que tu equipo abre con un enlace; es el servicio de pago del proyecto, con un plan gratuito. Esta guía cubre ambos.
+Lynkeus separa dos cosas. El **directorio de la ejecución** es un conjunto de archivos que escribe la CLI, gratis y en tu máquina. El **reporte alojado** es una página en [lynkeus.io](https://lynkeus.io) que tu equipo abre con un enlace; es el servicio de pago del proyecto, con un plan gratuito. Esta guía cubre ambos.
 
 ## Antes de empezar
 
@@ -39,11 +39,11 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 | `--video-fps <n>` | Los cuadros por segundo de la película. Por defecto, 30. |
 | `--video-scale <n>` | Los píxeles por punto de la película, donde el host lo permite (fastsim: de 1 a 3, y 2 si no lo indicas). |
 
-La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
+La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye Lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
-La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
+La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye Lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
 
-Si el host que filma está en otra máquina (fastsim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
+Si el host que filma está en otra máquina (Lynkeus FastSim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
 
 Si un caso falla y se reintenta, el segundo intento deja su evidencia en una carpeta aparte con el sufijo `.2`.
 
@@ -111,7 +111,7 @@ npx lynkeus report push run --project mi-app
 
 ## Qué muestra el reporte
 
-El reporte presenta cada caso con sus pasos. Junto a ellos corre la película, sincronizada con el paso que se está viendo, o la captura de pantalla de cada paso. Desde 0.5.0, un host que puede (fastsim en una Mac) guarda las capturas en AVIF, cerca de un quinto de lo que pesa un PNG. Las de un simulador o un emulador llegan como PNG y la CLI las vuelve a codificar en AVIF, con lo que quedan en un 4 % de su peso; `--frames png` las deja en PNG, para comparar píxel por píxel. Arriba de los pasos va de qué se trata el caso: `description`, `why`, `given`, `ticket` y `expected`. Los pasos de un caso largo se agrupan por las secciones numeradas del caso (`# 3 Un PIN equivocado`), como están escritos en él. Una petición que contestó un mock del caso lleva la marca `mocked`, y los motivos de un fallo no culpan al backend por esa respuesta. Cada paso lista los eventos de analítica que envió, con el servicio al que fueron (más de 40 servicios: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase y Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly y otros), y las peticiones que mandó la app, con encabezados y cuerpos de ida y de vuelta. Los secretos (contraseñas, códigos, tokens, números de tarjeta, `Authorization` y cookies) se reemplazan por `…` y un cuerpo se corta a los 16 KB; desde 0.5.0, en toda ejecución con `--out`. Un caso fallido muestra por qué falló. La ejecución aparece en **Runs** con su rama y su commit.
+El reporte presenta cada caso con sus pasos. Junto a ellos corre la película, sincronizada con el paso que se está viendo, o la captura de pantalla de cada paso. Desde 0.5.0, un host que puede (FastSim en una Mac) guarda las capturas en AVIF, cerca de un quinto de lo que pesa un PNG. Las de un simulador o un emulador llegan como PNG y la CLI las vuelve a codificar en AVIF, con lo que quedan en un 4 % de su peso; `--frames png` las deja en PNG, para comparar píxel por píxel. Arriba de los pasos va de qué se trata el caso: `description`, `why`, `given`, `ticket` y `expected`. Los pasos de un caso largo se agrupan por las secciones numeradas del caso (`# 3 Un PIN equivocado`), como están escritos en él. Una petición que contestó un mock del caso lleva la marca `mocked`, y los motivos de un fallo no culpan al backend por esa respuesta. Cada paso lista los eventos de analítica que envió, con el servicio al que fueron (más de 40 servicios: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase y Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly y otros), y las peticiones que mandó la app, con encabezados y cuerpos de ida y de vuelta. Los secretos (contraseñas, códigos, tokens, números de tarjeta, `Authorization` y cookies) se reemplazan por `…` y un cuerpo se corta a los 16 KB; desde 0.5.0, en toda ejecución con `--out`. Un caso fallido muestra por qué falló. La ejecución aparece en **Runs** con su rama y su commit.
 
 Si ejecutaste con `--traces`, cada paso muestra además las peticiones que envió la app, con lo que mandó y lo que recibió, y los jobs y llamadas que el backend disparó por cada una. Las consultas a la base nunca se guardan ni se muestran, porque nombran tus tablas. Está en [trazas del backend](/es/guides/backend-traces/). Si `cases.serverEvents` nombra un fixture que los lee, también aparecen los eventos que tu backend mandó a su analítica, marcados BACKEND.
 
@@ -158,7 +158,7 @@ Cada línea es una ejecución, de la más reciente a la más antigua: cuándo em
 
 `report flakes` y `report history` leen las mismas ejecuciones para encontrar los casos que no siempre pasan. Están en [tests intermitentes](/es/guides/flaky-tests/).
 
-Un cliente MCP como Claude, Claude Code o Cursor también puede leer las ejecuciones de tu organización, con tu sesión y solo en modo lectura, conectándose a `https://lynkeus.io/mcp`. La primera vez, el cliente abre lynkeus para pedir tu aprobación; puedes desconectarlo en **Members**.
+Un cliente MCP como Claude, Claude Code o Cursor también puede leer las ejecuciones de tu organización, con tu sesión y solo en modo lectura, conectándose a `https://lynkeus.io/mcp`. La primera vez, el cliente abre Lynkeus para pedir tu aprobación; puedes desconectarlo en **Members**.
 
 ## Problemas frecuentes
 

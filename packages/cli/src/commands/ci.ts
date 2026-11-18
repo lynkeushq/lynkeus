@@ -54,7 +54,7 @@ export const ciCommands = [
     group: 'runs',
     summary: 'Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down',
     details:
-      'Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.',
+      'Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.',
     flags: {
       affected: { type: 'boolean', help: 'only the cases the changes against --base reach' },
       base: { type: 'string', help: 'git ref --affected diffs against', default: 'origin/main', value: 'ref' },

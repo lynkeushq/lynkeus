@@ -5,7 +5,7 @@ description: Cómo dar a una app que corre lejos de tu máquina acceso a un back
 
 Piensa en este caso: estás desarrollando el backend en tu equipo, donde escucha en `127.0.0.1`, y necesitas que una app lo use desde un dispositivo en una granja de pruebas, un runner de otra red o el teléfono de una colega. Esa app no puede llegar a tu loopback. Y publicar el backend en internet, aunque sea un rato, es justo lo que no quieres hacer.
 
-El comando `lynkeus relay` lo resuelve invirtiendo la dirección de la conexión: es tu máquina la que llama al servicio de lynkeus. La app habla con el servicio, y el servicio entrega cada pedido a tu CLI por esa misma conexión, que lo pasa al backend local y devuelve la respuesta por el mismo camino.
+El comando `lynkeus relay` lo resuelve invirtiendo la dirección de la conexión: es tu máquina la que llama al servicio de Lynkeus. La app habla con el servicio, y el servicio entrega cada pedido a tu CLI por esa misma conexión, que lo pasa al backend local y devuelve la respuesta por el mismo camino.
 
 ## Cuándo no lo necesitas
 
@@ -68,7 +68,7 @@ Los límites son parte del diseño:
 - **Destino.** Solo tu loopback. La CLI no sigue redirecciones: si el backend responde con una, la app recibe esa respuesta tal cual.
 - **Tamaño y plazo.** 1 MiB por pedido, 8 MiB por respuesta y 30 segundos para que el backend conteste.
 - **Cantidad.** 1000 pedidos por sesión, 8 en paralelo, y 20 sesiones activas por organización.
-- **Cabeceras.** Pasan `accept`, `content-type`, `x-api-key`, `x-version`, `x-bundleversion`, `user-agent`, `traceparent`, `tracestate` y el `authorization` propio de la app. No pasan `cookie`, `host` ni las credenciales de lynkeus.
+- **Cabeceras.** Pasan `accept`, `content-type`, `x-api-key`, `x-version`, `x-bundleversion`, `user-agent`, `traceparent`, `tracestate` y el `authorization` propio de la app. No pasan `cookie`, `host` ni las credenciales de Lynkeus.
 - **Respuestas como datos.** El servicio las marca para que un navegador no las ejecute ni las muestre. Así, un backend que contestara HTML no podría ejecutar código en el origen del servicio, donde están las sesiones de tu equipo. A la app, que las lee como datos, no le cambia nada.
 
 ## Qué guarda el servicio
@@ -103,5 +103,5 @@ Códigos que ve la app:
 
 ## Más información
 
-- [Seguridad](/es/security/): qué expone lynkeus y a quién.
+- [Seguridad](/es/security/): qué expone Lynkeus y a quién.
 - [Referencia de la CLI](/es/reference/cli/): todas las opciones del comando.

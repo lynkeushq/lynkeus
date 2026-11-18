@@ -1,11 +1,11 @@
 ---
 title: iOS
-description: Lo que es propio de iOS al usar lynkeus, con sus requisitos, la elección del simulador, los comandos del sistema y los problemas conocidos.
+description: Lo que es propio de iOS al usar Lynkeus, con sus requisitos, la elección del simulador, los comandos del sistema y los problemas conocidos.
 ---
 
-Esta página reúne lo que es específico de iOS: qué necesita lynkeus para funcionar, cómo elige el simulador, qué puede pedirle al sistema desde afuera y qué suele fallar.
+Esta página reúne lo que es específico de iOS: qué necesita Lynkeus para funcionar, cómo elige el simulador, qué puede pedirle al sistema desde afuera y qué suele fallar.
 
-Supone que ya instalaste lynkeus. Si no, empieza por [Instalación en React Native](/es/getting-started/installation-react-native/) o [Instalación en Expo](/es/getting-started/installation-expo/).
+Supone que ya instalaste Lynkeus. Si no, empieza por [Instalación en React Native](/es/getting-started/installation-react-native/) o [Instalación en Expo](/es/getting-started/installation-expo/).
 
 ## Requisitos
 
@@ -29,7 +29,7 @@ Si necesitas otro puerto, define `LYNKEUS_PORT` con el mismo valor para la app y
 
 ## Elegir el simulador
 
-Con un solo simulador encendido no hay nada que elegir: lynkeus usa ese.
+Con un solo simulador encendido no hay nada que elegir: Lynkeus usa ese.
 
 Con varios, indica cuál por su UDID o por una parte de su nombre. Hay tres lugares donde decirlo, de mayor a menor prioridad:
 
@@ -47,7 +47,7 @@ No booted simulator matching "iPhone 16".
 
 ## Abrir y reiniciar la app
 
-Para que lynkeus pueda abrir la app necesita su identificador (*bundle id*). Dáselo con `--app`, o una vez con la clave `app` en `lynkeus.config.json`.
+Para que Lynkeus pueda abrir la app necesita su identificador (*bundle id*). Dáselo con `--app`, o una vez con la clave `app` en `lynkeus.config.json`.
 
 ```bash
 npx lynkeus launch com.example.myapp
@@ -142,7 +142,7 @@ Desde la versión 0.3.0 el valor es lo que contiene el campo nativo. La lectura 
 
 ### La app lleva otra versión del agente
 
-Si actualizaste el CLI pero no recompilaste la app, lynkeus avisa que las versiones difieren. El agente y el CLI tienen que coincidir: instala la misma versión de `lynkeus-agent` y recompila.
+Si actualizaste el CLI pero no recompilaste la app, Lynkeus avisa que las versiones difieren. El agente y el CLI tienen que coincidir: instala la misma versión de `lynkeus-agent` y recompila.
 
 ## Límites
 

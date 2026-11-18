@@ -1,11 +1,11 @@
 ---
 title: Solución de problemas
-description: Los fallos más comunes al usar lynkeus, ordenados por síntoma, con su causa y su arreglo.
+description: Los fallos más comunes al usar Lynkeus, ordenados por síntoma, con su causa y su arreglo.
 ---
 
 Esta página está ordenada por lo que ves, no por lo que lo causa. Busca tu síntoma o el texto del error, y encontrarás por qué ocurre y cómo se arregla. Los mensajes de error se citan tal como los imprime la herramienta, en inglés, para que puedas buscarlos.
 
-Antes de leer más, ten presente que lynkeus ya intenta responder la pregunta por ti. Después de un `press`, `wait`, `type`, `swipe` o `nav` que falla, imprime un bloque `why:` con lo que encontró. La [primera sección](#qué-dice-lynkeus-why) explica cómo leerlo.
+Antes de leer más, ten presente que Lynkeus ya intenta responder la pregunta por ti. Después de un `press`, `wait`, `type`, `swipe` o `nav` que falla, imprime un bloque `why:` con lo que encontró. La [primera sección](#qué-dice-lynkeus-why) explica cómo leerlo.
 
 ## Qué dice `lynkeus why`
 
@@ -112,15 +112,15 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 ### `Port 8123 is already taken`
 
-**Qué ves.** `Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
+**Qué ves.** `Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
 
-**Por qué pasa.** Otro proceso de lynkeus sigue escuchando en ese puerto: una sesión abierta, un `lynkeus mcp`, una ejecución anterior que no terminó. Dos drivers no pueden compartir un puerto, porque la app quedaría en manos del primero al que se conecte y los pasos de dos ejecuciones se mezclarían.
+**Por qué pasa.** Otro proceso de Lynkeus sigue escuchando en ese puerto: una sesión abierta, un `lynkeus mcp`, una ejecución anterior que no terminó. Dos drivers no pueden compartir un puerto, porque la app quedaría en manos del primero al que se conecte y los pasos de dos ejecuciones se mezclarían.
 
 **Cómo se arregla.** Detén el otro proceso. Si de verdad necesitas dos ejecuciones a la vez, dale a cada par su propio puerto: `LYNKEUS_PORT` en el driver y en el host, o `--ports` en `case run --jobs`.
 
 ### Una advertencia sobre versiones distintas
 
-**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error.`
+**Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error.`
 
 **Por qué pasa.** La versión de `lynkeus-agent` compilada en la app no es la del CLI. Los dos pueden entenderse mal sin que aparezca ningún error; por ejemplo, escribir en un campo que no es.
 
@@ -199,7 +199,7 @@ npx lynkeus wait '"Next"'
   - app.wait: '"Next"'
 ```
 
-Las comillas simples son para el shell o para YAML; las dobles son las que lee lynkeus. Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada.
+Las comillas simples son para el shell o para YAML; las dobles son las que lee Lynkeus. Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada.
 
 ## Una espera se agota y la pantalla está ahí
 
@@ -257,11 +257,11 @@ Si lo lento es una espera después de iniciar sesión, quien tarda es tu backend
 
 **Qué ves.** Una pantalla de bloqueo, un pedido de calificación o un aviso de actualización obligatoria aparece cuando quiere y los pasos fallan porque su objetivo quedó tapado.
 
-**Por qué pasa.** lynkeus no sabe cómo es esa pantalla en tu app, y es a propósito: no trae conocimiento de ningún producto.
+**Por qué pasa.** Lynkeus no sabe cómo es esa pantalla en tu app, y es a propósito: no trae conocimiento de ningún producto.
 
 **Cómo se arregla.** Depende de dónde te ocurra.
 
-En los casos, decláralo una vez como interrupción. lynkeus la busca antes de cada paso y ejecuta los pasos que la quitan:
+En los casos, decláralo una vez como interrupción. Lynkeus la busca antes de cada paso y ejecuta los pasos que la quitan:
 
 ```json title="lynkeus.config.json"
 {
@@ -281,7 +281,7 @@ npx lynkeus crawl --overlay-when '#key-1' --overlay-flow flows/keypad.json
 
 ### `… is not a step`
 
-**Qué ves.** `app.foo is not a step: lynkeus has no command foo, and the project declares no macro for it`
+**Qué ves.** `app.foo is not a step: Lynkeus has no command foo, and the project declares no macro for it`
 
 **Por qué pasa.** El verbo empieza con `app.`, pero no es un verbo del formato, ni un comando del CLI, ni un macro de tu proyecto. Suele ser un error de tipeo, o un macro que vive en otro archivo de configuración.
 
@@ -293,25 +293,25 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 **Qué ves.** La ejecución termina de inmediato, nombra uno o más fixtures y agrega `the fixtures command answers: create_user, give_points, …`
 
-**Por qué pasa.** Antes del primer caso, lynkeus le pregunta al servidor de fixtures qué comandos responde. Un caso que nombra uno que no está en la lista se rechaza antes de ejecutar nada. Es deliberado: la alternativa sería fallar a mitad de camino, con el backend ya modificado.
+**Por qué pasa.** Antes del primer caso, Lynkeus le pregunta al servidor de fixtures qué comandos responde. Un caso que nombra uno que no está en la lista se rechaza antes de ejecutar nada. Es deliberado: la alternativa sería fallar a mitad de camino, con el backend ya modificado.
 
 **Cómo se arregla.** Corrige el nombre del fixture en el caso, o agrégalo al servidor.
 
 ### `the fixtures command did not answer within 120000 ms`
 
-**Por qué pasa.** El comando de fixtures recibió el paso y no escribió ninguna respuesta. O está colgado, o respondió algo que no es una línea de JSON: lynkeus ignora toda línea de salida que no empiece con `{`.
+**Por qué pasa.** El comando de fixtures recibió el paso y no escribió ninguna respuesta. O está colgado, o respondió algo que no es una línea de JSON: Lynkeus ignora toda línea de salida que no empiece con `{`.
 
 **Cómo se arregla.** Ejecuta el comando a mano y envíale una línea para ver qué contesta. Comprueba que escriba exactamente una línea de JSON por cada línea que recibe, y que los mensajes de diagnóstico vayan a la salida de error. Si el paso es legítimamente lento, sube `cases.fixtures.timeoutMs`.
 
 ### `the fixtures command ended`
 
-**Por qué pasa.** El proceso de fixtures terminó mientras lynkeus esperaba su respuesta. El mensaje incluye las últimas líneas de su salida de error.
+**Por qué pasa.** El proceso de fixtures terminó mientras Lynkeus esperaba su respuesta. El mensaje incluye las últimas líneas de su salida de error.
 
 **Cómo se arregla.** Lee esas líneas: suelen ser una excepción sin atrapar. Un servidor de fixtures tiene que atrapar los errores de cada paso y responder `{"ok": false, "error": "…"}`, no terminar.
 
 ### `the fixtures server cannot serve: …`
 
-**Por qué pasa.** El servidor de fixtures está corriendo, pero avisó que no puede trabajar; por ejemplo, porque su base de datos no responde. lynkeus no empieza ningún caso, porque todos fallarían en su primer fixture.
+**Por qué pasa.** El servidor de fixtures está corriendo, pero avisó que no puede trabajar; por ejemplo, porque su base de datos no responde. Lynkeus no empieza ningún caso, porque todos fallarían en su primer fixture.
 
 **Cómo se arregla.** Resuelve lo que dice el mensaje, que viene de tu servidor.
 
@@ -472,7 +472,7 @@ Estas son las causas que reconoce:
 
 ### La app no pasa de la pantalla de carga
 
-**Por qué pasa.** Hay dos causas habituales. La primera es un módulo nativo que lynkeus no conoce y que nadie simuló. La segunda es de red: Node resuelve `localhost` como IPv6, y tu backend escucha solo en IPv4.
+**Por qué pasa.** Hay dos causas habituales. La primera es un módulo nativo que Lynkeus no conoce y que nadie simuló. La segunda es de red: Node resuelve `localhost` como IPv6, y tu backend escucha solo en IPv4.
 
 **Cómo se arregla.** Para la primera, ejecuta `lynkeus headless doctor` y simula lo que falte en tu entrada; `--fix` escribe los mocks vacíos. Para la segunda, usa `127.0.0.1` en lugar de `localhost` en la dirección de tu API.
 

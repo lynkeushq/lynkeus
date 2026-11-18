@@ -125,7 +125,7 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
       throw new Error('lynkeus os appstate background|active on an emulator or a phone');
     }
     default:
-      throw new Error(`"${sub}" is not available on Android through lynkeus; permissions, appearance, location and appstate are`);
+      throw new Error(`"${sub}" is not available on Android through Lynkeus; permissions, appearance, location and appstate are`);
   }
 };
 
