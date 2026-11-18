@@ -1,15 +1,15 @@
 ---
 title: Preguntas frecuentes
-description: Respuestas cortas a lo que se pregunta primero sobre lynkeus, desde qué llega a producción hasta cómo se compara con otras herramientas.
+description: Respuestas cortas a lo que se pregunta primero sobre Lynkeus, desde qué llega a producción hasta cómo se compara con otras herramientas.
 ---
 
-Respuestas breves a las dudas que aparecen al evaluar o empezar a usar lynkeus. Cada una enlaza a la página que la desarrolla.
+Respuestas breves a las dudas que aparecen al evaluar o empezar a usar Lynkeus. Cada una enlaza a la página que la desarrolla.
 
 ## Antes de adoptarlo
 
 ### ¿En qué se diferencia de Detox, Maestro o Appium?
 
-Cubre el mismo terreno: manejar un build real de extremo a extremo. La diferencia es desde dónde. Esas herramientas actúan a través del sistema operativo; lynkeus actúa desde dentro de la app.
+Cubre el mismo terreno: manejar un build real de extremo a extremo. La diferencia es desde dónde. Esas herramientas actúan a través del sistema operativo; Lynkeus actúa desde dentro de la app.
 
 De ahí salen su ventaja y su condición. Es rápido, porque nada sale del proceso para decidir el paso siguiente, y afirma sobre hechos (rutas, valores, peticiones) en lugar de imágenes. A cambio, necesita un build de depuración con el agente adentro.
 
@@ -19,13 +19,13 @@ No. El módulo nativo se compila vacío fuera de los builds de depuración, y el
 
 En iOS, el código que genera los toques está dentro de `#if DEBUG`: los símbolos no existen en el binario de producción. En Android, el módulo se niega a funcionar si la app no es depurable. Más en [Seguridad](/es/security/).
 
-### ¿Puedo probar mi build de producción con lynkeus?
+### ¿Puedo probar mi build de producción con Lynkeus?
 
-No, y es consecuencia directa de la respuesta anterior. lynkeus prueba el build de depuración de tu app.
+No, y es consecuencia directa de la respuesta anterior. Lynkeus prueba el build de depuración de tu app.
 
 ### ¿Cuánto cuesta?
 
-lynkeus es de código abierto, con licencia MIT. El agente, el CLI y el host sin pantalla no tienen costo.
+Lynkeus es de código abierto, con licencia MIT. El agente, el CLI y el host sin pantalla no tienen costo.
 
 El servicio de reportes alojados en [lynkeus.io](https://lynkeus.io) es aparte y opcional. Tiene dos planes:
 
@@ -66,7 +66,7 @@ No. El agente se monta con una llamada a `auto()` en el punto de entrada de la a
 
 Con React Navigation, sin configuración: `auto()` encuentra el contenedor por su cuenta. Las rutas de expo-router también se reconocen.
 
-Con otro enrutador, puedes escribir un adaptador de navegación y pasárselo al componente `<Lynkeus>`. Sin adaptador, lynkeus sigue leyendo la pantalla, tocando y esperando elementos; lo que no tiene son nombres de rutas. Más en [API del agente](/es/reference/agent-api/).
+Con otro enrutador, puedes escribir un adaptador de navegación y pasárselo al componente `<Lynkeus>`. Sin adaptador, Lynkeus sigue leyendo la pantalla, tocando y esperando elementos; lo que no tiene son nombres de rutas. Más en [API del agente](/es/reference/agent-api/).
 
 ### ¿Para qué sirve el token?
 
@@ -106,7 +106,7 @@ Si prefieres escribirlos en código, `lynkeus-client` es el cliente de Node sobr
 
 ### ¿Cómo preparo datos en el backend?
 
-Con fixtures: datos de prueba que tu propio comando crea cuando un caso los pide. lynkeus le envía cada pedido como una línea de JSON y lee la respuesta. No necesita saber nada de tu backend. Más en [Fixtures](/es/guides/fixtures/).
+Con fixtures: datos de prueba que tu propio comando crea cuando un caso los pide. Lynkeus le envía cada pedido como una línea de JSON y lee la respuesta. No necesita saber nada de tu backend. Más en [Fixtures](/es/guides/fixtures/).
 
 ### ¿Puedo ejecutar los tests sin simulador?
 
@@ -118,13 +118,13 @@ Sí. Un caso no dice dónde corre la app. Los pocos pasos que solo necesita un l
 
 ### ¿Qué pasa cuando un test falla?
 
-El caso se detiene en ese paso y lynkeus guarda la pantalla tal como estaba, las peticiones que había hecho la app y el motivo: el objetivo estaba tapado, oculto detrás de una capa, deshabilitado o ausente. Después el caso se ejecuta una vez más antes de contar como fallido.
+El caso se detiene en ese paso y Lynkeus guarda la pantalla tal como estaba, las peticiones que había hecho la app y el motivo: el objetivo estaba tapado, oculto detrás de una capa, deshabilitado o ausente. Después el caso se ejecuta una vez más antes de contar como fallido.
 
 A mano, `lynkeus why <objetivo>` hace la misma pregunta en cualquier momento.
 
 ### ¿Cómo distingo un test intermitente de uno roto?
 
-Un caso que falla y pasa en el reintento queda marcado en el resumen como aprobado en el reintento. lynkeus lleva además un registro de cómo le fue a cada caso a lo largo de las ejecuciones. Más en [Tests intermitentes](/es/guides/flaky-tests/).
+Un caso que falla y pasa en el reintento queda marcado en el resumen como aprobado en el reintento. Lynkeus lleva además un registro de cómo le fue a cada caso a lo largo de las ejecuciones. Más en [Tests intermitentes](/es/guides/flaky-tests/).
 
 ### ¿Por qué cada comando tarda más de un segundo si los pasos son de milisegundos?
 
@@ -158,11 +158,11 @@ De dos maneras, que se pueden combinar. Con el host sin pantalla no necesitas si
 
 Sí. `lynkeus mcp` sirve los comandos como herramientas MCP. El modelo recibe elementos estructurados en lugar de píxeles, así que decide el paso siguiente a partir de hechos. Más en [Agentes de IA](/es/guides/ai-agents/).
 
-### ¿Qué registra lynkeus de las peticiones de mi app?
+### ¿Qué registra Lynkeus de las peticiones de mi app?
 
 Por defecto, el método, la ruta, el código de respuesta y la duración, con los valores sensibles de la consulta ocultos. Cuando `case run` guarda evidencia con `--out`, guarda además las cabeceras y los cuerpos, con los valores de las claves que parecen secretos reemplazados por `…` y cada cuerpo cortado a 16 KB. El valor de un campo con `secureTextEntry` aparece siempre enmascarado. Más en [Seguridad](/es/security/).
 
-### ¿lynkeus sabe algo de mi producto?
+### ¿Lynkeus sabe algo de mi producto?
 
 No, y es deliberado. No tiene una lista de tus pantallas ni sabe qué es un usuario en tu app. Lo que requiere conocer el producto (cómo iniciar sesión, qué datos necesita un caso) lo aportas tú, en `lynkeus.config.json` y en tu comando de fixtures.
 

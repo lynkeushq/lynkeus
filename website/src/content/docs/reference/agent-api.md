@@ -3,7 +3,7 @@ title: Agent API
 description: Everything lynkeus-agent exports — auto, the Lynkeus component and its props, qa.register, qa.observe, qa.event and navigation adapters.
 ---
 
-The **agent** is the part of lynkeus that lives inside your app: the `lynkeus-agent` package. It reads the screen, synthesizes touches and answers the driver. This page documents what the package exports and what each option does. It is for the developer who mounts the agent and exposes app commands to tests.
+The **agent** is the part of Lynkeus that lives inside your app: the `lynkeus-agent` package. It reads the screen, synthesizes touches and answers the driver. This page documents what the package exports and what each option does. It is for the developer who mounts the agent and exposes app commands to tests.
 
 For a step-by-step installation, see [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
 

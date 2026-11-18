@@ -5,10 +5,10 @@ description: Problems by symptom — what you see, why it happens and how to fix
 
 This page is organized by symptom. Find what you are seeing, read why it happens, and apply the fix. Exact error texts are quoted so that you can search the page for them.
 
-Before you read further, use the three tools lynkeus has for this:
+Before you read further, use the three tools Lynkeus has for this:
 
-- `lynkeus status` lists what the project has of lynkeus (the agent, the mount, the token, an attached app, cases) and says what fixes each line that is missing.
-- After a failed `press`, `wait`, `type`, `swipe` or `nav`, lynkeus prints `why:` followed by what it read from the screen, the requests and the trace. Read that first.
+- `lynkeus status` lists what the project has of Lynkeus (the agent, the mount, the token, an attached app, cases) and says what fixes each line that is missing.
+- After a failed `press`, `wait`, `type`, `swipe` or `nav`, Lynkeus prints `why:` followed by what it read from the screen, the requests and the trace. Read that first.
 - `lynkeus why <target>` asks the same question at any moment. `lynkeus why --route <Route>` asks it about a route you expected.
 
 ```bash
@@ -83,7 +83,7 @@ Before 0.3.0 an empty token did not turn the agent off: it served any driver, wi
 **What you see.**
 
 ```text
-✗ Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
+✗ Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).
 ```
 
 or, from `case run`:
@@ -107,7 +107,7 @@ port 8123 is held by another lynkeus case run (pid 4242), which is probably stil
 **What you see.**
 
 ```text
-⚠️  The app runs lynkeus-agent 0.2.0, this CLI is lynkeus 0.4.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the lynkeus CLI of the agent's version).
+⚠️  The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error. Install lynkeus-agent@0.3.0 in the app and rebuild it (or run the Lynkeus CLI of the agent's version).
 ```
 
 **Why.** The agent in the app and the CLI are from different releases. They may still talk, and one may misread the other without any error, such as typing into nothing.
@@ -192,7 +192,7 @@ A text that looks like something else is read as that. `12` is an index, and to 
 
 - The route has another name. Route names come from the navigation adapter, not from your file names.
 - The app has no navigation adapter. Without one there are no routes at all, only elements.
-- You meant a text, and lynkeus read a route. A word that starts with a capital letter, such as `Continue`, is read as a route name by `wait` and `see`.
+- You meant a text, and Lynkeus read a route. A word that starts with a capital letter, such as `Continue`, is read as a route name by `wait` and `see`.
 
 **Fix.** `lynkeus screen` prints the real route on its first line. If it prints no route, mount the agent with `auto()` or pass `navigation` to `<Lynkeus>`. To wait for a control, use its `testID`, or quote its text so that it cannot be a route: `lynkeus wait '"Continue"'`, or `app.wait: '"Continue"'` in a case.
 
@@ -229,7 +229,7 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 
 ### An overlay the app raises takes over the screen
 
-**Why.** A lock screen, a "rate us" sheet, a forced-update wall. lynkeus has no idea what yours looks like, on purpose.
+**Why.** A lock screen, a "rate us" sheet, a forced-update wall. Lynkeus has no idea what yours looks like, on purpose.
 
 **Fix.** Describe it once, in the place that fits:
 
@@ -249,7 +249,7 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 
 **Why.** The static graph only knows the navigations it can read from source. It knows nothing about sheets and dialogs, which exist only while the app runs.
 
-**Fix.** Run `lynkeus crawl` from the starting screen to add observed edges, then ask again. `lynkeus map paths <Route>` shows what lynkeus currently knows about the destination.
+**Fix.** Run `lynkeus crawl` from the starting screen to add observed edges, then ask again. `lynkeus map paths <Route>` shows what Lynkeus currently knows about the destination.
 
 ### `map changes` reports nothing
 
@@ -270,16 +270,16 @@ defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
 **What you see.**
 
 ```text
-app.logn is not a step: lynkeus has no command logn, and the project declares no macro for it
+app.logn is not a step: Lynkeus has no command logn, and the project declares no macro for it
 ```
 
 or
 
 ```text
-give_points is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)
+give_points is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)
 ```
 
-**Why.** The first is an `app.` step that names neither a lynkeus command nor a macro: usually a typo, or a macro missing from `cases.macros`. The second is a fixture step in a project that has no fixtures command.
+**Why.** The first is an `app.` step that names neither a Lynkeus command nor a macro: usually a typo, or a macro missing from `cases.macros`. The second is a fixture step in a project that has no fixtures command.
 
 **Fix.** Correct the name, or declare the macro or the fixtures command. `lynkeus case run --dry-run` checks every step of every case without running anything.
 
@@ -287,7 +287,7 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **What you see.** Nothing runs, and the output lists the missing fixtures and then `the fixtures command answers: …`.
 
-**Why.** Before the first case, lynkeus asks your fixtures command what it answers. A case that names a fixture missing from that list is refused before anything runs, instead of failing halfway with the backend already changed.
+**Why.** Before the first case, Lynkeus asks your fixtures command what it answers. A case that names a fixture missing from that list is refused before anything runs, instead of failing halfway with the backend already changed.
 
 **Fix.** Add the fixture to your server, or correct its name in the case.
 
@@ -337,7 +337,7 @@ give_points is not a step lynkeus has, and the project declares no fixtures (cas
 
 **Why.** A case is filmed only where the host offers a `record` command, which it names in `hello`.
 
-**Fix.** Nothing failed. Use a host that films, such as fastsim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
+**Fix.** Nothing failed. Use a host that films, such as Lynkeus FastSim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
 
 ### A case fails and its evidence shows `(mocked)` on a request
 
@@ -387,7 +387,7 @@ lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or s
 
 **Why.** Usually one of two things:
 
-- A native module that lynkeus does not mock.
+- A native module that Lynkeus does not mock.
 - Node resolving `localhost` to IPv6 while your backend listens on IPv4 only.
 
 **Fix.** Run `lynkeus headless doctor` to list the native modules that still need a mock, and mock them in your entry (`--fix` writes stubs). Use `127.0.0.1` instead of `localhost` in the API address.
@@ -396,7 +396,7 @@ lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or s
 
 **What you see.** A long jest stack, and at its end a block that starts with `lynkeus: what this looks like`.
 
-**Why and fix.** lynkeus recognizes the usual errors and prints the cause and the fix. For an error you have from elsewhere, paste its first line:
+**Why and fix.** Lynkeus recognizes the usual errors and prints the cause and the fix. For an error you have from elsewhere, paste its first line:
 
 ```bash
 lynkeus headless doctor --explain "ReferenceError: structuredClone is not defined"
@@ -413,7 +413,7 @@ The errors it recognizes:
 | `X.y is not a function` | Usually a mock that does not implement a method the app calls. | Extend the mock for `X` with `y`. The defaults can be overridden per key with `installDefaultMocks({ overrides })`. |
 | `Cannot read properties of undefined (reading 'x')` | Something the app expected to exist is undefined. | Look one frame up the stack for the module: a mock that returns `{}` instead of the shape the app reads, or a store that was not initialized because a service failed earlier. |
 | `Jest did not exit one second after the test run has completed` | The host finished but something kept the event loop alive. | Harmless for a host that is meant to stay up. Otherwise, look for an open socket or timer from a mock. |
-| `ECONNREFUSED <ip>:<port>` | Nothing is listening there. | Start the backend, or the lynkeus driver if this is the agent's connection, and check the port the entry dials. |
+| `ECONNREFUSED <ip>:<port>` | Nothing is listening there. | Start the backend, or the Lynkeus driver if this is the agent's connection, and check the port the entry dials. |
 | `Unexpected token 'export'`, `Cannot use import statement` or `Test environment jest-environment-… cannot be found` | jest is not transforming a dependency that ships ES modules. | Add the package to the allow-list in `transformIgnorePatterns` in the app's jest configuration, the same way `react-native` is listed. `lynkeus-agent` and `lynkeus-headless` need `lynkeus-[^/]+` there. |
 | `ReferenceError: X is not defined` | `X` is a global the runtime does not provide under jest. | Define it in the entry before requiring the app (`globalThis.X = …`), or mock the module that expects it. |
 

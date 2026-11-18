@@ -1,7 +1,7 @@
 # Fixtures
 
-How a case prepares and reads a backend. lynkeus knows nothing about any backend: a project writes a **fixtures
-server** in whatever language its backend speaks, and lynkeus talks to it through the contract on this page.
+How a case prepares and reads a backend. Lynkeus knows nothing about any backend: a project writes a **fixtures
+server** in whatever language its backend speaks, and Lynkeus talks to it through the contract on this page.
 qa-tools (Rails, for one product) is one such server; `lynkeus case init` writes a small one to start from.
 
 Protocol version: **1** (`FIXTURES_PROTOCOL` in `lynkeus-protocol`, with the types below).
@@ -15,13 +15,13 @@ Protocol version: **1** (`FIXTURES_PROTOCOL` in `lynkeus-protocol`, with the typ
 ```
 
 `cwd` is relative to the config file (default: the app's folder), `env` adds variables to the command's environment, and
-`timeoutMs` (120000 by default) is how long one answer may take. lynkeus starts it once per run (once per job with `--jobs`), writes one JSON object per line to its stdin and reads
+`timeoutMs` (120000 by default) is how long one answer may take. Lynkeus starts it once per run (once per job with `--jobs`), writes one JSON object per line to its stdin and reads
 one JSON object per line from its stdout, in order. The command runs through a shell, so `${VAR:-default}` works. It
-may print anything to stderr. lynkeus closes stdin when the run ends; the server then exits.
+may print anything to stderr. Lynkeus closes stdin when the run ends; the server then exits.
 
 ## A step
 
-Every step a case writes that is not lynkeus's own (`app.*`, `assert`, `exec`, a macro) goes to the server:
+Every step a case writes that is not Lynkeus's own (`app.*`, `assert`, `exec`, a macro) goes to the server:
 
 ```
 → {"command": "create_user", "params": {"country": "ar", "as": "u"}, "env": {"COUNTRY": "ar", "AS": "u"}}
@@ -36,7 +36,7 @@ Every step a case writes that is not lynkeus's own (`app.*`, `assert`, `exec`, a
 
 ## Describing the server
 
-Before the first case lynkeus sends `{"command": "lynkeus.describe", "params": {}, "env": {}}`. A server answers
+Before the first case Lynkeus sends `{"command": "lynkeus.describe", "params": {}, "env": {}}`. A server answers
 what it can do:
 
 ```json
@@ -68,7 +68,7 @@ what it can do:
 - `down` says the server runs but cannot serve (its database is down); the run stops there and says why.
 - A server that answers `"ok": false` to `lynkeus.describe` has its cases run unchecked.
 
-lynkeus has one more command of its own: `{"command": "lynkeus.ahead", "params": {}}`, sent on a connection that makes
+Lynkeus has one more command of its own: `{"command": "lynkeus.ahead", "params": {}}`, sent on a connection that makes
 setups ahead of the cases (`--ahead`), so a server can tell that what it prepares is not for a case running now. Its
 answer is ignored; a server that does not know it may answer anything.
 

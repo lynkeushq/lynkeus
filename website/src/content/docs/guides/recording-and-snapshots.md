@@ -62,7 +62,7 @@ Press Ctrl-C. You should see `5 steps → flows/login.json`, and the file:
 
 This file is a **flow**: a JSON list of steps that `lynkeus run` replays. Each touch became a `press`. After each one comes what it caused: a `waitFor` on the route it led to, and notes with the requests and store changes. Those are the assertions a test needs, not only the steps.
 
-A touch on an element with a testID is recorded by testID. Without one, it is recorded by its text. A touch on something lynkeus cannot name becomes a note with the coordinates, for you to resolve by hand.
+A touch on an element with a testID is recorded by testID. Without one, it is recorded by its text. A touch on something Lynkeus cannot name becomes a note with the coordinates, for you to resolve by hand.
 
 :::note
 A recording holds touches, not keystrokes. After recording, add `type` steps where you typed.
@@ -88,7 +88,7 @@ With `--screenshots`, the screenshots are listed in a strip file next to the flo
 
 `--so-far` is for when you already did the thing and want it written down. The agent has been tracing all along; this drafts a flow from what it holds.
 
-Lines typed into the terminal while recording run as lynkeus commands, for example `press '#next-button'`. A script can drive part of a recording that way.
+Lines typed into the terminal while recording run as Lynkeus commands, for example `press '#next-button'`. A script can drive part of a recording that way.
 
 ### From a flow to a case
 

@@ -5,7 +5,7 @@ description: Cómo registrar los eventos que la app envía a su analítica, afir
 
 Los eventos de analítica son código que nadie mira hasta que un dashboard amanece vacío. Un refactor renombra una propiedad, alguien mueve una llamada de lugar, y el embudo de registro deja de cerrar sin que ningún test se entere, porque la pantalla se ve igual.
 
-lynkeus trata esos eventos como un resultado más de la app. Puedes verlos en vivo, afirmar dentro de un caso que una acción envió el evento correcto, y describir un embudo completo como un archivo que se verifica en cada ejecución. Esta guía es para quien mantiene la instrumentación y para quien escribe los tests que la protegen.
+Lynkeus trata esos eventos como un resultado más de la app. Puedes verlos en vivo, afirmar dentro de un caso que una acción envió el evento correcto, y describir un embudo completo como un archivo que se verifica en cada ejecución. Esta guía es para quien mantiene la instrumentación y para quien escribe los tests que la protegen.
 
 ## Antes de empezar
 
@@ -29,7 +29,7 @@ export const track = (name: string, props?: Record<string, unknown>) => {
 
 `qa.event(name, props)` hace dos cosas: anota el evento en la traza de la app, junto a las rutas, las peticiones y los toques, y lo guarda en un búfer que un test puede leer. El búfer conserva los últimos 500 eventos.
 
-Si tu app ya mantiene su propio búfer de eventos, no hace falta duplicarlo: registra un comando `events` con `qa.register` y reemplaza al predeterminado. lynkeus acepta que cada evento traiga sus propiedades como `props` o como `properties`.
+Si tu app ya mantiene su propio búfer de eventos, no hace falta duplicarlo: registra un comando `events` con `qa.register` y reemplaza al predeterminado. Lynkeus acepta que cada evento traiga sus propiedades como `props` o como `properties`.
 
 ## 2. Míralos en vivo
 
@@ -193,7 +193,7 @@ Recorre las ejecuciones que guardaron eventos bajo `.lynkeus/runs/` (las última
 
 `qa.event` no intercepta tu SDK ni envía nada a la red: solo guarda una copia de lo que tú le pasas. Las propiedades se recortan a una profundidad acotada antes de guardarse, y las funciones se descartan, para que el búfer no crezca sin límite.
 
-Durante `case run`, lynkeus lee el búfer después de cada paso de la app y atribuye a ese paso lo que haya de nuevo. Lee sin vaciar, porque el caso puede estar afirmando sobre ese mismo búfer.
+Durante `case run`, Lynkeus lee el búfer después de cada paso de la app y atribuye a ese paso lo que haya de nuevo. Lee sin vaciar, porque el caso puede estar afirmando sobre ese mismo búfer.
 
 En un host que además captura lo que reciben los SDK de analítica, cada paso guarda también esos envíos, con el proveedor al que fueron.
 

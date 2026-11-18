@@ -11,7 +11,7 @@ export const CLI_VERSION = (createRequire(import.meta.url)('../../package.json')
 export const agentMismatch = (hello: Pick<HelloEvent, 'agentVersion'>, cli = CLI_VERSION): string | undefined => {
   if (hello.agentVersion === cli) return undefined;
   const agent = hello.agentVersion ? `lynkeus-agent ${hello.agentVersion}` : 'a lynkeus-agent too old to say its version';
-  return `⚠️  The app runs ${agent}, this CLI is lynkeus ${cli}: they can misread each other without an error. Install lynkeus-agent@${cli} in the app and rebuild it (or run the lynkeus CLI of the agent's version).`;
+  return `⚠️  The app runs ${agent}, this CLI is Lynkeus ${cli}: they can misread each other without an error. Install lynkeus-agent@${cli} in the app and rebuild it (or run the Lynkeus CLI of the agent's version).`;
 };
 
 /** Who said hello: the app and where it runs, enough to tell two apps dialing the same port apart. */

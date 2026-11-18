@@ -1,11 +1,11 @@
 ---
 title: Ejecutar en CI
-description: Qué necesita un job de integración continua para correr los casos de lynkeus, qué host conviene usar, cómo paralelizar y cómo dejar el reporte en el pull request.
+description: Qué necesita un job de integración continua para correr los casos de Lynkeus, qué host conviene usar, cómo paralelizar y cómo dejar el reporte en el pull request.
 ---
 
 Un test que solo corre en la máquina de quien lo escribió protege poco. El objetivo de esta guía es que tus casos corran en cada pull request y que, cuando uno falle, quien lo vea tenga un enlace con todo lo necesario para entenderlo.
 
-lynkeus no publica una acción propia para ejecutar casos: un job de CI ejecuta los mismos comandos que usas en tu terminal. Aquí verás qué necesita ese job, cómo elegir dónde corre la app y un flujo de trabajo de ejemplo para GitHub Actions que puedes adaptar a cualquier otro sistema.
+Lynkeus no publica una acción propia para ejecutar casos: un job de CI ejecuta los mismos comandos que usas en tu terminal. Aquí verás qué necesita ese job, cómo elegir dónde corre la app y un flujo de trabajo de ejemplo para GitHub Actions que puedes adaptar a cualquier otro sistema.
 
 ## Antes de empezar
 
@@ -49,7 +49,7 @@ npx lynkeus headless init
 npx lynkeus headless doctor
 ```
 
-`headless init` escribe `qa/headless.tsx`: los dobles de prueba predeterminados, un control que verifica que la app apunte a un backend local, y tu componente `App`. `headless doctor` lista qué módulos nativos simula lynkeus y cuáles todavía necesitan un doble tuyo; `--fix` escribe esos dobles.
+`headless init` escribe `qa/headless.tsx`: los dobles de prueba predeterminados, un control que verifica que la app apunte a un backend local, y tu componente `App`. `headless doctor` lista qué módulos nativos simula Lynkeus y cuáles todavía necesitan un doble tuyo; `--fix` escribe esos dobles.
 
 Comprueba que arranca antes de llevarlo a CI:
 
@@ -179,7 +179,7 @@ El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, rep
           LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
 ```
 
-`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Su código de salida es el de la suite. lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
+`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Su código de salida es el de la suite. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
 
 Dos opciones útiles:
 
@@ -215,7 +215,7 @@ En cada pull request, ese flujo construye el mapa de la app a partir del código
 
 ## Si usas un simulador o un emulador
 
-El job tiene más trabajo antes de llegar a lynkeus: compilar el build de depuración, encender el dispositivo virtual, instalar la app y abrirla. Eso depende de tu proyecto y de tu sistema de CI. Lo que lynkeus necesita saber es poco:
+El job tiene más trabajo antes de llegar a lynkeus: compilar el build de depuración, encender el dispositivo virtual, instalar la app y abrirla. Eso depende de tu proyecto y de tu sistema de CI. Lo que Lynkeus necesita saber es poco:
 
 - **Solo builds de depuración.** En iOS, además, la Nueva Arquitectura. En Android, la app debe ser depurable; de lo contrario el agente se niega a funcionar.
 - **Un dispositivo virtual, o un teléfono Android.** El CLI busca un simulador o un emulador encendido; un teléfono Android que `adb devices` lista funciona igual. Un iPhone físico no está soportado.

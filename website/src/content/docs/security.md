@@ -1,11 +1,11 @@
 ---
 title: Security
-description: What the lynkeus agent exposes and to whom, why it exists only in debug builds, what the token protects, and what the hosted report service stores and for how long.
+description: What the Lynkeus agent exposes and to whom, why it exists only in debug builds, what the token protects, and what the hosted report service stores and for how long.
 ---
 
-lynkeus puts code inside your app that lets another process read the screen and press things. That is a capability worth understanding before you adopt it. This page describes exactly what is exposed, to whom, and what keeps it out of the builds your users get. It then covers the hosted report service: what a pushed run contains, who can read it, and when it is deleted.
+Lynkeus puts code inside your app that lets another process read the screen and press things. That is a capability worth understanding before you adopt it. This page describes exactly what is exposed, to whom, and what keeps it out of the builds your users get. It then covers the hosted report service: what a pushed run contains, who can read it, and when it is deleted.
 
-It is written for the lead who decides whether to adopt lynkeus, and for the developer who has to configure it safely.
+It is written for the lead who decides whether to adopt Lynkeus, and for the developer who has to configure it safely.
 
 ## The short version
 
@@ -144,11 +144,11 @@ Two commands press things without a script: `smoke` and `crawl`.
 
 `crawl` is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`), the crawl reports it, stops exploring past it and never presses that control again. `--press-anything` turns that off and is for a disposable environment only.
 
-lynkeus ships no list of dangerous controls, because which controls are irreversible depends on your app. List yours under `crawl.never` in `lynkeus.config.json`. See [Configuration](/reference/configuration/#smoke-and-crawl).
+Lynkeus ships no list of dangerous controls, because which controls are irreversible depends on your app. List yours under `crawl.never` in `lynkeus.config.json`. See [Configuration](/reference/configuration/#smoke-and-crawl).
 
 ## What stays on your machine
 
-Everything lynkeus learns is written as files under `.lynkeus/` in the app's folder: the graph, recorded screens, snapshots, run artifacts, and the project's token. No server is involved. A run goes somewhere else only when you ask for it, with `case run --push` or `report push`.
+Everything Lynkeus learns is written as files under `.lynkeus/` in the app's folder: the graph, recorded screens, snapshots, run artifacts, and the project's token. No server is involved. A run goes somewhere else only when you ask for it, with `case run --push` or `report push`.
 
 Run directories and `.lynkeus/runs/` can hold screenshots and screen listings of your app. Decide deliberately whether to commit them or upload them as CI artifacts.
 
@@ -214,7 +214,7 @@ Subscriptions are handled by Stripe. `lynkeus report plan --upgrade` prints Stri
 
 ## A checklist
 
-Before you rely on lynkeus in a team:
+Before you rely on Lynkeus in a team:
 
 1. `enabled` is gated on `__DEV__` and on your environment.
 2. A token is set in CI and on any machine that reaches a shared backend.

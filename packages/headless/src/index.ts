@@ -318,7 +318,7 @@ export const hostApp = (makeApp: () => ReactElement, options: HostOptions = {}):
   guardConsole();
   reportCrashes(g);
   g.it(
-    'hosts the app for lynkeus',
+    'hosts the app for Lynkeus',
     async () => {
       const done = new Promise<void>((resolve) => {
         qa.register('exit', () => {

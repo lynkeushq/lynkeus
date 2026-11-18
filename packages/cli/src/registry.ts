@@ -13,7 +13,7 @@ export type Group = 'drive' | 'os' | 'map' | 'runs' | 'headless';
 const GROUPS: Record<Group, { title: string; blurb: string }> = {
   drive: { title: 'Drive', blurb: 'the app that is running, through the agent inside it' },
   os: { title: 'os', blurb: 'what the outside world hands the app: links, clock, sensors, the network, the simulator' },
-  map: { title: 'map', blurb: "what lynkeus knows before touching anything, from the app's source and from walks" },
+  map: { title: 'map', blurb: "what Lynkeus knows before touching anything, from the app's source and from walks" },
   runs: { title: 'Runs', blurb: 'flows, smokes, crawls and recordings' },
   headless: { title: 'headless', blurb: 'the app hosted in Node under jest, no simulator' },
 };
@@ -121,7 +121,7 @@ const signature = (c: Command): string => {
 const inGroups = () => (Object.keys(GROUPS) as Group[]).map((g) => ({ ...GROUPS[g], list: all.filter((c) => c.group === g) })).filter((g) => g.list.length);
 
 export const usage = (): string => {
-  const lines = ['lynkeus — drive a React Native app from the outside, through the agent inside it', ''];
+  const lines = ['Lynkeus — drive a React Native app from the outside, through the agent inside it', ''];
   for (const g of inGroups()) {
     lines.push(`${g.title} — ${g.blurb}`);
     for (const c of g.list) {
@@ -163,7 +163,7 @@ const flagRow = (n: string, f: FlagSpec) => `| \`${flagSignature(n, f)}\` | ${f.
 /** The reference document, generated so it cannot drift from the commands. */
 export const referenceMarkdown = (): string => {
   const lines = [
-    '# lynkeus command reference',
+    '# Lynkeus command reference',
     '',
     'Generated from the command registry (`lynkeus help --markdown`). Every command accepts the global flags at the end.',
     '',

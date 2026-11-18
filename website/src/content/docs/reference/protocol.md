@@ -353,7 +353,7 @@ A host that stands in for the device (the headless host, or a host of your own) 
 | `record` | `{ read: offset }` | `{ data, done }`: the next piece of the film from `offset`, base64-encoded. `done` is true on the last piece. |
 | `memory` | none | On the headless host: `{ heapUsedMb, heapTotalMb, heapLimitMb, rssMb, … }`, read after a garbage collection. `heapLimitMb` is where Node gives up. |
 
-`record { read }` exists for a host on another machine, such as fastsim in a Linux VM or on a server. The path the driver gave is a path on the driver's machine, so the host films where it can and hands the film over a piece at a time once `stop` has said how big it is. A film that does not arrive whole is left out of the report; it never fails the case. Since 0.6.0.
+`record { read }` exists for a host on another machine, such as Lynkeus FastSim in a Linux VM or on a server. The path the driver gave is a path on the driver's machine, so the host films where it can and hands the film over a piece at a time once `stop` has said how big it is. A film that does not arrive whole is left out of the report; it never fails the case. Since 0.6.0.
 
 ### Mocked answers
 

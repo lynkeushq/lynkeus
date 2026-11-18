@@ -32,7 +32,7 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 ## Antes de empezar
 
 - Node 22 o posterior.
-- lynkeus instalado y el agente montado en la app ([Instalación en React Native](/es/getting-started/installation-react-native/)).
+- Lynkeus instalado y el agente montado en la app ([Instalación en React Native](/es/getting-started/installation-react-native/)).
 - El paquete `lynkeus-headless` instalado en el proyecto, junto con Jest y `@testing-library/react-native`. El host usa la configuración de Jest y la transformación de Babel de tu propia app.
 - Un backend local al que la app pueda apuntar.
 - Una app con un componente raíz que se pueda exportar, o una app con expo-router (desde 0.4.0; más abajo, [Lo que el host no puede decirte](#lo-que-el-host-no-puede-decirte)).
@@ -57,7 +57,7 @@ Al terminar imprime qué escribió y dos recordatorios. Uno de ellos importa: la
 npx lynkeus headless doctor
 ```
 
-`doctor` lista qué módulos nativos va a simular lynkeus y cuáles usa tu app sin que nadie los cubra. Para estos últimos, `--fix` escribe mocks vacíos en el archivo de entrada, que después puedes completar:
+`doctor` lista qué módulos nativos va a simular Lynkeus y cuáles usa tu app sin que nadie los cubra. Para estos últimos, `--fix` escribe mocks vacíos en el archivo de entrada, que después puedes completar:
 
 ```bash
 npx lynkeus headless doctor --fix
@@ -78,7 +78,7 @@ hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 Dos cosas intervienen:
 
 - El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.
-- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección está definida y no es local (`localhost`, `127.0.0.1` o `10.0.2.2`); una variable sin definir se deja pasar, y la red queda limitada a los hosts locales.
+- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a Lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección está definida y no es local (`localhost`, `127.0.0.1` o `10.0.2.2`); una variable sin definir se deja pasar, y la red queda limitada a los hosts locales.
 
 ### 4. Maneja la app
 
@@ -231,7 +231,7 @@ El backend no está levantado en esa dirección, o la app no usa la que esperaba
 
 ### La app no pasa de la pantalla de carga
 
-Casi siempre es un módulo nativo que lynkeus no conoce. Ejecuta `lynkeus headless doctor` y simula lo que falte en el archivo de entrada.
+Casi siempre es un módulo nativo que Lynkeus no conoce. Ejecuta `lynkeus headless doctor` y simula lo que falte en el archivo de entrada.
 
 La otra causa habitual: Node resuelve `localhost` a IPv6 mientras tu backend escucha en IPv4. Usa `127.0.0.1`.
 

@@ -1,6 +1,6 @@
 ---
 title: Referencia del CLI
-description: Todos los comandos de lynkeus y todas sus opciones, agrupados por lo que hacen.
+description: Todos los comandos de Lynkeus y todas sus opciones, agrupados por lo que hacen.
 ---
 
 Esta página lista cada comando del CLI `lynkeus` con sus argumentos y opciones. Sirve para consultar: si todavía no has usado la herramienta, empieza por [Tu primer test](/es/getting-started/first-test/) y vuelve aquí cuando necesites el nombre exacto de una opción.
@@ -30,7 +30,7 @@ El shell se queda con las comillas que encuentra, así que hay que protegerlas c
 Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado, que entonces no coincidía con nada, y una palabra con mayúscula inicial solo podía ser una ruta.
 :::
 
-Todos los comandos terminan con código de salida `0` si salieron bien. Cuando un `press`, `wait`, `type`, `swipe` o `nav` falla, lynkeus imprime además el diagnóstico de [`lynkeus why`](#lynkeus-why).
+Todos los comandos terminan con código de salida `0` si salieron bien. Cuando un `press`, `wait`, `type`, `swipe` o `nav` falla, Lynkeus imprime además el diagnóstico de [`lynkeus why`](#lynkeus-why).
 
 ## Manejar la app
 
@@ -185,7 +185,7 @@ lynkeus wait '#submit' --enabled
 lynkeus screenshot <file>
 ```
 
-Guarda en un archivo PNG cómo se ve la pantalla en este momento. Un simulador o un emulador se captura por el sistema operativo. Un host que dibuja la app por su cuenta (fastsim) captura su propio cuadro, y solo dentro de las carpetas de salida que permite; la CLI se lo pide cuando su `hello` incluye `screenshot`. El host sin pantalla no dibuja nada que capturar, así que ahí falla.
+Guarda en un archivo PNG cómo se ve la pantalla en este momento. Un simulador o un emulador se captura por el sistema operativo. Un host que dibuja la app por su cuenta (Lynkeus FastSim) captura su propio cuadro, y solo dentro de las carpetas de salida que permite; la CLI se lo pide cuando su `hello` incluye `screenshot`. El host sin pantalla no dibuja nada que capturar, así que ahí falla.
 
 | Argumento | Qué es |
 |---|---|
@@ -362,7 +362,7 @@ La grabación está apagada hasta que la inicias, así que una app que nunca la 
 lynkeus init [--no-install]
 ```
 
-Prepara el proyecto para lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
+Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
 
 | Opción | Qué hace |
 |---|---|
@@ -399,7 +399,7 @@ El plugin es lo que hace llegar el token a una app de React Native. Lo explica l
 lynkeus status [--offline]
 ```
 
-Dice qué tiene el proyecto de lynkeus y qué le falta: el agente como dependencia e instalado, que la app lo monte, el plugin de Babel (en React Native), el token, una app conectada, el host sin pantalla, los casos y la clave del servicio de reportes. Es lo primero que conviene ejecutar en un proyecto que no conoces: cada línea que falla dice qué la arregla.
+Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependencia e instalado, que la app lo monte, el plugin de Babel (en React Native), el token, una app conectada, el host sin pantalla, los casos y la clave del servicio de reportes. Es lo primero que conviene ejecutar en un proyecto que no conoces: cada línea que falla dice qué la arregla.
 
 | Opción | Qué hace |
 |---|---|
@@ -409,7 +409,7 @@ Cada línea empieza con `✓` o con `✗`, y las `✗` terminan con la solución
 
 ## Sistema operativo (`os`)
 
-Estos comandos entregan a la app lo que normalmente viene de afuera: enlaces, el reloj, los sensores, la red. Algunos solo funcionan en el host sin pantalla, donde la capa nativa está simulada; otros solo en un simulador, donde lynkeus actúa desde afuera de la app. Cada uno lo indica.
+Estos comandos entregan a la app lo que normalmente viene de afuera: enlaces, el reloj, los sensores, la red. Algunos solo funcionan en el host sin pantalla, donde la capa nativa está simulada; otros solo en un simulador, donde Lynkeus actúa desde afuera de la app. Cada uno lo indica.
 
 Varios aceptan también una forma corta sin `os`, que se señala en cada comando.
 
@@ -626,7 +626,7 @@ Solo simulador. Vuelve a abrir la app en otro idioma.
 
 ## Mapa (`map`)
 
-El mapa es lo que lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee una vez con `map build`, y los recorridos reales, que dejan `crawl` y las ejecuciones. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
+El mapa es lo que Lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee una vez con `map build`, y los recorridos reales, que dejan `crawl` y las ejecuciones. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
 
 ### `lynkeus map build`
 
@@ -882,7 +882,7 @@ Pulsa todos los controles que encuentra y aprende adónde lleva cada uno. Lo que
 Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl` lo que no llegó a pulsar, así que una segunda ejecución continúa en lugar de repetir.
 
 :::caution
-Por defecto, el recorrido es de solo lectura. En cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), `crawl` lo informa, deja de explorar más allá y no vuelve a pulsar ese control. Aun así, esa primera pulsación sí ocurre. Los controles que no deben pulsarse nunca van en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). lynkeus no trae ninguna lista propia, porque cuáles controles son irreversibles depende de cada app.
+Por defecto, el recorrido es de solo lectura. En cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), `crawl` lo informa, deja de explorar más allá y no vuelve a pulsar ese control. Aun así, esa primera pulsación sí ocurre. Los controles que no deben pulsarse nunca van en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). Lynkeus no trae ninguna lista propia, porque cuáles controles son irreversibles depende de cada app.
 :::
 
 | Argumento | Qué es |
@@ -974,11 +974,11 @@ Opciones que deciden qué queda guardado:
 | `--settle <ms>` | Con `--screenshots`: cuánto tiempo tiene que estar quieta la pantalla antes de tomar la captura. Por defecto `150`; usa `700` para capturas que dos ejecuciones van a comparar. |
 | `--frames-on-change` | Con `--screenshots`: un paso que solo mira (`app.see`, `app.wait`) sobre una pantalla que no cambió comparte la última captura en lugar de tomar otra. |
 | `--still <ms>` | Con `--screenshots`, en un simulador o un emulador: repite cada captura hasta que dos seguidas coinciden, con esta separación en milisegundos. Sirve para una transición nativa que el agente no ve. |
-| `--frames <avif\|png>` | Con `--screenshots`: el formato de las capturas. `avif` (por defecto) pesa cerca de un quinto de un PNG cuando lo escribe el host (fastsim), y un 4 % cuando la CLI recodifica el PNG de un simulador o un emulador; `png` es exacto, y solo hace falta cuando dos ejecuciones se comparan píxel por píxel. |
+| `--frames <avif\|png>` | Con `--screenshots`: el formato de las capturas. `avif` (por defecto) pesa cerca de un quinto de un PNG cuando lo escribe el host (Lynkeus FastSim), y un 4 % cuando la CLI recodifica el PNG de un simulador o un emulador; `png` es exacto, y solo hace falta cuando dos ejecuciones se comparan píxel por píxel. |
 | `--no-app-events` | Con `--out`: no lee la lista de eventos propia de la app. Leerla puede encender el modo de depuración del seguimiento de la app, que a veces dibuja algo en pantalla; las capturas que dos ejecuciones comparan no deberían tenerlo. |
-| `--video` | Con `--out`: filma cada caso, donde el host filma (lo nombra en `hello` con su comando `record`). El host sin pantalla incluido y una sesión de simulador o de emulador no lo ofrecen; ahí la ejecución conserva sus capturas y no tiene video. Si el host está en otra máquina (fastsim en una VM de Linux o en un servidor), filma allá y el CLI trae la película al directorio de la ejecución, en trozos. Cada paso indica en qué segundo empezó. |
+| `--video` | Con `--out`: filma cada caso, donde el host filma (lo nombra en `hello` con su comando `record`). El host sin pantalla incluido y una sesión de simulador o de emulador no lo ofrecen; ahí la ejecución conserva sus capturas y no tiene video. Si el host está en otra máquina (FastSim en una VM de Linux o en un servidor), filma allá y el CLI trae la película al directorio de la ejecución, en trozos. Cada paso indica en qué segundo empezó. |
 | `--video-fps <n>` | Cuadros por segundo del video. Por defecto `30`. |
-| `--video-scale <n>` | Píxeles por punto del video, donde el host puede elegirlo. En fastsim, de 1 a 3; si no lo indicas, 2. |
+| `--video-scale <n>` | Píxeles por punto del video, donde el host puede elegirlo. En FastSim, de 1 a 3; si no lo indicas, 2. |
 | `--report <file>` | Agrega al archivo una línea de JSON por caso. |
 | `--events <dir>` | Guarda lo que la app envió a su analítica, por caso, en `<dir>/<id del caso>/events.jsonl`. |
 | `--seen <dir>` | Escribe `<dir>/<id del caso>.json` con las pantallas por las que pasó cada caso que aprobó, para armar un mapa de cobertura. |
@@ -1221,7 +1221,7 @@ lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [-
 
 Ejecuta la suite como lo hace un job de CI: levanta el backend y N hosts, reparte los casos entre ellos, genera el reporte y lo desmonta todo. El código de salida es el de la suite.
 
-Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en puertos consecutivos a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno), y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
+Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. Lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en puertos consecutivos a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno), y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
 
 | Opción | Qué hace |
 |---|---|
@@ -1254,7 +1254,7 @@ Arranca el comando que nombra `cases.fixtures`, le pregunta `lynkeus.describe` e
 lynkeus fixtures check
 ```
 
-Dice si el servidor de fixtures del proyecto cumple el protocolo de fixtures. Arranca el servidor, le pregunta `lynkeus.describe` y comprueba la respuesta: que sea una lista de comandos, que ningún nombre esté dos veces, que la versión del protocolo la conozca esta versión de lynkeus y que el servidor esté en pie. No cambia nada en el backend. Termina con código `1` si algo falla.
+Dice si el servidor de fixtures del proyecto cumple el protocolo de fixtures. Arranca el servidor, le pregunta `lynkeus.describe` y comprueba la respuesta: que sea una lista de comandos, que ningún nombre esté dos veces, que la versión del protocolo la conozca esta versión de Lynkeus y que el servidor esté en pie. No cambia nada en el backend. Termina con código `1` si algo falla.
 
 ### `lynkeus report prune`
 
@@ -1379,7 +1379,7 @@ Termina con `2` si falta la clave y con `1` si no se puede crear la sesión, si 
 lynkeus login [--cloud <url>] [--no-browser]
 ```
 
-Inicia tu sesión en lynkeus.io desde el navegador, para que un miembro de una organización con un lugar de fastsim pueda bajarlo sin una API key. Abre la página de acceso del servicio, donde entras y eliges la organización, y un listener en `127.0.0.1` recibe la respuesta: una sola petición, en un puerto al azar, durante 5 minutos como máximo. El acceso usa PKCE, y la CLI se registra en el servicio en cada inicio de sesión. Con `--no-browser`, o si no se logra abrir un navegador, imprime la dirección para que la abras tú.
+Inicia tu sesión en lynkeus.io desde el navegador, para que un miembro de una organización con un lugar de Lynkeus FastSim pueda bajarlo sin una API key. Abre la página de acceso del servicio, donde entras y eliges la organización, y un listener en `127.0.0.1` recibe la respuesta: una sola petición, en un puerto al azar, durante 5 minutos como máximo. El acceso usa PKCE, y la CLI se registra en el servicio en cada inicio de sesión. Con `--no-browser`, o si no se logra abrir un navegador, imprime la dirección para que la abras tú.
 
 Guarda los tokens en `~/.config/lynkeus/credentials.json` (`XDG_CONFIG_HOME` cambia la carpeta), con permisos solo para ti y una entrada por dirección de servicio, así que pueden convivir varios. Imprime en qué servicio entraste y dónde quedó el archivo, nunca los tokens. `lynkeus fastsim install` usa esa sesión cuando no hay `LYNKEUS_CLOUD_KEY` y la renueva antes de que venza. Sale con `1` si el acceso falla o se rechaza. No es una herramienta de MCP: iniciar sesión en el navegador es un paso de una persona.
 
@@ -1402,16 +1402,16 @@ Borra de esta máquina la sesión guardada de ese servicio. Los tokens siguen si
 lynkeus fastsim install [--version <versión>] [--platform ios|android] [--variant <nombre>] [--cloud <url>] [--force] [--no-browser]
 ```
 
-Baja fastsim, el simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja el build de esta máquina y de `--platform`, verifica su SHA-256 y su firma Ed25519, y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/` (`LYNKEUS_FASTSIM_DIR` cambia esa carpeta). lynkeus firma cada paquete y la CLI trae la clave pública: una versión sin firma, o con una que no corresponde a los bytes, se rechaza con `fastsim <versión> is not signed by lynkeus: not installed` y no se escribe nada. Adentro del paquete hay un README que explica cómo levantar un host para tu app. La [guía de fastsim](/es/guides/fastsim/) cuenta el flujo completo.
+Baja Lynkeus FastSim, el simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, disponible para las organizaciones cuyo plan lo incluye. El comando le pregunta a lynkeus.io qué versiones puede instalar tu organización, baja el build de esta máquina y de `--platform`, verifica su SHA-256 y su firma Ed25519, y lo descomprime en `~/.cache/lynkeus/fastsim/<versión>/<variante>/` (`LYNKEUS_FASTSIM_DIR` cambia esa carpeta). Lynkeus firma cada paquete y la CLI trae la clave pública: una versión sin firma, o con una que no corresponde a los bytes, se rechaza con `fastsim <versión> is not signed by Lynkeus: not installed` y no se escribe nada. Adentro del paquete hay un README que explica cómo levantar un host para tu app. La [guía de FastSim](/es/guides/fastsim/) cuenta el flujo completo.
 
-Usa `LYNKEUS_CLOUD_KEY`, una API key que un owner de tu organización creó con **May download fastsim** (con otra key el servicio responde `this key may not download fastsim`). Si esa variable no está, usa la sesión que guardó [`lynkeus login`](#lynkeus-login) para el servicio, que sirve a un miembro con un lugar de fastsim; si no hay ni una cosa ni la otra, una persona en una terminal (stdin y stderr son terminales y `CI` no está definida) inicia sesión primero, como lo hace `lynkeus login`, y la instalación sigue; una sesión que el servicio rechaza (terminada o revocada) se renueva igual, una sola vez. Los scripts, el CI y el servidor MCP nunca abren un navegador: terminan con `2` y necesitan la key, y una sesión rechazada te pide ejecutar `lynkeus login` otra vez. Con `--no-browser` se imprime la dirección de inicio de sesión en vez de abrirla. Al terminar al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
+Usa `LYNKEUS_CLOUD_KEY`, una API key que un owner de tu organización creó con **May download Lynkeus FastSim** (con otra key el servicio responde `this key may not download Lynkeus FastSim`). Si esa variable no está, usa la sesión que guardó [`lynkeus login`](#lynkeus-login) para el servicio, que sirve a un miembro con un lugar de FastSim; si no hay ni una cosa ni la otra, una persona en una terminal (stdin y stderr son terminales y `CI` no está definida) inicia sesión primero, como lo hace `lynkeus login`, y la instalación sigue; una sesión que el servicio rechaza (terminada o revocada) se renueva igual, una sola vez. Los scripts, el CI y el servidor MCP nunca abren un navegador: terminan con `2` y necesitan la key, y una sesión rechazada te pide ejecutar `lynkeus login` otra vez. Con `--no-browser` se imprime la dirección de inicio de sesión en vez de abrirla. Al terminar al terminar te dice dónde quedó instalado. Si la versión ya está instalada, la deja como está; con `--force` la vuelve a bajar. Instala cada plataforma que pruebes por separado. Por MCP, el mismo comando es la herramienta `fastsim_install`.
 
 | Máquina | `--platform ios` | `--platform android` |
 |---|---|---|
 | Mac con Apple Silicon | `darwin-arm64-ios` (unos 8 MB) | `darwin-arm64-android` (unos 65 MB) |
 | Linux x64 o arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 
-En Windows, ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux. Los Mac con Intel no están soportados.
+En Windows, ejecuta Lynkeus dentro de WSL2: ahí instala el build de Linux. Los Mac con Intel no están soportados.
 
 | Flag | Por defecto | Para qué |
 |---|---|---|
@@ -1421,7 +1421,7 @@ En Windows, ejecuta lynkeus dentro de WSL2: ahí instala el build de Linux. Los 
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 | `--force` | | Baja y descomprime de nuevo. |
 
-Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si no hay ni una key ni una sesión, y con `1` si tu organización no tiene fastsim habilitado, si la versión no existe o si la descarga llega dañada o sin firma.
+Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si no hay ni una key ni una sesión, y con `1` si tu organización no tiene FastSim habilitado, si la versión no existe o si la descarga llega dañada o sin firma.
 
 ### `lynkeus fastsim grant`
 
@@ -1429,7 +1429,7 @@ Con `LYNKEUS_FASTSIM_DIR` cambias la carpeta de instalación. Sale con `2` si no
 lynkeus fastsim grant [--platform ios|android] [--variant <nombre>] [--print] [--cloud <url>]
 ```
 
-Imprime el permiso (grant) que un host de fastsim necesita para arrancar. Cada host pide uno nuevo a lynkeus.io, y el `bin/fastsim-run` de fastsim lo obtiene ejecutando `npx --no-install lynkeus fastsim grant --variant <variante>` antes de cada host. Elige el build igual que [`lynkeus fastsim install`](#lynkeus-fastsim-install) y usa las mismas credenciales: `LYNKEUS_CLOUD_KEY`, o si no la [sesión](#lynkeus-login) guardada, que renueva cuando vence. Si no hay ninguna, inicia sesión solo cuando stdin y stderr son terminales y `CI` no está definida; si no, termina con `2`, así que el `fastsim-run` de un script nunca espera un navegador. No sigue una redirección del servicio.
+Imprime el permiso (grant) que un host de Lynkeus FastSim necesita para arrancar. Cada host pide uno nuevo a lynkeus.io, y el `bin/fastsim-run` de FastSim lo obtiene ejecutando `npx --no-install lynkeus fastsim grant --variant <variante>` antes de cada host. Elige el build igual que [`lynkeus fastsim install`](#lynkeus-fastsim-install) y usa las mismas credenciales: `LYNKEUS_CLOUD_KEY`, o si no la [sesión](#lynkeus-login) guardada, que renueva cuando vence. Si no hay ninguna, inicia sesión solo cuando stdin y stderr son terminales y `CI` no está definida; si no, termina con `2`, así que el `fastsim-run` de un script nunca espera un navegador. No sigue una redirección del servicio.
 
 Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants/<servicio>/<variante>.json` (`XDG_CACHE_HOME` cambia la carpeta; el archivo es legible solo por ti) y lo reutiliza mientras le queden más de 5 minutos. Cuando lo lee un script (stdout no es una terminal), imprime por stdout únicamente el grant y los mensajes van a stderr. En una terminal muestra en cambio un resumen, con un tilde, el build y hasta cuándo vale, para que el token no quede a la vista; con `--print` lo muestra igual, y `--json` siempre lo incluye. Sale con `2` si no hay ni una key ni una sesión, y con `1` si el servicio lo rechaza (sin permiso para FastSim, una key o sesión que no acepta, sin grants configurados) o no responde. No es una herramienta de MCP.
 
@@ -1489,7 +1489,7 @@ Si el proyecto todavía no tiene token, lo crea en `.lynkeus/token`, porque `hea
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Dice qué módulos nativos simula lynkeus y cuáles todavía necesitan un mock.
+Dice qué módulos nativos simula Lynkeus y cuáles todavía necesitan un mock.
 
 | Opción | Qué hace |
 |---|---|

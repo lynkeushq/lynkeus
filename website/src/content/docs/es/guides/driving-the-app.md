@@ -5,7 +5,7 @@ description: Cómo leer la pantalla, tocar, escribir, deslizar, esperar y navega
 
 Antes de escribir un test conviene manejar la app a mano. Así descubres cómo se llama cada pantalla, qué `testID` tiene cada botón y cuánto tarda en llegar cada cosa. Esos mismos comandos son después los pasos de un caso, de modo que lo que aprendes aquí se reutiliza tal cual.
 
-Esta guía recorre los comandos que actúan sobre la app en ejecución: `screen`, `press`, `type`, `swipe`, `wait`, `see`, `idle`, `nav` y `back`. También explica los objetivos, que son la forma de decirle a lynkeus sobre qué elemento actuar.
+Esta guía recorre los comandos que actúan sobre la app en ejecución: `screen`, `press`, `type`, `swipe`, `wait`, `see`, `idle`, `nav` y `back`. También explica los objetivos, que son la forma de decirle a Lynkeus sobre qué elemento actuar.
 
 ## Antes de empezar
 
@@ -79,7 +79,7 @@ npx lynkeus wait '"Next"'     # espera el botón "Next", no una ruta llamada Nex
 npx lynkeus press '"12"'      # el control cuyo texto es 12, no el elemento de índice 12
 ```
 
-Son dos pares de comillas. Las de afuera son para el shell, que de otro modo se quedaría con las de adentro; las de adentro son las que lee lynkeus.
+Son dos pares de comillas. Las de afuera son para el shell, que de otro modo se quedaría con las de adentro; las de adentro son las que lee Lynkeus.
 
 :::note[Desde 0.3.0]
 Antes de la versión 0.3.0, las comillas quedaban dentro del texto buscado y el objetivo no coincidía con nada. Y para `wait` y `see`, una palabra con mayúscula inicial solo podía ser una ruta.
@@ -122,7 +122,7 @@ npx lynkeus type "1124888418" '#phone-input'
 npx lynkeus type 'ana' '#search' --submit
 ```
 
-El primer argumento es el texto. El segundo, opcional, es el campo: lynkeus lo toca primero, de modo que recibe el foco como lo haría una persona. Sin objetivo, escribe en el campo que ya tiene el foco.
+El primer argumento es el texto. El segundo, opcional, es el campo: Lynkeus lo toca primero, de modo que recibe el foco como lo haría una persona. Sin objetivo, escribe en el campo que ya tiene el foco.
 
 | Opción | Para qué |
 |---|---|
@@ -142,7 +142,7 @@ Con una dirección sola, el gesto recorre la pantalla. Con un objetivo, acciona 
 
 ## Esperar y comprobar
 
-Una prueba confiable no espera un tiempo fijo: espera un hecho. lynkeus ofrece tres comandos, y elegir el correcto es la mitad del trabajo.
+Una prueba confiable no espera un tiempo fijo: espera un hecho. Lynkeus ofrece tres comandos, y elegir el correcto es la mitad del trabajo.
 
 **`wait`** espera hasta que aparece una ruta o un elemento, y termina en el render que lo cumple:
 
@@ -202,7 +202,7 @@ Dos cosas quedan fuera a propósito. Los valores de los campos con `secureTextEn
 
 ## Problemas frecuentes
 
-Después de un `press`, `wait`, `type` o `nav` fallido, lynkeus ya imprime la causa. `npx lynkeus why '#next-button'` vuelve a preguntarla en cualquier momento: dice si el objetivo está cubierto, deshabilitado, detrás de una capa, o si no existe y cuál es el parecido más cercano.
+Después de un `press`, `wait`, `type` o `nav` fallido, Lynkeus ya imprime la causa. `npx lynkeus why '#next-button'` vuelve a preguntarla en cualquier momento: dice si el objetivo está cubierto, deshabilitado, detrás de una capa, o si no existe y cuál es el parecido más cercano.
 
 **Un toque no hace nada.** Lee la pantalla. El elemento puede estar `~covered`, `!disabled` o no estar presentado; en ese último caso el encabezado lo cuenta (`3 hidden: 3 behind-overlay`) y `screen --all` lo lista. Cierra lo que esté abierto o apunta a algo dentro de la capa.
 

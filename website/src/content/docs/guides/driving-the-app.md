@@ -78,7 +78,7 @@ npx lynkeus press '#next-button'
 
 ### Quoted targets
 
-lynkeus decides what a target is from its shape. Digits are an index, `#` starts a `testID`, and to `wait` and `see` a word that starts with a capital is a route. That leaves some texts you cannot write plainly: a label that reads `12`, a hashtag, a button labeled `Next`.
+Lynkeus decides what a target is from its shape. Digits are an index, `#` starts a `testID`, and to `wait` and `see` a word that starts with a capital is a route. That leaves some texts you cannot write plainly: a label that reads `12`, a hashtag, a button labeled `Next`.
 
 A target inside quotes of its own is the text between them and never anything else:
 
@@ -87,7 +87,7 @@ npx lynkeus wait '"Next"'      # the element that says Next, not a route called 
 npx lynkeus press '"12"'       # the control labeled 12, not the element at index 12
 ```
 
-There are two pairs of quotes because there are two readers. The shell takes the outer pair; the inner pair reaches lynkeus. Either kind of quote works on the inside.
+There are two pairs of quotes because there are two readers. The shell takes the outer pair; the inner pair reaches Lynkeus. Either kind of quote works on the inside.
 
 :::note[Since 0.3.0]
 Before 0.3.0 the inner quotes stayed in the text, so `press '"Next"'` looked for a label with quotes in it and found nothing, and a capitalized word given to `wait` or `see` could only be a route.
@@ -250,7 +250,7 @@ Reading the value from the native field needs the native module of `lynkeus-agen
 
 **A press does nothing.** Read the screen. The element may be `~covered`, `!disabled`, or not presented at all (the header counts those, and `screen --all` lists them). `press --js` calls the React handler directly instead of synthesizing a touch. That is a useful comparison, not a fix.
 
-**You do not know why a step failed.** After a failed `press`, `wait`, `type`, `swipe` or `nav`, lynkeus prints why: the target is covered or disabled, the text is a wording or an accent away, requests were still in flight, the backend answered 5xx. Ask again at any moment:
+**You do not know why a step failed.** After a failed `press`, `wait`, `type`, `swipe` or `nav`, Lynkeus prints why: the target is covered or disabled, the text is a wording or an accent away, requests were still in flight, the backend answered 5xx. Ask again at any moment:
 
 ```bash
 npx lynkeus why '#pay-button'
@@ -272,6 +272,6 @@ npx lynkeus why --route Checkout.Confirm
 ## Next steps
 
 - [Writing cases](/guides/writing-cases/): the same commands as steps in a file.
-- [Recording and snapshots](/guides/recording-and-snapshots/): let lynkeus write the steps while you use the app.
+- [Recording and snapshots](/guides/recording-and-snapshots/): let Lynkeus write the steps while you use the app.
 - [CLI reference](/reference/cli/): every command and flag.
 - [Concepts](/getting-started/concepts/): the vocabulary used here.

@@ -8,7 +8,7 @@ export default defineConfig({
   site: 'https://docs.lynkeus.io',
   integrations: [
     starlight({
-      title: 'lynkeus',
+      title: 'Lynkeus',
       description: 'Automated tests and reports for mobile apps.',
       logo: { src: './src/assets/logo.svg' },
       favicon: '/favicon.svg',

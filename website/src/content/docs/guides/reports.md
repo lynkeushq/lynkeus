@@ -144,7 +144,7 @@ After a push the output ends with a line such as `run folder: 48 MB on disk` and
 ## What the hosted report shows
 
 - Each case, with its steps and how each one ended.
-- The screenshot after each step, and the video in step with the steps where one was recorded. Since 0.5.0 a host that can (fastsim on a Mac) writes the screenshots as AVIF, about a fifth of a PNG's size; a simulator's or an emulator's PNG is encoded to AVIF by the CLI, about 4 % of its bytes; `--frames png` keeps PNG, for frames you compare pixel for pixel.
+- The screenshot after each step, and the video in step with the steps where one was recorded. Since 0.5.0 a host that can (Lynkeus FastSim on a Mac) writes the screenshots as AVIF, about a fifth of a PNG's size; a simulator's or an emulator's PNG is encoded to AVIF by the CLI, about 4 % of its bytes; `--frames png` keeps PNG, for frames you compare pixel for pixel.
 - What the case is about: its `description`, `why`, `given`, `ticket` and `expected`.
 - The analytics events each step sent, with the service they went to (over 40 services: Mixpanel, Amplitude, Segment, PostHog, RudderStack, Firebase and Google Analytics, Meta, TikTok, AppsFlyer, Adjust, Branch, Braze, Iterable, Customer.io, MoEngage, OneSignal, Intercom, Sentry, Datadog, New Relic, Bugsnag, Embrace, Instabug, FullStory, LogRocket, Smartlook, Hotjar, Heap, Pendo, mParticle, Statsig, LaunchDarkly and others). See [Analytics events](/guides/analytics-events/).
 - The requests each step sent, with their headers and bodies, and what came back. Secrets in them (passwords, codes, tokens, card numbers, `Authorization` and cookies) are replaced by `…`, and a body is cut at 16 KB. Since 0.5.0, for any run made with `--out`.
@@ -245,7 +245,7 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no screenshots.** The host takes none. The headless host renders nothing to capture; use a simulator or an emulator for runs that need pictures.
 
-**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (fastsim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
+**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
 
 ## Next steps
 

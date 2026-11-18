@@ -180,7 +180,7 @@ test('a second driver on a taken port is refused, naming the port, instead of sh
   await assert.rejects(second.listen(), (error: unknown) => {
     assert.ok(error instanceof AgentError);
     assert.equal(error.code, 'port-in-use');
-    assert.match(error.message, new RegExp(`Port ${first.port} is already taken: another lynkeus run is probably still driving`));
+    assert.match(error.message, new RegExp(`Port ${first.port} is already taken: another Lynkeus run is probably still driving`));
     return true;
   });
 });

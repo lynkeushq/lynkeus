@@ -5,7 +5,7 @@ description: Cómo usar la opción --traces y OpenTelemetry para ver, debajo de 
 
 Un test de interfaz falla en la pantalla, pero la causa suele estar en otro lado: una consulta que tardó cuatro segundos, un trabajo en segundo plano que nunca corrió, una llamada a un tercero que devolvió error. Sin más información, quien mira el fallo tiene que ir a buscar los registros del servidor y adivinar cuáles corresponden a ese momento.
 
-Con `--traces`, lynkeus hace esa correspondencia por ti. Debajo de cada paso del caso quedan las peticiones que la app envió mientras el paso corría y, bajo cada petición, las consultas, los trabajos y las llamadas salientes que desencadenó. Usa OpenTelemetry, el estándar abierto de trazas, así que funciona con cualquier backend que pueda exportarlas y lynkeus no necesita saber nada de él.
+Con `--traces`, Lynkeus hace esa correspondencia por ti. Debajo de cada paso del caso quedan las peticiones que la app envió mientras el paso corría y, bajo cada petición, las consultas, los trabajos y las llamadas salientes que desencadenó. Usa OpenTelemetry, el estándar abierto de trazas, así que funciona con cualquier backend que pueda exportarlas y Lynkeus no necesita saber nada de él.
 
 Esta guía es para quien ejecuta la suite contra un backend que controla: uno local o el que levanta el job de CI.
 
@@ -70,7 +70,7 @@ Si prefieres leer los archivos, cada paso de `cases.jsonl` tiene un campo `backe
 1. Al empezar, la ejecución abre un receptor OTLP sobre HTTP en `localhost:4318`.
 2. Cada paso de la app recibe un identificador de tramo propio. El agente lo pone en el encabezado W3C `traceparent` de todas las peticiones que la app envía durante ese paso.
 3. El backend, con su SDK encendido, continúa esa traza y exporta lo que hizo.
-4. Cuando el caso termina, lynkeus espera un momento a que lleguen los últimos lotes y guarda bajo cada paso todos los tramos cuya cadena de padres llega hasta él.
+4. Cuando el caso termina, Lynkeus espera un momento a que lleguen los últimos lotes y guarda bajo cada paso todos los tramos cuya cadena de padres llega hasta él.
 
 Como es el agente quien pone el encabezado, esto funciona igual en un simulador, un emulador, un dispositivo o un host sin pantalla.
 
@@ -102,12 +102,12 @@ El backend del mismo job debe haberse iniciado antes con `OTEL_EXPORTER_OTLP_END
 
 **Los pasos no tienen `backend`.** Revisa en orden: que el backend se haya iniciado con la variable (un proceso ya en marcha no la toma), que el SDK esté realmente encendido en ese entorno, que el exportador use HTTP y no gRPC, y que el agente de la app no sea anterior a esta función.
 
-**Aparecen las peticiones, pero no los trabajos.** La instrumentación de tu cola no propaga el contexto de la traza. Sin eso, el trabajo empieza una traza nueva que lynkeus no puede relacionar con ningún paso.
+**Aparecen las peticiones, pero no los trabajos.** La instrumentación de tu cola no propaga el contexto de la traza. Sin eso, el trabajo empieza una traza nueva que Lynkeus no puede relacionar con ningún paso.
 
-**Faltan tramos al final de un paso lento.** El backend exporta por lotes, un momento después de atender. lynkeus espera hasta tres segundos tras el caso; un exportador configurado con un intervalo mayor llega tarde.
+**Faltan tramos al final de un paso lento.** El backend exporta por lotes, un momento después de atender. Lynkeus espera hasta tres segundos tras el caso; un exportador configurado con un intervalo mayor llega tarde.
 
 ## Siguientes pasos
 
 - [Reportes](/es/guides/reports/): dónde se ven las trazas.
 - [Fixtures](/es/guides/fixtures/): preparar los datos del backend.
-- [Variables de entorno](/es/reference/environment-variables/): todo lo que lee lynkeus.
+- [Variables de entorno](/es/reference/environment-variables/): todo lo que lee Lynkeus.

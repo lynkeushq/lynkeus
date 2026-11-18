@@ -60,7 +60,7 @@ Every command that touches or looks for an element takes a **target**. There are
 
 Prefer the `testID`. It does not change when the copy changes or the app is translated. Quote targets in the shell: `#` starts a comment in most shells when it is unquoted.
 
-The quoted form has two pairs of quotes for a reason. The outer pair is for the shell, which removes it. The inner pair reaches lynkeus and says "this is a text": `'"12"'` is a label that reads 12 and not the element at index 12. Since 0.3.0; before, the inner quotes stayed in the text and matched nothing.
+The quoted form has two pairs of quotes for a reason. The outer pair is for the shell, which removes it. The inner pair reaches Lynkeus and says "this is a text": `'"12"'` is a label that reads 12 and not the element at index 12. Since 0.3.0; before, the inner quotes stayed in the text and matched nothing.
 
 ### 3. Type and press
 
@@ -145,7 +145,7 @@ why:
   • …
 ```
 
-After a failed `press`, `type`, `wait`, `swipe` or `nav`, lynkeus reads its own evidence (the screen, the latest requests, the trace of what happened) and prints what it found under `why:`. The usual answers are that the target is not on screen and which element is a near match, that it is there but covered or disabled, or that requests were still in flight. `npx lynkeus why '#next-button'` asks the same question at any moment.
+After a failed `press`, `type`, `wait`, `swipe` or `nav`, Lynkeus reads its own evidence (the screen, the latest requests, the trace of what happened) and prints what it found under `why:`. The usual answers are that the target is not on screen and which element is a near match, that it is there but covered or disabled, or that requests were still in flight. `npx lynkeus why '#next-button'` asks the same question at any moment.
 
 ## Part 2: Write a case and run it
 

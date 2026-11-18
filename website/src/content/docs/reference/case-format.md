@@ -116,7 +116,7 @@ In YAML, quote a target that starts with `#`: an unquoted `#` starts a comment.
 
 ### Quoted targets
 
-The quotes in the table above are YAML's: they mark a string and do not reach lynkeus. A target that carries quotes of its own, inside YAML's, is the text between them and never a route, an index or a `testID`.
+The quotes in the table above are YAML's: they mark a string and do not reach Lynkeus. A target that carries quotes of its own, inside YAML's, is the text between them and never a route, an index or a `testID`.
 
 ```yaml
 - app.wait: Next          # a route called Next
@@ -381,9 +381,9 @@ Assert on, or clear, what the app told its analytics.
 | `props` | object | Optional. Properties the event must carry. |
 | `absent` | boolean | Optional. Assert that no such event was reported. |
 
-### Any other lynkeus command
+### Any other Lynkeus command
 
-Any other `app.<name>` runs the lynkeus command of that name, with or without its `os` prefix: `app.mock` is `lynkeus mock`, `app.network` is `lynkeus os network`, `app.deeplink` is `lynkeus os deeplink`.
+Any other `app.<name>` runs the Lynkeus command of that name, with or without its `os` prefix: `app.mock` is `lynkeus mock`, `app.network` is `lynkeus os network`, `app.deeplink` is `lynkeus os deeplink`.
 
 ```yaml
 - app.deeplink: "myapp://pay/abc"
@@ -407,7 +407,7 @@ The value becomes the command's arguments:
 
 In an object, the keys `target`, `request`, `route`, `url`, `state` and `text` also stand for the command's first argument, whatever the command calls it. Six flags have a longer spelling you can use instead: `within` for `in`, `timeoutMs` for `timeout`, `delayMs` for `delay`, `durationMs` for `duration`, `holdMs` for `hold` and `advanceMs` for `advance`.
 
-A key that names neither an argument nor a flag of the command fails the step with `<command> has no <key>`. A name that is no lynkeus command and no macro fails with `app.<name> is not a step`. `lynkeus case run --dry-run` reports both without running anything.
+A key that names neither an argument nor a flag of the command fails the step with `<command> has no <key>`. A name that is no Lynkeus command and no macro fails with `app.<name> is not a step`. `lynkeus case run --dry-run` reports both without running anything.
 
 The arguments and flags of each command are in the [CLI reference](/reference/cli/). Commands marked headless there work only on the headless host; on a device the step is reported as `unsupported`.
 
@@ -430,7 +430,7 @@ A request that a mock answered, or lost, is marked `mocked`. The app's request l
 
 ### Fixtures
 
-Any step whose verb is not `app.*`, `assert`, `exec` or a macro is a **fixture**: a piece of backend preparation your project defines. lynkeus sends the step to the command in `cases.fixtures` as one JSON line and reads one line back. The protocol is described in [Fixtures](/guides/fixtures/).
+Any step whose verb is not `app.*`, `assert`, `exec` or a macro is a **fixture**: a piece of backend preparation your project defines. Lynkeus sends the step to the command in `cases.fixtures` as one JSON line and reads one line back. The protocol is described in [Fixtures](/guides/fixtures/).
 
 ```yaml
 setup:

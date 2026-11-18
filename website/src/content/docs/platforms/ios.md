@@ -1,6 +1,6 @@
 ---
 title: iOS
-description: What is specific to running lynkeus on iOS. Requirements, how the CLI finds the simulator, the commands that reach the simulator from outside, limits and known problems.
+description: What is specific to running Lynkeus on iOS. Requirements, how the CLI finds the simulator, the commands that reach the simulator from outside, limits and known problems.
 ---
 
 This page covers what is particular to iOS: what the agent needs from the build, how the CLI picks a simulator, and the commands that act on the simulator from outside the app. Read it after [installing the agent](/getting-started/installation-react-native/), when you start running tests on a simulator or set one up on CI.
@@ -49,7 +49,7 @@ A name matches when the simulator's name contains it. If you name a simulator th
 No booted simulator matching "iPhone 16".
 ```
 
-Boot the simulator first; lynkeus does not boot one for you.
+Boot the simulator first; Lynkeus does not boot one for you.
 
 Commands that launch the app or change its permissions also need its bundle identifier. Give it once in the configuration so you do not repeat it:
 
@@ -153,7 +153,7 @@ On a simulator the pixels are real, which is what a headless host cannot give yo
 npx lynkeus screenshot home.png
 ```
 
-`lynkeus snapshot <name> --pixels` compares a screenshot against a stored baseline. Before taking it, lynkeus pins the simulator's status bar (the time reads 9:41, the battery is full, the signal bars are fixed) so that the clock does not count as a difference. `--no-freeze` skips that. See [Recording and snapshots](/guides/recording-and-snapshots/).
+`lynkeus snapshot <name> --pixels` compares a screenshot against a stored baseline. Before taking it, Lynkeus pins the simulator's status bar (the time reads 9:41, the battery is full, the signal bars are fixed) so that the clock does not count as a difference. `--no-freeze` skips that. See [Recording and snapshots](/guides/recording-and-snapshots/).
 
 `lynkeus case run --out <dir> --screenshots` keeps a screenshot after every app step of every case. The simulator gives PNG, which the run encodes again as AVIF unless `--frames png`. A native transition the agent cannot see, such as a system sheet sliding in, can leave a frame half drawn; `--still <ms>` takes each frame again until two in a row match. See [Reports](/guides/reports/).
 
@@ -161,7 +161,7 @@ npx lynkeus screenshot home.png
 
 - **System UI is not part of the screen.** Permission dialogs, the share sheet, the system keyboard and anything else drawn by iOS rather than by React Native are not listed as elements. Use `lynkeus os permissions` for permissions, and expect a native screen your app opens to need a press at a point (`lynkeus press 100,200`).
 - **Tabs and bars drawn by the system are not elements.** A tab bar rendered natively, as in the newest Expo template, cannot be pressed by name. Navigate with `lynkeus nav <route>`.
-- **Debug builds only.** lynkeus cannot drive a release build or a build from TestFlight or the App Store.
+- **Debug builds only.** Lynkeus cannot drive a release build or a build from TestFlight or the App Store.
 - **A physical iPhone is not supported.** The CLI looks for a booted simulator, and launching, screenshots and the `os` commands go through `simctl` on one. The agent dials `localhost`, which on a simulator is the Mac, and the driver listens on the Mac's loopback address only.
 - **No video of a case.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. A simulator session offers none, so a run keeps its screenshots and no video.
 

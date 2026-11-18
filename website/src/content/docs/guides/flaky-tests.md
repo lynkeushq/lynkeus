@@ -5,7 +5,7 @@ description: Find the tests that pass and fail without anything changing, measur
 
 A **flaky** test passes sometimes and fails other times with no change to the code. It is worse than a failing test in one way: people learn to rerun it, and then to ignore it. A **broken** test fails every time, because the app or the test is wrong.
 
-The two need different work, so the first job is to tell them apart. lynkeus gives you four tools for that: the automatic retry, a local ledger, the `flake` command, and the history kept by the hosted reports.
+The two need different work, so the first job is to tell them apart. Lynkeus gives you four tools for that: the automatic retry, a local ledger, the `flake` command, and the history kept by the hosted reports.
 
 ## Before you start
 

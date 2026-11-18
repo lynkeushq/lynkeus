@@ -43,7 +43,10 @@ const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string
     if (req.url === '/.well-known/oauth-authorization-server')
       return json({ authorization_endpoint: `${origin}/authorize`, token_endpoint: `${origin}/token`, registration_endpoint: `${origin}/register` });
     if (req.url === '/register') {
-      issued.redirectUri = (JSON.parse(text) as { redirect_uris: string[] }).redirect_uris[0] ?? '';
+      const registered = JSON.parse(text) as { client_name: string; redirect_uris: string[] };
+      // lynkeus.io offers fastsim:download only to a client registered under exactly this name.
+      if (registered.client_name !== 'lynkeus CLI') return json({ error: 'invalid_client_metadata' }, 400);
+      issued.redirectUri = registered.redirect_uris[0] ?? '';
       return json({ client_id: issued.clientId });
     }
     if (req.url === '/token') {
@@ -198,7 +201,7 @@ test('fastsim install with no key and no sign-in exits 2 naming both ways', asyn
     code: number;
   };
   assert.equal(result.code, 2);
-  assert.match(result.text, /May download fastsim/);
+  assert.match(result.text, /May download Lynkeus FastSim/);
   assert.match(result.text, /lynkeus login/);
 });
 
@@ -301,7 +304,7 @@ test('fastsim install without a terminal, in CI or over MCP keeps exit 2 and ope
     else delete process.env.CI;
     const result = (await cmd.run({ ...ctx(flagsFor(cloud.url)), attached: 'attached' in extra } as Ctx)) as Out;
     assert.equal(result.code, 2, name);
-    assert.match(result.text, /May download fastsim/, name);
+    assert.match(result.text, /May download Lynkeus FastSim/, name);
     assert.equal(opened.length, 0, name);
   }
   delete process.env.CI;
@@ -448,7 +451,7 @@ test('an older service that names nobody gets the short success page and the old
   const b = browserPage(cloud, goodAnswer);
   const saved = await login({ cloud: cloud.url, open: b.open });
   await settle();
-  assert.match(b.page.html, /The lynkeus CLI is signed in\. Go back to your terminal: it carries on from here\./);
+  assert.match(b.page.html, /The Lynkeus CLI is signed in\. Go back to your terminal: it carries on from here\./);
   assert.match(b.page.html, /<code>lynkeus login<\/code>/);
   assert.equal(saved.organization, undefined);
   assert.equal(savedLogin(cloud.url)?.account, undefined);
@@ -508,7 +511,7 @@ test('the failure page for Deny says nothing was shared, and the command to try 
   );
   assert.match(f.outcome?.message ?? '', /refused/);
   assert.match(f.page.html, /The sign-in did not finish/);
-  assert.match(f.page.html, /You chose <b>Deny<\/b>, so the lynkeus CLI is not signed in\. Nothing was shared with it\./);
+  assert.match(f.page.html, /You chose <b>Deny<\/b>, so the Lynkeus CLI is not signed in\. Nothing was shared with it\./);
   assert.match(f.page.html, /To try again, run this in your terminal:/);
   assert.match(f.page.html, /<code>npx lynkeus login<\/code>/);
   assert.match(f.page.html, /You can close this tab\./);

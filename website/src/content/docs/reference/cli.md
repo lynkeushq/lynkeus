@@ -1,6 +1,6 @@
 ---
 title: CLI reference
-description: Every lynkeus command, argument and flag, with its default and what it does.
+description: Every Lynkeus command, argument and flag, with its default and what it does.
 ---
 
 This page lists every command of the `lynkeus` CLI, in the groups the CLI itself uses: Drive, os, map, Runs and headless. Use it to look up a flag or copy an invocation. For how the commands fit together, start with [Driving the app](/guides/driving-the-app/) and [Writing cases](/guides/writing-cases/).
@@ -33,14 +33,14 @@ Every command that touches or looks for an element takes a **target**: the way y
 
 Covered elements are never matched. When two elements tie, the later one wins, because it draws on top.
 
-Your shell removes one pair of quotes before lynkeus sees the argument. Quote a label with spaces so that it arrives as one argument, and quote targets that start with `#`, since `#` starts a comment in most shells.
+Your shell removes one pair of quotes before Lynkeus sees the argument. Quote a label with spaces so that it arrives as one argument, and quote targets that start with `#`, since `#` starts a comment in most shells.
 
 ```bash
 lynkeus press '#next-button'
 lynkeus press 'Log in'
 ```
 
-Quotes that reach lynkeus mean something. A target that arrives inside quotes of its own, single or double, is the text between them and nothing else. Write them inside the shell's quotes:
+Quotes that reach Lynkeus mean something. A target that arrives inside quotes of its own, single or double, is the text between them and nothing else. Write them inside the shell's quotes:
 
 ```bash
 lynkeus wait '"Next"'     # the element that says Next, not a route called Next
@@ -48,7 +48,7 @@ lynkeus press '"12"'      # the control labeled 12, not the element at index 12
 ```
 
 :::note[Since 0.3.0]
-Before 0.3.0 quotes that reached lynkeus stayed in the text, so `press '"Next"'` looked for a label with the quotes in it and found nothing.
+Before 0.3.0 quotes that reached Lynkeus stayed in the text, so `press '"Next"'` looked for a label with the quotes in it and found nothing.
 :::
 
 Where a command accepts a route or a target (`wait`, `see`, `why`), a word that looks like a route name is read as a route: words that start with a capital letter, joined by dots, such as `Settings.Main` or `Home`. A route that does not start with a capital, as expo-router's do, is written with the `route:` prefix: `route:index` (since 0.3.0).
@@ -66,7 +66,7 @@ This rule also catches a one-word label that starts with a capital letter. `lynk
 | `2` | It was called wrongly: an unknown command or flag, a missing argument, a missing prerequisite such as `--out`. |
 | `130` | `case run` was interrupted (Ctrl-C or SIGTERM). |
 
-A failed `press`, `wait`, `type`, `swipe`, `see` or `nav` prints the error and then `why:` with what lynkeus read from the screen, the requests and the trace. See [Troubleshooting](/troubleshooting/).
+A failed `press`, `wait`, `type`, `swipe`, `see` or `nav` prints the error and then `why:` with what Lynkeus read from the screen, the requests and the trace. See [Troubleshooting](/troubleshooting/).
 
 ## Drive
 
@@ -228,7 +228,7 @@ lynkeus wait '#submit' --enabled
 lynkeus screenshot <file>
 ```
 
-Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (fastsim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
+Writes what the screen looks like right now to a PNG file. On a host that draws the app itself (Lynkeus FastSim), the host captures its own frame, and only inside the output folders it allows; the CLI asks for it when the host's `hello` lists `screenshot`. A device, a simulator or an emulator is captured through its operating system. The headless host renders nothing to capture, so there it fails.
 
 | Argument | Meaning |
 |---|---|
@@ -415,7 +415,7 @@ Reports what React spent rendering, per route, as measured by the Profiler that 
 lynkeus init [--no-install]
 ```
 
-Sets lynkeus up in the app, in a React Native or an Expo app: it installs `lynkeus-agent`, mounts the agent from the app's entry file and makes the project's token. Run it from the app's folder. It does not need the app to be running.
+Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynkeus-agent`, mounts the agent from the app's entry file and makes the project's token. Run it from the app's folder. It does not need the app to be running.
 
 | Flag | Meaning |
 |---|---|
@@ -444,7 +444,7 @@ Running it again changes only what is missing: it answers that the entry already
 lynkeus status [--offline]
 ```
 
-Says what the project has of lynkeus and what is missing. It is the first command to run in a project you do not know. Each line starts with `✓` or `✗`, and each `✗` says what fixes it:
+Says what the project has of Lynkeus and what is missing. It is the first command to run in a project you do not know. Each line starts with `✓` or `✗`, and each `✗` says what fixes it:
 
 - `lynkeus-agent` is a dependency and is installed.
 - The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
@@ -675,7 +675,7 @@ lynkeus os language [tag]
 
 ## map
 
-Commands for what lynkeus knows before it touches anything, read from the app's source and learned from walking the app. Everything they write lives under `.lynkeus/` in the app's folder.
+Commands for what Lynkeus knows before it touches anything, read from the app's source and learned from walking the app. Everything they write lives under `.lynkeus/` in the app's folder.
 
 ### `lynkeus map build`
 
@@ -938,7 +938,7 @@ Presses every control it finds and learns where each one leads. What it learns f
 
 The crawl finishes a screen before it goes anywhere, and remembers in `.lynkeus/frontier.jsonl` what it did not get to, so a second run continues instead of repeating.
 
-It is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`) the crawl reports it, stops exploring past it, and never presses that control again. Controls that must not be pressed at all go under `crawl.never` in `lynkeus.config.json`. lynkeus ships no list of its own, because which controls are irreversible depends on the app.
+It is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`) the crawl reports it, stops exploring past it, and never presses that control again. Controls that must not be pressed at all go under `crawl.never` in `lynkeus.config.json`. Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
 
 | Argument | Meaning |
 |---|---|
@@ -1028,19 +1028,19 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. |
 | `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
 | `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
-| `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (fastsim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
-| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as fastsim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
+| `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (Lynkeus FastSim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
+| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as FastSim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
 | `--traces` | | Listen for the backend's OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it. Point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:<traces-port>`. |
 | `--traces-port <port>` | `4318` | Where `--traces` listens. |
 | `--push` | | With `--out`: upload the run to the report service and print the report's address. The report is made when the run starts and fills case by case, so the address works from the first case. See [Reports](/guides/reports/). |
 | `--project <name>` | the app's folder name | With `--push`: the project the run is filed under. |
 | `--video-fps <n>` | `30` | Frames per second of the film. |
-| `--video-scale <n>` | | Pixels per point of the film, where the host can choose one. fastsim takes 1 to 3 and uses 2 unless told. |
+| `--video-scale <n>` | | Pixels per point of the film, where the host can choose one. FastSim takes 1 to 3 and uses 2 unless told. |
 | `--flakes <file>` | `.lynkeus/flakes.json` | The ledger of how each case did across runs. |
 | `--prepared <dir>` | | Where `case prepare` leaves setups made ahead. A case found there skips its setup. |
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
-| `--host-command <command>` | | A command that starts a fresh host for every case; lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
+| `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
 | `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
 | `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
@@ -1220,7 +1220,7 @@ lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [-
 
 Runs the suite the way a CI job does: it brings the backend up, runs the cases across N headless hosts, reports, and tears everything down. It runs `case run` with `--host-command` and `--keep-hosts`, so a host that dies takes one case with it, not every case after it. The exit code is the suite's.
 
-It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/reference/configuration/#ci)): the commands that start and stop your backend, a URL to wait for, how many hosts to run and the command that starts one, whether to push, and more `case run` flags. lynkeus knows no backend, so it runs only what you give it. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told) and count up by one per host. It always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`. When `GITHUB_STEP_SUMMARY` is set, it appends the run's summary there.
+It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/reference/configuration/#ci)): the commands that start and stop your backend, a URL to wait for, how many hosts to run and the command that starts one, whether to push, and more `case run` flags. Lynkeus knows no backend, so it runs only what you give it. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told) and count up by one per host. It always runs `case run` with `--jobs`, `--ports`, `--host-command`, `--keep-hosts`, `--out` and `--screenshots`. When `GITHUB_STEP_SUMMARY` is set, it appends the run's summary there.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -1256,7 +1256,7 @@ It starts the command that `cases.fixtures` names and asks `lynkeus.describe`. A
 lynkeus fixtures check
 ```
 
-Tells whether the project's fixtures server keeps the fixtures protocol. It starts the server, asks `lynkeus.describe` and checks the answer: a list of commands, no name twice, a protocol version this lynkeus knows, and whether the server says it is up. It changes nothing in the backend. See [Fixtures](/guides/fixtures/).
+Tells whether the project's fixtures server keeps the fixtures protocol. It starts the server, asks `lynkeus.describe` and checks the answer: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether the server says it is up. It changes nothing in the backend. See [Fixtures](/guides/fixtures/).
 
 ### `lynkeus report push`
 
@@ -1377,7 +1377,7 @@ Exits with `2` when there is no key, and with `1` when the session cannot be cre
 lynkeus login [--cloud <url>] [--no-browser]
 ```
 
-Signs you in to lynkeus.io from a browser, so a member of an organization with a fastsim seat can download fastsim without an API key. It opens the service's sign-in page, where you sign in and pick the organization, and a listener on `127.0.0.1` receives the answer: one request, on a random port, for at most 5 minutes. The sign-in uses PKCE, and the CLI registers itself with the service for each login. With `--no-browser`, or when no browser opens, it prints the address instead.
+Signs you in to lynkeus.io from a browser, so a member of an organization with a Lynkeus FastSim seat can download FastSim without an API key. It opens the service's sign-in page, where you sign in and pick the organization, and a listener on `127.0.0.1` receives the answer: one request, on a random port, for at most 5 minutes. The sign-in uses PKCE, and the CLI registers itself with the service for each login. With `--no-browser`, or when no browser opens, it prints the address instead.
 
 It saves the tokens in `~/.config/lynkeus/credentials.json` (`XDG_CONFIG_HOME` moves the folder), readable only by you, with one entry per service address, so several services can coexist. It prints which service you signed in to and where the file is, never the tokens. `lynkeus fastsim install` uses the sign-in when `LYNKEUS_CLOUD_KEY` is not set and renews it before it expires. Exits with `1` when the sign-in fails or is refused. It is not an MCP tool: a browser sign-in is a person's step.
 
@@ -1400,16 +1400,16 @@ Removes the saved sign-in for that service from this machine. The tokens stay va
 lynkeus fastsim install [--version <version>] [--platform ios|android] [--variant <name>] [--cloud <url>] [--force] [--no-browser]
 ```
 
-Downloads fastsim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and its Ed25519 signature, and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). lynkeus signs every package, and the CLI carries the public key: a release with no signature, or one that does not match the bytes, is refused with `fastsim <version> is not signed by lynkeus: not installed`, and nothing is written. The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
+Downloads Lynkeus FastSim, the simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, for organizations whose plan includes it. It asks lynkeus.io which releases your organization may install, downloads the build for this machine and `--platform`, checks its SHA-256 and its Ed25519 signature, and unpacks it into `~/.cache/lynkeus/fastsim/<version>/<variant>/` (`LYNKEUS_FASTSIM_DIR` moves it). Lynkeus signs every package, and the CLI carries the public key: a release with no signature, or one that does not match the bytes, is refused with `fastsim <version> is not signed by Lynkeus: not installed`, and nothing is written. The README inside the package says how to start a host for your app. The [fastsim guide](/guides/fastsim/) covers the whole flow.
 
-It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download fastsim**; other keys get `this key may not download fastsim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a fastsim seat; with neither, a person at a terminal (stdin and stderr are terminals, `CI` unset) is signed in first, as `lynkeus login` does, and the install goes on; a sign-in the service refuses (ended or revoked) is renewed the same way, once. Scripts, CI and the MCP server never open a browser: they exit with `2` and need the key, and a refused sign-in says to run `lynkeus login` again. `--no-browser` prints the sign-in address instead of opening it. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
+It needs `LYNKEUS_CLOUD_KEY`, an API key an owner of your organization made with **May download Lynkeus FastSim**; other keys get `this key may not download Lynkeus FastSim`. Without that variable it uses the sign-in [`lynkeus login`](#lynkeus-login) saved for the service, which works for a member with a FastSim seat; with neither, a person at a terminal (stdin and stderr are terminals, `CI` unset) is signed in first, as `lynkeus login` does, and the install goes on; a sign-in the service refuses (ended or revoked) is renewed the same way, once. Scripts, CI and the MCP server never open a browser: they exit with `2` and need the key, and a refused sign-in says to run `lynkeus login` again. `--no-browser` prints the sign-in address instead of opening it. It prints where the release went. Running it again for a release you already have keeps it, unless you pass `--force`. Install each platform you test on its own. Over MCP the same command is the `fastsim_install` tool.
 
 | Machine | `--platform ios` | `--platform android` |
 |---|---|---|
 | Apple Silicon Mac | `darwin-arm64-ios` (about 8 MB) | `darwin-arm64-android` (about 65 MB) |
 | Linux x64 or arm64 | `linux-<arch>-ios` | `linux-<arch>-android` |
 
-On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Macs are not supported.
+On Windows, run Lynkeus inside WSL2, where it installs the Linux build. Intel Macs are not supported.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -1427,7 +1427,7 @@ On Windows, run lynkeus inside WSL2, where it installs the Linux build. Intel Ma
 lynkeus fastsim grant [--platform ios|android] [--variant <name>] [--print] [--cloud <url>]
 ```
 
-Prints the grant a fastsim host needs to start. Each host asks for a fresh one from lynkeus.io, and FastSim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
+Prints the grant a Lynkeus FastSim host needs to start. Each host asks for a fresh one from lynkeus.io, and FastSim's `bin/fastsim-run` gets it by running `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. It picks the build as [`lynkeus fastsim install`](#lynkeus-fastsim-install) does, and uses the same credentials: `LYNKEUS_CLOUD_KEY`, or else the saved [sign-in](#lynkeus-login), renewed when it expires. With neither, it signs you in only when stdin and stderr are terminals and `CI` is unset; otherwise it exits with `2`, so `fastsim-run` in a script never waits for a browser. A redirect from the service is not followed.
 
 A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim/grants/<service>/<variant>.json` (`XDG_CACHE_HOME` moves the folder; the file is readable only by you) and reuses it while it has more than 5 minutes left. When a script reads it (stdout is not a terminal), it prints only the grant on stdout and messages go to stderr. At a terminal it prints a summary instead, a check mark with the build and until when the grant is valid, so the token does not sit on the screen; `--print` shows the token there too, and `--json` always carries it. Exits with `2` when there is neither a key nor a sign-in, and with `1` when the service refuses (no entitlement, a key or sign-in it does not accept, no grants set up) or cannot be reached. It is not an MCP tool.
 
@@ -1486,7 +1486,7 @@ It stops with `no App component found` when it finds no root component and `--co
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Lists what lynkeus mocks, and which native modules of the app still need a mock.
+Lists what Lynkeus mocks, and which native modules of the app still need a mock.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -1517,7 +1517,7 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 | Line | Meaning |
 |---|---|
 | `{"ok": true, "out": "…", "json": …}` | The command succeeded. `out` is what the terminal would print. `json` is present when the command has machine-readable output. |
-| `{"ok": false, "error": "…", "why": "…"}` | The command failed. `why` is present when lynkeus could read a reason from the app. |
+| `{"ok": false, "error": "…", "why": "…"}` | The command failed. `why` is present when Lynkeus could read a reason from the app. |
 
 The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the app has attached. The line `["exit"]` ends the session. A session is for commands that act on the attached app, so a command that needs no app is not available in it: `init`, `status`, `map build`, `map ci`, `map changes`, `events`, `funnel`, `headless start`, `headless init`, `headless doctor`, and the `report` and `fixtures` commands. Others are left out on purpose: `case run`, `case status`, `case prepare`, `case init`, `case coverage`, `case impact`, `case new`, `ci`, `flake`, `smoke`, `crawl` and `record`. `case here` works in a session. `lynkeus help <command>` says whether a command is.
 

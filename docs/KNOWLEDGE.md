@@ -1,4 +1,4 @@
-# Knowledge: what lynkeus knows before it touches anything
+# Knowledge: what Lynkeus knows before it touches anything
 
 Everything here lives under `.lynkeus/` in the app's folder and is a build
 product: safe to delete, cheap to regenerate. The vocabulary (graph, edges,
@@ -226,7 +226,7 @@ and keeps one comment on it up to date with the screens the diff reaches.
 
 ## Knowledge travels in the pull request
 
-There is no server: everything lynkeus learns is text under `.lynkeus/`, and
+There is no server: everything Lynkeus learns is text under `.lynkeus/`, and
 it changes the way code does — in a pull request someone reviews.
 
 - **With the feature.** A run with `LYNKEUS_RECORD_SCREENS=1` leaves the
