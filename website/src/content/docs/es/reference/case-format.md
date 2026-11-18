@@ -227,7 +227,7 @@ Con una ruta o un objetivo:
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
-| `enabled` | booleano | `false` | Espera a que el objetivo esté presente y habilitado, como el botón de un formulario que depende de sus campos. |
+| `enabled` | booleano | `false` | Espera a que el objetivo esté presente, habilitado y recibiendo toques, como el botón de un formulario que depende de sus campos. |
 | `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |
 | `timeoutMs` | número (ms) | `10000` | Cuánto esperar antes de fallar. |
 

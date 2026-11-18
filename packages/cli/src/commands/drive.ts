@@ -175,7 +175,10 @@ export const driveCommands = [
       anyOf: { type: 'list', help: 'accept any of these targets (repeatable)', value: 'target' },
       gone: { type: 'boolean', help: 'until it leaves the screen' },
       scroll: { type: 'boolean', help: 'scroll until it is in the window' },
-      enabled: { type: 'boolean', help: 'until it is present and enabled (a form button that waits on its fields)' },
+      enabled: {
+        type: 'boolean',
+        help: 'until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed)',
+      },
       timeout: { type: 'number', help: 'give up after', default: 10000, value: 'ms' },
       since: { type: 'number', help: 'a trace mark: a route reached after it counts, even if already left', value: 'seq' },
     },
