@@ -1,8 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- `lynkeus fastsim install` and `grant` send a random install id (`x-lynkeus-machine`), kept in `~/.config/lynkeus/machine-id` (`XDG_CONFIG_HOME` moves it), so lynkeus.io can count the machines and CI hosts a plan includes (Team: 5 and 4). The id names an install, not a person, and is not in the cache folder, so a restored CI cache does not make parallel runners one host. When the service warns that the organization is past its plan, `lynkeus fastsim grant` prints it to stderr.
+- In a run with `--frames-on-change` and `--still` (pixel comparisons against a reference), the `app.see` steps right after a step now run before that step's settle and picture and share it, so a toast the step shows is still on screen when it is looked at. Runs without both flags are unchanged.
+
 ## 0.7.3
 
-- In a run with `--frames-on-change` and `--still` (pixel comparisons against a reference), the `app.see` steps right after a step now run before that step's settle and picture and share it, so a toast the step shows is still on screen when it is looked at. Runs without both flags are unchanged.
 - The MCP instructions and `fastsim_install` say Lynkeus FastSim is optional and paid (Team plan, https://lynkeus.io/pricing) and what to do when the service refuses: tell the person, point them to the plans or to Members, and carry on with headless or the Simulator. `lynkeus fastsim install` and `grant` add `Plans: https://lynkeus.io/pricing` to a refusal for no entitlement and `An owner gives seats under Members on lynkeus.io` to one for no seat, and `lynkeus status` says whether Lynkeus FastSim is installed.
 - fastsim is now called Lynkeus FastSim in help, messages (`installed Lynkeus FastSim 2026.11.17 (...)`), MCP tool descriptions and the docs. Command, flag and tool names (`lynkeus fastsim install`, `fastsim_install`), file names, paths and environment variables (`LYNKEUS_FASTSIM_DIR`) are unchanged. The brand is written Lynkeus in prose, help and messages; commands, packages, paths and environment variables stay lowercase.
 - `lynkeus fastsim grant` at a terminal shows a summary instead of the token: a check mark, the build and until when the grant is valid (colored unless `NO_COLOR` is set). Scripts that read its stdout, such as Lynkeus FastSim's `bin/fastsim-run`, still get only the grant; `--print` shows it at a terminal and `--json` always carries it.
