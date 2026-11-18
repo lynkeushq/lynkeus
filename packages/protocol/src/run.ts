@@ -74,7 +74,27 @@ export type RunStep = {
   requests?: RequestRecord[];
   /** What the app printed while it ran: its console, the errors it did not catch, its native log. */
   logs?: RunLogLine[];
+  /** On a failed `app.see` or `app.wait` for a target: what the step saw of the screen and of its target. */
+  looked?: RunLooked;
 };
+
+/** What a failed `see` or `wait` kept: the whole listing at the failure, the scrolls it made, and what its target was last seen as. */
+export type RunLooked = {
+  /** Every element of the screen at the failure, as `lynkeus screen --all` lists them: off the window, hidden with its reason, covered. Cut at 150 elements. */
+  listing: string;
+  /** The scrolls the step made, in order (the first 20). */
+  scrolls: RunScroll[];
+  /** How many scrolls the step made, when more than `scrolls` holds. */
+  scrollsTotal: number;
+  /** What the target was seen as: `found` is false when it was never in the element tree during the step. */
+  target?: { found: boolean; last?: string; seen: RunSighting[] };
+};
+
+/** A scroll the step made: which way the content was taken, when (ms into the step), and the first and last element of the listing before and after. */
+export type RunScroll = { atMs: number; direction: 'down' | 'up'; moved: boolean; before: RunEdges; after: RunEdges };
+export type RunEdges = { count: number; first?: string; last?: string };
+/** The target's state when it changed (at most 8), `atMs` into the step and `scrolls` made so far: `not in the tree`, `on screen`, `below the window`, `covered`, `inert`, `hidden (<reason>)`… */
+export type RunSighting = { atMs: number; scrolls: number; state: string };
 
 /** A printed line: `at` in ms since the epoch; `source` is `js`, `native` or `host`. */
 export type RunLogLine = { at: number; level: 'debug' | 'info' | 'warn' | 'error'; source: string; text: string; stack?: string };

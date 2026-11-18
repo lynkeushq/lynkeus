@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, RequestRecord, Screen, Target } from 'lynkeus-protocol';
+import type { Element, RequestRecord, RunEdges, RunLooked, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
@@ -86,6 +86,8 @@ export type StepReport = {
   requests?: RequestRecord[];
   /** What the app printed while it ran: its console and the errors it did not catch, when the run keeps evidence. */
   logs?: LogLine[];
+  /** On a failed `app.see` or `app.wait` for a target: the whole listing, the scrolls made and what the target was last seen as. */
+  looked?: RunLooked;
 };
 
 /** A line the app printed: `at` in ms since the epoch, `source` where it came from (`js`, `native`, `host`). */
@@ -307,6 +309,50 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
 const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !e.hidden || e.hidden === 'inert');
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 
+const MAX_SCROLLS_KEPT = 20;
+const MAX_SIGHTINGS_KEPT = 8;
+
+/** What a step that looks for something has seen so far; kept only for the step, reported only when it fails. */
+type Trail = { startedMs: number; scrolls: RunScroll[]; scrollsTotal: number; seen: RunSighting[]; found: boolean; last?: string };
+
+const NOT_IN_TREE = 'not in the tree';
+
+/** Where a found element stands: in the window, outside it, hidden for a reason, covered or inert. */
+const stateOf = (found: Element | null, window: { w: number; h: number }): string => {
+  if (!found) return NOT_IN_TREE;
+  const top = found.frame.y;
+  const bottom = top + found.frame.h;
+  const left = found.frame.x;
+  const right = left + found.frame.w;
+  const facts: string[] = [];
+  if (top >= window.h) facts.push('below the window');
+  else if (bottom <= 0) facts.push('above the window');
+  else if (left >= window.w || right <= 0) facts.push('beside the window');
+  else if (found.offscreen) facts.push('outside the window');
+  else if (top < 0 || bottom > window.h) facts.push('cut by the window edge');
+  if (found.hidden === 'inert') facts.push('inert');
+  else if (found.hidden) facts.push(`hidden (${found.hidden})`);
+  if (found.covered) facts.push('covered');
+  return facts.join(', ') || 'on screen';
+};
+
+const fingerprint = (screen: Screen): string => JSON.stringify(presented(screen).map((e) => [e.testId, textOf(e), Math.round(e.frame.y)]));
+
+const edgesOf = (screen: Screen): RunEdges => {
+  const shown = presented(screen);
+  const name = (e: Element) => `${e.testId ? `#${e.testId}` : textOf(e).slice(0, 40) || e.kind} @y=${Math.round(e.frame.y)}`;
+  return { count: shown.length, ...(shown.length ? { first: name(shown[0]!), last: name(shown[shown.length - 1]!) } : {}) };
+};
+
+/** What a failed `see` says on top of what is missing: whether the target was ever in the tree, and where it was last. */
+const sightingNote = (trail: Trail | undefined): string => {
+  if (!trail) return '';
+  const scrolls = trail.scrollsTotal ? `, after ${trail.scrollsTotal} scroll${trail.scrollsTotal === 1 ? '' : 's'}` : '';
+  if (!trail.found) return ` (never in the tree${scrolls})`;
+  const finally_ = trail.seen[trail.seen.length - 1]?.state;
+  return ` (found, ${trail.last}${finally_ === NOT_IN_TREE ? ', then gone' : ''}${scrolls})`;
+};
+
 const requestMatches = (event: RequestRecord, wanted: string, status?: number): boolean => {
   if (event.status === undefined) return false;
   const [method, route] = wanted.includes(' ') ? wanted.split(/\s+/, 2) : ['*', wanted];
@@ -527,6 +573,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return raw === undefined ? undefined : scopedTarget(raw, { in: params.within, nth: params.nth });
   };
 
+  let trail: Trail | undefined;
+  const startTrail = (): Trail => (trail = { startedMs: Date.now(), scrolls: [], scrollsTotal: 0, seen: [], found: false });
+  const note = (found: Element | null, window: { w: number; h: number }) => {
+    if (!trail) return;
+    const state = stateOf(found, window);
+    if (state !== NOT_IN_TREE) {
+      trail.found = true;
+      trail.last = state;
+    }
+    if (trail.seen[trail.seen.length - 1]?.state === state) return;
+    if (trail.seen.length === MAX_SIGHTINGS_KEPT) trail.seen.shift();
+    trail.seen.push({ atMs: Date.now() - trail.startedMs, scrolls: trail.scrollsTotal, state });
+  };
+
   /** Every condition a `see` names, read off one screen and the trace since the mark; what is missing, or nothing. */
   const seen = async (params: Record<string, unknown>): Promise<string | undefined> => {
     const d = await device();
@@ -543,6 +603,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const text = typeof params.text === 'string' ? params.text : undefined;
     if (target) {
       const found = (await d.server.call('find', target)) as Element | null;
+      note(found, screen.window);
       if (!found || (found.hidden && found.hidden !== 'inert')) return `not on screen: ${JSON.stringify(target)}`;
       if (text !== undefined && !textOf(found).includes(text) && !elements.some((e) => e.parent === found.i && textOf(e).includes(text))) {
         return `${JSON.stringify(target)} says ${JSON.stringify(textOf(found))}, not ${JSON.stringify(text)}`;
@@ -575,27 +636,44 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (!d.server.hello?.native) return false;
     const { w, h } = (await d.screen()).window;
     const x = Math.round(w / 2);
-    const listing = async () => JSON.stringify(presented(await d.screen()).map((e) => [e.testId, textOf(e), Math.round(e.frame.y)]));
-    const pull = async (from: number, to: number, times: number): Promise<boolean> => {
+    const listing = async () => fingerprint(await d.screen());
+    const pull = async (from: number, to: number, times: number, direction: RunScroll['direction']): Promise<boolean> => {
       let before: string | undefined;
       for (let i = 0; i < times; i++) {
         if (await there()) return true;
         const now = await listing();
         if (now === before) return false;
         before = now;
+        const shown = trail ? await d.screen() : undefined;
+        const edges = shown ? edgesOf(shown) : undefined;
         await execute(['swipe', '--from', `${x},${from}`, '--to', `${x},${to}`], base);
         await d.idle({ quietMs: 150, timeoutMs: 1500 }).catch(() => undefined);
+        if (trail && edges) {
+          trail.scrollsTotal += 1;
+          if (trail.scrolls.length < MAX_SCROLLS_KEPT) {
+            const now = await d.screen();
+            // Moved is read off every element, not the two at the edges: a fixed header or tab bar stays put.
+            trail.scrolls.push({
+              atMs: Date.now() - trail.startedMs,
+              direction,
+              moved: fingerprint(now) !== fingerprint(shown!),
+              before: edges,
+              after: edgesOf(now),
+            });
+          }
+        }
       }
       return there();
     };
-    if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12))) return true;
+    if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     const middle = Math.round(h * 0.5);
-    return pull(middle, middle + 110, 30);
+    return pull(middle, middle + 110, 30, 'up');
   };
 
   const see = async (value: StepValue): Promise<void> => {
     const params = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
     const absent = params.absent === true;
+    startTrail();
     const wait = typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000;
     const deadline = Date.now() + wait;
     const hard = Date.now() + Math.max(wait, 12_000);
@@ -627,7 +705,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         continue;
       }
       if (Date.now() > deadline) {
-        if (!absent) throw new Error(missing!);
+        if (!absent) throw new Error(`${missing!}${targetIn(params) && missing!.startsWith('not on screen') ? sightingNote(trail) : ''}`);
         const { absent: _, ...what } = params;
         throw new Error(`still on screen: ${label({ verb: '', value: what as StepValue }).trim()}`);
       }
@@ -829,6 +907,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         await markRequests(d, true);
         return undefined;
       case 'wait': {
+        startTrail();
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
@@ -1254,6 +1333,32 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     options.traces && !options.dry && !options.setupOnly && (await offers('traceContext'))
       ? { traceId: newTraceId(), steps: new Map<string, { index: number; startedMs: number }>() }
       : undefined;
+  // A failed `see` or `wait` for a target keeps the whole listing, the scrolls it made and what the target was
+  // last seen as: enough to tell a button off the window from one not mounted yet or one covered.
+  const lookedAfter = async (step: Step): Promise<RunLooked | undefined> => {
+    if (options.dry || !trail || (step.verb !== 'app.see' && step.verb !== 'app.wait')) return undefined;
+    const d = await device().catch(() => undefined);
+    if (!d?.server.connected) return undefined;
+    const screen = await d.screen().catch(() => undefined);
+    if (!screen) return undefined;
+    const params = (typeof step.value === 'string' ? { target: step.value } : (step.value ?? {})) as Record<string, unknown>;
+    const wanted =
+      step.verb === 'app.wait' ? (typeof params.what === 'string' || typeof params.target === 'string' ? targetOfWait(params) : undefined) : targetIn(params);
+    // A wait is the CLI's own loop: all it can say is where the target stands now.
+    if (step.verb === 'app.wait' && wanted) note((await d.server.call('find', wanted).catch(() => null)) as Element | null, screen.window);
+    const listing = describeScreen(screen, { all: true, limit: 150 });
+    return {
+      listing: listing.length > 16_000 ? `${listing.slice(0, 16_000)}\n… cut` : listing,
+      scrolls: trail.scrolls,
+      scrollsTotal: trail.scrollsTotal,
+      ...(wanted ? { target: { found: trail.found, ...(trail.last ? { last: trail.last } : {}), seen: trail.seen } } : {}),
+    };
+  };
+  const targetOfWait = (params: Record<string, unknown>): Target | undefined => {
+    const what = typeof params.what === 'string' ? params.what : typeof params.target === 'string' ? params.target : undefined;
+    return what && !isRoute(what) && !/^\d+$/.test(what) ? targetIn({ target: what, within: params.within, nth: params.nth }) : undefined;
+  };
+
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   for (const [index, step] of todo.entries()) {
@@ -1298,6 +1403,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       tracing.steps.set(spanId, { index: steps.length, startedMs: t0 });
       await (await device()).command('traceContext', { traceparent: traceparent(tracing.traceId, spanId) }).catch(() => undefined);
     }
+    trail = undefined;
     try {
       const outcome = await perform(step);
       if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await collect(steps.length + 1);
@@ -1321,6 +1427,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       failed = true;
       if (index < setupLength) setupFailed = true;
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
+      const looked = await lookedAfter(step);
+      if (looked) broke.looked = looked;
+      if (step.verb === 'app.wait' && looked?.target) {
+        const [first = '', ...more] = message.split('\n');
+        broke.error = [`${first}${sightingNote(trail)}`, ...more].join('\n');
+      }
       steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
       ended('failed');

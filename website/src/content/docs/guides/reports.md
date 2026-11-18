@@ -82,8 +82,9 @@ Each step says:
 | `backend` | What the backend did for it, with `--traces` |
 | `requests` | The requests the app sent while it ran, with their headers and bodies. A request that one of the case's mocks answered carries `mocked: true`. |
 | `logs` | What the app printed while it ran |
+| `looked` | On a failed `app.see` or `app.wait` for a target: `listing`, every element of the screen at the failure as `lynkeus screen --all` lists them (off the window, hidden with its reason, covered; the first 150); `scrolls`, the first 20 scrolls the step made (`direction`, `atMs` into the step, whether the content `moved`, and the first and last element of the listing `before` and `after`) with `scrollsTotal`; and `target`, whether it was ever in the tree (`found`), its `last` state and how its state `seen` changed (`not in the tree`, `on screen`, `below the window`, `covered`, `inert`, `hidden (<reason>)`) |
 
-A failed attempt also keeps its `evidence` (the screen at the failure, the last requests, and why) and a `diagnosis`. A request that a mock answered reads `(mocked)` in the evidence, and the diagnosis never blames the backend for it.
+A failed `see` says in its error whether the target was in the tree at all, for example `(found, below the window, after 2 scrolls)` or `(never in the tree, after 2 scrolls)`. A failed attempt also keeps its `evidence` (the screen at the failure, the last requests, and why) and a `diagnosis`. A request that a mock answered reads `(mocked)` in the evidence, and the diagnosis never blames the backend for it.
 
 The TypeScript types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in the `lynkeus-protocol` package, with the schema number in `RUN_SCHEMA`. Fields are only ever added. A change to what an existing field means raises the schema number, and a reader should refuse a schema it does not know.
 

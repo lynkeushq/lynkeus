@@ -236,6 +236,17 @@ off), and one that passes the second time is reported as passed on retry. A
 failed step leaves the screen as it was, the requests the app had made and,
 for a step on a target, why: covered, hidden behind a layer, disabled, gone.
 
+A failed `app.see`, or `app.wait` for a target, also keeps under its step in
+`cases.jsonl` a `looked` object: `listing`, every element of the screen at the
+failure as `lynkeus screen --all` lists them (off the window, hidden with its
+reason, covered; the first 150); `scrolls`, the first 20 scrolls the step made
+(`direction`, `atMs` into the step, whether the content `moved`, and the first
+and last element listed `before` and `after`) with `scrollsTotal`; and `target`,
+whether it was ever in the element tree (`found`), its `last` state and how its
+state changed (`seen`). The error says the same in a few words: `(found, below
+the window, after 2 scrolls)` or `(never in the tree, after 2 scrolls)`. A step
+that passes keeps none of it.
+
 A step the host has no way to do (`os clock` on a simulator, a command
 the app does not register in this build) is `unsupported`, not failed: the case
 stops there, counts as one that cannot run on this host, and does not fail the
