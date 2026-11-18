@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { define, type Ctx, type Result } from '../registry.js';
-import { cloudUrl, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
+import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
 import { serviceBase } from './report.js';
 
 export type FastsimRelease = { version: string; variant: string; sha256: string; bytes: number; signature?: string };
@@ -33,6 +33,29 @@ const RELEASE_PART = /^[a-z0-9.-]{1,32}$/;
 
 export const fastsimCacheDir = (): string =>
   process.env.LYNKEUS_FASTSIM_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lynkeus', 'fastsim');
+
+/**
+ * A random id for this install, kept next to the sign-in (not in the cache, which CI restores onto many runners and
+ * would make them one machine). The service counts machines and CI hosts by it; it identifies an install, not a person.
+ */
+export const machineId = (file: string = path.join(path.dirname(credentialsPath()), 'machine-id')): string => {
+  try {
+    const saved = fs.readFileSync(file, 'utf8').trim();
+    if (/^[A-Za-z0-9-]{16,64}$/.test(saved)) return saved;
+  } catch {
+    // none yet
+  }
+  const id = crypto.randomUUID();
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${id}\n`, { mode: 0o600 });
+  } catch {
+    // a read-only home: the id lasts for this run only
+  }
+  return id;
+};
+
+const MACHINE_HEADER = 'x-lynkeus-machine';
 
 class Refused extends Error {}
 
@@ -117,7 +140,7 @@ export type InstallResult = { release: FastsimRelease; dir: string; installed: b
 export const installFastsim = async (o: InstallOptions): Promise<InstallResult> => {
   const fetchImpl = o.fetchImpl ?? fetch;
   const base = serviceBase(o.cloud);
-  const auth = { authorization: `Bearer ${o.key}` };
+  const auth = { authorization: `Bearer ${o.key}`, [MACHINE_HEADER]: machineId() };
   // A redirect could carry the key to another host.
   const listed = await fetchImpl(`${base}/v1/fastsim/releases`, { headers: auth, redirect: 'manual' });
   if (!listed.ok) throw await refusal(listed, 'cannot list Lynkeus FastSim releases', o.signedIn);
@@ -165,7 +188,7 @@ export const installFastsim = async (o: InstallOptions): Promise<InstallResult> 
 
 const GRANT_MIN_LEFT_MS = 5 * 60_000;
 
-export type Grant = { grant: string; expiresAt: string };
+export type Grant = { grant: string; expiresAt: string; warning?: string };
 
 export const grantCacheFile = (cloud: string, variant: string): string =>
   path.join(
@@ -206,11 +229,11 @@ export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boo
   const response = await (o.fetchImpl ?? fetch)(`${serviceBase(o.cloud)}/v1/fastsim/grants`, {
     method: 'POST',
     redirect: 'manual',
-    headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json', accept: 'application/json' },
+    headers: { authorization: `Bearer ${o.key}`, 'content-type': 'application/json', accept: 'application/json', [MACHINE_HEADER]: machineId() },
     body: JSON.stringify({ variant: o.variant }),
   });
   if (!response.ok) throw await refusal(response, 'cannot get a Lynkeus FastSim grant', o.signedIn);
-  const body = (await response.json().catch(() => undefined)) as Partial<Grant> | undefined;
+  const body = (await response.json().catch(() => undefined)) as (Partial<Grant> & { warning?: unknown }) | undefined;
   if (typeof body?.grant !== 'string' || !body.grant.startsWith('v1.') || typeof body.expiresAt !== 'string' || Number.isNaN(Date.parse(body.expiresAt)))
     throw new Error('cannot get a Lynkeus FastSim grant: the service answered a grant that is not well formed');
   const grant = { grant: body.grant, expiresAt: body.expiresAt };
@@ -221,7 +244,7 @@ export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boo
   fs.writeFileSync(staging, `${JSON.stringify(grant)}\n`, { mode: 0o600 });
   fs.chmodSync(staging, 0o600);
   fs.renameSync(staging, file);
-  return { ...grant, cached: false };
+  return { ...grant, cached: false, ...(typeof body.warning === 'string' ? { warning: body.warning } : {}) };
 };
 
 const NO_CREDENTIALS = (cloud: string) =>
@@ -367,6 +390,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const got = await fetchGrant({ cloud, key, variant, signedIn });
           const json = { grant: got.grant, expiresAt: got.expiresAt, variant };
+          if (got.warning) ctx.err(`warning: ${got.warning}`);
           if (forPerson) return { text: grantSummary({ variant, expiresAt: got.expiresAt, cached: got.cached }), json };
           ctx.err(`${got.cached ? 'cached' : 'new'} Lynkeus FastSim grant for ${variant}, valid until ${got.expiresAt}`);
           return { text: got.grant, json: { grant: got.grant, expiresAt: got.expiresAt, variant } };

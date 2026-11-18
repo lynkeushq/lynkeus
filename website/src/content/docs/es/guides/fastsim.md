@@ -45,6 +45,8 @@ Cada paquete de FastSim va firmado por Lynkeus, y `lynkeus fastsim install` veri
 
 Además, cada host de FastSim necesita un permiso reciente (grant) de lynkeus.io para arrancar. `bin/fastsim-run` lo consigue con `lynkeus fastsim grant`, que usa la misma key o sesión que la instalación y guarda el grant una hora: una suite con muchos casos consulta al servicio una vez por hora, no una por caso. Por eso FastSim tiene que poder llegar a lynkeus.io cuando arranca un host, incluso en una máquina donde el paquete ya está instalado. Puedes ejecutar tú mismo `lynkeus fastsim grant --platform ios` para comprobar que funciona.
 
+El plan Team incluye FastSim en 5 máquinas de desarrollo y 4 hosts de CI en paralelo; cada extra cuesta $15 y $20 al mes. La CLI envía un id aleatorio por instalación (guardado en `~/.config/lynkeus/machine-id`) para que lynkeus.io pueda contarlas: una máquina es una instalación que pidió un grant o una descarga en los últimos 30 días, y un host de CI es una a la que se le dio un grant en la última hora. Una máquina que ya se contó sigue funcionando. Pasado el límite, por ahora recibes un aviso y más adelante un rechazo que dice dónde agregar más ([planes](https://lynkeus.io/pricing), o Members). Da a cada runner de CI su propia carpeta home, o el mismo id contará como un solo host.
+
 La app necesita sus dependencias instaladas y el agente de Lynkeus montado, igual que para un simulador. En la carpeta que mostró la instalación hay un `README.md` con los detalles. Hacen falta dos comandos.
 
 Empaqueta la app, y vuelve a hacerlo cada vez que cambie su JavaScript:

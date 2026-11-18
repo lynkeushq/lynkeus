@@ -201,3 +201,30 @@ test('the summary has a check mark, the variant, the local time and minutes left
     delete process.env.NO_COLOR;
   }
 });
+
+test('the grant request carries a stable install id, and a service warning goes to stderr', async () => {
+  isolate();
+  const headers: (string | string[] | undefined)[] = [];
+  const server = createServer((req, res) => {
+    headers.push(req.headers['x-lynkeus-machine']);
+    req.resume();
+    req.on('end', () =>
+      res
+        .writeHead(201, { 'content-type': 'application/json' })
+        .end(JSON.stringify({ grant: 'v1.p.s', expiresAt: new Date(Date.now() + 3_600_000).toISOString(), warning: 'past the plan' })),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const { fetchGrant, machineId } = await import('../commands/fastsim.js');
+    const cloud = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const first = await fetchGrant({ cloud, key: 'k', variant: 'darwin-arm64-ios' });
+    assert.equal(first.warning, 'past the plan');
+    assert.match(String(headers[0]), /^[A-Za-z0-9-]{16,64}$/);
+    assert.equal(headers[0], machineId());
+    assert.equal(machineId(), machineId());
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
+});

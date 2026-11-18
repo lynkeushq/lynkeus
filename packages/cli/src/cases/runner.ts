@@ -126,7 +126,9 @@ export type Evidence = {
   /** Wait for the screen to stand still: two frames alike this many ms apart, on a host's own clock where it offers
    * that (`still`), or taken again on a device. */
   stillMs?: number;
-  /** A looking step on an unchanged screen shares the last frame instead of taking one. */
+  /** A looking step on an unchanged screen shares the last frame instead of taking one. With `stillMs` (a comparison run)
+   * the `app.see` steps right after a step run before that step's settle and picture, which they then share: a
+   * toast the step shows is still there to be seen, where a settle of a second or two first would have lost it. */
   onChange?: boolean;
   frames?: 'avif' | 'png';
   video?: { fps: number; scale?: number };
@@ -1363,7 +1365,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
 
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
+  const looksFirst = !!evidence?.onChange && !!evidence.stillMs;
+  let held: { report: StepReport; n: number; at: number | undefined; t0: number; looks: StepReport[] } | undefined;
+  const flush = async () => {
+    if (!held) return;
+    const h = held;
+    held = undefined;
+    await record(h.report, h.n, h.at, h.t0);
+    if (h.report.screenshot) for (const l of h.looks) l.screenshot = h.report.screenshot;
+  };
   for (const [index, step] of todo.entries()) {
+    if (!(held && step.verb === 'app.see')) await flush();
     const text = label(step);
     if (unsupported || setupFailed || (failed && !options.continue)) {
       steps.push({ step: text, status: 'skipped', ms: 0 });
@@ -1413,8 +1425,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
       ended(done.status);
-      if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb]))
-        await record(done, steps.length, at, t0);
+      if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+        if (held && step.verb === 'app.see') held.looks.push(done);
+        else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [] };
+        else await record(done, steps.length, at, t0);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const missing = lacking(message);
@@ -1438,10 +1453,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       steps.push(broke);
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
       ended('failed');
+      await flush();
       if (evidence || capturing) await record(broke, steps.length, at, t0);
     }
   }
 
+  await flush();
   if (requestsSeen !== undefined) {
     const d = await device().catch(() => undefined);
     // The last answers of the case, given a moment to arrive.

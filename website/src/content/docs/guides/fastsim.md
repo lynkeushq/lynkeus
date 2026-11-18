@@ -45,6 +45,8 @@ Lynkeus signs every FastSim package, and `lynkeus fastsim install` checks the si
 
 Each FastSim host also needs a fresh grant from lynkeus.io before it starts. `bin/fastsim-run` gets it by running `lynkeus fastsim grant`, which uses the same key or sign-in as the install and keeps the grant for an hour, so a suite of many cases asks the service once an hour, not once per case. This means FastSim needs to reach lynkeus.io when a host starts, even on a machine where the package is already installed. You can run `lynkeus fastsim grant --platform ios` yourself to check that it works.
 
+The Team plan includes FastSim on 5 developer machines and 4 parallel CI hosts; more cost $15 and $20 a month. The CLI sends a random id for each install (kept in `~/.config/lynkeus/machine-id`) so lynkeus.io can count them: a machine is an install that asked for a grant or a download in the last 30 days, and a CI host is one that was issued a grant in the last hour. A machine already counted keeps working. Past the limit you get a warning for now, and later a refusal that says where to add more ([plans](https://lynkeus.io/pricing), or Members). Give each CI runner its own home folder, or the same id will count as one host.
+
 ## Bundle the app and run cases
 
 The app needs its dependencies installed and the Lynkeus agent mounted, as for a simulator. The folder the install printed has a `README.md` with the details. Two commands do the work.
