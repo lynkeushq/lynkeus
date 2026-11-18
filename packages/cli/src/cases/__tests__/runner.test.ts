@@ -743,6 +743,45 @@ test('a host that waits for a still screen on its own clock is asked to, and the
   }
 });
 
+test('with frames on change and a still wait, the looks after a step run before its settle and share its frame', async () => {
+  const c = parseCase(
+    '---\nid: looks\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n  - app.see: { text: "25 points" }\n',
+    'looks.md',
+  );
+  for (const first of [true, false]) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot'] };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      if (name === 'screenshot') {
+        order.push('screenshot');
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-looks-'));
+    const report = await runCase(c, {
+      base,
+      config,
+      fixtures,
+      onStep: (p) => {
+        if (p.status) order.push(`${p.step}:${p.status}`);
+      },
+      evidence: { dir, screenshots: true, settleMs: 1500, frames: 'png', ...(first ? { stillMs: 300, onChange: true } : {}) },
+    });
+    assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+    const shot = order.indexOf('screenshot');
+    const lastSee = order.findLastIndex((o) => /see/.test(o));
+    if (first) {
+      assert.ok(shot > lastSee, order.join(' | '));
+      assert.equal(report.steps[1]?.screenshot, report.steps[0]?.screenshot);
+      assert.equal(report.steps[2]?.screenshot, report.steps[0]?.screenshot);
+    } else assert.ok(shot < lastSee, order.join(' | '));
+  }
+});
+
 test('a film made on another machine comes over a piece at a time, and a short one is left out', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
   const film = Buffer.from('a film the host kept where the driver cannot read it');
