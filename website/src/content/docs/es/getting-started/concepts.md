@@ -1,6 +1,6 @@
 ---
 title: Conceptos
-description: "El vocabulario de lynkeus, término por término: agente, driver, host, pantalla, elemento, objetivo, ruta, caso, paso, ejecución, fixtures y reporte."
+description: "El vocabulario de Lynkeus, término por término: agente, driver, host, pantalla, elemento, objetivo, ruta, caso, paso, ejecución, fixtures y reporte."
 ---
 
 Esta página define las palabras que usa el resto de la documentación. Cada una tiene un significado preciso, y la mayoría de las confusiones al empezar vienen de mezclar dos de ellas: host con driver, pantalla con árbol, caso con ejecución.
@@ -9,7 +9,7 @@ Están ordenadas de modo que cada término se apoye en los anteriores. Si recié
 
 ## Las tres partes: agente, driver y host
 
-Un test con lynkeus involucra siempre tres cosas: algo dentro de la app, algo que da las órdenes y un lugar donde la app corre.
+Un test con Lynkeus involucra siempre tres cosas: algo dentro de la app, algo que da las órdenes y un lugar donde la app corre.
 
 ### Agente
 
@@ -36,7 +36,7 @@ En los tres, el agente se conecta de la misma manera, así que los mismos comand
 En los mensajes del CLI y en los nombres de las opciones, "host" a secas suele referirse al host sin pantalla. Por ejemplo, `case run --host` significa "aloja la app en Node para esta ejecución". Dentro de un caso, la condición `on: device` distingue el simulador o emulador, y `on: headless` el host sin pantalla.
 :::
 
-## Lo que lynkeus ve
+## Lo que Lynkeus ve
 
 ### Pantalla
 
@@ -87,7 +87,7 @@ Si un control se repite en cada fila de una lista, el objetivo se acota: `--in` 
 
 Una **ruta** es el nombre de una pantalla tal como lo informa la navegación de la app, por ejemplo `Settings.Main` o `Checkout.Confirm`. El **camino** es la cadena de navegadores desde la raíz hasta la pantalla enfocada; en la primera línea de `lynkeus screen` aparece entre paréntesis.
 
-Las rutas no las inventa lynkeus. Vienen de un **adaptador de navegación**, la pieza que traduce entre el agente y el enrutador de tu app. El paquete incluye uno para React Navigation, y `auto()` lo conecta solo. Sin adaptador, lynkeus sigue viendo elementos pero no rutas, y `wait Settings.Main` no tiene qué esperar.
+Las rutas no las inventa Lynkeus. Vienen de un **adaptador de navegación**, la pieza que traduce entre el agente y el enrutador de tu app. El paquete incluye uno para React Navigation, y `auto()` lo conecta solo. Sin adaptador, Lynkeus sigue viendo elementos pero no rutas, y `wait Settings.Main` no tiene qué esperar.
 
 `wait` y `see` reconocen una ruta por su mayúscula inicial. Una ruta en minúscula, como las de expo-router, se escribe con el prefijo `route:`, por ejemplo `route:index` (desde la versión 0.3.0). En sentido inverso, un texto que empieza con mayúscula se escribe con comillas propias para que no se tome por una ruta: `'"Next"'`.
 
@@ -130,7 +130,7 @@ Un paso termina de una de cuatro maneras: pasó, falló, se omitió, o **no es c
 
 Los **fixtures** son los datos de prueba que se preparan en el backend antes o durante un caso: un usuario creado, un saldo asignado, un estado forzado.
 
-lynkeus no sabe cómo es tu backend. Lo que hace es delegar: cada paso que no empieza con `app.` se envía, como una línea de JSON, a un comando que declaras en `lynkeus.config.json`, y se lee una línea de respuesta. Ese comando puede ser un script de Node, un *runner* de Rails o un contenedor.
+Lynkeus no sabe cómo es tu backend. Lo que hace es delegar: cada paso que no empieza con `app.` se envía, como una línea de JSON, a un comando que declaras en `lynkeus.config.json`, y se lee una línea de respuesta. Ese comando puede ser un script de Node, un *runner* de Rails o un contenedor.
 
 ```yaml
 setup:
@@ -162,7 +162,7 @@ Se obtiene subiendo el directorio de la ejecución al servicio de reportes de [l
 
 ### La carpeta `.lynkeus/`
 
-Todo lo que lynkeus genera queda en `.lynkeus/`, dentro de la carpeta de la app. Es un producto de compilación: se puede borrar sin riesgo y se regenera.
+Todo lo que Lynkeus genera queda en `.lynkeus/`, dentro de la carpeta de la app. Es un producto de compilación: se puede borrar sin riesgo y se regenera.
 
 ### `lynkeus.config.json`
 
@@ -176,9 +176,9 @@ Cuando el mismo valor está en más de un lugar, el orden de prioridad es: la op
 
 `LYNKEUS_PORT` mueve juntos a la app, al host y al driver. Sirve para tener varias parejas en la misma máquina sin que se crucen. El puerto por defecto es 8123.
 
-## Lo que lynkeus no sabe
+## Lo que Lynkeus no sabe
 
-lynkeus no sabe nada de tu producto. No tiene una lista de tus pantallas, no sabe qué hacen tus botones, no tiene noción de usuario ni de sesión. Todo lo que informa lo leyó de la app en ejecución o de tu código fuente.
+Lynkeus no sabe nada de tu producto. No tiene una lista de tus pantallas, no sabe qué hacen tus botones, no tiene noción de usuario ni de sesión. Todo lo que informa lo leyó de la app en ejecución o de tu código fuente.
 
 Esto es una decisión de diseño, y tiene una consecuencia práctica. Cuando una decisión requiere conocer el producto (cómo se inicia sesión, qué estado necesita un caso, qué pantalla interrumpe a las demás) la respuesta la das tú, en `lynkeus.config.json` o en tu comando de fixtures. La herramienta nunca fabrica estado por su cuenta.
 

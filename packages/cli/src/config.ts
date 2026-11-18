@@ -98,7 +98,7 @@ export type LynkeusConfig = {
   live?: string[];
   /** Keep React.StrictMode in the headless host. Off by default: its double renders inflate what the host measures. */
   strictMode?: boolean;
-  /** Regular expressions matched against a control's testID and label. lynkeus ships none: only the app knows which controls are irreversible. */
+  /** Regular expressions matched against a control's testID and label. Lynkeus ships none: only the app knows which controls are irreversible. */
   crawl?: {
     /** Never pressed. */
     never?: string[];

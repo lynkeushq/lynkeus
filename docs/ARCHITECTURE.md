@@ -1,12 +1,12 @@
 # Architecture
 
-How lynkeus is put together, the contracts between its parts, and where a new piece goes. Read it before adding a
+How Lynkeus is put together, the contracts between its parts, and where a new piece goes. Read it before adding a
 command, a package or a service feature. [CONCEPTS.md](CONCEPTS.md) defines the words; this page says how they fit.
 
 ## The rule
 
-lynkeus knows React Native, the screen, cases, runs and git. It knows nothing about any product: no screens, no
-users, no backend. Everything product-specific lives with the product and reaches lynkeus through a contract.
+Lynkeus knows React Native, the screen, cases, runs and git. It knows nothing about any product: no screens, no
+users, no backend. Everything product-specific lives with the product and reaches Lynkeus through a contract.
 A piece that would only work for one app does not belong in this repository.
 
 ## Layers
@@ -19,19 +19,19 @@ A piece that would only work for one app does not belong in this repository.
  └──────────────▲───────────────────────────────▲─────────────────────────────────────┘
                 │ case format, config           │ fixtures protocol (JSON lines)
  ┌──────────────┴───────────────────────────────┴─────────────────────────────────────┐
- │  lynkeus CLI / MCP: drive, cases, runs, knowledge (routes, graph), CI orchestration │
+ │  Lynkeus CLI / MCP: drive, cases, runs, knowledge (routes, graph), CI orchestration │
  └──────▲────────────────────────────▲──────────────────────────────▲─────────────────┘
         │ agent protocol (WebSocket) │ host protocol (same wire)    │ reports API (HTTPS)
  ┌──────┴──────────┐   ┌─────────────┴─────────────┐   ┌────────────┴─────────────────┐
  │ lynkeus-agent   │   │ hosts: simulator/emulator, │   │ lynkeus cloud: reports,      │
- │ inside the app  │   │ fastsim, headless          │   │ history, search, team, forge │
+ │ inside the app  │   │ FastSim, headless          │   │ history, search, team, forge │
  └─────────────────┘   └────────────────────────────┘   └──────────────────────────────┘
 ```
 
 | Layer | Knows | Lives in |
 |---|---|---|
 | Agent | The running React Native app: its tree, touches, keys, requests, SDK calls, console | `packages/agent` |
-| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, fastsim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
+| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, Lynkeus FastSim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
 | CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration | `packages/cli` |
 | Cloud | Runs over time, reports, people, the forge (GitHub) | lynkeus-cloud |
 | Product | Its cases and flows, what its screens mean, its backend's state | the product's repositories |
@@ -56,7 +56,7 @@ reader refuses a version it does not know.
 Ask, in order:
 
 1. Does it need to know a product's screens, users or backend? It goes to the product (its cases, its config, its
-   fixtures server), and lynkeus offers the contract it plugs into.
+   fixtures server), and Lynkeus offers the contract it plugs into.
 2. Does it run inside the app? The agent.
 3. Does it make the app run somewhere new? A host.
 4. Does it read or change one run, a case, the routes, or a working copy? The CLI, with an MCP tool if a model
@@ -69,7 +69,7 @@ Examples from the work so far:
 |---|---|---|
 | "Which cases does this diff touch" | CLI (`case impact`) | Cases, routes and git; any app |
 | "What do the cases cover" | CLI (`case coverage`), shown by the cloud | Same |
-| A draft case for a route | CLI (`case new`), using `fixtures describe` for the setup | The path is lynkeus's; the setup is the product's, read through the contract |
+| A draft case for a route | CLI (`case new`), using `fixtures describe` for the setup | The path is Lynkeus's; the setup is the product's, read through the contract |
 | Running the suite over N hosts, only affected cases | CLI (`ci`) | Orchestration of hosts and cases |
 | Bringing a product's backend, its database and Redis up | the product's backend side | Only that backend knows how |
 | Screens changed on a pull request, with approval | cloud, through a GitHub App | Needs a baseline over time and the forge |
@@ -116,7 +116,7 @@ Later, when a team needs it: record and replay, an optional mode for running a c
 holds what the app received (each step's responses and the fixtures' answers), never what it produced, and is kept
 next to its case. Running against the real backend stays the default.
 
-Alongside, as before: pixel parity on fastsim (Android first, then iOS on Linux) and the headless cases that still
+Alongside, as before: pixel parity on FastSim (Android first, then iOS on Linux) and the headless cases that still
 fail.
 
 ## Open questions

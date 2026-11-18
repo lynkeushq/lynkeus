@@ -3,9 +3,9 @@ title: AI agents
 description: Let an AI agent drive your app through lynkeus mcp, and tell it how to read a screen, move around and diagnose a failure.
 ---
 
-An AI agent that tests an app from screenshots pays twice: each picture costs many tokens, and the answer it extracts is a guess. Through lynkeus the agent reads the screen as structured text (routes, testIDs, labels, states) and acts on facts.
+An AI agent that tests an app from screenshots pays twice: each picture costs many tokens, and the answer it extracts is a guess. Through Lynkeus the agent reads the screen as structured text (routes, testIDs, labels, states) and acts on facts.
 
-`lynkeus mcp` serves the lynkeus commands as tools over MCP, the Model Context Protocol that Claude, Cursor and other AI clients use to call tools. The agent can set lynkeus up in your app, drive it, write cases and run them. This guide shows how to connect it, which tools it serves, and what to put in the agent's instructions.
+`lynkeus mcp` serves the Lynkeus commands as tools over MCP, the Model Context Protocol that Claude, Cursor and other AI clients use to call tools. The agent can set Lynkeus up in your app, drive it, write cases and run them. This guide shows how to connect it, which tools it serves, and what to put in the agent's instructions.
 
 ## Before you start
 
@@ -32,9 +32,9 @@ In Cursor, in `.cursor/mcp.json`:
 
 The server works in the folder the client starts it in, or the one `--root <dir>` names. To let the agent push runs to lynkeus.io, add `LYNKEUS_REPORTS_KEY` with an API key of your organization to the server's environment (`-e LYNKEUS_REPORTS_KEY=lk_…` in Claude Code); the API keys page there shows the line with the key in it.
 
-You should see the client list the lynkeus tools.
+You should see the client list the Lynkeus tools.
 
-## Step 2: Let the agent set lynkeus up
+## Step 2: Let the agent set Lynkeus up
 
 Ask the agent, in plain words:
 
@@ -89,11 +89,11 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 
 | Tool | What it does |
 |---|---|
-| `status` | What the project has of lynkeus and what is missing, each with its fix, and whether an app is attached. |
+| `status` | What the project has of Lynkeus and what is missing, each with its fix, and whether an app is attached. |
 | `init` | Installs the agent, mounts it from the app's entry, makes the project's token. |
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
-| `fastsim_install` | Downloads fastsim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on fastsim](/guides/fastsim/). |
+| `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
 | `case_init` | Writes an example case and the reference of the format. |
 | `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
@@ -119,7 +119,7 @@ When `lynkeus.config.json` sets `language` or `locale`, the server adds one more
 
 ## Step 5: Build the map
 
-`map_show` and `map_plan` answer from a map of the app that lynkeus builds by reading the source. Build it once, and again when navigation changes:
+`map_show` and `map_plan` answer from a map of the app that Lynkeus builds by reading the source. Build it once, and again when navigation changes:
 
 ```bash
 npx lynkeus map build
@@ -180,7 +180,7 @@ As an illustration, here is one way an agent with the core tools can carry out t
 
 ## The cycle for a pull request
 
-An agent that reviews a branch can use lynkeus to decide what to test, not only to run it.
+An agent that reviews a branch can use Lynkeus to decide what to test, not only to run it.
 
 1. `case_impact` with `base: main` crosses the screens the diff reaches with the screens each case covers. It answers the cases to run, and the reached screens no case covers yet.
 2. Run those cases with `case_run`. For each failure, call `why`.
@@ -200,7 +200,7 @@ This is a separate server from `lynkeus mcp`. The hosted service at lynkeus.io h
 
 Its tools are `list_runs`, `get_run`, `get_case`, `get_step`, `get_frame`, `case_history` and `flaky_cases`. `get_case` says what the case proves and expects, and for each step the analytics events it set off with the service each went to (the app's and the backend's told apart) and the requests the app sent. `get_step` has one step in full: every event with its properties, and every request with its headers and bodies and what came back, secrets already hidden. `get_frame` returns the screen a step left as an image, by default the step that failed, so the client can see what the app showed. A run keeps frames when it was made with `--screenshots`.
 
-The first time, the client opens lynkeus to ask for your approval and which organization it may read. You can disconnect it at any time under **Members**. See [Reports](/guides/reports/).
+The first time, the client opens Lynkeus to ask for your approval and which organization it may read. You can disconnect it at any time under **Members**. See [Reports](/guides/reports/).
 
 ## How it works
 

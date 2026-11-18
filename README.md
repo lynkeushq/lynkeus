@@ -1,4 +1,4 @@
-<h1 align="center">lynkeus</h1>
+<h1 align="center">Lynkeus</h1>
 
 <p align="center">
   <strong>An in-app QA agent for React Native.</strong><br />
@@ -17,7 +17,7 @@
 
 End-to-end tools drive your app from the outside: they ask the operating system what is on screen, take a screenshot and guess. Every step costs a second or more, and the answer is a picture, not a fact.
 
-lynkeus runs **inside** a development build of your app. It reads React's own tree, so what it reports is what React rendered: routes, testIDs, values, which element a touch would actually reach and which ones a sheet covers. Touches and keystrokes are synthesized in the process, and waits end on the render that satisfies them.
+Lynkeus runs **inside** a development build of your app. It reads React's own tree, so what it reports is what React rendered: routes, testIDs, values, which element a touch would actually reach and which ones a sheet covers. Touches and keystrokes are synthesized in the process, and waits end on the render that satisfies them.
 
 ```
 screen     2–9 ms      what is on screen: testIDs, labels, values, frames, and what is covered
@@ -147,7 +147,7 @@ Yes. `lynkeus mcp` serves the commands as MCP tools, and the [AI agents](docs/LL
 
 ## Contributing
 
-lynkeus is published for anyone to use, but the repository does not take contributions: issues are disabled and pull requests are closed automatically. You are welcome to fork it under the terms of the license.
+Lynkeus is published for anyone to use, but the repository does not take contributions: issues are disabled and pull requests are closed automatically. You are welcome to fork it under the terms of the license.
 
 ## License
 

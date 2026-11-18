@@ -21,7 +21,7 @@ export const draftFlow = (events: TraceEvent[], name = 'recorded'): Flow => {
       flush();
       if (e.testId) steps.push({ press: { testId: e.testId } });
       else if (e.text) steps.push({ press: { text: e.text } });
-      else steps.push({ note: `touch at ${e.x},${e.y} on ${e.route ?? '?'} hit nothing lynkeus could name` });
+      else steps.push({ note: `touch at ${e.x},${e.y} on ${e.route ?? '?'} hit nothing Lynkeus could name` });
       pending = { requests: [], stores: [] };
       lastRoute = e.route ?? lastRoute;
     } else if (e.kind === 'route') {

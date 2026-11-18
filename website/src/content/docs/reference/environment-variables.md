@@ -1,9 +1,9 @@
 ---
 title: Environment variables
-description: Every environment variable lynkeus reads or sets, which part reads it, and what it changes.
+description: Every environment variable Lynkeus reads or sets, which part reads it, and what it changes.
 ---
 
-lynkeus reads a small number of environment variables. Most of them carry what differs between machines and should not be committed: a port, a key, a secret that overrides the project's. This page lists each one, says which part of lynkeus reads it, and what it does.
+Lynkeus reads a small number of environment variables. Most of them carry what differs between machines and should not be committed: a port, a key, a secret that overrides the project's. This page lists each one, says which part of Lynkeus reads it, and what it does.
 
 Three parts can read the environment, and it matters which:
 
@@ -146,9 +146,9 @@ The key is a secret: in CI, keep it in the CI's secret store. See [Reports](/gui
 
 `lynkeus relay` reads the same two variables, and `LYNKEUS_CLOUD_KEY` as a fallback for the key. See [Backend relay](/guides/backend-relay/).
 
-## Variables that are not lynkeus's own
+## Variables that are not Lynkeus's own
 
-lynkeus reads or sets a few variables that belong to other tools.
+Lynkeus reads or sets a few variables that belong to other tools.
 
 | Variable | Read or set by | What happens |
 |---|---|---|
@@ -157,7 +157,7 @@ lynkeus reads or sets a few variables that belong to other tools.
 | `CI` | CLI | When set, `case run` leaves out its live status line, as it does when stderr is not a terminal. `headless start` sets it to `1` for the jest process that hosts the app. |
 | `GITHUB_STEP_SUMMARY` | CLI, `lynkeus ci` | When set, `lynkeus ci` appends the run's summary to that file, which GitHub Actions shows on the job's page. |
 | The variable named by `apiEnv` (default `API_URL`) | The generated headless entry | The entry refuses to start unless this variable points at `localhost`, `127.0.0.1` or `10.0.2.2`. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Your backend | Not read by lynkeus. With `case run --traces`, point your backend's exporter at `http://localhost:4318` (or the port given with `--traces-port`). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Your backend | Not read by Lynkeus. With `case run --traces`, point your backend's exporter at `http://localhost:4318` (or the port given with `--traces-port`). |
 | `EXPO_PUBLIC_LYNKEUS_TOKEN` | Your Expo app | How an Expo app receives the token: Expo inlines it, with no Babel plugin. `lynkeus init` writes it to `.env.local`, and `lynkeus status` checks that it is there. |
 | `LYNKEUS_HEADLESS` | Set by `headless start` | Set to `1` for the jest process that hosts the app, so the app's jest setup can tell a host from its unit tests. A setup that stubs a native SDK whole for unit tests can leave it real when this is set, so that the call reaches a [native mock](/reference/configuration/#casesnativemocks). |
 

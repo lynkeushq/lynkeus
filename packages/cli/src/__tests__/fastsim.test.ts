@@ -30,7 +30,7 @@ const service = (releases: FastsimRelease[], bodies: Record<string, Buffer>, sta
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     asked.push({ url, auth: new Headers(init?.headers).get('authorization'), redirect: init?.redirect });
-    if (status !== 200) return new Response(JSON.stringify({ error: 'this organization has no fastsim entitlement' }), { status });
+    if (status !== 200) return new Response(JSON.stringify({ error: 'this organization has no Lynkeus FastSim entitlement' }), { status });
     if (url.endsWith('/v1/fastsim/releases')) return Response.json({ releases });
     const key = url.split('/v1/fastsim/releases/')[1];
     const body = key ? bodies[key] : undefined;
@@ -82,7 +82,7 @@ test('fastsim install refuses an archive whose digest is not the release', async
 test('fastsim install refuses a release with no signature, a tampered archive and a key that is not lynkeus', async () => {
   const body = archive({ 'README.md': 'x' });
   const release = { version: '2026.11.17', variant: 'darwin-arm64', sha256: sha(body), bytes: body.length };
-  const refused = /fastsim 2026\.11\.17 is not signed by lynkeus: not installed/;
+  const refused = /Lynkeus FastSim 2026\.11\.17 is not signed by Lynkeus: not installed/;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
 
   const unsigned = service([release], { '2026.11.17/darwin-arm64': body });
@@ -119,7 +119,7 @@ test('fastsim install says what the organization may install when the version is
 test('fastsim install passes on the service refusal and refuses a release name that could leave the cache', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-'));
   const refused = service([], {}, 403);
-  await assert.rejects(installFastsim(options(refused.fetchImpl, dir)), /no fastsim entitlement/);
+  await assert.rejects(installFastsim(options(refused.fetchImpl, dir)), /no Lynkeus FastSim entitlement/);
   const sly = service([{ version: '../../etc', variant: 'darwin-arm64', sha256: 'a'.repeat(64), bytes: 1 }], {});
   await assert.rejects(installFastsim({ ...options(sly.fetchImpl, dir), version: '../../etc' }), /not well formed/);
   await assert.rejects(installFastsim({ ...options(sly.fetchImpl, dir), cloud: 'http://lynkeus.io' }), /HTTPS/);

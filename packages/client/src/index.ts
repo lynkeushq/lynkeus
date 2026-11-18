@@ -105,7 +105,7 @@ export class AgentServer extends EventEmitter {
         // Sharing the port would hand the app to whichever driver it dials next: two runs' steps mixed.
         reject(
           new AgentError(
-            `Port ${this.port} is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`,
+            `Port ${this.port} is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`,
             'port-in-use',
           ),
         );

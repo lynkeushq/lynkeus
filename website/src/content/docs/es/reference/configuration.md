@@ -3,7 +3,7 @@ title: Configuración
 description: Todas las claves de lynkeus.config.json, con su tipo, su valor por defecto y lo que hacen.
 ---
 
-`lynkeus.config.json` guarda lo que de otro modo repetirías en cada invocación: qué simulador usar, dónde están los casos, cómo se prepara el backend. También es el lugar donde le dices a lynkeus lo que solo tú sabes de tu producto, como qué botones nunca debe pulsar un recorrido automático.
+`lynkeus.config.json` guarda lo que de otro modo repetirías en cada invocación: qué simulador usar, dónde están los casos, cómo se prepara el backend. También es el lugar donde le dices a Lynkeus lo que solo tú sabes de tu producto, como qué botones nunca debe pulsar un recorrido automático.
 
 El archivo es opcional y todas sus claves también. Esta página las describe una por una.
 
@@ -109,7 +109,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 | `app` | texto | ninguno | El bundle id (iOS) o application id (Android). Lo usan `launch`, `--launch` y los comandos del simulador. Lo reemplazan `--app` y `LYNKEUS_APP_ID`. |
 | `attachTimeout` | número (ms) | `15000` | Cuánto esperar a que la app se conecte. Lo reemplazan `--attach-timeout` y `LYNKEUS_ATTACH_TIMEOUT_MS`. |
 
-Si no nombras ningún dispositivo y no hay ningún simulador encendido, lynkeus da por hecho que la app corre en un host sin pantalla y simplemente espera a que se conecte.
+Si no nombras ningún dispositivo y no hay ningún simulador encendido, Lynkeus da por hecho que la app corre en un host sin pantalla y simplemente espera a que se conecte.
 
 :::note
 `port` en este archivo solo mueve al driver (el CLI) y al host sin pantalla que arranca `headless start`. Una app en un simulador o en un dispositivo se conecta al puerto que le pasaste al montar el agente, en la opción `port` de `auto()` o de `<Lynkeus>`. Si cambias uno, cambia el otro.
@@ -135,7 +135,7 @@ Las expresiones de `live` se unen en una sola y distinguen mayúsculas de minús
 
 ## CI (`ci`)
 
-Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y los hosts, ejecuta la suite y lo desmonta. lynkeus no conoce tu backend: solo ejecuta los comandos que declares aquí, desde la carpeta de la app.
+Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y los hosts, ejecuta la suite y lo desmonta. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares aquí, desde la carpeta de la app.
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
@@ -151,7 +151,7 @@ Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y l
 
 ## Idioma
 
-lynkeus nunca lee los textos de tu app para adivinar su idioma. Estas dos claves se lo dicen, y él solo las pasa adelante.
+Lynkeus nunca lee los textos de tu app para adivinar su idioma. Estas dos claves se lo dicen, y él solo las pasa adelante.
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
@@ -194,7 +194,7 @@ Estas claves las leen `lynkeus crawl` y `lynkeus smoke`.
 Las expresiones de `crawl` se comparan contra el `testID` y contra la etiqueta de cada control. Tanto estas como las de `errorCopy` no distinguen mayúsculas de minúsculas.
 
 :::caution
-`crawl.never` empieza vacío a propósito. lynkeus no trae ninguna lista de palabras peligrosas, porque cuáles controles son irreversibles depende de cada app. Antes de recorrer una app conectada a datos que te importan, declara aquí lo que no se debe tocar: borrar la cuenta, pagar, enviar.
+`crawl.never` empieza vacío a propósito. Lynkeus no trae ninguna lista de palabras peligrosas, porque cuáles controles son irreversibles depende de cada app. Antes de recorrer una app conectada a datos que te importan, declara aquí lo que no se debe tocar: borrar la cuenta, pagar, enviar.
 :::
 
 ## Casos (`cases`)
@@ -219,13 +219,13 @@ Las rutas de `dir`, `flows` y `fixtures.cwd` son relativas al archivo de configu
 
 ### `cases.fixtures`
 
-Los **fixtures** son los datos de prueba que un caso prepara en el backend. lynkeus no sabe nada de tu backend: arranca un comando tuyo una vez por ejecución y le habla en líneas de JSON, una de ida y una de vuelta por paso. El protocolo está en la guía de [Fixtures](/es/guides/fixtures/).
+Los **fixtures** son los datos de prueba que un caso prepara en el backend. Lynkeus no sabe nada de tu backend: arranca un comando tuyo una vez por ejecución y le habla en líneas de JSON, una de ida y una de vuelta por paso. El protocolo está en la guía de [Fixtures](/es/guides/fixtures/).
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `command` | texto | obligatorio | El comando que se ejecuta, tal como lo escribirías en un shell. Puede ser cualquier cosa que lea una línea y escriba otra: un script de Node, un runner de Rails, un contenedor. |
 | `cwd` | texto | `.` | La carpeta desde la que se ejecuta. |
-| `env` | objeto de textos | ninguno | Variables de entorno adicionales para el comando. Se suman a las del proceso de lynkeus. |
+| `env` | objeto de textos | ninguno | Variables de entorno adicionales para el comando. Se suman a las del proceso de Lynkeus. |
 | `timeoutMs` | número (ms) | `120000` | Cuánto esperar la respuesta de cada paso. |
 
 ### `cases.appEvents`
@@ -236,7 +236,7 @@ muestra como "App". Cuando la app le pasa todos sus eventos a un servicio, nombr
 ### `cases.serverEvents`
 
 Lo que el backend mandó a su analítica mientras corría un paso, que el reporte muestra debajo del paso junto a lo que mandó la app.
-Después de cada paso de la app, en una corrida que guarda evidencia, lynkeus llama al fixture con `{ "since": "<inicio del paso, ISO>" }`.
+Después de cada paso de la app, en una corrida que guarda evidencia, Lynkeus llama al fixture con `{ "since": "<inicio del paso, ISO>" }`.
 El fixture responde `{ "events": [{ "name": "…", "props": { … }, "provider": "…" }] }`; `event` y `payload` se leen
 como `name` y `props`.
 

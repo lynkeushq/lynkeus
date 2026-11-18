@@ -5,7 +5,7 @@ description: Prepare backend data for a case and assert on it afterward, through
 
 A test of a real app needs data: a user that exists, an order in a known state, a balance to check afterward. **Fixtures** are how a case prepares the backend and reads it back.
 
-lynkeus knows nothing about your backend. You declare one long-lived command, lynkeus sends it one line of JSON per step, and it answers with one line of JSON. That command can be anything that reads a line and writes a line: a Node script, a Rails runner, a container.
+Lynkeus knows nothing about your backend. You declare one long-lived command, Lynkeus sends it one line of JSON per step, and it answers with one line of JSON. That command can be anything that reads a line and writes a line: a Node script, a Rails runner, a container.
 
 ## Before you start
 
@@ -33,7 +33,7 @@ This writes `cases/fixtures.mjs` and adds the `cases` block to `lynkeus.config.j
 }
 ```
 
-`cases.fixtures.command` is the command lynkeus starts. It is started once per run and kept open.
+`cases.fixtures.command` is the command Lynkeus starts. It is started once per run and kept open.
 
 ## Step 2: Write your fixtures
 
@@ -161,7 +161,7 @@ The other parameters of `assert`, such as `user: u`, are sent to the `inspect` f
 
 ## How it works: the protocol
 
-lynkeus starts your command once and writes one JSON line per step to its stdin. Your command writes one JSON line per step to its stdout.
+Lynkeus starts your command once and writes one JSON line per step to its stdin. Your command writes one JSON line per step to its stdout.
 
 ```json
 {"command": "create_user", "params": {"name": "Ana"}, "env": {"NAME": "Ana"}}
@@ -180,7 +180,7 @@ Only lines that start with `{` are read as answers, so your command may log othe
 
 ### The describe handshake
 
-Before the first case, lynkeus asks your server what it answers:
+Before the first case, Lynkeus asks your server what it answers:
 
 ```json
 {"command": "lynkeus.describe", "params": {}, "env": {}}
@@ -236,7 +236,7 @@ npx lynkeus fixtures describe   # every fixture, with its summary and parameters
 npx lynkeus fixtures check      # whether the server keeps the protocol
 ```
 
-`fixtures describe` keeps the answer under `.lynkeus` and shows it for a day without starting the server again; `--fresh` asks again. `fixtures check` fails when the reply has no list of commands, names a command twice, speaks a newer protocol version than this lynkeus knows, or says it is `down`. Neither changes anything in the backend. `lynkeus case new` uses the same description to offer a new case the setups it can choose from.
+`fixtures describe` keeps the answer under `.lynkeus` and shows it for a day without starting the server again; `--fresh` asks again. `fixtures check` fails when the reply has no list of commands, names a command twice, speaks a newer protocol version than this Lynkeus knows, or says it is `down`. Neither changes anything in the backend. `lynkeus case new` uses the same description to offer a new case the setups it can choose from.
 
 ### Configuration
 
@@ -265,7 +265,7 @@ A runner that starts `case run` once per case can use `case prepare` instead: st
 
 ## Common problems
 
-**`create_user is not a step lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** The configuration has no `cases.fixtures`, or lynkeus is reading another configuration file. Check the folder you run from and `LYNKEUS_CONFIG`.
+**`create_user is not a step Lynkeus has, and the project declares no fixtures (cases.fixtures in lynkeus.config.json)`.** The configuration has no `cases.fixtures`, or Lynkeus is reading another configuration file. Check the folder you run from and `LYNKEUS_CONFIG`.
 
 **`create_user: the fixtures command did not answer within 120000 ms`.** Your command received the line and wrote nothing back. Every line in needs exactly one line out, including on errors.
 

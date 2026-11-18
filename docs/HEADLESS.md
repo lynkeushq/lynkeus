@@ -181,7 +181,7 @@ variables, jest's transform cache freezes the first value it saw. `headless
 start` keeps one cache per value of the `apiEnv` variable, under
 `.lynkeus/jest-cache/`; for any other inlined variable, remove that folder.
 
-**The app never leaves the splash.** Usually a native module that lynkeus does
+**The app never leaves the splash.** Usually a native module that Lynkeus does
 not know: run `lynkeus headless doctor`, then mock it in your entry (`--fix`
 writes stubs). Node resolving `localhost` to IPv6 while your backend listens
 on IPv4 is the other half of that bug; use `127.0.0.1`.

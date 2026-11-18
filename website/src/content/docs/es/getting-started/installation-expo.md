@@ -1,9 +1,9 @@
 ---
 title: Instalación en Expo
-description: Cómo instalar lynkeus en una app de Expo con development build, montar el agente junto a expo-router y comprobar la conexión.
+description: Cómo instalar Lynkeus en una app de Expo con development build, montar el agente junto a expo-router y comprobar la conexión.
 ---
 
-Esta página instala lynkeus en una app de Expo. Los pasos se probaron en un proyecto nuevo de Expo SDK 57, con React Native 0.86 y expo-router, en el simulador de iOS y en el emulador de Android. En los dos el agente se conecta, la pantalla se lee y las rutas de expo-router se reconocen.
+Esta página instala Lynkeus en una app de Expo. Los pasos se probaron en un proyecto nuevo de Expo SDK 57, con React Native 0.86 y expo-router, en el simulador de iOS y en el emulador de Android. En los dos el agente se conecta, la pantalla se lee y las rutas de expo-router se reconocen.
 
 Si tu app no usa Expo, sigue [Instalación en React Native](/es/getting-started/installation-react-native/).
 
@@ -11,7 +11,7 @@ Si tu app no usa Expo, sigue [Instalación en React Native](/es/getting-started/
 
 Son tres diferencias, y conviene conocerlas antes de empezar porque explican cada paso.
 
-**Hace falta un development build.** El agente tiene código nativo. Expo Go trae un conjunto fijo de módulos nativos y no puede cargar otros, así que lynkeus no funciona allí.
+**Hace falta un development build.** El agente tiene código nativo. Expo Go trae un conjunto fijo de módulos nativos y no puede cargar otros, así que Lynkeus no funciona allí.
 
 **expo-router no tiene `index.js`.** El agente se monta en el punto de entrada de la app, antes de que se renderice nada. Un proyecto con expo-router no tiene ese archivo. El comando `lynkeus init` lo crea por ti.
 

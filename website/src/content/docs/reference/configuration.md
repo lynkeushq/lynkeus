@@ -11,7 +11,7 @@ The file is optional. Every key is optional too.
 
 The CLI reads `lynkeus.config.json` from the app's folder: the current folder, or the one given with `--root`.
 
-A second file can be layered on top. When `LYNKEUS_CONFIG` names a file, lynkeus reads it after the app's own, and each top-level key it defines replaces the app's key of the same name. This is for teams that keep tests and fixtures in a repository of their own. Paths under `cases` are relative to the file that declares them.
+A second file can be layered on top. When `LYNKEUS_CONFIG` names a file, Lynkeus reads it after the app's own, and each top-level key it defines replaces the app's key of the same name. This is for teams that keep tests and fixtures in a repository of their own. Paths under `cases` are relative to the file that declares them.
 
 A file that is not valid JSON stops the command with the file's path and the parser's message.
 
@@ -119,7 +119,7 @@ The token is not a configuration key, because it is a secret and the config file
 
 ## Language
 
-lynkeus never reads your copy. It passes these values on, and three things use them: `lynkeus os language` defaults to them, the entry that `headless init` generates mocks this locale, and `lynkeus mcp` reports them so that a model reading the screens knows their language.
+Lynkeus never reads your copy. It passes these values on, and three things use them: `lynkeus os language` defaults to them, the entry that `headless init` generates mocks this locale, and `lynkeus mcp` reports them so that a model reading the screens knows their language.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -148,7 +148,7 @@ The defaults for contrast are the figures of WCAG 2 level AA.
 
 ## Smoke and crawl
 
-`smoke` and `crawl` open and press things on their own, so they need to be told what your app considers broken and what it considers dangerous. lynkeus ships no list of its own for either.
+`smoke` and `crawl` open and press things on their own, so they need to be told what your app considers broken and what it considers dangerous. Lynkeus ships no list of its own for either.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -171,7 +171,7 @@ The three `crawl` lists are regular expressions matched, without regard to case,
 
 ## CI
 
-Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), which brings the backend and the hosts up around a suite, runs it and tears it all down. lynkeus knows nothing about your backend, so it only runs the commands you give it.
+Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), which brings the backend and the hosts up around a suite, runs it and tears it all down. Lynkeus knows nothing about your backend, so it only runs the commands you give it.
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
@@ -196,7 +196,7 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | `cases.dir` | string | `cases` | The folder of case files. `case run` without arguments runs every `.md` file in it and its subfolders, in path order, except `README.md`, `FORMAT.md`, `CATALOG.md` and files that start with a dot. A folder named on the command line stands for the cases under it. |
 | `cases.flows` | string | `flows` | The folder of the flows an `app.run` step names. |
 | `cases.fixtures` | object | none | The command that answers fixture steps. Without it, a case can only use `app.*` and `exec` steps. |
-| `cases.fixtures.command` | string | required | A shell command. lynkeus starts it once per run and speaks JSON lines to it: one line in per step, one line out. |
+| `cases.fixtures.command` | string | required | A shell command. Lynkeus starts it once per run and speaks JSON lines to it: one line in per step, one line out. |
 | `cases.fixtures.cwd` | string | `.` | The folder the command starts in, relative to the config file. |
 | `cases.fixtures.env` | object of strings | none | Environment variables added to the command's environment. |
 | `cases.fixtures.timeoutMs` | number (ms) | `120000` | How long to wait for an answer to one step. |
@@ -217,7 +217,7 @@ those events as "App". When the app hands every event to one service, name it: `
 ### `cases.serverEvents`
 
 What the backend sent to its analytics while a step ran, shown under the step in a report next to what the app sent.
-After each app step of a run that keeps evidence, lynkeus calls the fixture with `{ "since": "<the step's start, ISO>" }`.
+After each app step of a run that keeps evidence, Lynkeus calls the fixture with `{ "since": "<the step's start, ISO>" }`.
 The fixture answers `{ "events": [{ "name": "…", "props": { … }, "provider": "…" }] }`; `event` and `payload` are
 read as `name` and `props`.
 

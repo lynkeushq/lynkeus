@@ -67,9 +67,9 @@ who never opened the file knows what they are looking at.
 | \`app.back\` | | |
 | \`app.requests\` | \`mark\` | A \`request\` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
 | \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered with \`qa.register\`. |
-| \`app.run\` | \`{ flow, vars? }\` | A lynkeus flow, from the flows folder. |
+| \`app.run\` | \`{ flow, vars? }\` | A Lynkeus flow, from the flows folder. |
 | \`app.events\` / \`app.event\` | \`clear\` / \`{ name, props?, absent? }\` | What the app told its analytics. |
-| \`app.<command>\` | its arguments by name | Any other lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |
+| \`app.<command>\` | its arguments by name | Any other Lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |
 
 A target is \`#testId\`, a text, an index or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A text inside quotes of its own (\`'"Next"'\`) is always a text, where \`app.wait: Next\` would wait for a route called \`Next\`.
 
@@ -104,7 +104,7 @@ native screen the host never shows — is kept to it:
 
 ## Steps that prepare and read the backend
 
-Any other step name is a **fixture**: lynkeus sends it to the command in
+Any other step name is a **fixture**: Lynkeus sends it to the command in
 \`cases.fixtures\` (lynkeus.config.json) as one JSON line and reads one back.
 
 \`\`\`
@@ -112,7 +112,7 @@ Any other step name is a **fixture**: lynkeus sends it to the command in
 ← {"ok": true, "user_id": "u_1", "name": "Ana"}
 \`\`\`
 
-Before the first case lynkeus sends \`{"command": "lynkeus.describe"}\`. A
+Before the first case Lynkeus sends \`{"command": "lynkeus.describe"}\`. A
 server that answers \`{"commands": ["create_user", …]}\` gets its cases checked
 first: one that names a fixture missing from the list is refused before
 anything runs. A server that answers \`"ok": false\` is not checked.

@@ -26,7 +26,7 @@ for (const file of readdirSync(join(root, 'src/content/docs'), { recursive: true
 }
 
 if (ahead.length) {
-  console.error(`lynkeus is at ${released}, and these pages describe a later version:\n${ahead.join('\n')}`);
+  console.error(`Lynkeus is at ${released}, and these pages describe a later version:\n${ahead.join('\n')}`);
   process.exit(1);
 }
 console.log(`every version the pages name is ${released} or earlier`);

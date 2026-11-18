@@ -1,6 +1,6 @@
 ---
 title: Expo
-description: Lo que es propio de Expo al usar lynkeus, con sus requisitos, el punto de entrada con expo-router, el token, las rutas y los límites conocidos.
+description: Lo que es propio de Expo al usar Lynkeus, con sus requisitos, el punto de entrada con expo-router, el token, las rutas y los límites conocidos.
 ---
 
 Esta página reúne lo que es específico de Expo: por qué hace falta un development build, cómo convive el agente con expo-router, cómo se nombran las rutas y qué no se puede hacer todavía.
@@ -71,7 +71,7 @@ No hay que modificar ningún `_layout` ni ninguna pantalla.
 
 ## El token, en dos variables
 
-El token es el secreto que comparten la app y el CLI. En Expo se llama distinto en cada lado, y la razón es una regla de Expo, no de lynkeus.
+El token es el secreto que comparten la app y el CLI. En Expo se llama distinto en cada lado, y la razón es una regla de Expo, no de Lynkeus.
 
 Expo solo incluye en el bundle las variables de entorno cuyo nombre empieza con `EXPO_PUBLIC_`. Una variable llamada `LYNKEUS_TOKEN` llegaría a la app como `undefined`.
 
@@ -138,7 +138,7 @@ npx lynkeus nav index
 
 La plantilla más reciente de Expo usa una barra de pestañas nativa. La dibuja el sistema operativo, no React Native.
 
-lynkeus lee el árbol de React, así que esas pestañas no aparecen como elementos en `lynkeus screen` y no se pueden tocar por nombre ni por `testID`.
+Lynkeus lee el árbol de React, así que esas pestañas no aparecen como elementos en `lynkeus screen` y no se pueden tocar por nombre ni por `testID`.
 
 Para cambiar de pestaña, navega a la ruta:
 
@@ -163,7 +163,7 @@ Desde 0.4.0, una app con expo-router corre en el host sin pantalla. Como no tien
 
 ### Expo Go
 
-No hay forma de usar lynkeus en Expo Go, por lo explicado arriba.
+No hay forma de usar Lynkeus en Expo Go, por lo explicado arriba.
 
 ### Builds de producción
 

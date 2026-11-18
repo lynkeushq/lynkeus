@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- fastsim is now called Lynkeus FastSim in help, messages (`installed Lynkeus FastSim 2026.11.17 (...)`), MCP tool descriptions and the docs. Command, flag and tool names (`lynkeus fastsim install`, `fastsim_install`), file names, paths and environment variables (`LYNKEUS_FASTSIM_DIR`) are unchanged. The brand is written Lynkeus in prose, help and messages; commands, packages, paths and environment variables stay lowercase.
 - `lynkeus fastsim grant` at a terminal shows a summary instead of the token: a check mark, the build and until when the grant is valid (colored unless `NO_COLOR` is set). Scripts that read its stdout, such as Lynkeus FastSim's `bin/fastsim-run`, still get only the grant; `--print` shows it at a terminal and `--json` always carries it.
 - The page `lynkeus login` shows in the browser is new: it answers only after the code is exchanged for tokens, so a failed exchange shows "The sign-in did not finish" instead of "signed in". When the service sends them, it names the organization and the account, and `lynkeus login` prints `signed in to <cloud> as <email> in <organization> (fastsim:download); saved in <path>` and saves both with the sign-in. It uses no web fonts or outside requests, follows the system's light or dark setting, and shows the command that started the sign-in.
 

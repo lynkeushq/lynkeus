@@ -3,7 +3,7 @@ title: Variables de entorno
 description: Todas las variables de entorno que leen el CLI, el agente y el host sin pantalla, quién las lee y qué hacen.
 ---
 
-lynkeus lee del entorno lo que no conviene escribir en un archivo: los secretos, y lo que cambia de una máquina a otra o de una ejecución a otra. Esta página lista cada variable, quién la lee y qué efecto tiene.
+Lynkeus lee del entorno lo que no conviene escribir en un archivo: los secretos, y lo que cambia de una máquina a otra o de una ejecución a otra. Esta página lista cada variable, quién la lee y qué efecto tiene.
 
 Hay tres lectores posibles. El **CLI** es el proceso `lynkeus` que ejecutas en la terminal o en CI. El **host sin pantalla** (headless) es la app corriendo en Node, que arranca `lynkeus headless start`. La **app** es tu build de depuración en un simulador, un emulador o un dispositivo.
 
@@ -99,7 +99,7 @@ LYNKEUS_PORT=8124 LYNKEUS_TOKEN=secreto npx lynkeus screen
 Una app en un simulador o en un dispositivo no lee esta variable. Se conecta al puerto que recibió en la opción `port` de `auto()` o de `<Lynkeus>`, que por defecto es `8123`. Si mueves el driver con `LYNKEUS_PORT`, pásale el mismo puerto a la app al montarla.
 :::
 
-Si el puerto ya está en uso, el CLI falla con `Port 8123 is already taken: another lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
+Si el puerto ya está en uso, el CLI falla con `Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`
 
 ### `LYNKEUS_HOST`
 
@@ -199,19 +199,19 @@ La guía de [Reportes](/es/guides/reports/) cubre el recorrido completo.
 
 `lynkeus relay` lee estas mismas dos variables y, para la clave, también `LYNKEUS_CLOUD_KEY` si la primera no existe. Mira [Relay del backend](/es/guides/backend-relay/).
 
-## Variables de otros que lynkeus lee o define
+## Variables de otros que Lynkeus lee o define
 
-Estas variables no son de lynkeus, pero influyen en lo que hace.
+Estas variables no son de Lynkeus, pero influyen en lo que hace.
 
 | Variable | Quién la lee | Qué pasa |
 |---|---|---|
 | `GITHUB_HEAD_REF`, `GITHUB_REF_NAME` | CLI | `case run --out` anota en `run.json` la rama desde la que se hizo la ejecución. En GitHub Actions la toma de estas variables, en ese orden; fuera de ahí, se la pregunta a git. |
 | `NODE_OPTIONS` | `headless start` | Le agrega `--dns-result-order=ipv4first` antes de arrancar jest, y conserva lo que ya tuviera. Node resuelve `localhost` primero como IPv6, y un backend local suele escuchar solo en IPv4. |
 | `CI` | `headless start`, `case run` | `headless start` la define como `1` para el proceso de jest que aloja la app. `case run` no dibuja su línea de estado en la terminal cuando `CI` está definida. |
-| `LYNKEUS_HEADLESS` | `headless start` la define | Vale `1` en el proceso de jest que aloja la app. La configuración de jest de tu app puede leerla para saber que arranca un host y no sus tests unitarios: un `setup` que reemplaza por completo un SDK nativo puede dejarlo real ahí, para que la llamada llegue al sustituto de lynkeus. |
+| `LYNKEUS_HEADLESS` | `headless start` la define | Vale `1` en el proceso de jest que aloja la app. La configuración de jest de tu app puede leerla para saber que arranca un host y no sus tests unitarios: un `setup` que reemplaza por completo un SDK nativo puede dejarlo real ahí, para que la llamada llegue al sustituto de Lynkeus. |
 | la que nombre `apiEnv` (por defecto `API_URL`) | host sin pantalla | La entrada que genera `headless init` comprueba que apunte a un backend local antes de renderizar la app. Si no, se detiene con `lynkeus headless only drives a local backend; API_URL is "…"`. |
 | `EXPO_PUBLIC_LYNKEUS_TOKEN` | tu app en Expo | El token, con el prefijo que Expo exige para incorporarlo al bundle. Si llega vacío, el agente queda apagado. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | tu backend | No la lee lynkeus. Es la variable estándar de OpenTelemetry con la que tu backend sabe adónde exportar sus trazas. Con `case run --traces`, apúntala a `http://localhost:4318`, o al puerto de `--traces-port`. Ver [Trazas del backend](/es/guides/backend-traces/). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | tu backend | No la lee Lynkeus. Es la variable estándar de OpenTelemetry con la que tu backend sabe adónde exportar sus trazas. Con `case run --traces`, apúntala a `http://localhost:4318`, o al puerto de `--traces-port`. Ver [Trazas del backend](/es/guides/backend-traces/). |
 
 ## Variables en los casos y en los fixtures
 

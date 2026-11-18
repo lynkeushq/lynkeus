@@ -5,14 +5,14 @@ description: Record the analytics events your app sends during a test, assert on
 
 Analytics break silently. An event is renamed, a property changes from a number to a string, a screen stops reporting, and nobody notices until a dashboard has been flat for a week. A test that already walks the signup flow can also check that the flow still reports what the dashboard reads.
 
-This guide shows how to make the app's events visible to lynkeus, how to assert on them in a case, and how to check a **funnel**: an ordered list of events with the properties each one needs.
+This guide shows how to make the app's events visible to Lynkeus, how to assert on them in a case, and how to check a **funnel**: an ordered list of events with the properties each one needs.
 
 ## Before you start
 
 - The agent is mounted in the app. See [Install in a React Native app](/getting-started/installation-react-native/).
 - You know where your app reports to its analytics: usually one function that every screen calls.
 
-## Step 1: Tell lynkeus about each event
+## Step 1: Tell Lynkeus about each event
 
 Call `qa.event` from the place where the app reports to its analytics.
 
