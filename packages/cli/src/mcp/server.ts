@@ -102,7 +102,9 @@ A long case opens each part of its steps with a numbered comment (# 1 Sign in, #
 
 For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.
 
-A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.`;
+A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.
+
+To look at a loading state, a case holds the request and releases it later: app.mock with route and hold: true, the steps that look at the screen, then app.mock with release: true. A held request counts as in flight, so idle waits for it until its timeout.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

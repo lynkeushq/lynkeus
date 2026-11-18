@@ -530,7 +530,7 @@ Solo sin pantalla. Define qué responde el próximo selector de imágenes. Forma
 ### `lynkeus mock`
 
 ```bash
-lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]
+lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]
 ```
 
 Responde una petición antes de que llegue a la red. Con esto, un estado de error, una espera larga o una lista vacía se consiguen con una línea, sin preparar nada en el backend.
@@ -551,15 +551,23 @@ La ruta se compara por contenido: `/v3/accounts` coincide con cualquier ruta que
 | `--times <n>` | Aplica la regla solo esa cantidad de veces. |
 | `--sticky` | Conserva la regla cuando la app se reinicia con `reset`. Sin esta opción, `reset` la borra. |
 | `--lost` | Pierde la respuesta, no la petición: la petición sale y el servidor la recibe y actúa, y a la app le llega un fallo de red. Así se prueba lo que pasa cuando la app cree que algo falló y en el servidor ya ocurrió. No se combina con `--status`, `--body` ni `--delay`: una petición perdida no tiene respuesta que moldear, y el comando termina con código `2` y lo dice. |
-| `--clear` | Borra todas las reglas. |
-| `--list` | Muestra las reglas vigentes. |
+| `--hold` | Retiene las peticiones que coinciden con la ruta (obligatoria) hasta que las sueltes con `--release`. No tiene respuesta que moldear: con `--status`, `--body`, `--delay` o `--lost` el comando termina con código `2`. Con `--times n` retiene solo las primeras `n`. Con `--sticky`, el filtro sobrevive a un `reset` de la app en el host sin pantalla. |
+| `--release` | Deja seguir a las peticiones retenidas: todas, o las que coinciden con la ruta. Siguen hacia una regla o hacia la red, de la más antigua a la más nueva. El filtro se mantiene, así que la próxima petición que coincida se retiene de nuevo. |
+| `--clear` | Borra todas las reglas y filtros, y deja seguir a lo que estuviera retenido. |
+| `--list` | Muestra las reglas y los filtros vigentes, y qué hay retenido y desde hace cuánto. |
 
 ```bash
 lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000
 lynkeus mock '/v3/accounts' --body '[]' --times 1
 lynkeus mock '/v1/transfers' --lost --times 1   # el servidor ejecuta la transferencia; la app no se entera
+lynkeus mock 'GET /v3/accounts' --hold          # la pantalla muestra su estado de carga y lo conserva
+lynkeus mock --release                           # la petición sigue y llega la lista
 lynkeus mock --list
 ```
+
+**Retener.** `--hold` es un filtro que va antes de todo lo demás: una petición que coincide espera antes de que la vea una regla o la red, y para la app es una petición que todavía no respondió. Sirve para mirar un estado de carga todo el tiempo que haga falta, o para que dos peticiones lleguen en el orden que elijas. Al soltarla, responde la regla o la red, como habría respondido antes. Un `reset` de la app y `--clear` sueltan lo que siga retenido, así que nada queda esperando, y una petición que la app canceló mientras tanto no se envía al soltarla.
+
+Una petición retenida cuenta como en curso. `lynkeus idle` y el `--settle` de una captura la esperan y se rinden al agotar su tiempo, mientras que [`lynkeus clock --settle`](#lynkeus-os-clock) la nombra en `inFlight` y no la espera. Funciona en el host sin pantalla, en un dispositivo o simulador a través del agente y en Lynkeus FastSim.
 
 Una petición que contestó una regla (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y [`lynkeus requests`](#lynkeus-requests) y [`lynkeus trace`](#lynkeus-trace) la muestran con `(mocked)`. Cuando un caso falla, la evidencia también la marca, y las razones del fallo no le echan la culpa al backend por una respuesta que armó el propio caso.
 

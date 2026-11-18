@@ -378,6 +378,16 @@ Algunas opciones tienen un nombre alternativo, más claro dentro de un caso:
 - app.mock: clear
 ```
 
+Para que un estado de carga se quede en pantalla, retén la petición, revisa la pantalla y después suéltala:
+
+```yaml
+- app.mock: { route: "GET /v3/accounts", hold: true }
+- app.press: "#refresh"
+- app.see: "#accounts-spinner"
+- app.mock: { release: true }
+- app.see: "#accounts-list"
+```
+
 Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se pierde es solo la respuesta, y a la app le llega un fallo de red. Es lo mismo en el host sin pantalla y en un simulador, un emulador o un teléfono. Hasta 0.5 un dispositivo hacía fallar la petición sin enviarla.
 
 Una petición que contestó un mock (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y la evidencia de un caso fallido la lista con `(mocked)`. Las reglas que explican un fallo, como «el backend respondió 500 (error del servidor, no de la app)», leen solo lo que respondió el servidor: un 500 que puso el propio caso no se le atribuye al backend.

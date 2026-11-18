@@ -583,10 +583,10 @@ lynkeus os gallery ./fixtures/id.jpg --name id.jpg --mime image/jpeg
 ### `lynkeus mock`
 
 ```bash
-lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]
+lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]
 ```
 
-Answers a request before it reaches the network. On the headless host, the host stands in for the network. On a device, a simulator or an emulator, the agent answers inside the app. A rule without `--sticky` is dropped by the app's `reset` command.
+Answers a request before it reaches the network, or holds it there until you let it go. On the headless host, the host stands in for the network. On a device, a simulator or an emulator, the agent answers inside the app. A rule without `--sticky` is dropped by the app's `reset` command.
 
 A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` and `lynkeus trace` show `(mocked)`, and so does a failed case's evidence. The reasons a failed case prints read only what the server answered, so a 500 your own rule made is never blamed on the backend. The agent marks the answers of its own mocks. A layer below it, such as the headless host's network, marks its answers with the response header `x-lynkeus-mocked`.
 
@@ -602,15 +602,23 @@ A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` 
 | `--times <n>` | | Apply the rule only this many times. |
 | `--sticky` | | Keep the rule across an app reset. The headless host honors it; on a device the agent keeps no sticky rules. |
 | `--lost` | | Send the request to the server and lose only its answer: the app sees a failed request, and the server has acted on it, as after a dropped connection. A lost request gets no answer to shape, so `--status`, `--body` and `--delay` with it are refused (exit 2). |
-| `--clear` | | Drop every rule. |
-| `--list` | | Show the rules. |
+| `--hold` | | Hold the requests that match the route (required) where they are, until `--release`. Takes no answer to shape: `--status`, `--body`, `--delay` and `--lost` with it are refused (exit 2). With `--times n` only the first `n` are held. With `--sticky` the gate survives an app reset on the headless host. |
+| `--release` | | Let the held requests go on: all of them, or those that match the route. They go to a rule or to the network, oldest first. The gate stays, so the next matching request is held again. |
+| `--clear` | | Drop every rule and gate, and let whatever is held go on. |
+| `--list` | | Show the rules and gates, and what is held and for how long. |
 
 ```bash
 lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000
 lynkeus mock '/v3/accounts' --body '[]' --times 1
 lynkeus mock 'POST /v3/payments' --lost
+lynkeus mock 'GET /v3/accounts' --hold     # the screen shows its loading state, and keeps it
+lynkeus mock --release                      # the request goes on and the list arrives
 lynkeus mock --clear
 ```
+
+**Holding.** `--hold` is a gate in front of everything else: a matching request waits before any rule or the network sees it, and to the app it is a request that has not answered yet. Use it to look at a loading state for as long as you need, or to make two requests arrive in an order you choose. When the request is released, the rule or the network answers it as it would have. An app `reset` and `--clear` release whatever is still held, so nothing is left waiting, and a request the app aborted meanwhile is not sent when released.
+
+A held request counts as in flight. `lynkeus idle` and a screenshot's `--settle` wait for it and give up at their timeout, and [`lynkeus clock --settle`](#lynkeus-os-clock) names it in `inFlight` and does not wait. It works on the headless host, on a device or simulator through the agent, and on Lynkeus FastSim.
 
 ### `lynkeus os permissions`
 

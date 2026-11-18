@@ -133,6 +133,74 @@ describe('netmock responses', () => {
   });
 });
 
+describe('netmock hold', () => {
+  const netmock = (params: unknown) => command('netmock')(params) as { held?: number; released?: number; holds?: unknown[] };
+  const settled = async (promise: Promise<void>) => {
+    let done = false;
+    void promise.then(() => {
+      done = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return done;
+  };
+
+  beforeEach(() => {
+    netmock({ action: 'clear' });
+  });
+
+  it('holds matching requests until they are released, in the order they came', async () => {
+    netmock({ action: 'hold', method: 'GET', path: '/v3/accounts' });
+    const first = netControls.hold('GET', 'https://api.test/v3/accounts?page=1')!;
+    const second = netControls.hold('get', 'https://api.test/v3/accounts?page=2')!;
+    expect(netControls.hold('POST', 'https://api.test/v3/accounts')).toBeUndefined();
+    expect(netControls.hold('GET', 'https://api.test/v3/user')).toBeUndefined();
+    expect(await settled(first)).toBe(false);
+    expect(netmock({ action: 'release', path: '/v3/user' })).toEqual({ released: 0, held: 2 });
+    expect(netmock({ action: 'release', path: '/v3/accounts' })).toEqual({ released: 2, held: 0 });
+    expect(await settled(first)).toBe(true);
+    expect(await settled(second)).toBe(true);
+  });
+
+  it('keeps holding after a release, for as many requests as times says', async () => {
+    netmock({ action: 'hold', path: '/v3/accounts', times: 1 });
+    const one = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeUndefined();
+    netmock({ action: 'release' });
+    await one;
+    netmock({ action: 'clear' });
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeInstanceOf(Promise);
+    netmock({ action: 'release' });
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeInstanceOf(Promise);
+  });
+
+  it('lists what it holds and for how long', () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    void netControls.hold('GET', 'https://api.test/v3/accounts');
+    const listed = netmock({ action: 'list' }) as unknown as { held: { method: string; path: string; heldMs: number }[]; holds: unknown[] };
+    expect(listed.holds).toHaveLength(1);
+    expect(listed.held).toEqual([{ method: 'GET', path: '/v3/accounts', heldMs: expect.any(Number) }]);
+  });
+
+  it('clear and a reset let go of what is held, and a sticky hold outlives the reset', async () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    const a = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    netmock({ action: 'clear' });
+    expect(await settled(a)).toBe(true);
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    netmock({ action: 'hold', path: '/v3/user', sticky: true });
+    const b = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    reset();
+    expect(await settled(b)).toBe(true);
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeUndefined();
+    expect(netControls.hold('GET', 'https://api.test/v3/user')).toBeInstanceOf(Promise);
+  });
+
+  it('refuses a hold without a route', () => {
+    expect(() => netmock({ action: 'hold' })).toThrow(/needs a path/);
+  });
+});
+
 describe('clock', () => {
   const clock = (params: unknown) => command('clock')(params) as { now: string; offsetMs: number };
 
