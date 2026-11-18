@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.3
 
 - The MCP instructions and `fastsim_install` say Lynkeus FastSim is optional and paid (Team plan, https://lynkeus.io/pricing) and what to do when the service refuses: tell the person, point them to the plans or to Members, and carry on with headless or the Simulator. `lynkeus fastsim install` and `grant` add `Plans: https://lynkeus.io/pricing` to a refusal for no entitlement and `An owner gives seats under Members on lynkeus.io` to one for no seat, and `lynkeus status` says whether Lynkeus FastSim is installed.
 - fastsim is now called Lynkeus FastSim in help, messages (`installed Lynkeus FastSim 2026.11.17 (...)`), MCP tool descriptions and the docs. Command, flag and tool names (`lynkeus fastsim install`, `fastsim_install`), file names, paths and environment variables (`LYNKEUS_FASTSIM_DIR`) are unchanged. The brand is written Lynkeus in prose, help and messages; commands, packages, paths and environment variables stay lowercase.
