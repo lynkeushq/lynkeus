@@ -18,6 +18,7 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { hostGrantEnv } from './fastsim.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -237,10 +238,10 @@ const prepareAhead = async (cases: Case[], o: PrepareOptions): Promise<{ made: n
 };
 
 /** A host for one case, started by the project's own command: `{port}` is where it dials the driver. */
-const spawnHost = (command: string, port: number, job: number, cwd: string): ChildProcess =>
+const spawnHost = (command: string, port: number, job: number, cwd: string, env: NodeJS.ProcessEnv): ChildProcess =>
   spawn('/bin/sh', ['-c', command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job))], {
     cwd,
-    env: process.env,
+    env,
     // stdin stays open for the host's life: a host that serves until its stdin closes stops with the case.
     stdio: ['pipe', 'ignore', 'ignore'],
     detached: true,
@@ -548,6 +549,14 @@ export const caseCommands = [
         const ports = typeof ctx.flags.ports === 'string' ? ctx.flags.ports.split(',').map(Number) : [];
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         const keepHosts = !!ctx.flags['keep-hosts'] && hostCommand !== undefined;
+        // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
+        // which finds nothing when lynkeus itself runs from the npx cache.
+        let hostEnv: NodeJS.ProcessEnv = process.env;
+        if (hostCommand) {
+          const granted = await hostGrantEnv(ctx, hostCommand);
+          if ('failed' in granted) return granted.failed;
+          hostEnv = granted.env;
+        }
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
@@ -564,7 +573,7 @@ export const caseCommands = [
             log(`host on port ${port}: ${full ? `its heap is at ${full}` : 'is running but its app is not attached'}; starting it again`);
             await stopHost(host);
           } else if (host) log(`host on port ${port}: exited (${host.exitCode ?? host.signalCode}); starting it again`);
-          const started = spawnHost(hostCommand!, port, index, ctx.root);
+          const started = spawnHost(hostCommand!, port, index, ctx.root, hostEnv);
           kept[index] = started;
           const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
           while (!exited(started) && Date.now() < until) {
@@ -658,7 +667,7 @@ export const caseCommands = [
                 const attempt = async (n: number, prepared?: Prepared) => {
                   await hostUp(log);
                   if (keepHosts && port !== undefined) await keptUp(index, port, log);
-                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
+                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root, hostEnv) : undefined;
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({
