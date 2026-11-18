@@ -5,6 +5,8 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
+import { fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../cases/launch.js';
+import type { RunLaunch } from 'lynkeus-protocol';
 import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
@@ -29,11 +31,11 @@ import { LiveLine } from '../cases/liveLine.js';
 const lastWords = new WeakMap<ChildProcess, () => string>();
 let started = 0;
 
-export const startHost = async (root: string, err: (line: string) => void): Promise<ChildProcess> => {
+export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
     cwd: root,
-    env: process.env,
+    env: { ...process.env, ...launchEnv(launch) },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
@@ -236,11 +238,11 @@ const prepareAhead = async (cases: Case[], o: PrepareOptions): Promise<{ made: n
   return { made, skipped };
 };
 
-/** A host for one case, started by the project's own command: `{port}` is where it dials the driver. */
-const spawnHost = (command: string, port: number, job: number, cwd: string): ChildProcess =>
-  spawn('/bin/sh', ['-c', command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job))], {
+/** A host for one case, started by the project's own command: `{port}` is where it dials the driver; `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` are the run's launch facts (also in the environment). */
+const spawnHost = (command: string, port: number, job: number, cwd: string, launch?: RunLaunch): ChildProcess =>
+  spawn('/bin/sh', ['-c', fillLaunch(command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job)), launch)], {
     cwd,
-    env: process.env,
+    env: { ...process.env, ...launchEnv(launch) },
     // stdin stays open for the host's life: a host that serves until its stdin closes stops with the case.
     stdio: ['pipe', 'ignore', 'ignore'],
     detached: true,
@@ -314,6 +316,26 @@ export const caseCommands = [
         help: 'with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit',
         value: 'percent',
         default: 60,
+      },
+      seed: {
+        type: 'string',
+        help: 'make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED)',
+        value: 'text',
+      },
+      locale: {
+        type: 'string',
+        help: 'the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE)',
+        value: 'tag',
+      },
+      'time-zone': {
+        type: 'string',
+        help: 'the IANA time zone a host the run starts launches with, as in Europe/Madrid (default: launch.timeZone, LYNKEUS_TIME_ZONE)',
+        value: 'zone',
+      },
+      epoch: {
+        type: 'string',
+        help: 'the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH)',
+        value: 'iso',
       },
       once: { type: 'boolean', help: 'no second chance for a case that fails' },
       continue: { type: 'boolean', help: "keep running a case's steps after one fails (a failed setup still stops it)" },
@@ -407,7 +429,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;
@@ -415,8 +437,19 @@ export const caseCommands = [
       if (typeof files === 'string') return { text: files, code: 1 };
       const cases = files.flatMap(readCases);
       const dry = !!ctx.flags['dry-run'];
+      const launch = resolveLaunch(ctx.flags, ctx.config);
+      if (typeof launch === 'string') return { text: launch, code: 2 };
+      const startsHost = !!ctx.flags.host || typeof ctx.flags['host-command'] === 'string';
+      const notApplied = recordLaunch(launch, startsHost)?.unsupported;
+      if (notApplied?.length && !ctx.flags['dry-run'])
+        ctx.err(
+          `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command); the seed still applies to {{random.*}}`,
+        );
       const seenDir = typeof ctx.flags.seen === 'string' && !dry ? path.resolve(ctx.flags.seen) : undefined;
-      const out = typeof ctx.flags.out === 'string' && !dry ? new RunFile(path.resolve(ctx.flags.out), ctx.root) : undefined;
+      const out =
+        typeof ctx.flags.out === 'string' && !dry
+          ? new RunFile(path.resolve(ctx.flags.out), ctx.root, new Date(), recordLaunch(launch, startsHost))
+          : undefined;
       if ((ctx.flags.screenshots || ctx.flags.video) && !out)
         return { text: '--screenshots and --video keep what they take in the run directory: add --out <dir>', code: 2 };
       // Checked before the run, so a missing key does not surface only after every case has run.
@@ -458,7 +491,7 @@ export const caseCommands = [
               : [portFromEnv(ctx.config) ?? 8123],
           );
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
-      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err) : undefined;
+      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
       // With --keep-hosts, each job's own long-lived host, by job.
       const kept: (ChildProcess | undefined)[] = [];
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
@@ -525,7 +558,7 @@ export const caseCommands = [
           log(`host: ${why}; starting it again`);
           await stopHost(runHost);
           try {
-            runHost = await startHost(ctx.root, ctx.err);
+            runHost = await startHost(ctx.root, ctx.err, launch);
             await (await server())?.waitForApp(30_000);
           } catch (error) {
             log(`host: did not come back: ${(error as Error).message}`);
@@ -564,7 +597,7 @@ export const caseCommands = [
             log(`host on port ${port}: ${full ? `its heap is at ${full}` : 'is running but its app is not attached'}; starting it again`);
             await stopHost(host);
           } else if (host) log(`host on port ${port}: exited (${host.exitCode ?? host.signalCode}); starting it again`);
-          const started = spawnHost(hostCommand!, port, index, ctx.root);
+          const started = spawnHost(hostCommand!, port, index, ctx.root, launch);
           kept[index] = started;
           const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
           while (!exited(started) && Date.now() < until) {
@@ -658,7 +691,7 @@ export const caseCommands = [
                 const attempt = async (n: number, prepared?: Prepared) => {
                   await hostUp(log);
                   if (keepHosts && port !== undefined) await keptUp(index, port, log);
-                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root) : undefined;
+                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root, launch) : undefined;
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({
@@ -688,6 +721,7 @@ export const caseCommands = [
                       log,
                       prepared,
                       continue: !!ctx.flags.continue,
+                      seed: launch.seed,
                       routes: seenDir ? (host ? 'fresh' : true) : false,
                       traces,
                       nativeLogs: native,

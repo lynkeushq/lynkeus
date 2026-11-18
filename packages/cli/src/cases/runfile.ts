@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { RUN_SCHEMA, type RunCase, type RunManifest, type RunStep } from 'lynkeus-protocol';
+import { RUN_SCHEMA, type RunCase, type RunLaunch, type RunManifest, type RunStep } from 'lynkeus-protocol';
 
 import { caseArtifactId, type Case } from './format.js';
 import type { CaseReport } from './runner.js';
@@ -142,11 +142,12 @@ export class RunFile {
     private readonly dir: string,
     private readonly root: string,
     startedAt = new Date(),
+    launch?: RunLaunch,
   ) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, 'cases.jsonl'), '');
     const git = gitOf(root);
-    this.manifest = { schema: RUN_SCHEMA, startedAt: startedAt.toISOString(), ...(git ? { git } : {}) };
+    this.manifest = { schema: RUN_SCHEMA, startedAt: startedAt.toISOString(), ...(git ? { git } : {}), ...(launch ? { launch } : {}) };
     this.save();
   }
 

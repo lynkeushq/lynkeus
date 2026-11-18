@@ -149,6 +149,17 @@ Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y l
 | `ci.push` | booleano | `false` | Sube la ejecución al servicio de reportes. Necesita `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | lista de textos | ninguno | Opciones extra de `case run`, tal como las escribirías en la línea de comandos. |
 
+## Arranque
+
+Con qué arranca `lynkeus case run` los hosts cuando las opciones no lo dicen. Ver [Datos de arranque](/es/reference/cli/#datos-de-arranque).
+
+| Clave | Tipo | Por defecto | Qué hace |
+|---|---|---|---|
+| `launch.seed` | texto o número | ninguno | Vuelve repetibles los valores al azar. Igual que `--seed`. |
+| `launch.locale` | texto | ninguno | Una etiqueta de idioma, por ejemplo `es-AR`. Igual que `--locale`. |
+| `launch.timeZone` | texto | ninguno | Una zona horaria IANA, por ejemplo `Europe/Madrid`. Igual que `--time-zone`. |
+| `launch.epoch` | texto | ninguno | El instante en que empieza el reloj de la app, en ISO 8601. Igual que `--epoch`. |
+
 ## Idioma
 
 Lynkeus nunca lee los textos de tu app para adivinar su idioma. Estas dos claves se lo dicen, y él solo las pasa adelante.

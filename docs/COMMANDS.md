@@ -623,7 +623,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -637,6 +637,10 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 |---|---|
 | `--host` | start `headless start` for the run and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
+| `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
+| `--locale <tag>` | the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE) |
+| `--time-zone <zone>` | the IANA time zone a host the run starts launches with, as in Europe/Madrid (default: launch.timeZone, LYNKEUS_TIME_ZONE) |
+| `--epoch <iso>` | the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
 | `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |

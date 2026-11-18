@@ -491,7 +491,7 @@ The protocol package also defines what `lynkeus case run --out <dir>` writes, so
 
 | File | Content |
 |---|---|
-| `run.json` | A `RunManifest`: when the run started and ended, what the app ran on, the git branch and commit, the totals. |
+| `run.json` | A `RunManifest`: when the run started and ended, what the app ran on, the git branch and commit, the `launch` facts (seed, locale, time zone, epoch) the run asked for, the totals. |
 | `cases.jsonl` | One `RunCase` per line, one line per attempt, in the order they ran. |
 | `progress.ndjson` | One event per line as the run goes: the run with its cases, each case as it starts and ends, each step. `lynkeus case status` reads it. It is not part of `RUN_SCHEMA`. |
 | `<case id>/…` | What a case's steps point at: frames and a film. |

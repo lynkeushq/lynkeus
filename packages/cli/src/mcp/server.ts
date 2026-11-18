@@ -102,6 +102,8 @@ A long case opens each part of its steps with a numbered comment (# 1 Sign in, #
 
 For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.
 
+For a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.
+
 A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {

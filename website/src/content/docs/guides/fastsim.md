@@ -63,7 +63,9 @@ Then run the cases, one host per case:
 npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <bundle folder> {port}"
 ```
 
-Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
+Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. `case run` also gives each host the run's [launch facts](/reference/cli/#launch-facts): `--seed`, `--locale`, `--time-zone` and `--epoch` reach it as environment variables, and FastSim starts with that language, zone and clock.
+
+A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
 
 ## From an AI agent over MCP
 

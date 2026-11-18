@@ -61,7 +61,9 @@ Después corre los casos, con un host por caso:
 npx lynkeus case run <casos> --host-command "<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}"
 ```
 
-Lynkeus levanta un host en un puerto libre para cada caso, espera a que la app se conecte y lo detiene cuando el caso termina. Con `--jobs <n>` corren `n` casos a la vez, cada uno en su propio host. La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.err`; los errores de JavaScript y las líneas de la consola están en el `.err`.
+Lynkeus levanta un host en un puerto libre para cada caso, espera a que la app se conecte y lo detiene cuando el caso termina. Con `--jobs <n>` corren `n` casos a la vez, cada uno en su propio host. `case run` también le da a cada host los [datos de arranque](/es/reference/cli/#datos-de-arranque) de la ejecución: `--seed`, `--locale`, `--time-zone` y `--epoch` le llegan como variables de entorno, y FastSim arranca con ese idioma, esa zona y ese reloj.
+
+La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.err`; los errores de JavaScript y las líneas de la consola están en el `.err`.
 
 ## Desde un agente de IA por MCP
 

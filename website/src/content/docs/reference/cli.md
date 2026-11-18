@@ -1018,6 +1018,10 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
 | `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
 | `--once` | | No second chance for a case that fails. |
+| `--seed <text>` | `launch.seed`, then `LYNKEUS_SEED` | Makes `{{random.letters}}` and `{{random.digits}}` repeat from run to run, and tells a host the run starts. See [Launch facts](#launch-facts). |
+| `--locale <tag>` | `launch.locale`, then `LYNKEUS_LOCALE` | The language tag a host the run starts launches with, such as `es-AR`. |
+| `--time-zone <zone>` | `launch.timeZone`, then `LYNKEUS_TIME_ZONE` | The IANA time zone a host the run starts launches with, such as `Europe/Madrid`. |
+| `--epoch <iso>` | `launch.epoch`, then `LYNKEUS_EPOCH` | The instant the app's clock starts at on a host the run starts, as ISO 8601 or milliseconds since 1970. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
 | `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
 | `--report <file>` | | Append one JSON line per case to this file. |
@@ -1040,7 +1044,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--prepared <dir>` | | Where `case prepare` leaves setups made ahead. A case found there skips its setup. |
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
-| `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
+| `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number, and `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` by the run's [launch facts](#launch-facts) (empty when the run sets none). |
 | `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
 | `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
@@ -1068,6 +1072,24 @@ A long run says where it is, in three places.
 [`lynkeus case status`](#lynkeus-case-status) reads the file from any terminal. Over MCP, [`case_run`](/guides/ai-agents/) sends progress notifications to a client that passes a progress token.
 
 #### Hosts that die
+
+#### Launch facts
+
+A run can pin four facts the app would otherwise take from the machine it runs on: a `seed` for random values, the `locale`, the `time zone`, and the `epoch`, the instant the app's clock starts at. Each one comes from its flag, else from `launch` in [`lynkeus.config.json`](/reference/configuration/#launch), else from its environment variable. A value that cannot be used (`--time-zone Mars/Olympus`) stops the run before it starts, with exit code `2`.
+
+What each host does with them:
+
+| Host | seed | locale | time zone | epoch |
+|---|---|---|---|---|
+| Headless (`--host`) | `Math.random` repeats from the same place at launch and after each case | `react-native-localize` answers it | the host process runs in it (`TZ`) | `Date` starts there and runs on; `lynkeus clock --reset` returns to it |
+| `--host-command` | passed in the environment and in `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
+| Simulator or emulator, attached | the cases' own `{{random.*}}` values | not applied | not applied | not applied |
+
+A host started with `--host-command` receives `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (and `TZ`) and `LYNKEUS_EPOCH` in its environment, and the placeholders in the command. [Lynkeus FastSim](/guides/fastsim/) reads them as its defaults. A simulator or emulator that is only attached keeps the Mac's time zone and clock, so the run says on stderr which facts it could not pass on, and lists them under `launch.unsupported` in `run.json`. A run without the flags and without `launch` records nothing.
+
+```bash
+lynkeus case run --host --out run --seed 1 --locale es-AR --time-zone America/Argentina/Buenos_Aires --epoch 2026-03-01T09:00:00Z
+```
 
 A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, or with `--host-command` and `--keep-hosts` (one host per job), the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own (`lynkeus-headless-<pid>-2.log` in the temporary folder, the first being `lynkeus-headless-<pid>.log`), so the one that died keeps what explains it.
 

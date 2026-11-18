@@ -57,6 +57,7 @@ Si un caso falla y se reintenta, el segundo intento deja su evidencia en una car
 | `startedAt`, `finishedAt` | Cuándo empezó y terminó. |
 | `git` | El commit y la rama desde los que se ejecutó. |
 | `platform`, `native` | En qué corrió la app. |
+| `launch` | La `seed`, el idioma, la zona horaria y el `epoch` que la ejecución pidió al arrancar (ver [Datos de arranque](/es/reference/cli/#datos-de-arranque)); `launch.unsupported` nombra los que el host no pudo aplicar. Falta si no pidió ninguno. |
 | `totals` | Cuántos casos hubo y cuántos pasaron, fallaron, no pudieron correr en este host o necesitaron reintento. |
 
 El archivo se escribe al empezar y otra vez al terminar. Una ejecución interrumpida se reconoce porque no tiene `finishedAt` ni `totals`.

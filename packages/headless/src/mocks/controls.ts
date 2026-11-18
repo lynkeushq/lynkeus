@@ -57,11 +57,20 @@ const installAppState = () => {
   });
 };
 
+// LYNKEUS_EPOCH (set by `case run --epoch`): Date starts at that instant and runs on from there.
+const launchOffset = (): number => {
+  const epoch = process.env.LYNKEUS_EPOCH;
+  if (!epoch) return 0;
+  const at = Date.parse(epoch);
+  return Number.isNaN(at) ? 0 : at - Date.now();
+};
+
 // Timers stay real, so a countdown still ticks in real seconds. Installed
 // before the app loads, so a module that captures `Date` captures this one.
 const installClock = () => {
   const RealDate = Date;
-  let offsetMs = 0;
+  const launched = launchOffset();
+  let offsetMs = launched;
   class ControlledDate extends RealDate {
     constructor(...args: unknown[]) {
       if (args.length === 0) super(RealDate.now() + offsetMs);
@@ -73,11 +82,11 @@ const installClock = () => {
   }
   (globalThis as { Date: unknown }).Date = ControlledDate;
   onReset(() => {
-    offsetMs = 0;
+    offsetMs = launched;
   });
   qa.register('clock', (params) => {
     const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean };
-    if (p.reset) offsetMs = 0;
+    if (p.reset) offsetMs = launched;
     if (p.now) {
       const target = RealDate.parse(p.now);
       if (Number.isNaN(target)) throw new Error(`clock: cannot parse "${p.now}"`);
@@ -87,6 +96,29 @@ const installClock = () => {
     const now = new ControlledDate().toISOString();
     log(`clock → ${now} (offset ${Math.round(offsetMs / 1000)}s)`);
     return { now, offsetMs };
+  });
+};
+
+// LYNKEUS_SEED (set by `case run --seed`): Math.random repeats from the same place at launch and after every reset,
+// so the app draws the same ids and names in every run. crypto's generators are left alone.
+const installSeed = () => {
+  const seed = process.env.LYNKEUS_SEED;
+  if (!seed) return;
+  const start = (): number => {
+    let hash = 2166136261;
+    for (const char of seed) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    return hash >>> 0;
+  };
+  let state = start();
+  Math.random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  onReset(() => {
+    state = start();
   });
 };
 
@@ -298,6 +330,7 @@ export const installControls = (initialUrl: string | null = null): void => {
   installLinking(initialUrl);
   installAppState();
   installClock();
+  installSeed();
   installNetMock();
   installConnectivity();
   installDevices();
