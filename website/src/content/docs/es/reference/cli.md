@@ -565,7 +565,7 @@ lynkeus mock --release                           # la petición sigue y llega la
 lynkeus mock --list
 ```
 
-**Retener.** `--hold` es un filtro que va antes de todo lo demás: una petición que coincide espera antes de que la vea una regla o la red, y para la app es una petición que todavía no respondió. Sirve para mirar un estado de carga todo el tiempo que haga falta, o para que dos peticiones lleguen en el orden que elijas. Al soltarla, responde la regla o la red, como habría respondido antes. Un `reset` de la app y `--clear` sueltan lo que siga retenido, así que nada queda esperando, y una petición que la app canceló mientras tanto no se envía al soltarla.
+**Retener.** `--hold` es un filtro que va antes de todo lo demás: una petición que coincide espera antes de que la vea una regla o la red, y para la app es una petición que todavía no respondió. Sirve para mirar un estado de carga todo el tiempo que haga falta, o para que dos peticiones lleguen en el orden que elijas. Al soltarla, responde la regla o la red, como habría respondido antes. En el host sin pantalla un `reset` de la app, y en todos `--clear`, sueltan lo que siga retenido (Lynkeus FastSim conserva reglas y filtros tras un `reset`, porque cada caso tiene su propio host), así que nada queda esperando, y una petición que la app canceló mientras tanto no se envía al soltarla.
 
 Una petición retenida cuenta como en curso. `lynkeus idle` y el `--settle` de una captura la esperan y se rinden al agotar su tiempo, mientras que [`lynkeus clock --settle`](#lynkeus-os-clock) la nombra en `inFlight` y no la espera. Funciona en el host sin pantalla, en un dispositivo o simulador a través del agente y en Lynkeus FastSim.
 
