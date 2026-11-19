@@ -190,7 +190,7 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
     }
     throw error;
   };
-  return (input, init) => {
+  const send: Fetch = (input, init) => {
     const url = typeof input === 'string' ? input : ((input as { url?: string } | null)?.url ?? String(input));
     const refused = refuse(url);
     if (refused) return Promise.reject(new Error(`lynkeus headless: network to ${refused} is off (networkHosts)`));
@@ -218,6 +218,14 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       }
       return response;
     });
+  };
+  // A request the driver holds waits here, before any rule or the network sees it: the app shows its loading state
+  // for as long as the case wants.
+  return (input, init) => {
+    const url = typeof input === 'string' ? input : ((input as { url?: string } | null)?.url ?? String(input));
+    const method = String((init as { method?: string } | undefined)?.method ?? (input as { method?: string } | null)?.method ?? 'GET');
+    const held = netControls.hold(method, url);
+    return held ? held.then(() => send(input, init)) : send(input, init);
   };
 };
 

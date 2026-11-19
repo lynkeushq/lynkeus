@@ -339,9 +339,11 @@ Headless: what the next image picker answers
 
 Also accepted: `gallery`.
 
-### `lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]`
+### `lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]`
 
-Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)
+Answer a request before the network, or hold it until you release it (--hold, --release): a host stands in for the network, on a device the agent does it in the app (--sticky survives a host reset)
+
+With a route and no other flag, the matching requests are answered by a rule (`--status`, `--body`, `--delay`, `--times`, `--lost`). `--hold` is a gate instead: matching requests wait, as far as the app can tell still in flight, so a loading state stays on screen as long as you want; `--release [route]` lets the held ones go on, to a rule or to the network, oldest first, and the gate stays for the next requests (`--times n` holds only the first n). `--clear` drops every rule and gate and lets whatever is held go; so does an app reset on a host, unless the hold is `--sticky`. `--list` also shows what is held and for how long. A held request counts as in flight, so `idle` and a frame's `--settle` wait out their timeout while one is held; `clock --settle` reports it in `inFlight` and does not wait. Works wherever `--status` does (headless, a device with the agent, Lynkeus FastSim); a host that has no netmock answers `Unknown method`.
 
 | Argument | |
 |---|---|
@@ -355,8 +357,10 @@ Answer a request before the network: a host stands in for it, on a device the ag
 | `--times <n>` | only this many times |
 | `--sticky` | keep the rule across an app reset |
 | `--lost` | let the request reach the server and fail it on the way back |
-| `--clear` | drop every rule |
-| `--list` | show the rules |
+| `--hold` | hold matching requests where they are until --release (the route is required; --times holds only the first n) |
+| `--release` | let held requests go on: all of them, or those matching the route |
+| `--clear` | drop every rule and gate, and let held requests go |
+| `--list` | show the rules, the gates and what is held |
 
 ### `lynkeus os permissions <action> <service>`
 

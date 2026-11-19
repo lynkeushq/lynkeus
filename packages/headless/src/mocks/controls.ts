@@ -171,7 +171,18 @@ export type NetRule = {
   lost?: boolean;
 };
 type Recorded = { method: string; path: string; status: number; body: string };
-const net = { rules: [] as NetRule[], recording: false, recorded: [] as Recorded[] };
+/** A gate: requests that match wait where they are until `release`, then go on to a rule or the network. */
+type Hold = { method: string; path: string; times?: number; hits: number; sticky?: boolean };
+type Held = { method: string; path: string; since: number; go: () => void };
+const net = { rules: [] as NetRule[], holds: [] as Hold[], held: [] as Held[], recording: false, recorded: [] as Recorded[] };
+
+const releaseHeld = (route?: { method: string; path: string }): number => {
+  const [released, kept] = [[], []] as [Held[], Held[]];
+  for (const h of net.held) (!route || matches(route, h.method, h.path) ? released : kept).push(h);
+  net.held = kept;
+  for (const h of released) h.go();
+  return released.length;
+};
 
 export const pathOf = (url: string) => {
   try {
@@ -182,7 +193,7 @@ export const pathOf = (url: string) => {
   }
 };
 
-const matches = (rule: NetRule, method: string, path: string) =>
+const matches = (rule: Pick<NetRule, 'method' | 'path'>, method: string, path: string) =>
   (rule.method === '*' || rule.method === method) && (rule.path.startsWith('^') ? new RegExp(rule.path).test(path) : path.includes(rule.path));
 
 // Consulted by the fetch fence before the real network.
@@ -192,6 +203,17 @@ export const netControls = {
     const rule = net.rules.find((r) => (r.times === undefined || r.hits < r.times) && matches(r, method.toUpperCase(), path));
     if (rule) rule.hits += 1;
     return rule ?? null;
+  },
+  /** A promise that settles once the driver releases this request, or undefined when no hold applies to it. */
+  hold(method: string, url: string): Promise<void> | undefined {
+    const path = pathOf(url);
+    const gate = net.holds.find((h) => (h.times === undefined || h.hits < h.times) && matches(h, method.toUpperCase(), path));
+    if (!gate) return undefined;
+    gate.hits += 1;
+    log(`netmock: holding ${method.toUpperCase()} ${path}`);
+    return new Promise<void>((go) => {
+      net.held.push({ method: method.toUpperCase(), path, since: Date.now(), go });
+    });
   },
   async respond(rule: NetRule, ResponseCtor: new (body: string | null, init: { status: number; headers?: Record<string, string> }) => unknown) {
     if (rule.delayMs) await new Promise((resolve) => setTimeout(resolve, rule.delayMs));
@@ -209,6 +231,9 @@ const installNetMock = () => {
   onReset(() => {
     // A sticky rule outlives a reset: it is how a case makes the first load fail, since a login starts with one.
     net.rules = net.rules.filter((r) => r.sticky);
+    net.holds = net.holds.filter((h) => h.sticky);
+    // What the last app was waiting for goes on, so no promise is left hanging; the new app never sees the answers.
+    releaseHeld();
     net.recording = false;
   });
   qa.register('netmock', (params) => {
@@ -234,11 +259,27 @@ const installNetMock = () => {
         );
         return { rules: net.rules.length };
       }
+      case 'hold': {
+        if (!p.path) throw new Error('netmock: hold needs a path (substring, or ^regex)');
+        net.holds.unshift({ method: (p.method ?? '*').toUpperCase(), path: p.path, times: p.times, hits: 0, sticky: p.sticky });
+        return { holds: net.holds.length, held: net.held.length };
+      }
+      case 'release': {
+        const released = releaseHeld(p.path ? { method: (p.method ?? '*').toUpperCase(), path: p.path } : undefined);
+        log(`netmock: released ${released} held request(s)`);
+        return { released, held: net.held.length };
+      }
       case 'clear':
         net.rules = [];
+        net.holds = [];
+        releaseHeld();
         return { rules: 0 };
       case 'list':
-        return { rules: net.rules };
+        return {
+          rules: net.rules,
+          holds: net.holds,
+          held: net.held.map((h) => ({ method: h.method, path: h.path, heldMs: Date.now() - h.since })),
+        };
       case 'record':
         net.recording = true;
         net.recorded = [];

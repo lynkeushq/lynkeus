@@ -104,7 +104,9 @@ For a long suite: case_run with jobs, ports and host_command runs cases side by 
 
 For a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.
 
-A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.`;
+A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.
+
+To look at a loading state, a case holds the request and releases it later: app.mock with route and hold: true, the steps that look at the screen, then app.mock with release: true. A held request counts as in flight, so idle waits for it until its timeout.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

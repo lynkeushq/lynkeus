@@ -414,13 +414,23 @@ The arguments and flags of each command are in the [CLI reference](/reference/cl
 
 ### Mocked answers
 
-`app.mock` answers a request in place of the server, on the headless host and on a device alike. The same keys as the command's flags apply: `route`, `status`, `body`, `delay`, `times`, `sticky`, `lost`.
+`app.mock` answers a request in place of the server, on the headless host and on a device alike. The same keys as the command's flags apply: `route`, `status`, `body`, `delay`, `times`, `sticky`, `lost`, `hold`, `release`.
 
 ```yaml
 - app.mock: { route: "GET /v3/accounts", status: 500 }
 - app.mock: { route: "GET /v3/accounts", body: "[]", times: 1 }
 - app.mock: { route: "POST /v3/payments", lost: true }
 - app.mock: clear
+```
+
+To keep a loading state on screen, hold the request, check the screen, then release it:
+
+```yaml
+- app.mock: { route: "GET /v3/accounts", hold: true }
+- app.press: "#refresh"
+- app.see: "#accounts-spinner"
+- app.mock: { release: true }
+- app.see: "#accounts-list"
 ```
 
 With `lost: true` the request is sent and reaches the server, and only its answer is lost: the app sees a failed request, as after a dropped connection, and the server has acted on it. Use it to check what the app does when it cannot know whether a payment went through.
