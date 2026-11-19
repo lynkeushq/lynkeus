@@ -232,7 +232,8 @@ The other keys under `cases`: `start` (the screen `case new` begins on),
 the fixture is asked after each app step with `{ since }` and answers
 `{ events: [{ name, props, provider? }] }`, the backend's own analytics),
 `appEvents` (`{ provider }`: the service the app's own events go to, so a report
-names it instead of "App") and `nativeMocks` ([HEADLESS.md](HEADLESS.md)). The
+names it instead of "App") and `nativeMocks` ([HEADLESS.md](HEADLESS.md): what a native SDK answers, and the
+values of native constants the host does not know). The
 defaults are `dir: "cases"`, `flows: "flows"` and `inspect: "inspect"`.
 
 ## What a run leaves

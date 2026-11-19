@@ -7,9 +7,10 @@ import { qa } from 'lynkeus-agent';
 import { createElement, useSyncExternalStore, type ReactElement } from 'react';
 
 import { log, onReset } from '../runtime.js';
+import { applyNativeValues, type NativeValueEntry } from './nativeValues.js';
 
 type Screen = { title?: string; subtitle?: string; image?: string; buttons?: Record<string, unknown> };
-type NativeMock = { result?: unknown; screen?: Screen };
+type NativeMock = { result?: unknown; screen?: Screen } & NativeValueEntry;
 type Shown = { key: string; screen: Screen; resolve: (result: unknown) => void };
 
 // Without configuration, the SDK's own screen stands in as a titled page, and the answers are the ones its
@@ -69,6 +70,7 @@ export const configureNativeMocks = (params: { replace?: Record<string, NativeMo
   }
   for (const [key, mock] of Object.entries(params.replace ?? {})) if (mock === null) delete mocks[key];
   standIn();
+  applyNativeValues({ ...params.replace, ...params.set });
   return { mocked: Object.keys(mocks).sort() };
 };
 
@@ -79,6 +81,8 @@ type RN = { NativeModules: Record<string, Record<string, unknown> | undefined> }
 const standIn = () => {
   const rn = require('react-native') as RN;
   for (const key of Object.keys(mocks)) {
+    // An entry that sets a constant (`value`, `ios`, `android`, `absent`) is nativeValues.ts's, not a call.
+    if (!('result' in mocks[key]!) && !mocks[key]!.screen) continue;
     const [module, method] = key.split('.') as [string, string];
     // NativeEventEmitter asks a module for these before it listens.
     const target = rn.NativeModules[module] ?? { addListener: () => undefined, removeListeners: () => undefined };
