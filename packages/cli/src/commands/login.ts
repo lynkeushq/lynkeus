@@ -25,7 +25,7 @@ export type Credential = {
 export const DEFAULT_CLOUD = 'https://lynkeus.io';
 const SCOPE = 'fastsim:download';
 const REFRESH_MARGIN_MS = 60_000;
-const LOGIN_TIMEOUT_MS = 5 * 60_000;
+const LOGIN_TIMEOUT_MS = 15 * 60_000;
 
 export const cloudUrl = (flag: unknown): string => serviceBase(typeof flag === 'string' ? flag : (process.env.LYNKEUS_REPORTS_URL ?? DEFAULT_CLOUD));
 
@@ -145,7 +145,7 @@ type Callback = { params: URLSearchParams; answer: (html: string) => void };
 // The browser's request stays open until the caller has the outcome, so the page can say how the sign-in ended.
 const waitForCallback = (server: ReturnType<typeof createServer>, timeoutMs: number): Promise<Callback> =>
   new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timed out waiting for the browser sign-in (5 minutes)')), timeoutMs);
+    const timer = setTimeout(() => reject(new Error('timed out waiting for the browser sign-in (15 minutes)')), timeoutMs);
     let taken = false;
     server.on('request', (req, res) => {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -224,7 +224,11 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
     const denied = params.get('error');
     if (denied) {
       const description = params.get('error_description');
-      const error = new Error(`the sign-in was refused: ${[denied, description].filter(Boolean).join(': ')}`);
+      const error = new Error(
+        denied === 'access_denied'
+          ? `You chose Deny on ${new URL(cloud).host}: not signed in. To try again: ${command}`
+          : `the sign-in was refused: ${[denied, description].filter(Boolean).join(': ')}`,
+      );
       fail(denied === 'access_denied' ? failureReason.denied : failureReason.service(description || denied), error);
     }
     const code = params.get('code');
@@ -269,7 +273,7 @@ export const loginCommands = [
     group: 'runs',
     summary: 'Sign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key',
     details:
-      'Opens the sign-in page of the reports service (LYNKEUS_REPORTS_URL, https://lynkeus.io by default) in your browser, where you sign in and pick the organization. A short-lived listener on 127.0.0.1 receives the answer, once, for at most 5 minutes; the sign-in uses PKCE, and the CLI registers itself with the service for each login. The tokens are saved in ~/.config/lynkeus/credentials.json (XDG_CONFIG_HOME moves it; the file is readable only by you), one entry per service address. `lynkeus fastsim install` uses them when LYNKEUS_CLOUD_KEY is not set, and renews them as they expire. lynkeus logout removes them. Exit code 1 when the sign-in fails or is refused.',
+      'Opens the sign-in page of the reports service (LYNKEUS_REPORTS_URL, https://lynkeus.io by default) in your browser, where you sign in and pick the organization. A short-lived listener on 127.0.0.1 receives the answer, once, for at most 15 minutes; the sign-in uses PKCE, and the CLI registers itself with the service for each login. The tokens are saved in ~/.config/lynkeus/credentials.json (XDG_CONFIG_HOME moves it; the file is readable only by you), one entry per service address. `lynkeus fastsim install` uses them when LYNKEUS_CLOUD_KEY is not set, and renews them as they expire. lynkeus logout removes them. Exit code 1 when the sign-in fails or is refused.',
     flags: {
       cloud: { type: 'string', help: 'service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)', value: 'url' },
       'no-browser': { type: 'boolean', help: 'print the sign-in address instead of opening it' },

@@ -89,7 +89,7 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
 
-**`set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download Lynkeus FastSim"`.** Código de salida 2. El comando no encontró ni una clave ni una sesión. Exporta una clave, o ponla en `[env]` de `mise.local.toml`, o, si eres miembro con un lugar, vuelve a ejecutarlo desde una terminal: te hace iniciar sesión. Este código es lo que reciben un script, el CI o MCP cuando no hay con qué iniciar sesión.
+**`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Código de salida 2. El comando no encontró ni una sesión ni una clave. Si eres una persona en una terminal, ejecuta `lynkeus login` (o vuelve a lanzar el comando desde una terminal: te hace iniciar sesión). En el CI, exporta `LYNKEUS_CLOUD_KEY` con una API key que un owner creó con **May download Lynkeus FastSim**, o ponla en `[env]` de `mise.local.toml`. Este código es lo que reciben un script, el CI o MCP cuando no hay con qué iniciar sesión.
 
 **`this key may not download Lynkeus FastSim`.** La key se creó sin **May download Lynkeus FastSim**. Pídele a un owner de la organización una key creada con esa opción.
 
