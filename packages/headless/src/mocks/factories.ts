@@ -132,10 +132,10 @@ export const safeAreaContext: MockFactory = () => {
   };
 };
 
-export type LocaleDefault = { country?: string; languageTag?: string; languageCode?: string };
+export type LocaleDefault = { country?: string; languageTag?: string; languageCode?: string; timeZone?: string };
 
 export const localize =
-  ({ country = 'US', languageTag = 'en-US', languageCode = 'en' }: LocaleDefault = {}): MockFactory =>
+  ({ country = 'US', languageTag = 'en-US', languageCode = 'en', timeZone = 'America/New_York' }: LocaleDefault = {}): MockFactory =>
   () => {
     // The real one answers with a tag the app supports (a plain 'fr' when that
     // is what it ships), never the device's own.
@@ -150,7 +150,7 @@ export const localize =
       getCurrencies: () => ['USD'],
       getCalendar: () => 'gregorian',
       getTemperatureUnit: () => 'celsius',
-      getTimeZone: () => 'America/New_York',
+      getTimeZone: () => timeZone,
       uses24HourClock: () => false,
       usesMetricSystem: () => true,
       usesAutoDateAndTime: () => undefined,

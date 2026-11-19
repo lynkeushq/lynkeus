@@ -117,6 +117,17 @@ The token is not a configuration key, because it is a secret and the config file
 | `live` | string[] | none | Regular expressions for the `testID`s of controls whose content changes on its own: a ticking clock, a countdown. Their text stops counting as a commit. Without this, `idle` waits out its whole timeout on every screen that shows one. |
 | `strictMode` | boolean | `false` | Keep `React.StrictMode` in the headless host. It is off by default because its double renders inflate every request, commit and millisecond the host measures. |
 
+## Launch
+
+What `lynkeus case run` launches hosts with when its flags do not say. See [Launch facts](/reference/cli/#launch-facts).
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `launch.seed` | string or number | none | Makes random values repeat. Same as `--seed`. |
+| `launch.locale` | string | none | A language tag such as `es-AR`. Same as `--locale`. |
+| `launch.timeZone` | string | none | An IANA time zone such as `Europe/Madrid`. Same as `--time-zone`. |
+| `launch.epoch` | string | none | The instant the app's clock starts at, ISO 8601. Same as `--epoch`. |
+
 ## Language
 
 Lynkeus never reads your copy. It passes these values on, and three things use them: `lynkeus os language` defaults to them, the entry that `headless init` generates mocks this locale, and `lynkeus mcp` reports them so that a model reading the screens knows their language.

@@ -57,6 +57,17 @@ export type InstallOptions = {
   initialUrl?: string | null;
 };
 
+// `case run --locale` and `--time-zone` reach the host as LYNKEUS_LOCALE and LYNKEUS_TIME_ZONE and win over the entry's defaults.
+export const launchLocale = (base: LocaleDefault = {}, env: NodeJS.ProcessEnv = process.env): LocaleDefault => {
+  const tag = env.LYNKEUS_LOCALE;
+  const parsed = tag ? new Intl.Locale(tag) : undefined;
+  return {
+    ...base,
+    ...(parsed ? { languageTag: parsed.toString(), languageCode: parsed.language, ...(parsed.region ? { country: parsed.region } : {}) } : {}),
+    ...(env.LYNKEUS_TIME_ZONE ? { timeZone: env.LYNKEUS_TIME_ZONE } : {}),
+  };
+};
+
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '::1', '10.0.2.2'];
 
 // A hosted app must not reach third parties (analytics, auth providers): refuse
@@ -414,7 +425,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     'react-native-keychain': keychain,
     'react-native-device-info': deviceInfo(options.deviceVersion),
     'react-native-safe-area-context': safeAreaContext,
-    'react-native-localize': localize(options.locale),
+    'react-native-localize': localize(launchLocale(options.locale)),
     '@react-native-async-storage/async-storage': asyncStorage,
     'react-native-worklets': worklets,
     'react-native-pager-view': pagerView,

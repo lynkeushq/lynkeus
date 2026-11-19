@@ -494,7 +494,7 @@ Los tipos de esta página (`Screen`, `Element`, `Target`, `CoreMethods` y los de
 
 ## El archivo de una ejecución
 
-`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`. Un `RunStep` de `steps` lleva `heading` cuando el caso numera sus secciones (`# 3 Un PIN equivocado` se lee `3 Un PIN equivocado`), para que un lector agrupe los pasos como el caso; los de `setup`, y los anteriores al primer comentario numerado, no lo tienen.
+`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` (que anota en `launch` la seed, el idioma, la zona horaria y el epoch con que se pidió arrancar) y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`. Un `RunStep` de `steps` lleva `heading` cuando el caso numera sus secciones (`# 3 Un PIN equivocado` se lee `3 Un PIN equivocado`), para que un lector agrupe los pasos como el caso; los de `setup`, y los anteriores al primer comentario numerado, no lo tienen.
 
 Si escribes algo que lee ese directorio, como un tablero o un script, ten en cuenta dos reglas. A un campo existente nunca se le cambia el significado: solo se agregan campos. Y un cambio que sí altere un significado sube el número `schema` de `run.json` (hoy `1`); un lector debe rechazar un `schema` que no conoce.
 

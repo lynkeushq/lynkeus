@@ -157,3 +157,16 @@ test('evidenceDir keeps every id inside the run folder', () => {
     for (const attempt of [1, 2]) assert.equal(path.dirname(run.evidenceDir(id, attempt)), path.join(dir, 'run'));
   }
 });
+
+test('the run file keeps the launch facts the run asked for', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-launch-'));
+  const launch = { seed: '7', timeZone: 'Europe/Madrid', unsupported: ['timeZone' as const] };
+  const run = new RunFile(dir, root, new Date(), launch);
+  run.finish();
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'run.json'), 'utf8')) as RunManifest;
+  assert.deepEqual(manifest.launch, launch);
+  assert.equal(manifest.schema, RUN_SCHEMA);
+  const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-nolaunch-'));
+  new RunFile(plain, root);
+  assert.equal('launch' in (JSON.parse(fs.readFileSync(path.join(plain, 'run.json'), 'utf8')) as object), false);
+});

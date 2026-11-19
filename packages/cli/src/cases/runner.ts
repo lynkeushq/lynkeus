@@ -153,6 +153,8 @@ export type RunOptions = {
   setupOnly?: { keep: (prepared: Prepared) => void };
   /** Keep running a case's steps after one fails, to see everything that is wrong in one pass. */
   continue?: boolean;
+  /** The run's seed, from `--seed` or the config; `LYNKEUS_SEED` when absent. */
+  seed?: string;
   /** Each step as it starts and as it ends, for a run's progress: where it is in the case and the section it is in. */
   onStep?: (step: StepProgress) => void;
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
@@ -465,7 +467,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
   const scope: Scope = structuredClone(options.prepared?.scope ?? {});
-  seeded(scope, c.id);
+  seeded(scope, c.id, options.seed);
   const ran = new Set<string>(options.prepared?.ran ?? []);
   const latest: Record<string, unknown> = structuredClone(options.prepared?.latest ?? {});
   const started = Date.now();

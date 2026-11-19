@@ -123,6 +123,23 @@ export type RunCase = {
   video?: string;
 };
 
+/** The four facts a run can pin at launch. */
+export type RunLaunchFact = 'seed' | 'locale' | 'timeZone' | 'epoch';
+
+/**
+ * What the run asked its hosts to start with. `seed` makes random values repeatable, `locale` is a language tag
+ * (`es-AR`), `timeZone` an IANA name, `epoch` the instant (ISO 8601, UTC) the app's clock starts at. `unsupported`
+ * names the facts that were asked for and the host the run used could not apply (an attached simulator or emulator
+ * has the Mac's time zone and clock); the run is still valid, it just did not have them.
+ */
+export type RunLaunch = {
+  seed?: string;
+  locale?: string;
+  timeZone?: string;
+  epoch?: string;
+  unsupported?: RunLaunchFact[];
+};
+
 export type RunManifest = {
   schema: typeof RUN_SCHEMA;
   /** ISO 8601. */
@@ -149,6 +166,8 @@ export type RunManifest = {
     changedCount?: number;
     pushed?: { branch: boolean; commit: boolean };
   };
+  /** The seed, locale, time zone and epoch the run was asked to launch with; absent when it asked for none. */
+  launch?: RunLaunch;
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

@@ -8,6 +8,15 @@ const names = (id: string): string[] => {
   return [interpolate('{{random.letters}}', scope), interpolate('{{random.letters}}', scope), interpolate('{{random.digits}}', scope)];
 };
 
+const names2 = (seed: string, id: string): string[] => {
+  process.env.LYNKEUS_SEED = seed;
+  try {
+    return names(id);
+  } finally {
+    delete process.env.LYNKEUS_SEED;
+  }
+};
+
 afterEach(() => {
   delete process.env.LYNKEUS_SEED;
 });
@@ -37,4 +46,13 @@ test('a setup made ahead hands its place in the sequence to the case', () => {
 
 test('without a seed every run differs', () => {
   assert.notDeepEqual(names('send-money'), names('send-money'));
+});
+
+test('a seed given to the run beats LYNKEUS_SEED', () => {
+  process.env.LYNKEUS_SEED = 'env';
+  const scope: Scope = {};
+  seeded(scope, 'send-money', 'flag');
+  const given = [interpolate('{{random.letters}}', scope), interpolate('{{random.letters}}', scope), interpolate('{{random.digits}}', scope)];
+  delete process.env.LYNKEUS_SEED;
+  assert.deepEqual(given, names2('flag', 'send-money'));
 });

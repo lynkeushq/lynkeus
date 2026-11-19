@@ -19,6 +19,9 @@ Hay tres lectores posibles. El **CLI** es el proceso `lynkeus` que ejecutas en l
 | [`LYNKEUS_ATTACH_TIMEOUT_MS`](#lynkeus_attach_timeout_ms) | CLI | Cuánto esperar a que la app se conecte. |
 | [`LYNKEUS_CONFIG`](#lynkeus_config) | CLI | Un segundo archivo de configuración. |
 | [`LYNKEUS_SEED`](#lynkeus_seed) | CLI | Vuelve repetibles los valores al azar de los casos. |
+| [`LYNKEUS_LOCALE`](#lynkeus_locale-lynkeus_time_zone-y-lynkeus_epoch) | CLI, host sin pantalla | La etiqueta de idioma con la que arranca el host. |
+| [`LYNKEUS_TIME_ZONE`](#lynkeus_locale-lynkeus_time_zone-y-lynkeus_epoch) | CLI, host sin pantalla | La zona horaria con la que arranca el host. |
+| [`LYNKEUS_EPOCH`](#lynkeus_locale-lynkeus_time_zone-y-lynkeus_epoch) | CLI, host sin pantalla | El instante en que empieza el reloj de la app. |
 | [`LYNKEUS_RECORD_SCREENS`](#lynkeus_record_screens) | CLI | Graba la estructura de cada pantalla que se lee. |
 | [`LYNKEUS_REPORTS_URL`](#lynkeus_reports_url-y-lynkeus_reports_key) | CLI | La dirección del servicio de reportes. |
 | [`LYNKEUS_REPORTS_KEY`](#lynkeus_reports_url-y-lynkeus_reports_key) | CLI | La clave de API de la organización. |
@@ -157,6 +160,16 @@ Sin la variable, esos valores son nuevos cada vez. Con ella definida con cualqui
 
 ```bash
 LYNKEUS_SEED=1 npx lynkeus case run --out run --screenshots
+```
+
+La opción `--seed` y la clave `launch.seed` de `lynkeus.config.json` tienen prioridad sobre la variable. Los hosts que arranca la ejecución también la reciben, y el host sin pantalla hace que `Math.random` se repita: ver [Datos de arranque](/es/reference/cli/#datos-de-arranque).
+
+### `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` y `LYNKEUS_EPOCH`
+
+El CLI las lee como última fuente de `--locale`, `--time-zone` y `--epoch`, y las lee también el host que arranca la ejecución. Cuando `case run --host` o `--host-command` levantan el host, el CLI las pone en su entorno (y `TZ` con la zona horaria), así que casi nunca hace falta definirlas a mano. El host sin pantalla responde con ellas a `react-native-localize` y arranca `Date` en el epoch. [Lynkeus FastSim](/es/guides/fastsim/) las usa como valores por defecto de `--locale`, `--timezone` y `--epoch`.
+
+```bash
+LYNKEUS_TIME_ZONE=Europe/Madrid LYNKEUS_EPOCH=2026-03-01T09:00:00Z npx lynkeus case run --host
 ```
 
 Los valores dependen de la semilla y del id del caso. Cambiar el valor de la semilla cambia todos los valores.
