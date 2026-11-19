@@ -37,6 +37,7 @@ export const Probe = () => {
   return (
     <View style={{ flex: 1, padding: 24, gap: 12, justifyContent: 'center' }}>
       <Text testID="started-at">{startedAt}</Text>
+      <Text testID="zone-offset">{`UTC${-new Date().getTimezoneOffset()}`}</Text>
       <Text testID="random">{random}</Text>
       <Button
         testID="start-timer"
