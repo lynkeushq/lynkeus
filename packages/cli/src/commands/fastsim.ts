@@ -259,6 +259,44 @@ export type SignInDeps = {
   open?: LoginOptions['open'];
 };
 
+/** The variant of an installed licensed Lynkeus FastSim whose `bin/fastsim-run` a host command starts; undefined for any other command. */
+export const licensedFastsimVariant = (command: string, cwd: string): string | undefined => {
+  const run = /(?:^|[\s"'=])((?:[^\s"']*\/)?bin\/fastsim-run)(?=[\s"']|$)/.exec(command)?.[1];
+  if (!run) return undefined;
+  try {
+    const kit = path.dirname(path.dirname(path.resolve(cwd, run.replace(/^~(?=\/)/, os.homedir()))));
+    const variant = fs.readFileSync(path.join(kit, 'share', 'licensed'), 'utf8').trim();
+    return RELEASE_PART.test(variant) ? variant : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+export type HostGrantOptions = { deps?: SignInDeps; fetchImpl?: typeof fetch; env?: NodeJS.ProcessEnv };
+
+/**
+ * The environment a host started by `command` needs: a licensed Lynkeus FastSim host gets FASTSIM_GRANT from the same
+ * credentials, cache and variant as `lynkeus fastsim grant`, so it does not depend on `npx --no-install lynkeus` finding
+ * lynkeus. Any other host command, or a FASTSIM_GRANT already set, adds nothing. A grant that cannot be had is a failed run.
+ */
+export const hostGrantEnv = async (ctx: Ctx, command: string, o: HostGrantOptions = {}): Promise<{ env: NodeJS.ProcessEnv } | { failed: Result }> => {
+  const base = o.env ?? process.env;
+  const variant = licensedFastsimVariant(command, ctx.root);
+  if (!variant || base.FASTSIM_GRANT) return { env: base };
+  try {
+    const cloud = cloudUrl(undefined);
+    const got = await withCredentials(ctx, o.deps ?? {}, cloud, async (key, signedIn) => {
+      const grant = await fetchGrant({ cloud, key, variant, signedIn, fetchImpl: o.fetchImpl });
+      if (grant.warning) ctx.err(`warning: ${grant.warning}`);
+      return grant;
+    });
+    if (!got) return { failed: { text: NO_CREDENTIALS(cloud), code: 2 } };
+    return { env: { ...base, FASTSIM_GRANT: got.grant } };
+  } catch (error) {
+    return { failed: { text: (error as Error).message, code: 1 } };
+  }
+};
+
 // Scripts, CI and MCP servers never wait on a browser: only a person at a terminal is sent to sign in.
 const bothTty = () => process.stdin.isTTY === true && process.stderr.isTTY === true;
 
