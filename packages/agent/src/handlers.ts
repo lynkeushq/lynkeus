@@ -4,7 +4,7 @@ import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
 import { host } from './registry';
-import { recentRequests, requestsInFlight } from './requests';
+import { recentRequests, requestsHeld, requestsInFlight } from './requests';
 import { lastSeq, traceSince } from './trace';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -435,7 +435,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await Linking.openURL(params.url);
       return { opened: params.url };
     },
-    requests: (params) => ({ inFlight: requestsInFlight(), requests: recentRequests(params?.since) }),
+    requests: (params) => ({ inFlight: requestsInFlight(), held: requestsHeld(), requests: recentRequests(params?.since) }),
     trace: (params) => ({ last: lastSeq(), events: traceSince(params?.since) }),
     dismissKeyboard: async () => {
       await backend.dismissKeyboard();

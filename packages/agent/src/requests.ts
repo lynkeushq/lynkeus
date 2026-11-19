@@ -1,6 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
-import { answer, holdFor, installNetmock, loseAnswer, mockFor } from './netmock';
+import { answer, heldCount, holdFor, installNetmock, loseAnswer, mockFor } from './netmock';
 import { redactString, redactText, SENSITIVE, sensitiveKey } from './redact';
 
 const KEEP = 200;
@@ -243,4 +243,8 @@ export const trackRequests = (): void => {
 
 export const recentRequests = (since?: number): RequestRecord[] => (since === undefined ? [...records] : records.filter((r) => r.id > since));
 
-export const requestsInFlight = (): number => inFlight;
+// A held request is kept out of this count: the point of holding it is to look at the loading state, so `idle`, a
+// frame's settle and `clock --settle` must not wait for it. It is reported apart, by `requestsHeld`.
+export const requestsInFlight = (): number => Math.max(0, inFlight - heldCount());
+
+export const requestsHeld = (): number => heldCount();

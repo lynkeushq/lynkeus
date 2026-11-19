@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
-import { host } from 'lynkeus-agent';
+import { host, requestsHeld } from 'lynkeus-agent';
 
 import { connectivityControls, installControls, netControls, type NetRule, setSettleProbe } from '../mocks/controls.js';
 import { reset } from '../runtime.js';
@@ -194,6 +194,14 @@ describe('netmock hold', () => {
     expect(await settled(b)).toBe(true);
     expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeUndefined();
     expect(netControls.hold('GET', 'https://api.test/v3/user')).toBeInstanceOf(Promise);
+  });
+
+  it('does not count a held request as in flight, and reports it apart', () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    void netControls.hold('GET', 'https://api.test/v3/accounts');
+    expect(requestsHeld()).toBe(1);
+    netmock({ action: 'release' });
+    expect(requestsHeld()).toBe(0);
   });
 
   it('refuses a hold without a route', () => {

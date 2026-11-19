@@ -181,7 +181,7 @@ Elements that are hidden are never matched, with one exception: an `inert` eleme
 | [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | [`idle`](#idle) | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | [`deepLink`](#deeplink) | `{ url }` | `{ opened }` |
-| [`requests`](#requests) | `{ since? }` | `{ inFlight, requests }` |
+| [`requests`](#requests) | `{ since? }` | `{ inFlight, held, requests }` |
 | [`trace`](#trace) | `{ since? }` | `{ last, events }` |
 | [`dismissKeyboard`](#dismisskeyboard) | none | `true` |
 | [`batch`](#batch) | `{ calls }` | `{ results }` |
@@ -301,7 +301,7 @@ Takes `{ url }` and opens it in the app as the OS would hand it over. It answers
 
 ### `requests`
 
-Answers `{ inFlight, requests }`: how many HTTP requests are in flight, and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
+Answers `{ inFlight, held, requests }`: how many HTTP requests are in flight, how many more are held by a `netmock` hold (not counted in `inFlight`, and not waited for by `idle`), and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
 
 The app keeps the last 200 requests. It records no headers and no bodies, unless a driver turned on the `networkBodies` command; then the requests that follow keep both, with secrets replaced by `…` and each body cut at 16,000 characters.
 

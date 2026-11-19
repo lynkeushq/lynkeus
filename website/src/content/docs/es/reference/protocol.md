@@ -176,7 +176,7 @@ type Target =
 | `waitFor` | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
-| `requests` | `{ since? }` | `{ inFlight, requests }` |
+| `requests` | `{ since? }` | `{ inFlight, held, requests }` |
 | `trace` | `{ since? }` | `{ last, events }` |
 | `dismissKeyboard` | ninguno | `true` |
 | `batch` | `{ calls: [{ method, params? }] }` | `{ results }` |
@@ -269,6 +269,8 @@ Estos son los valores por defecto del protocolo. El CLI envía los suyos: `lynke
 ### `requests` y `trace`
 
 `requests` devuelve las peticiones HTTP que hizo la app, y `trace`, la línea de tiempo completa. Los dos aceptan `since` para pedir solo lo nuevo: en `requests` es el `id` de la última petición que ya viste, y en `trace`, el número de secuencia que vino en `last`.
+
+`requests` responde también `inFlight` (peticiones aún abiertas) y `held` (las retenidas por un `hold` de `netmock`, que no cuentan en `inFlight` ni las espera `idle`).
 
 Sus formas están más abajo, en [`RequestRecord`](#requestrecord) y [`TraceEvent`](#traceevent).
 

@@ -17,7 +17,8 @@ export { reactNavigationAdapter, noNavigation } from './navigation';
 export type { NavigationAdapter, RouteInfo } from './navigation';
 export { PROTOCOL_VERSION } from './protocol';
 export { record as traceRecord } from './trace';
-export { requestsInFlight } from './requests';
+export { requestsHeld, requestsInFlight } from './requests';
+export { countHeldFrom } from './netmock';
 export type {
   AgentEvent,
   AuthEvent,

@@ -1,7 +1,7 @@
 // What a device gets from the OS, set by the driver at run time as `qa`
 // commands: deep links, app state, the clock, the network and its answers,
 // and the sensors, camera, picker and WebViews the factories stand in for.
-import { qa } from 'lynkeus-agent';
+import { countHeldFrom, qa } from 'lynkeus-agent';
 import { AppState, Linking } from 'react-native';
 
 import { log, onReset } from '../runtime.js';
@@ -130,8 +130,8 @@ const installSeed = () => {
   });
 };
 
-/** What `clock --settle` reads from the host: how many commits the screen has had and how many requests are out. */
-export type SettleProbe = { commits: () => number; inFlight: () => number };
+/** What `clock --settle` reads from the host: how many commits the screen has had, how many requests are out and how many are held. */
+export type SettleProbe = { commits: () => number; inFlight: () => number; held?: () => number };
 let probe: SettleProbe | undefined;
 export const setSettleProbe = (next: SettleProbe | undefined): void => {
   probe = next;
@@ -155,7 +155,7 @@ const settle = async () => {
     turns += 1;
     quiet = probe.commits() === before ? quiet + 1 : 0;
   }
-  return { settled: quiet >= SETTLE_QUIET_TURNS, turns, commit: probe.commits(), inFlight: probe.inFlight() };
+  return { settled: quiet >= SETTLE_QUIET_TURNS, turns, commit: probe.commits(), inFlight: probe.inFlight(), held: probe.held?.() ?? 0 };
 };
 
 export type NetRule = {
@@ -228,6 +228,7 @@ export const netControls = {
 };
 
 const installNetMock = () => {
+  countHeldFrom(() => net.held.length);
   onReset(() => {
     // A sticky rule outlives a reset: it is how a case makes the first load fail, since a login starts with one.
     net.rules = net.rules.filter((r) => r.sticky);

@@ -160,7 +160,7 @@ describe('netmock on a device', () => {
     g.XMLHttpRequest = RnXhr;
     try {
       await jest.isolateModulesAsync(async () => {
-        const { trackRequests, requestsInFlight } = require('../requests') as typeof import('../requests');
+        const { trackRequests, requestsHeld, requestsInFlight } = require('../requests') as typeof import('../requests');
         const { host } = require('../registry') as typeof import('../registry');
         trackRequests();
         const netmock = host.get('netmock')!;
@@ -174,9 +174,10 @@ describe('netmock on a device', () => {
         free.open('GET', 'http://localhost:3000/api/v3/other');
         free.send();
         await new Promise((r) => setTimeout(r, 5));
-        // Only the request nobody held went out; the held one is still counted as in flight.
+        // Only the request nobody held went out; the held one is reported apart, not waited for.
         expect(sent).toEqual(['http://localhost:3000/api/v3/other']);
-        expect(requestsInFlight()).toBe(2);
+        expect(requestsInFlight()).toBe(1);
+        expect(requestsHeld()).toBe(1);
         expect(await netmock({ action: 'list' })).toMatchObject({ held: [{ method: 'GET', path: '/api/v3/activities?page=1' }] });
 
         // A release for another route lets nothing through.

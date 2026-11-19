@@ -633,7 +633,7 @@ lynkeus mock --clear
 
 **Holding.** `--hold` is a gate in front of everything else: a matching request waits before any rule or the network sees it, and to the app it is a request that has not answered yet. Use it to look at a loading state for as long as you need, or to make two requests arrive in an order you choose. When the request is released, the rule or the network answers it as it would have. On the headless host an app `reset`, and everywhere `--clear`, release whatever is still held (Lynkeus FastSim keeps rules and gates across a `reset`, since each case has its own host), so nothing is left waiting, and a request the app aborted meanwhile is not sent when released.
 
-A held request counts as in flight. `lynkeus idle` and a screenshot's `--settle` wait for it and give up at their timeout, and [`lynkeus clock --settle`](#lynkeus-os-clock) names it in `inFlight` and does not wait. It works on the headless host, on a device or simulator through the agent, and on Lynkeus FastSim.
+A held request is not waited for: `lynkeus idle`, a screenshot's `--settle` and [`lynkeus clock --settle`](#lynkeus-os-clock) all go on without it, because the point of holding it is to look at the loading state. `lynkeus requests` and `clock --settle` report it apart, as `held`, and leave it out of `inFlight`. It works on the headless host, on a device or simulator through the agent, and on Lynkeus FastSim.
 
 ### `lynkeus os permissions`
 

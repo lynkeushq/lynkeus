@@ -177,7 +177,7 @@ export type CoreMethods = {
   deepLink: { params: { url: string }; result: { opened: string } };
   requests: {
     params: { since?: number } | undefined;
-    result: { inFlight: number; requests: RequestRecord[] };
+    result: { inFlight: number; held?: number; requests: RequestRecord[] };
   };
   trace: {
     params: { since?: number } | undefined;

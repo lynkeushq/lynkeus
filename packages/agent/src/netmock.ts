@@ -22,6 +22,15 @@ type Held = { method: string; path: string; since: number; go: () => void };
 let rules: NetRule[] = [];
 let holds: Hold[] = [];
 let held: Held[] = [];
+let outside: () => number = () => 0;
+
+/** A host that holds requests itself (the headless fence) says how many it holds, so they are counted as held. */
+export const countHeldFrom = (count: () => number): void => {
+  outside = count;
+};
+
+/** Requests waiting for a release: out as far as the app can tell, but not something a wait should wait for. */
+export const heldCount = (): number => held.length + outside();
 
 const pathOf = (url: string) => {
   try {
