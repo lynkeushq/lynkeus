@@ -4,13 +4,13 @@ import v8 from 'node:v8';
 import vm from 'node:vm';
 import { render } from '@testing-library/react-native';
 import { Component, createElement, Fragment, type ReactElement, type ReactNode } from 'react';
-import { host, noNavigation, qa, start, traceRecord, type ClientOptions, type NavigationAdapter, type Socket } from 'lynkeus-agent';
+import { host, noNavigation, qa, requestsInFlight, start, traceRecord, type ClientOptions, type NavigationAdapter, type Socket } from 'lynkeus-agent';
 import { autoWrapper } from 'lynkeus-agent/auto';
 import * as wsModule from 'ws';
 
 import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
-import { listenerCounts } from './mocks/controls.js';
+import { listenerCounts, setSettleProbe } from './mocks/controls.js';
 import { NativeMockScreen } from './mocks/native.js';
 import { installRuntime, log, onReset, reset } from './runtime.js';
 import type { ReactTestInstance } from './tree.js';
@@ -270,6 +270,7 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
     valueComponents: options.valueComponents,
     live: options.live,
   });
+  setSettleProbe({ commits: () => backend.commitCount(), inFlight: requestsInFlight });
   // A remount registers a new adapter (a new navigation ref): resolve it on every call.
   const current = (): NavigationAdapter => options.navigation?.() ?? host.navigation() ?? noNavigation;
   const navigation: NavigationAdapter = {

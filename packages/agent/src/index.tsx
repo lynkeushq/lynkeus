@@ -17,6 +17,7 @@ export { reactNavigationAdapter, noNavigation } from './navigation';
 export type { NavigationAdapter, RouteInfo } from './navigation';
 export { PROTOCOL_VERSION } from './protocol';
 export { record as traceRecord } from './trace';
+export { requestsInFlight } from './requests';
 export type {
   AgentEvent,
   AuthEvent,

@@ -458,20 +458,35 @@ Solo sin pantalla. Simula el modo avión: las peticiones fallan, los sockets abi
 ### `lynkeus os clock`
 
 ```bash
-lynkeus os clock [--now <iso>] [--advance <ms>] [--reset]
+lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]
 ```
 
-Solo sin pantalla. Cambia lo que responde `Date`. Los temporizadores siguen siendo reales. Forma corta: `lynkeus clock`.
+Sin pantalla y en Lynkeus FastSim. Cambia lo que responde `Date`, y con `--settle` termina lo que está pendiente. Los temporizadores llevan su propio tiempo. Forma corta: `lynkeus clock`.
 
 | Opción | Qué hace |
 |---|---|
 | `--now <iso>` | Fija la hora. |
 | `--advance <ms>` | Adelanta el reloj. |
 | `--reset` | Vuelve al reloj real. |
+| `--settle` | Ejecuta todo lo pendiente hasta que no quede nada, sin dejar pasar el tiempo. Se aplica después de las opciones anteriores. |
 
 ```bash
 lynkeus os clock --now 2027-01-01T00:00:00Z
+lynkeus os clock --advance 5000 --settle
 ```
+
+**`--settle`** ejecuta lo que está pendiente en este instante (microtareas, temporizadores que ya vencieron, renders en cola) hasta que no queda nada, y ahí se detiene. No espera lo que vence más adelante: un `setTimeout` de diez segundos sigue pendiente. La respuesta cuenta qué pasó:
+
+| Campo | Qué dice |
+|---|---|
+| `settled` | `true` si no quedó nada por ejecutar. `false` si algo se vuelve a programar solo, como un ciclo de `requestAnimationFrame`, y nunca se calma. |
+| `inFlight` | Cuántas peticiones espera todavía la app. `--settle` no las espera. |
+| `nextDueMs` | Solo en Lynkeus FastSim: cuántos milisegundos faltan para el próximo temporizador, o `null`. |
+| `advancedMs` | Solo en Lynkeus FastSim: cuánto avanzó el reloj virtual. Siempre `0`. |
+
+La diferencia con [`idle`](#lynkeus-idle) es que `idle` espera a que la pantalla deje de cambiar y por eso deja pasar el tiempo: en Lynkeus FastSim el reloj virtual corre mientras espera, y un aviso o un carrusel pueden aparecer y desaparecer. `--settle` deja el reloj donde está. Sirve después de `--advance`, para ver qué causa exactamente ese tiempo, o después de un toque, para pasar el trabajo que desencadena sin llegar a lo que viene después.
+
+En el host sin pantalla los temporizadores son reales y el tiempo no se puede detener: `--settle` da unas vueltas cortas al bucle de eventos y termina cuando la pantalla lleva tres seguidas sin cambiar. Un simulador o un emulador no tiene el comando `clock`: como paso de un caso (`app.clock: { settle: true }`) queda `unsupported`, y desde la línea de comandos responde `Unknown method`. Un Lynkeus FastSim o un `lynkeus-headless` anteriores a esta opción responden sin `settled`, y el comando falla diciéndolo.
 
 ### `lynkeus os biometrics`
 

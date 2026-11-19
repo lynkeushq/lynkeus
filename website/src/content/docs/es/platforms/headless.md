@@ -139,7 +139,7 @@ En el host no hay sistema operativo. Lo que un dispositivo recibiría del mundo 
 | `lynkeus os deeplink <url>` | Un enlace que abre la app. Funciona también en un dispositivo. |
 | `lynkeus os appstate <active\|background\|inactive>` | El paso a segundo plano y la vuelta: lo que se recarga o se vuelve a bloquear. También funciona en un simulador o un emulador, donde lo hace el sistema de verdad (`inactive` es solo del host). |
 | `lynkeus os network <off\|on>` | El modo avión: las peticiones fallan y las conexiones abiertas se caen. |
-| `lynkeus os clock --now <iso>` | Lo que responde `Date`. Los temporizadores siguen siendo reales. También `--advance <ms>` y `--reset`. |
+| `lynkeus os clock --now <iso>` | Lo que responde `Date`. Los temporizadores siguen siendo reales. También `--advance <ms>` y `--reset`; `--settle` da unas vueltas al bucle de eventos hasta que la pantalla deja de cambiar, sin esperar temporizadores que vencen después. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none> --next <resultados>` | El sensor y lo que responden los próximos pedidos: `success`, `fail`, `cancel`. |
 | `lynkeus os scan <valor> --type <qr\|ean13\|…>` | Un código que lee el escáner de la cámara abierta. |
 | `lynkeus os gallery <uri>` | Lo que devuelve el próximo selector de imágenes. Con `--cancel`, que la persona canceló. |

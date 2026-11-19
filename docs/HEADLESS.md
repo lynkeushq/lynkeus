@@ -96,7 +96,7 @@ the real thing.
 ```sh
 npx lynkeus os deeplink 'myapp://pay/abc'     # Linking listeners (react-navigation included) receive it; works on a device too
 npx lynkeus os appstate background            # then `active`: what refetches or re-locks on foreground
-npx lynkeus os clock --now 2027-01-01T00:00:00Z   # what Date answers; timers stay real (--advance <ms>, --reset)
+npx lynkeus os clock --now 2027-01-01T00:00:00Z   # what Date answers; timers stay real (--advance <ms>, --reset, --settle to run what is pending without waiting for timers)
 npx lynkeus os biometrics --available FaceID --next success   # the sensor and the next prompts (success, fail, cancel; --fallback)
 npx lynkeus os scan 'https://pay.example/abc' --type qr       # the open camera's code scanner receives a value
 npx lynkeus os gallery ./fixtures/id.jpg --name id.jpg --mime image/jpeg   # what the next image picker answers (--cancel)

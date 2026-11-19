@@ -1,8 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
 import { host } from 'lynkeus-agent';
 
-import { connectivityControls, installControls, netControls, type NetRule } from '../mocks/controls.js';
+import { connectivityControls, installControls, netControls, type NetRule, setSettleProbe } from '../mocks/controls.js';
 import { reset } from '../runtime.js';
 
 // Captured before installControls swaps the global for its ControlledDate.
@@ -172,6 +172,59 @@ describe('clock', () => {
     clock({ now: '2027-01-01T00:00:00Z' });
     reset();
     expect(Math.abs(Date.now() - RealDate.now())).toBeLessThan(1000);
+  });
+});
+
+describe('clock settle', () => {
+  const settle = (params: unknown = { settle: true }) =>
+    command('clock')(params) as Promise<{ now: string; settled: boolean; turns: number; commit: number; inFlight: number }>;
+  let commits = 0;
+  let inFlight = 0;
+
+  beforeAll(() => {
+    setSettleProbe({ commits: () => commits, inFlight: () => inFlight });
+  });
+  afterAll(() => {
+    setSettleProbe(undefined);
+  });
+
+  it('settles after a few quiet turns without touching what Date reads', async () => {
+    command('clock')({ now: '2027-01-01T00:00:00Z' });
+    const answer = await settle();
+    expect(answer.settled).toBe(true);
+    expect(answer.turns).toBe(3);
+    expect(answer.now).toMatch(/^2027-01-01T00:00/);
+  });
+
+  it('keeps taking turns while the screen commits, and says when it never goes quiet', async () => {
+    setSettleProbe({ commits: () => ++commits, inFlight: () => inFlight });
+    const answer = await settle();
+    setSettleProbe({ commits: () => commits, inFlight: () => inFlight });
+    expect(answer.settled).toBe(false);
+    expect(answer.turns).toBe(100);
+  });
+
+  it('names the requests still out instead of waiting for them', async () => {
+    inFlight = 2;
+    const answer = await settle();
+    inFlight = 0;
+    expect(answer).toMatchObject({ settled: true, inFlight: 2 });
+  });
+
+  it('runs a timer that is due now and leaves one that is not', async () => {
+    const ran: string[] = [];
+    setTimeout(() => ran.push('now'), 0);
+    const later = setTimeout(() => ran.push('later'), 60_000);
+    await settle();
+    clearTimeout(later);
+    expect(ran).toEqual(['now']);
+  });
+
+  it('settles together with an advance', async () => {
+    command('clock')({ reset: true });
+    const answer = await settle({ now: '2027-01-01T00:00:00Z', advanceMs: 3_600_000, settle: true });
+    expect(answer.now).toMatch(/^2027-01-01T01:00/);
+    expect(answer.settled).toBe(true);
   });
 });
 

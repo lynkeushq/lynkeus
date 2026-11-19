@@ -509,20 +509,35 @@ lynkeus os network <state>
 ### `lynkeus os clock`
 
 ```bash
-lynkeus os clock [--now <iso>] [--advance <ms>] [--reset]
+lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]
 ```
 
-**Headless.** Sets what `Date` answers. Timers stay real. Alias: `clock`.
+**Headless and Lynkeus FastSim.** Sets what `Date` answers; `--settle` runs what is pending. Timers keep their own time. Alias: `clock`.
 
 | Flag | Meaning |
 |---|---|
 | `--now <iso>` | Set the time, as an ISO 8601 date. |
 | `--advance <ms>` | Move the clock forward. |
 | `--reset` | Go back to the real clock. |
+| `--settle` | Run everything pending to idle without letting time pass. Applied after the flags above. |
 
 ```bash
 lynkeus os clock --now 2027-01-01T00:00:00Z
+lynkeus os clock --advance 5000 --settle
 ```
+
+**`--settle`** runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, and stops there. It does not wait for work that is due later, so a `setTimeout` of ten seconds stays pending. The answer says what happened:
+
+| Field | Meaning |
+|---|---|
+| `settled` | `true` when nothing was left to run. `false` when something keeps re-arming itself, such as a `requestAnimationFrame` loop, and never goes quiet. |
+| `inFlight` | How many requests the app still waits for. Settle does not wait for them. |
+| `nextDueMs` | Lynkeus FastSim only: milliseconds until the next timer is due, or `null`. |
+| `advancedMs` | Lynkeus FastSim only: how far the virtual clock moved. It is `0`. |
+
+How it differs from [`idle`](#lynkeus-idle), which waits until the screen has stopped committing: `idle` lets time pass, so on Lynkeus FastSim the virtual clock runs ahead while it waits and a toast or a carousel can come and go. `--settle` leaves the clock where it is. Use it after `--advance` to see exactly what that much time causes, or after a press to get past the work it sets off without moving on to what comes next.
+
+On the headless host timers are real, so time cannot stand still; settle takes a few milliseconds of event-loop turns and ends once the screen has not committed for three in a row. A Simulator or emulator has no `clock` command: as a case step (`app.clock: { settle: true }`) it is `unsupported`, and from the command line it answers `Unknown method`. A Lynkeus FastSim or `lynkeus-headless` older than this option answers without `settled`, and the command fails saying so.
 
 ### `lynkeus os biometrics`
 

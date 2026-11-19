@@ -67,15 +67,31 @@ export const osCommands = [
   define({
     name: 'os clock',
     group: 'os',
-    summary: 'Headless: what Date answers (timers stay real)',
+    summary: 'Headless and Lynkeus FastSim: what Date answers; --settle runs what is pending without letting time pass',
+    details:
+      '`--now`, `--advance` and `--reset` move what `Date` answers; timers keep their own time. `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and, on Lynkeus FastSim, `nextDueMs` (when the next timer is due) and `advancedMs` (0: the virtual clock did not move). On the headless host timers are real, so a few milliseconds pass; on Lynkeus FastSim the host owns the clock and none does. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined with `--now` or `--advance`, the time moves first.',
+    mcpDetails:
+      'Headless and Lynkeus FastSim: `now`, `advance` and `reset` change what Date answers; `settle` runs everything pending (timers due now, microtasks, renders) to idle without letting time pass, and says what is still in flight. Use it after a press or `advance` instead of `idle` when the clock must stay where you put it. A Simulator or emulator answers that it has no such command.',
     flags: {
       now: { type: 'string', help: 'set the time', value: 'iso' },
       advance: { type: 'number', help: 'move the clock forward', value: 'ms' },
       reset: { type: 'boolean', help: 'back to the real clock' },
+      settle: { type: 'boolean', help: 'run what is pending to idle without letting time pass (after any of the above)' },
     },
     aliases: ['clock'],
     needs: 'app',
-    run: agent('clock', ({ flags }) => ({ now: flags.now || undefined, advanceMs: flags.advance, reset: flags.reset || undefined })),
+    run: async (ctx) => {
+      const answer = await (await ctx.device()).command<Record<string, unknown>>('clock', {
+        now: ctx.flags.now || undefined,
+        advanceMs: ctx.flags.advance,
+        reset: ctx.flags.reset || undefined,
+        settle: ctx.flags.settle || undefined,
+      });
+      // A host built before `settle` takes the other parameters and answers without it.
+      if (ctx.flags.settle && typeof answer.settled !== 'boolean')
+        throw new Error('this host’s clock command does not settle: update Lynkeus FastSim (`lynkeus fastsim install`) or lynkeus-headless');
+      return { json: answer };
+    },
   }),
   define({
     name: 'os biometrics',

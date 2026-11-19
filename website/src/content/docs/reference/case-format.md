@@ -390,6 +390,7 @@ Any other `app.<name>` runs the Lynkeus command of that name, with or without it
 - app.appstate: background
 - app.network: "off"
 - app.clock: { now: "2027-01-01T00:00:00Z" }
+- app.clock: { advance: 5000, settle: true }
 - app.mock: { route: "GET /v3/accounts", status: 500 }
 - app.mock: clear
 - app.idle
