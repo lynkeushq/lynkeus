@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.4
 
 - The error `lynkeus fastsim install`, `lynkeus fastsim grant` and `fastsim_install` give when there is no key and no sign-in now leads with `lynkeus login` for a person at a terminal and names `LYNKEUS_CLOUD_KEY` second, for CI (`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY to an API key ...`). Exit code 2 as before; the MCP descriptions list the sign-in first too.
 - `lynkeus login` waits 15 minutes for the browser instead of 5, so there is time to read the consent page and pick an organization before the listener goes away.
