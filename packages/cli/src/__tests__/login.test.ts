@@ -201,8 +201,8 @@ test('fastsim install with no key and no sign-in exits 2 naming both ways', asyn
     code: number;
   };
   assert.equal(result.code, 2);
-  assert.match(result.text, /May download Lynkeus FastSim/);
-  assert.match(result.text, /lynkeus login/);
+  assert.match(result.text, /^no way to sign in to \S+: run lynkeus login in a terminal/);
+  assert.match(result.text, /in CI, set LYNKEUS_CLOUD_KEY.*May download Lynkeus FastSim/);
 });
 
 test('a 401 with a sign-in says to sign in again', async () => {
@@ -509,7 +509,7 @@ test('the failure page for Deny says nothing was shared, and the command to try 
     {},
     redirectWith((u) => `error=access_denied&state=${u.searchParams.get('state')}`),
   );
-  assert.match(f.outcome?.message ?? '', /refused/);
+  assert.equal(f.outcome?.message, `You chose Deny on ${new URL(f.cloud.url).host}: not signed in. To try again: lynkeus login`);
   assert.match(f.page.html, /The sign-in did not finish/);
   assert.match(f.page.html, /You chose <b>Deny<\/b>, so the Lynkeus CLI is not signed in\. Nothing was shared with it\./);
   assert.match(f.page.html, /To try again, run this in your terminal:/);

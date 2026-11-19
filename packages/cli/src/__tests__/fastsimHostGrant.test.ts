@@ -93,7 +93,7 @@ test('without credentials the run fails with exit code 2 and the grant message',
   const result = await hostGrantEnv(ctxFor(home).ctx, kit(home, 'darwin-arm64-ios'), { fetchImpl });
   assert.ok('failed' in result);
   assert.equal(result.failed.code, 2);
-  assert.match(String(result.failed.text), /LYNKEUS_CLOUD_KEY.*lynkeus login/s);
+  assert.match(String(result.failed.text), /lynkeus login.*LYNKEUS_CLOUD_KEY/s);
   assert.equal(calls.length, 0);
 });
 
