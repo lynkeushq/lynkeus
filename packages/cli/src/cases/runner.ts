@@ -21,6 +21,7 @@ import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
+import { liveCommands } from './liveCommands.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
@@ -1038,7 +1039,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
     if (on === 'headless') return !phone;
-    if (on.startsWith('has:')) return !!hello?.commands?.includes(on.slice(4));
+    if (on.startsWith('has:')) return !!(await liveCommands(await device(), hello?.commands))?.includes(on.slice(4));
     return hello?.platform === on;
   };
 
