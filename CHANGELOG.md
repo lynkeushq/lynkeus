@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.4
 
 - Cases run on Lynkeus FastSim even when lynkeus is not installed in the project or globally, as with the documented `npx -y lynkeus mcp` setup: before it starts the hosts, `lynkeus case run` (and `case_run` over MCP) gets the grant itself, with the same key or sign-in and cache as `lynkeus fastsim grant`, and gives it to each host as `FASTSIM_GRANT`. Before, every case failed in 0 s with "No app attached" because `bin/fastsim-run` could not find lynkeus. An existing `FASTSIM_GRANT` is kept, and a host command that is not Lynkeus FastSim gets nothing. When the grant cannot be had the run stops with the same message `lynkeus fastsim grant` prints (exit code 2 without a key or sign-in, 1 when the service refuses), so the person knows to run `lynkeus login` or see https://lynkeus.io/pricing.
 - `lynkeus fastsim install` and `grant` send a random install id (`x-lynkeus-machine`), kept in `~/.config/lynkeus/machine-id` (`XDG_CONFIG_HOME` moves it), so lynkeus.io can count the machines and CI hosts a plan includes (Team: 5 and 4). The id names an install, not a person, and is not in the cache folder, so a restored CI cache does not make parallel runners one host. When the service warns that the organization is past its plan, `lynkeus fastsim grant` prints it to stderr.
