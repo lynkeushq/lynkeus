@@ -1,8 +1,8 @@
-import { beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
-import { host } from 'lynkeus-agent';
+import { host, requestsHeld } from 'lynkeus-agent';
 
-import { connectivityControls, installControls, netControls, type NetRule } from '../mocks/controls.js';
+import { connectivityControls, installControls, netControls, type NetRule, setSettleProbe } from '../mocks/controls.js';
 import { reset } from '../runtime.js';
 
 // Captured before installControls swaps the global for its ControlledDate.
@@ -133,6 +133,82 @@ describe('netmock responses', () => {
   });
 });
 
+describe('netmock hold', () => {
+  const netmock = (params: unknown) => command('netmock')(params) as { held?: number; released?: number; holds?: unknown[] };
+  const settled = async (promise: Promise<void>) => {
+    let done = false;
+    void promise.then(() => {
+      done = true;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    return done;
+  };
+
+  beforeEach(() => {
+    netmock({ action: 'clear' });
+  });
+
+  it('holds matching requests until they are released, in the order they came', async () => {
+    netmock({ action: 'hold', method: 'GET', path: '/v3/accounts' });
+    const first = netControls.hold('GET', 'https://api.test/v3/accounts?page=1')!;
+    const second = netControls.hold('get', 'https://api.test/v3/accounts?page=2')!;
+    expect(netControls.hold('POST', 'https://api.test/v3/accounts')).toBeUndefined();
+    expect(netControls.hold('GET', 'https://api.test/v3/user')).toBeUndefined();
+    expect(await settled(first)).toBe(false);
+    expect(netmock({ action: 'release', path: '/v3/user' })).toEqual({ released: 0, held: 2 });
+    expect(netmock({ action: 'release', path: '/v3/accounts' })).toEqual({ released: 2, held: 0 });
+    expect(await settled(first)).toBe(true);
+    expect(await settled(second)).toBe(true);
+  });
+
+  it('keeps holding after a release, for as many requests as times says', async () => {
+    netmock({ action: 'hold', path: '/v3/accounts', times: 1 });
+    const one = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeUndefined();
+    netmock({ action: 'release' });
+    await one;
+    netmock({ action: 'clear' });
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeInstanceOf(Promise);
+    netmock({ action: 'release' });
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeInstanceOf(Promise);
+  });
+
+  it('lists what it holds and for how long', () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    void netControls.hold('GET', 'https://api.test/v3/accounts');
+    const listed = netmock({ action: 'list' }) as unknown as { held: { method: string; path: string; heldMs: number }[]; holds: unknown[] };
+    expect(listed.holds).toHaveLength(1);
+    expect(listed.held).toEqual([{ method: 'GET', path: '/v3/accounts', heldMs: expect.any(Number) }]);
+  });
+
+  it('clear and a reset let go of what is held, and a sticky hold outlives the reset', async () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    const a = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    netmock({ action: 'clear' });
+    expect(await settled(a)).toBe(true);
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    netmock({ action: 'hold', path: '/v3/user', sticky: true });
+    const b = netControls.hold('GET', 'https://api.test/v3/accounts')!;
+    reset();
+    expect(await settled(b)).toBe(true);
+    expect(netControls.hold('GET', 'https://api.test/v3/accounts')).toBeUndefined();
+    expect(netControls.hold('GET', 'https://api.test/v3/user')).toBeInstanceOf(Promise);
+  });
+
+  it('does not count a held request as in flight, and reports it apart', () => {
+    netmock({ action: 'hold', path: '/v3/accounts' });
+    void netControls.hold('GET', 'https://api.test/v3/accounts');
+    expect(requestsHeld()).toBe(1);
+    netmock({ action: 'release' });
+    expect(requestsHeld()).toBe(0);
+  });
+
+  it('refuses a hold without a route', () => {
+    expect(() => netmock({ action: 'hold' })).toThrow(/needs a path/);
+  });
+});
+
 describe('clock', () => {
   const clock = (params: unknown) => command('clock')(params) as { now: string; offsetMs: number };
 
@@ -172,6 +248,59 @@ describe('clock', () => {
     clock({ now: '2027-01-01T00:00:00Z' });
     reset();
     expect(Math.abs(Date.now() - RealDate.now())).toBeLessThan(1000);
+  });
+});
+
+describe('clock settle', () => {
+  const settle = (params: unknown = { settle: true }) =>
+    command('clock')(params) as Promise<{ now: string; settled: boolean; turns: number; commit: number; inFlight: number }>;
+  let commits = 0;
+  let inFlight = 0;
+
+  beforeAll(() => {
+    setSettleProbe({ commits: () => commits, inFlight: () => inFlight });
+  });
+  afterAll(() => {
+    setSettleProbe(undefined);
+  });
+
+  it('settles after a few quiet turns without touching what Date reads', async () => {
+    command('clock')({ now: '2027-01-01T00:00:00Z' });
+    const answer = await settle();
+    expect(answer.settled).toBe(true);
+    expect(answer.turns).toBe(3);
+    expect(answer.now).toMatch(/^2027-01-01T00:00/);
+  });
+
+  it('keeps taking turns while the screen commits, and says when it never goes quiet', async () => {
+    setSettleProbe({ commits: () => ++commits, inFlight: () => inFlight });
+    const answer = await settle();
+    setSettleProbe({ commits: () => commits, inFlight: () => inFlight });
+    expect(answer.settled).toBe(false);
+    expect(answer.turns).toBe(100);
+  });
+
+  it('names the requests still out instead of waiting for them', async () => {
+    inFlight = 2;
+    const answer = await settle();
+    inFlight = 0;
+    expect(answer).toMatchObject({ settled: true, inFlight: 2 });
+  });
+
+  it('runs a timer that is due now and leaves one that is not', async () => {
+    const ran: string[] = [];
+    setTimeout(() => ran.push('now'), 0);
+    const later = setTimeout(() => ran.push('later'), 60_000);
+    await settle();
+    clearTimeout(later);
+    expect(ran).toEqual(['now']);
+  });
+
+  it('settles together with an advance', async () => {
+    command('clock')({ reset: true });
+    const answer = await settle({ now: '2027-01-01T00:00:00Z', advanceMs: 3_600_000, settle: true });
+    expect(answer.now).toMatch(/^2027-01-01T01:00/);
+    expect(answer.settled).toBe(true);
   });
 });
 

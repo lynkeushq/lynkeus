@@ -163,8 +163,8 @@ const SEED = '~seed';
  * With LYNKEUS_SEED set, a case's `{{random.*}}` values are the same on every run: two runs of it then show
  * the same names, which comparing their screens needs. Each case draws its own, so cases side by side differ.
  */
-export const seeded = (scope: Scope, id: string): void => {
-  const seed = process.env.LYNKEUS_SEED;
+export const seeded = (scope: Scope, id: string, given?: string): void => {
+  const seed = given ?? process.env.LYNKEUS_SEED;
   if (!seed || scope[SEED] !== undefined) return;
   let hash = 2166136261;
   for (const char of `${seed}\n${id}`) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);

@@ -2,6 +2,7 @@ import { NavigationContainer, useNavigationContainerRef } from '@react-navigatio
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Button, Text, TextInput, View } from 'react-native';
 import { Lynkeus, qa, reactNavigationAdapter } from 'lynkeus-agent';
+import { Probe } from './Probe';
 
 const Stack = createNativeStackNavigator();
 
@@ -10,6 +11,7 @@ const Home = ({ navigation }: { navigation: { navigate: (r: string) => void } })
     <Text testID="title">Hello, agent</Text>
     <TextInput testID="name-input" placeholder="Your name" style={{ borderWidth: 1, padding: 8 }} />
     <Button testID="next-button" title="Next" onPress={() => navigation.navigate('Details')} />
+    <Button testID="probe-button" title="Probe" onPress={() => navigation.navigate('Probe')} />
   </View>
 );
 
@@ -30,6 +32,7 @@ export default function App() {
       <Stack.Navigator>
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="Details" component={Details} />
+        <Stack.Screen name="Probe" component={Probe} />
       </Stack.Navigator>
       <Lynkeus navigation={reactNavigationAdapter(ref)} app={{ name: 'example' }} token={process.env.LYNKEUS_TOKEN} />
     </NavigationContainer>

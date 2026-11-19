@@ -77,6 +77,11 @@ export type LynkeusConfig = {
    */
   language?: string;
   locale?: { languageTag?: string; country?: string };
+  /**
+   * What `case run` launches hosts with when the flags do not say: `seed` (repeatable random values), `locale`
+   * (a language tag), `timeZone` (IANA) and `epoch` (the instant the app's clock starts at, ISO 8601). Recorded in run.json.
+   */
+  launch?: { seed?: string | number; locale?: string; timeZone?: string; epoch?: string };
   /** How long to wait for the app to attach, in ms. */
   attachTimeout?: number;
   /** The lint baseline `lint` compares against when no file is given. */

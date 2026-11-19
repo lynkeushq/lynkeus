@@ -176,7 +176,7 @@ type Target =
 | `waitFor` | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | `idle` | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | `deepLink` | `{ url }` | `{ opened }` |
-| `requests` | `{ since? }` | `{ inFlight, requests }` |
+| `requests` | `{ since? }` | `{ inFlight, held, requests }` |
 | `trace` | `{ since? }` | `{ last, events }` |
 | `dismissKeyboard` | ninguno | `true` |
 | `batch` | `{ calls: [{ method, params? }] }` | `{ results }` |
@@ -269,6 +269,8 @@ Estos son los valores por defecto del protocolo. El CLI envía los suyos: `lynke
 ### `requests` y `trace`
 
 `requests` devuelve las peticiones HTTP que hizo la app, y `trace`, la línea de tiempo completa. Los dos aceptan `since` para pedir solo lo nuevo: en `requests` es el `id` de la última petición que ya viste, y en `trace`, el número de secuencia que vino en `last`.
+
+`requests` responde también `inFlight` (peticiones aún abiertas) y `held` (las retenidas por un `hold` de `netmock`, que no cuentan en `inFlight` ni las espera `idle`).
 
 Sus formas están más abajo, en [`RequestRecord`](#requestrecord) y [`TraceEvent`](#traceevent).
 
@@ -494,7 +496,7 @@ Los tipos de esta página (`Screen`, `Element`, `Target`, `CoreMethods` y los de
 
 ## El archivo de una ejecución
 
-`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`. Un `RunStep` de `steps` lleva `heading` cuando el caso numera sus secciones (`# 3 Un PIN equivocado` se lee `3 Un PIN equivocado`), para que un lector agrupe los pasos como el caso; los de `setup`, y los anteriores al primer comentario numerado, no lo tienen.
+`lynkeus-protocol` define también un segundo contrato, que no viaja por el socket: el directorio que escribe `lynkeus case run --out`. Lo forman `run.json` (que anota en `launch` la seed, el idioma, la zona horaria y el epoch con que se pidió arrancar) y `cases.jsonl`, con los tipos `RunManifest`, `RunCase`, `RunStep` y `RunEvent`. Un `RunStep` de `steps` lleva `heading` cuando el caso numera sus secciones (`# 3 Un PIN equivocado` se lee `3 Un PIN equivocado`), para que un lector agrupe los pasos como el caso; los de `setup`, y los anteriores al primer comentario numerado, no lo tienen.
 
 Si escribes algo que lee ese directorio, como un tablero o un script, ten en cuenta dos reglas. A un campo existente nunca se le cambia el significado: solo se agregan campos. Y un cambio que sí altere un significado sube el número `schema` de `run.json` (hoy `1`); un lector debe rechazar un `schema` que no conoce.
 

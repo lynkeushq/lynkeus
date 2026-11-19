@@ -275,13 +275,13 @@ export const driveCommands = [
       const result = await (await ctx.device()).requests();
       const list = result.requests.slice(-(ctx.flags.last as number));
       const lines = [
-        `in flight: ${result.inFlight}`,
+        `in flight: ${result.inFlight}${result.held ? `, held: ${result.held}` : ''}`,
         ...list.map(
           (r) =>
             `${String(r.status ?? '…').padStart(4)} ${String(r.ms ?? '').padStart(6)}ms ${r.method.padEnd(6)} ${r.url}${r.error ? `  (${r.error})` : ''}${r.mocked ? '  (mocked)' : ''}`,
         ),
       ];
-      return { text: lines.join('\n'), json: { inFlight: result.inFlight, requests: list } };
+      return { text: lines.join('\n'), json: { inFlight: result.inFlight, held: result.held ?? 0, requests: list } };
     },
   }),
   define({

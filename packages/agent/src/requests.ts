@@ -1,6 +1,6 @@
 import type { Exchange, RequestRecord } from './protocol';
 import { record as trace } from './trace';
-import { answer, installNetmock, loseAnswer, mockFor } from './netmock';
+import { answer, heldCount, holdFor, installNetmock, loseAnswer, mockFor } from './netmock';
 import { redactString, redactText, SENSITIVE, sensitiveKey } from './redact';
 
 const KEEP = 200;
@@ -182,6 +182,7 @@ const trackXhr = (): void => {
   };
   proto.send = function (this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>) {
     const request = opened.get(this);
+    const gate = request ? holdFor(...request) : null;
     const rule = request ? mockFor(...request) : null;
     let tracked: RequestRecord | undefined;
     if (request) {
@@ -214,14 +215,21 @@ const trackXhr = (): void => {
         }
       }
     }
-    if (rule?.lost) {
-      loseAnswer(this);
-      if (tracked) tracked.mocked = true;
-    } else if (rule && request && answer(this, rule, request[1])) {
-      if (tracked) tracked.mocked = true;
-      return;
-    }
-    return send.apply(this, args);
+    const dispatch = () => {
+      if (rule?.lost) {
+        loseAnswer(this);
+        if (tracked) tracked.mocked = true;
+      } else if (rule && request && answer(this, rule, request[1])) {
+        if (tracked) tracked.mocked = true;
+        return;
+      }
+      return send.apply(this, args);
+    };
+    if (!gate) return dispatch();
+    // A request the driver holds is out as far as the app can tell; one aborted meanwhile is not sent when released.
+    void gate.then(() => {
+      if ((this.readyState ?? 1) === 1) dispatch();
+    });
   } as typeof proto.send;
 };
 
@@ -235,4 +243,8 @@ export const trackRequests = (): void => {
 
 export const recentRequests = (since?: number): RequestRecord[] => (since === undefined ? [...records] : records.filter((r) => r.id > since));
 
-export const requestsInFlight = (): number => inFlight;
+// A held request is kept out of this count: the point of holding it is to look at the loading state, so `idle`, a
+// frame's settle and `clock --settle` must not wait for it. It is reported apart, by `requestsHeld`.
+export const requestsInFlight = (): number => Math.max(0, inFlight - heldCount());
+
+export const requestsHeld = (): number => heldCount();

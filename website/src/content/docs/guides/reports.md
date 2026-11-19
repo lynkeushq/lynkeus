@@ -58,11 +58,12 @@ You do not need the hosted service to use a run. The directory is a documented f
   "finishedAt": "2026-10-12T09:16:41.007Z",
   "platform": "ios",
   "native": true,
+  "launch": { "seed": "1", "timeZone": "Europe/Madrid", "epoch": "2026-03-01T09:00:00.000Z" },
   "totals": { "cases": 12, "passed": 11, "failed": 1, "unsupported": 0, "retried": 2 }
 }
 ```
 
-`native` says whether the app ran on a device or simulator (`true`) or was hosted without one. `git` is present when the run was made from a git checkout. `totals` counts each case by its last attempt.
+`native` says whether the app ran on a device or simulator (`true`) or was hosted without one. `git` is present when the run was made from a git checkout. `launch` is present when the run pinned a seed, locale, time zone or epoch (see [Launch facts](/reference/cli/#launch-facts)); `launch.unsupported` lists the ones the host could not apply. `totals` counts each case by its last attempt.
 
 Each line of `cases.jsonl` is one attempt of one case. It carries the case's `id`, `title`, `description` and `file`, the `attempt` (1, or 2 for the second chance), the `result`, when it started, how long it took, and its `steps`.
 

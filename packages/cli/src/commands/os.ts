@@ -67,15 +67,31 @@ export const osCommands = [
   define({
     name: 'os clock',
     group: 'os',
-    summary: 'Headless: what Date answers (timers stay real)',
+    summary: 'Headless and Lynkeus FastSim: what Date answers; --settle runs what is pending without letting time pass',
+    details:
+      '`--now`, `--advance` and `--reset` move what `Date` answers; timers keep their own time. `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and, on Lynkeus FastSim, `nextDueMs` (when the next timer is due) and `advancedMs` (0: the virtual clock did not move). On the headless host timers are real, so a few milliseconds pass; on Lynkeus FastSim the host owns the clock and none does. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined with `--now` or `--advance`, the time moves first.',
+    mcpDetails:
+      'Headless and Lynkeus FastSim: `now`, `advance` and `reset` change what Date answers; `settle` runs everything pending (timers due now, microtasks, renders) to idle without letting time pass, and says what is still in flight. Use it after a press or `advance` instead of `idle` when the clock must stay where you put it. A Simulator or emulator answers that it has no such command.',
     flags: {
       now: { type: 'string', help: 'set the time', value: 'iso' },
       advance: { type: 'number', help: 'move the clock forward', value: 'ms' },
       reset: { type: 'boolean', help: 'back to the real clock' },
+      settle: { type: 'boolean', help: 'run what is pending to idle without letting time pass (after any of the above)' },
     },
     aliases: ['clock'],
     needs: 'app',
-    run: agent('clock', ({ flags }) => ({ now: flags.now || undefined, advanceMs: flags.advance, reset: flags.reset || undefined })),
+    run: async (ctx) => {
+      const answer = await (await ctx.device()).command<Record<string, unknown>>('clock', {
+        now: ctx.flags.now || undefined,
+        advanceMs: ctx.flags.advance,
+        reset: ctx.flags.reset || undefined,
+        settle: ctx.flags.settle || undefined,
+      });
+      // A host built before `settle` takes the other parameters and answers without it.
+      if (ctx.flags.settle && typeof answer.settled !== 'boolean')
+        throw new Error('this host’s clock command does not settle: update Lynkeus FastSim (`lynkeus fastsim install`) or lynkeus-headless');
+      return { json: answer };
+    },
   }),
   define({
     name: 'os biometrics',
@@ -135,7 +151,12 @@ export const osCommands = [
   define({
     name: 'mock',
     group: 'os',
-    summary: 'Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)',
+    summary:
+      'Answer a request before the network, or hold it until you release it (--hold, --release): a host stands in for the network, on a device the agent does it in the app (--sticky survives a host reset)',
+    details:
+      "With a route and no other flag, the matching requests are answered by a rule (`--status`, `--body`, `--delay`, `--times`, `--lost`). `--hold` is a gate instead: matching requests wait, as far as the app can tell still in flight, so a loading state stays on screen as long as you want; `--release [route]` lets the held ones go on, to a rule or to the network, oldest first, and the gate stays for the next requests (`--times n` holds only the first n). `--clear` drops every rule and gate and lets whatever is held go; so does an app reset on a host, unless the hold is `--sticky`. `--list` also shows what is held and for how long. A held request is not waited for: `idle`, a frame's `--settle` and `clock --settle` go on without it, and `requests` and `clock --settle` report it apart as `held`, outside `inFlight`. Works wherever `--status` does (headless, a device with the agent, Lynkeus FastSim); a host that has no netmock answers `Unknown method`.",
+    mcpDetails:
+      'Answer a request from a rule instead of the server (status, body, delay, times, lost), or hold requests with `hold` and let them go with `release`: for a loading state that must stay on screen while you look at it. Held requests wait before any rule or the network sees them; `release` (optionally with a route) sends them on, `clear` drops everything and lets them go. `list` shows what is held.',
     positionals: [{ name: 'route', help: "'GET /path' (a bare path matches any method)" }],
     flags: {
       status: { type: 'number', help: 'HTTP status to answer', default: 200, value: 'code' },
@@ -144,17 +165,37 @@ export const osCommands = [
       times: { type: 'number', help: 'only this many times', value: 'n' },
       sticky: { type: 'boolean', help: 'keep the rule across an app reset' },
       lost: { type: 'boolean', help: 'let the request reach the server and fail it on the way back' },
-      clear: { type: 'boolean', help: 'drop every rule' },
-      list: { type: 'boolean', help: 'show the rules' },
+      hold: { type: 'boolean', help: 'hold matching requests where they are until --release (the route is required; --times holds only the first n)' },
+      release: { type: 'boolean', help: 'let held requests go on: all of them, or those matching the route' },
+      clear: { type: 'boolean', help: 'drop every rule and gate, and let held requests go' },
+      list: { type: 'boolean', help: 'show the rules, the gates and what is held' },
     },
-    example: "mock 'GET /path' [--status 500] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] | --clear | --list",
+    example:
+      "mock 'GET /path' [--status 500] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] | mock 'GET /path' --hold [--times <n>] [--sticky] | mock --release ['GET /path'] | --clear | --list",
     needs: 'app',
     run: async (ctx) => {
       // A lost request never gets an answer to shape: a status, a body or a delay would be dropped without a word.
       const shaped = (['status', 'body', 'delay'] as const).filter((f) => ctx.flags[f] !== undefined && !(f === 'status' && ctx.flags[f] === 200));
       if (ctx.flags.lost && shaped.length) return { text: `--lost loses the server's answer: --${shaped.join(', --')} would have nothing to shape`, code: 2 };
+      const held = (['hold', 'release'] as const).filter((f) => ctx.flags[f]);
+      if (held.length === 2) return { text: '--hold and --release are two commands: hold first, release later', code: 2 };
+      const alone =
+        held.length === 1
+          ? (['status', 'body', 'delay', 'lost'] as const).filter((f) => ctx.flags[f] !== undefined && !(f === 'status' && ctx.flags[f] === 200))
+          : [];
+      if (alone.length) return { text: `--${held[0]} takes no answer to shape: --${alone.join(', --')} would be dropped`, code: 2 };
       const device = await ctx.device();
       if (ctx.flags.clear) return { json: await device.command('netmock', { action: 'clear' }) };
+      const gate = (): { method: string; path: string } | undefined => {
+        if (!ctx.args[0]) return undefined;
+        const [method, path] = ctx.args[0].includes(' ') ? ctx.args[0].split(/\s+/, 2) : ['*', ctx.args[0]];
+        return { method: method!, path: path! };
+      };
+      if (ctx.flags.release) return { json: await device.command('netmock', { action: 'release', ...gate() }) };
+      if (ctx.flags.hold) {
+        if (!ctx.args[0]) throw new Error("mock --hold needs 'METHOD /path' (what to hold)");
+        return { json: await device.command('netmock', { action: 'hold', ...gate(), times: ctx.flags.times, sticky: ctx.flags.sticky || undefined }) };
+      }
       if (ctx.flags.list) {
         const rules = await device.command('netmock', { action: 'list' });
         return { text: JSON.stringify(rules, null, 2), json: rules };

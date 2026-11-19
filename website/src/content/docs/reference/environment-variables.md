@@ -23,6 +23,9 @@ Three parts can read the environment, and it matters which:
 | [`LYNKEUS_ATTACH_TIMEOUT_MS`](#lynkeus_attach_timeout_ms) | CLI | How long to wait for the app to attach. |
 | [`LYNKEUS_CONFIG`](#lynkeus_config) | CLI | A second configuration file. |
 | [`LYNKEUS_SEED`](#lynkeus_seed) | CLI | Makes random values in cases repeatable. |
+| [`LYNKEUS_LOCALE`](#lynkeus_locale-lynkeus_time_zone-and-lynkeus_epoch) | CLI, headless host | The language tag a run launches its host with. |
+| [`LYNKEUS_TIME_ZONE`](#lynkeus_locale-lynkeus_time_zone-and-lynkeus_epoch) | CLI, headless host | The time zone a run launches its host with. |
+| [`LYNKEUS_EPOCH`](#lynkeus_locale-lynkeus_time_zone-and-lynkeus_epoch) | CLI, headless host | The instant the app's clock starts at. |
 | [`LYNKEUS_RECORD_SCREENS`](#lynkeus_record_screens) | CLI | Records the structure of every screen read. |
 | [`LYNKEUS_REPORTS_URL`](#lynkeus_reports_url-and-lynkeus_reports_key) | CLI | The address of the hosted report service. |
 | [`LYNKEUS_REPORTS_KEY`](#lynkeus_reports_url-and-lynkeus_reports_key) | CLI | The organization's API key for that service. |
@@ -113,9 +116,19 @@ Use it when you compare the screens of two runs: the names and numbers on them a
 LYNKEUS_SEED=1 lynkeus case run --out run --screenshots
 ```
 
+`--seed` and `launch.seed` in `lynkeus.config.json` win over the variable. A host the run starts also receives it, and the headless host then makes `Math.random` repeat: see [Launch facts](/reference/cli/#launch-facts).
+
 :::note[Since 0.3.0]
 `LYNKEUS_SEED` arrived in version 0.3.0.
 :::
+
+### `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` and `LYNKEUS_EPOCH`
+
+Read by the CLI as the lowest-priority source of `--locale`, `--time-zone` and `--epoch`, and by a host the run starts. For a host started by `case run --host` or `--host-command`, the CLI sets them in the host's environment (and `TZ` with the time zone), so you rarely set them yourself. The headless host reads them: `react-native-localize` answers the locale and time zone, and `Date` starts at the epoch. [Lynkeus FastSim](/guides/fastsim/) reads them as the defaults of its `--locale`, `--timezone` and `--epoch` flags.
+
+```bash
+LYNKEUS_TIME_ZONE=Europe/Madrid LYNKEUS_EPOCH=2026-03-01T09:00:00Z lynkeus case run --host
+```
 
 ### `LYNKEUS_RECORD_SCREENS`
 

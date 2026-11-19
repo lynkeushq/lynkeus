@@ -509,20 +509,35 @@ lynkeus os network <state>
 ### `lynkeus os clock`
 
 ```bash
-lynkeus os clock [--now <iso>] [--advance <ms>] [--reset]
+lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]
 ```
 
-**Headless.** Sets what `Date` answers. Timers stay real. Alias: `clock`.
+**Headless and Lynkeus FastSim.** Sets what `Date` answers; `--settle` runs what is pending. Timers keep their own time. Alias: `clock`.
 
 | Flag | Meaning |
 |---|---|
 | `--now <iso>` | Set the time, as an ISO 8601 date. |
 | `--advance <ms>` | Move the clock forward. |
 | `--reset` | Go back to the real clock. |
+| `--settle` | Run everything pending to idle without letting time pass. Applied after the flags above. |
 
 ```bash
 lynkeus os clock --now 2027-01-01T00:00:00Z
+lynkeus os clock --advance 5000 --settle
 ```
+
+**`--settle`** runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, and stops there. It does not wait for work that is due later, so a `setTimeout` of ten seconds stays pending. The answer says what happened:
+
+| Field | Meaning |
+|---|---|
+| `settled` | `true` when nothing was left to run. `false` when something keeps re-arming itself, such as a `requestAnimationFrame` loop, and never goes quiet. |
+| `inFlight` | How many requests the app still waits for. Settle does not wait for them. |
+| `nextDueMs` | Lynkeus FastSim only: milliseconds until the next timer is due, or `null`. |
+| `advancedMs` | Lynkeus FastSim only: how far the virtual clock moved. It is `0`. |
+
+How it differs from [`idle`](#lynkeus-idle), which waits until the screen has stopped committing: `idle` lets time pass, so on Lynkeus FastSim the virtual clock runs ahead while it waits and a toast or a carousel can come and go. `--settle` leaves the clock where it is. Use it after `--advance` to see exactly what that much time causes, or after a press to get past the work it sets off without moving on to what comes next.
+
+On the headless host timers are real, so time cannot stand still; settle takes a few milliseconds of event-loop turns and ends once the screen has not committed for three in a row. A Simulator or emulator has no `clock` command: as a case step (`app.clock: { settle: true }`) it is `unsupported`, and from the command line it answers `Unknown method`. A Lynkeus FastSim or `lynkeus-headless` older than this option answers without `settled`, and the command fails saying so.
 
 ### `lynkeus os biometrics`
 
@@ -583,10 +598,10 @@ lynkeus os gallery ./fixtures/id.jpg --name id.jpg --mime image/jpeg
 ### `lynkeus mock`
 
 ```bash
-lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]
+lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]
 ```
 
-Answers a request before it reaches the network. On the headless host, the host stands in for the network. On a device, a simulator or an emulator, the agent answers inside the app. A rule without `--sticky` is dropped by the app's `reset` command.
+Answers a request before it reaches the network, or holds it there until you let it go. On the headless host, the host stands in for the network. On a device, a simulator or an emulator, the agent answers inside the app. A rule without `--sticky` is dropped by the app's `reset` command.
 
 A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` and `lynkeus trace` show `(mocked)`, and so does a failed case's evidence. The reasons a failed case prints read only what the server answered, so a 500 your own rule made is never blamed on the backend. The agent marks the answers of its own mocks. A layer below it, such as the headless host's network, marks its answers with the response header `x-lynkeus-mocked`.
 
@@ -602,15 +617,23 @@ A request that a rule answered, or lost, is marked `mocked`: `lynkeus requests` 
 | `--times <n>` | | Apply the rule only this many times. |
 | `--sticky` | | Keep the rule across an app reset. The headless host honors it; on a device the agent keeps no sticky rules. |
 | `--lost` | | Send the request to the server and lose only its answer: the app sees a failed request, and the server has acted on it, as after a dropped connection. A lost request gets no answer to shape, so `--status`, `--body` and `--delay` with it are refused (exit 2). |
-| `--clear` | | Drop every rule. |
-| `--list` | | Show the rules. |
+| `--hold` | | Hold the requests that match the route (required) where they are, until `--release`. Takes no answer to shape: `--status`, `--body`, `--delay` and `--lost` with it are refused (exit 2). With `--times n` only the first `n` are held. With `--sticky` the gate survives an app reset on the headless host. |
+| `--release` | | Let the held requests go on: all of them, or those that match the route. They go to a rule or to the network, oldest first. The gate stays, so the next matching request is held again. |
+| `--clear` | | Drop every rule and gate, and let whatever is held go on. |
+| `--list` | | Show the rules and gates, and what is held and for how long. |
 
 ```bash
 lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000
 lynkeus mock '/v3/accounts' --body '[]' --times 1
 lynkeus mock 'POST /v3/payments' --lost
+lynkeus mock 'GET /v3/accounts' --hold     # the screen shows its loading state, and keeps it
+lynkeus mock --release                      # the request goes on and the list arrives
 lynkeus mock --clear
 ```
+
+**Holding.** `--hold` is a gate in front of everything else: a matching request waits before any rule or the network sees it, and to the app it is a request that has not answered yet. Use it to look at a loading state for as long as you need, or to make two requests arrive in an order you choose. When the request is released, the rule or the network answers it as it would have. On the headless host an app `reset`, and everywhere `--clear`, release whatever is still held (Lynkeus FastSim keeps rules and gates across a `reset`, since each case has its own host), so nothing is left waiting, and a request the app aborted meanwhile is not sent when released.
+
+A held request is not waited for: `lynkeus idle`, a screenshot's `--settle` and [`lynkeus clock --settle`](#lynkeus-os-clock) all go on without it, because the point of holding it is to look at the loading state. `lynkeus requests` and `clock --settle` report it apart, as `held`, and leave it out of `inFlight`. It works on the headless host, on a device or simulator through the agent, and on Lynkeus FastSim.
 
 ### `lynkeus os permissions`
 
@@ -1018,6 +1041,10 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
 | `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
 | `--once` | | No second chance for a case that fails. |
+| `--seed <text>` | `launch.seed`, then `LYNKEUS_SEED` | Makes `{{random.letters}}` and `{{random.digits}}` repeat from run to run, and tells a host the run starts. See [Launch facts](#launch-facts). |
+| `--locale <tag>` | `launch.locale`, then `LYNKEUS_LOCALE` | The language tag a host the run starts launches with, such as `es-AR`. |
+| `--time-zone <zone>` | `launch.timeZone`, then `LYNKEUS_TIME_ZONE` | The IANA time zone a host the run starts launches with, such as `Europe/Madrid`. |
+| `--epoch <iso>` | `launch.epoch`, then `LYNKEUS_EPOCH` | The instant the app's clock starts at on a host the run starts, as ISO 8601 or milliseconds since 1970. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
 | `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
 | `--report <file>` | | Append one JSON line per case to this file. |
@@ -1040,7 +1067,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--prepared <dir>` | | Where `case prepare` leaves setups made ahead. A case found there skips its setup. |
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
-| `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number. |
+| `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number, and `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` by the run's [launch facts](#launch-facts) (empty when the run sets none). |
 | `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
 | `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
@@ -1068,6 +1095,24 @@ A long run says where it is, in three places.
 [`lynkeus case status`](#lynkeus-case-status) reads the file from any terminal. Over MCP, [`case_run`](/guides/ai-agents/) sends progress notifications to a client that passes a progress token.
 
 #### Hosts that die
+
+#### Launch facts
+
+A run can pin four facts the app would otherwise take from the machine it runs on: a `seed` for random values, the `locale`, the `time zone`, and the `epoch`, the instant the app's clock starts at. Each one comes from its flag, else from `launch` in [`lynkeus.config.json`](/reference/configuration/#launch), else from its environment variable. A value that cannot be used (`--time-zone Mars/Olympus`) stops the run before it starts, with exit code `2`.
+
+What each host does with them:
+
+| Host | seed | locale | time zone | epoch |
+|---|---|---|---|---|
+| Headless (`--host`) | `Math.random` repeats from the same place at launch and after each case | `react-native-localize` answers it | the host process runs in it (`TZ`) | `Date` starts there and runs on; `lynkeus clock --reset` returns to it |
+| `--host-command` | passed in the environment and in `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
+| Simulator or emulator, attached | the cases' own `{{random.*}}` values | not applied | not applied | not applied |
+
+A host started with `--host-command` receives `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (and `TZ`) and `LYNKEUS_EPOCH` in its environment, and the placeholders in the command. [Lynkeus FastSim](/guides/fastsim/) reads them as its defaults. A simulator or emulator that is only attached keeps the Mac's time zone and clock, so the run says on stderr which facts it could not pass on, and lists them under `launch.unsupported` in `run.json`. A run without the flags and without `launch` records nothing.
+
+```bash
+lynkeus case run --host --out run --seed 1 --locale es-AR --time-zone America/Argentina/Buenos_Aires --epoch 2026-03-01T09:00:00Z
+```
 
 A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, or with `--host-command` and `--keep-hosts` (one host per job), the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own (`lynkeus-headless-<pid>-2.log` in the temporary folder, the first being `lynkeus-headless-<pid>.log`), so the one that died keeps what explains it.
 

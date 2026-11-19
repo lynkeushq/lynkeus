@@ -181,7 +181,7 @@ Elements that are hidden are never matched, with one exception: an `inert` eleme
 | [`waitFor`](#waitfor) | `{ route?, target?, anyOf?, gone?, enabled?, scroll?, timeoutMs?, since? }` | `{ route?, matched?, waitedMs, passed? }` |
 | [`idle`](#idle) | `{ quietMs?, timeoutMs?, after? }` | `{ commit, idle }` |
 | [`deepLink`](#deeplink) | `{ url }` | `{ opened }` |
-| [`requests`](#requests) | `{ since? }` | `{ inFlight, requests }` |
+| [`requests`](#requests) | `{ since? }` | `{ inFlight, held, requests }` |
 | [`trace`](#trace) | `{ since? }` | `{ last, events }` |
 | [`dismissKeyboard`](#dismisskeyboard) | none | `true` |
 | [`batch`](#batch) | `{ calls }` | `{ results }` |
@@ -301,7 +301,7 @@ Takes `{ url }` and opens it in the app as the OS would hand it over. It answers
 
 ### `requests`
 
-Answers `{ inFlight, requests }`: how many HTTP requests are in flight, and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
+Answers `{ inFlight, held, requests }`: how many HTTP requests are in flight, how many more are held by a `netmock` hold (not counted in `inFlight`, and not waited for by `idle`), and the recent ones as [`RequestRecord`](#requestrecord)s. With `since`, only requests whose `id` is greater.
 
 The app keeps the last 200 requests. It records no headers and no bodies, unless a driver turned on the `networkBodies` command; then the requests that follow keep both, with secrets replaced by `…` and each body cut at 16,000 characters.
 
@@ -491,7 +491,7 @@ The protocol package also defines what `lynkeus case run --out <dir>` writes, so
 
 | File | Content |
 |---|---|
-| `run.json` | A `RunManifest`: when the run started and ended, what the app ran on, the git branch and commit, the totals. |
+| `run.json` | A `RunManifest`: when the run started and ended, what the app ran on, the git branch and commit, the `launch` facts (seed, locale, time zone, epoch) the run asked for, the totals. |
 | `cases.jsonl` | One `RunCase` per line, one line per attempt, in the order they ran. |
 | `progress.ndjson` | One event per line as the run goes: the run with its cases, each case as it starts and ends, each step. `lynkeus case status` reads it. It is not part of `RUN_SCHEMA`. |
 | `<case id>/…` | What a case's steps point at: frames and a film. |

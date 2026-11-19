@@ -15,7 +15,22 @@ export type NetRule = {
   lost?: boolean;
 };
 
+/** Requests that match wait where they are until the driver releases them; then a rule or the network answers. */
+type Hold = { method: string; path: string; times?: number; hits: number };
+type Held = { method: string; path: string; since: number; go: () => void };
+
 let rules: NetRule[] = [];
+let holds: Hold[] = [];
+let held: Held[] = [];
+let outside: () => number = () => 0;
+
+/** A host that holds requests itself (the headless fence) says how many it holds, so they are counted as held. */
+export const countHeldFrom = (count: () => number): void => {
+  outside = count;
+};
+
+/** Requests waiting for a release: out as far as the app can tell, but not something a wait should wait for. */
+export const heldCount = (): number => held.length + outside();
 
 const pathOf = (url: string) => {
   try {
@@ -26,7 +41,7 @@ const pathOf = (url: string) => {
   }
 };
 
-const matches = (rule: NetRule, method: string, path: string) =>
+const matches = (rule: Pick<NetRule, 'method' | 'path'>, method: string, path: string) =>
   (rule.method === '*' || rule.method === method) && (rule.path.startsWith('^') ? new RegExp(rule.path).test(path) : path.includes(rule.path));
 
 /** The rule that answers this request instead of the network, counted as used; null when none does. */
@@ -36,6 +51,25 @@ export const mockFor = (method: string, url: string): NetRule | null => {
   const rule = rules.find((r) => (r.times === undefined || r.hits < r.times) && matches(r, method.toUpperCase(), path));
   if (rule) rule.hits += 1;
   return rule ?? null;
+};
+
+/** A promise the driver settles by releasing the request, or null when no hold applies to it. */
+export const holdFor = (method: string, url: string): Promise<void> | null => {
+  if (holds.length === 0) return null;
+  const path = pathOf(url);
+  const gate = holds.find((h) => (h.times === undefined || h.hits < h.times) && matches(h, method.toUpperCase(), path));
+  if (!gate) return null;
+  gate.hits += 1;
+  return new Promise<void>((go) => {
+    held.push({ method: method.toUpperCase(), path, since: Date.now(), go });
+  });
+};
+
+const releaseHeld = (route?: { method: string; path: string }): number => {
+  const released = held.filter((h) => !route || matches(route, h.method, h.path));
+  held = held.filter((h) => !released.includes(h));
+  for (const h of released) h.go();
+  return released.length;
 };
 
 type RnXhr = XMLHttpRequest & {
@@ -107,13 +141,24 @@ export const installNetmock = (): void => {
         });
         return { rules: rules.length };
       }
+      case 'hold':
+        if (!p.path) throw new Error('netmock: hold needs a path (substring, or ^regex)');
+        holds.unshift({ method: (p.method ?? '*').toUpperCase(), path: p.path, times: p.times, hits: 0 });
+        return { holds: holds.length, held: held.length };
+      case 'release':
+        return {
+          released: releaseHeld(p.path ? { method: (p.method ?? '*').toUpperCase(), path: p.path } : undefined),
+          held: held.length,
+        };
       case 'clear':
         rules = [];
+        holds = [];
+        releaseHeld();
         return { rules: 0 };
       case 'list':
-        return { rules };
+        return { rules, holds, held: held.map((h) => ({ method: h.method, path: h.path, heldMs: Date.now() - h.since })) };
       default:
-        throw new Error(`netmock: "${p.action}" is answered by a host only; add, clear and list work on a device`);
+        throw new Error(`netmock: "${p.action}" is answered by a host only; add, hold, release, clear and list work on a device`);
     }
   });
 };

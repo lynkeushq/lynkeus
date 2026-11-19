@@ -1,7 +1,7 @@
 // What a device gets from the OS, set by the driver at run time as `qa`
 // commands: deep links, app state, the clock, the network and its answers,
 // and the sensors, camera, picker and WebViews the factories stand in for.
-import { qa } from 'lynkeus-agent';
+import { countHeldFrom, qa } from 'lynkeus-agent';
 import { AppState, Linking } from 'react-native';
 
 import { log, onReset } from '../runtime.js';
@@ -57,11 +57,20 @@ const installAppState = () => {
   });
 };
 
+// LYNKEUS_EPOCH (set by `case run --epoch`): Date starts at that instant and runs on from there.
+const launchOffset = (): number => {
+  const epoch = process.env.LYNKEUS_EPOCH;
+  if (!epoch) return 0;
+  const at = Date.parse(epoch);
+  return Number.isNaN(at) ? 0 : at - Date.now();
+};
+
 // Timers stay real, so a countdown still ticks in real seconds. Installed
 // before the app loads, so a module that captures `Date` captures this one.
 const installClock = () => {
   const RealDate = Date;
-  let offsetMs = 0;
+  const launched = launchOffset();
+  let offsetMs = launched;
   class ControlledDate extends RealDate {
     constructor(...args: unknown[]) {
       if (args.length === 0) super(RealDate.now() + offsetMs);
@@ -73,21 +82,80 @@ const installClock = () => {
   }
   (globalThis as { Date: unknown }).Date = ControlledDate;
   onReset(() => {
-    offsetMs = 0;
+    offsetMs = launched;
   });
   qa.register('clock', (params) => {
-    const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean };
-    if (p.reset) offsetMs = 0;
+    const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean; settle?: boolean };
+    if (p.reset) offsetMs = launched;
     if (p.now) {
       const target = RealDate.parse(p.now);
       if (Number.isNaN(target)) throw new Error(`clock: cannot parse "${p.now}"`);
       offsetMs = target - RealDate.now();
     }
     if (typeof p.advanceMs === 'number') offsetMs += p.advanceMs;
-    const now = new ControlledDate().toISOString();
-    log(`clock → ${now} (offset ${Math.round(offsetMs / 1000)}s)`);
-    return { now, offsetMs };
+    const answer = () => ({ now: new ControlledDate().toISOString(), offsetMs });
+    if (!p.settle) {
+      const done = answer();
+      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s)`);
+      return done;
+    }
+    return settle().then((settled) => {
+      const done = { ...answer(), ...settled };
+      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s), ${settled.settled ? 'settled' : 'not settled'}`);
+      return done;
+    });
   });
+};
+
+// LYNKEUS_SEED (set by `case run --seed`): Math.random repeats from the same place at launch and after every reset,
+// so the app draws the same ids and names in every run. crypto's generators are left alone.
+const installSeed = () => {
+  const seed = process.env.LYNKEUS_SEED;
+  if (!seed) return;
+  const start = (): number => {
+    let hash = 2166136261;
+    for (const char of seed) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    return hash >>> 0;
+  };
+  let state = start();
+  Math.random = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  onReset(() => {
+    state = start();
+  });
+};
+
+/** What `clock --settle` reads from the host: how many commits the screen has had, how many requests are out and how many are held. */
+export type SettleProbe = { commits: () => number; inFlight: () => number; held?: () => number };
+let probe: SettleProbe | undefined;
+export const setSettleProbe = (next: SettleProbe | undefined): void => {
+  probe = next;
+};
+
+const SETTLE_TURN_MS = 2;
+const SETTLE_QUIET_TURNS = 3;
+const SETTLE_MAX_TURNS = 100;
+
+// Timers here are real, so time cannot be held still. What settle does not do is wait for the app's delayed work: it
+// gives the event loop a few short turns (microtasks, immediates, a zero-delay timer or two) and stops once the screen
+// has not committed for three in a row. A timer due later stays pending; a loop that re-arms itself never goes quiet
+// and the answer says so.
+const settle = async () => {
+  if (!probe) throw new Error('clock: settle needs the host running');
+  let quiet = 0;
+  let turns = 0;
+  while (quiet < SETTLE_QUIET_TURNS && turns < SETTLE_MAX_TURNS) {
+    const before = probe.commits();
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_TURN_MS));
+    turns += 1;
+    quiet = probe.commits() === before ? quiet + 1 : 0;
+  }
+  return { settled: quiet >= SETTLE_QUIET_TURNS, turns, commit: probe.commits(), inFlight: probe.inFlight(), held: probe.held?.() ?? 0 };
 };
 
 export type NetRule = {
@@ -103,7 +171,18 @@ export type NetRule = {
   lost?: boolean;
 };
 type Recorded = { method: string; path: string; status: number; body: string };
-const net = { rules: [] as NetRule[], recording: false, recorded: [] as Recorded[] };
+/** A gate: requests that match wait where they are until `release`, then go on to a rule or the network. */
+type Hold = { method: string; path: string; times?: number; hits: number; sticky?: boolean };
+type Held = { method: string; path: string; since: number; go: () => void };
+const net = { rules: [] as NetRule[], holds: [] as Hold[], held: [] as Held[], recording: false, recorded: [] as Recorded[] };
+
+const releaseHeld = (route?: { method: string; path: string }): number => {
+  const [released, kept] = [[], []] as [Held[], Held[]];
+  for (const h of net.held) (!route || matches(route, h.method, h.path) ? released : kept).push(h);
+  net.held = kept;
+  for (const h of released) h.go();
+  return released.length;
+};
 
 export const pathOf = (url: string) => {
   try {
@@ -114,7 +193,7 @@ export const pathOf = (url: string) => {
   }
 };
 
-const matches = (rule: NetRule, method: string, path: string) =>
+const matches = (rule: Pick<NetRule, 'method' | 'path'>, method: string, path: string) =>
   (rule.method === '*' || rule.method === method) && (rule.path.startsWith('^') ? new RegExp(rule.path).test(path) : path.includes(rule.path));
 
 // Consulted by the fetch fence before the real network.
@@ -124,6 +203,17 @@ export const netControls = {
     const rule = net.rules.find((r) => (r.times === undefined || r.hits < r.times) && matches(r, method.toUpperCase(), path));
     if (rule) rule.hits += 1;
     return rule ?? null;
+  },
+  /** A promise that settles once the driver releases this request, or undefined when no hold applies to it. */
+  hold(method: string, url: string): Promise<void> | undefined {
+    const path = pathOf(url);
+    const gate = net.holds.find((h) => (h.times === undefined || h.hits < h.times) && matches(h, method.toUpperCase(), path));
+    if (!gate) return undefined;
+    gate.hits += 1;
+    log(`netmock: holding ${method.toUpperCase()} ${path}`);
+    return new Promise<void>((go) => {
+      net.held.push({ method: method.toUpperCase(), path, since: Date.now(), go });
+    });
   },
   async respond(rule: NetRule, ResponseCtor: new (body: string | null, init: { status: number; headers?: Record<string, string> }) => unknown) {
     if (rule.delayMs) await new Promise((resolve) => setTimeout(resolve, rule.delayMs));
@@ -138,9 +228,13 @@ export const netControls = {
 };
 
 const installNetMock = () => {
+  countHeldFrom(() => net.held.length);
   onReset(() => {
     // A sticky rule outlives a reset: it is how a case makes the first load fail, since a login starts with one.
     net.rules = net.rules.filter((r) => r.sticky);
+    net.holds = net.holds.filter((h) => h.sticky);
+    // What the last app was waiting for goes on, so no promise is left hanging; the new app never sees the answers.
+    releaseHeld();
     net.recording = false;
   });
   qa.register('netmock', (params) => {
@@ -166,11 +260,27 @@ const installNetMock = () => {
         );
         return { rules: net.rules.length };
       }
+      case 'hold': {
+        if (!p.path) throw new Error('netmock: hold needs a path (substring, or ^regex)');
+        net.holds.unshift({ method: (p.method ?? '*').toUpperCase(), path: p.path, times: p.times, hits: 0, sticky: p.sticky });
+        return { holds: net.holds.length, held: net.held.length };
+      }
+      case 'release': {
+        const released = releaseHeld(p.path ? { method: (p.method ?? '*').toUpperCase(), path: p.path } : undefined);
+        log(`netmock: released ${released} held request(s)`);
+        return { released, held: net.held.length };
+      }
       case 'clear':
         net.rules = [];
+        net.holds = [];
+        releaseHeld();
         return { rules: 0 };
       case 'list':
-        return { rules: net.rules };
+        return {
+          rules: net.rules,
+          holds: net.holds,
+          held: net.held.map((h) => ({ method: h.method, path: h.path, heldMs: Date.now() - h.since })),
+        };
       case 'record':
         net.recording = true;
         net.recorded = [];
@@ -298,6 +408,7 @@ export const installControls = (initialUrl: string | null = null): void => {
   installLinking(initialUrl);
   installAppState();
   installClock();
+  installSeed();
   installNetMock();
   installConnectivity();
   installDevices();

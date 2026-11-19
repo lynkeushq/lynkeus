@@ -144,6 +144,12 @@ its `cases` are relative to it.
 `LYNKEUS_SEED` set to anything, each case draws the same ones every time, and
 different ones from the case beside it: what comparing two runs' screens needs.
 
+`--seed`, `--locale`, `--time-zone` and `--epoch` (or `launch` in the config) pin
+the facts the app would take from the machine. A host the run starts receives
+them in its environment; a run records them as `launch` in `run.json`, and lists
+under `launch.unsupported` the ones an attached Simulator or emulator could not
+apply.
+
 ## Several cases at once
 
 ```sh
@@ -257,7 +263,7 @@ run. The same case then passes where the host can do it.
 script can read without knowing how the run was made:
 
 ```
-run.json         when it started and ended, what the app ran on, the totals
+run.json         when it started and ended, what the app ran on, the launch facts, the totals
 cases.jsonl      one line per attempt of a case, in the order they ran
 progress.ndjson  where the run is, an event per line, written as it goes
 ```

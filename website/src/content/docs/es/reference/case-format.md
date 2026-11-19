@@ -348,6 +348,7 @@ Un paso `app.<comando>` que no es ninguno de los anteriores ejecuta el comando d
 - app.appstate: background
 - app.mock: { route: "GET /v3/accounts", status: 500 }
 - app.clock: { now: "2027-01-01T00:00:00Z" }
+- app.clock: { advance: 5000, settle: true }
 - app.mock: clear
 ```
 
@@ -376,6 +377,16 @@ Algunas opciones tienen un nombre alternativo, más claro dentro de un caso:
 - app.mock: { route: "GET /v3/accounts", status: 500, delayMs: 3000 }
 - app.mock: { route: "POST /v1/transfers", lost: true, times: 1 }
 - app.mock: clear
+```
+
+Para que un estado de carga se quede en pantalla, retén la petición, revisa la pantalla y después suéltala:
+
+```yaml
+- app.mock: { route: "GET /v3/accounts", hold: true }
+- app.press: "#refresh"
+- app.see: "#accounts-spinner"
+- app.mock: { release: true }
+- app.see: "#accounts-list"
 ```
 
 Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se pierde es solo la respuesta, y a la app le llega un fallo de red. Es lo mismo en el host sin pantalla y en un simulador, un emulador o un teléfono. Hasta 0.5 un dispositivo hacía fallar la petición sin enviarla.

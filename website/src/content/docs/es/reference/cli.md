@@ -458,20 +458,35 @@ Solo sin pantalla. Simula el modo avión: las peticiones fallan, los sockets abi
 ### `lynkeus os clock`
 
 ```bash
-lynkeus os clock [--now <iso>] [--advance <ms>] [--reset]
+lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]
 ```
 
-Solo sin pantalla. Cambia lo que responde `Date`. Los temporizadores siguen siendo reales. Forma corta: `lynkeus clock`.
+Sin pantalla y en Lynkeus FastSim. Cambia lo que responde `Date`, y con `--settle` termina lo que está pendiente. Los temporizadores llevan su propio tiempo. Forma corta: `lynkeus clock`.
 
 | Opción | Qué hace |
 |---|---|
 | `--now <iso>` | Fija la hora. |
 | `--advance <ms>` | Adelanta el reloj. |
 | `--reset` | Vuelve al reloj real. |
+| `--settle` | Ejecuta todo lo pendiente hasta que no quede nada, sin dejar pasar el tiempo. Se aplica después de las opciones anteriores. |
 
 ```bash
 lynkeus os clock --now 2027-01-01T00:00:00Z
+lynkeus os clock --advance 5000 --settle
 ```
+
+**`--settle`** ejecuta lo que está pendiente en este instante (microtareas, temporizadores que ya vencieron, renders en cola) hasta que no queda nada, y ahí se detiene. No espera lo que vence más adelante: un `setTimeout` de diez segundos sigue pendiente. La respuesta cuenta qué pasó:
+
+| Campo | Qué dice |
+|---|---|
+| `settled` | `true` si no quedó nada por ejecutar. `false` si algo se vuelve a programar solo, como un ciclo de `requestAnimationFrame`, y nunca se calma. |
+| `inFlight` | Cuántas peticiones espera todavía la app. `--settle` no las espera. |
+| `nextDueMs` | Solo en Lynkeus FastSim: cuántos milisegundos faltan para el próximo temporizador, o `null`. |
+| `advancedMs` | Solo en Lynkeus FastSim: cuánto avanzó el reloj virtual. Siempre `0`. |
+
+La diferencia con [`idle`](#lynkeus-idle) es que `idle` espera a que la pantalla deje de cambiar y por eso deja pasar el tiempo: en Lynkeus FastSim el reloj virtual corre mientras espera, y un aviso o un carrusel pueden aparecer y desaparecer. `--settle` deja el reloj donde está. Sirve después de `--advance`, para ver qué causa exactamente ese tiempo, o después de un toque, para pasar el trabajo que desencadena sin llegar a lo que viene después.
+
+En el host sin pantalla los temporizadores son reales y el tiempo no se puede detener: `--settle` da unas vueltas cortas al bucle de eventos y termina cuando la pantalla lleva tres seguidas sin cambiar. Un simulador o un emulador no tiene el comando `clock`: como paso de un caso (`app.clock: { settle: true }`) queda `unsupported`, y desde la línea de comandos responde `Unknown method`. Un Lynkeus FastSim o un `lynkeus-headless` anteriores a esta opción responden sin `settled`, y el comando falla diciéndolo.
 
 ### `lynkeus os biometrics`
 
@@ -530,7 +545,7 @@ Solo sin pantalla. Define qué responde el próximo selector de imágenes. Forma
 ### `lynkeus mock`
 
 ```bash
-lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]
+lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]
 ```
 
 Responde una petición antes de que llegue a la red. Con esto, un estado de error, una espera larga o una lista vacía se consiguen con una línea, sin preparar nada en el backend.
@@ -551,15 +566,23 @@ La ruta se compara por contenido: `/v3/accounts` coincide con cualquier ruta que
 | `--times <n>` | Aplica la regla solo esa cantidad de veces. |
 | `--sticky` | Conserva la regla cuando la app se reinicia con `reset`. Sin esta opción, `reset` la borra. |
 | `--lost` | Pierde la respuesta, no la petición: la petición sale y el servidor la recibe y actúa, y a la app le llega un fallo de red. Así se prueba lo que pasa cuando la app cree que algo falló y en el servidor ya ocurrió. No se combina con `--status`, `--body` ni `--delay`: una petición perdida no tiene respuesta que moldear, y el comando termina con código `2` y lo dice. |
-| `--clear` | Borra todas las reglas. |
-| `--list` | Muestra las reglas vigentes. |
+| `--hold` | Retiene las peticiones que coinciden con la ruta (obligatoria) hasta que las sueltes con `--release`. No tiene respuesta que moldear: con `--status`, `--body`, `--delay` o `--lost` el comando termina con código `2`. Con `--times n` retiene solo las primeras `n`. Con `--sticky`, el filtro sobrevive a un `reset` de la app en el host sin pantalla. |
+| `--release` | Deja seguir a las peticiones retenidas: todas, o las que coinciden con la ruta. Siguen hacia una regla o hacia la red, de la más antigua a la más nueva. El filtro se mantiene, así que la próxima petición que coincida se retiene de nuevo. |
+| `--clear` | Borra todas las reglas y filtros, y deja seguir a lo que estuviera retenido. |
+| `--list` | Muestra las reglas y los filtros vigentes, y qué hay retenido y desde hace cuánto. |
 
 ```bash
 lynkeus mock 'GET /v3/accounts' --status 500 --delay 3000
 lynkeus mock '/v3/accounts' --body '[]' --times 1
 lynkeus mock '/v1/transfers' --lost --times 1   # el servidor ejecuta la transferencia; la app no se entera
+lynkeus mock 'GET /v3/accounts' --hold          # la pantalla muestra su estado de carga y lo conserva
+lynkeus mock --release                           # la petición sigue y llega la lista
 lynkeus mock --list
 ```
+
+**Retener.** `--hold` es un filtro que va antes de todo lo demás: una petición que coincide espera antes de que la vea una regla o la red, y para la app es una petición que todavía no respondió. Sirve para mirar un estado de carga todo el tiempo que haga falta, o para que dos peticiones lleguen en el orden que elijas. Al soltarla, responde la regla o la red, como habría respondido antes. En el host sin pantalla un `reset` de la app, y en todos `--clear`, sueltan lo que siga retenido (Lynkeus FastSim conserva reglas y filtros tras un `reset`, porque cada caso tiene su propio host), así que nada queda esperando, y una petición que la app canceló mientras tanto no se envía al soltarla.
+
+Una petición retenida no se espera: `lynkeus idle`, el `--settle` de una captura y [`lynkeus clock --settle`](#lynkeus-os-clock) siguen sin ella, porque retenerla sirve para mirar el estado de carga. `lynkeus requests` y `clock --settle` la informan aparte, como `held`, y no la cuentan en `inFlight`. Funciona en el host sin pantalla, en un dispositivo o simulador a través del agente y en Lynkeus FastSim.
 
 Una petición que contestó una regla (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y [`lynkeus requests`](#lynkeus-requests) y [`lynkeus trace`](#lynkeus-trace) la muestran con `(mocked)`. Cuando un caso falla, la evidencia también la marca, y las razones del fallo no le echan la culpa al backend por una respuesta que armó el propio caso.
 
@@ -961,6 +984,10 @@ Opciones que deciden qué se ejecuta y cómo:
 | `--host` | Arranca `headless start` para la ejecución y lo detiene al terminar. Si el host muere en medio de un caso, o su app deja de contestar, se arranca otro antes del caso siguiente (ver [Si el host se cae](#si-el-host-se-cae)). |
 | `--host-heap <percent>` | Con `--host` o `--keep-hosts`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |
 | `--once` | No da una segunda oportunidad al caso que falla. |
+| `--seed <text>` | Hace que `{{random.letters}}` y `{{random.digits}}` se repitan entre ejecuciones y se lo pasa a los hosts que la ejecución arranca. Por defecto `launch.seed`, y luego `LYNKEUS_SEED`. Ver [Datos de arranque](#datos-de-arranque). |
+| `--locale <tag>` | La etiqueta de idioma con la que arranca el host que lanza la ejecución, por ejemplo `es-AR`. Por defecto `launch.locale`, y luego `LYNKEUS_LOCALE`. |
+| `--time-zone <zone>` | La zona horaria IANA del host que lanza la ejecución, por ejemplo `Europe/Madrid`. Por defecto `launch.timeZone`, y luego `LYNKEUS_TIME_ZONE`. |
+| `--epoch <iso>` | El instante en que empieza el reloj de la app en un host que lanza la ejecución, en ISO 8601 o en milisegundos desde 1970. Por defecto `launch.epoch`, y luego `LYNKEUS_EPOCH`. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
 | `--prepared <dir>` | Dónde deja `case prepare` los `setup` hechos por adelantado. Un caso que encuentra el suyo allí se lo salta. |
@@ -1005,7 +1032,7 @@ Opciones para ejecutar en paralelo:
 |---|---|
 | `--jobs <n>` | Cuántos casos a la vez, cada uno en su propio host. Requiere `--ports`. Por defecto `1`. Un caso con `exclusive: true` en su encabezado corre solo: [más abajo](#casos-que-corren-solos). |
 | `--ports <list>` | El puerto del driver para cada job, separados por comas: es adonde se conecta su host. |
-| `--host-command <command>` | Un comando que arranca un host nuevo para cada caso y lo detiene después. `{port}` se reemplaza por el puerto al que se conecta el host y `{job}` por el número de job. |
+| `--host-command <command>` | Un comando que arranca un host nuevo para cada caso y lo detiene después. `{port}` se reemplaza por el puerto al que se conecta el host, `{job}` por el número de job y `{seed}`, `{locale}`, `{time-zone}` y `{epoch}` por los [datos de arranque](#datos-de-arranque) de la ejecución (vacíos si no los fijaste). |
 | `--keep-hosts` | Con `--host-command`: en lugar de un host por caso, arranca el host de cada job una sola vez y lo conserva para todos los casos del job. Antes de cada caso lo revisa y lo arranca de nuevo si terminó, si su app dejó de contestar o si su heap pasó de `--host-heap`. Un caso que falló porque su host murió lo dice. |
 | `--host-timeout <ms>` | Con `--keep-hosts`: cuánto puede tardar un host en conectarse (primero compila la app). Por defecto `600000`. |
 | `--in-order` | Con `--jobs`: toma los casos en el orden dado, en lugar de empezar por los más largos. |
@@ -1062,6 +1089,24 @@ Un comentario de los pasos que empieza con un número abre una sección: `# 3 Un
 #### Casos que corren solos
 
 Con `--jobs`, los casos corren uno al lado del otro y comparten el backend. Un caso que cambia lo que ven todos (un flag global, un ajuste para todos los usuarios) rompe a los que corren a su lado. Un caso con `exclusive: true` en su encabezado espera a que terminen los casos en curso, no deja empezar a ningún otro hasta que termina, y su `setup` nunca se prepara por adelantado con `--ahead`. Un caso que espera para correr solo pasa antes que los pedidos después de él. Mientras espera, la ejecución lo dice: `… <id> runs alone: waiting for the cases in flight to end`.
+
+#### Datos de arranque
+
+Hay cuatro datos que la app tomaría de la máquina donde corre y que una ejecución puede fijar: una `seed` para los valores al azar, el idioma (`locale`), la zona horaria y el `epoch`, el instante en que empieza el reloj de la app. Cada uno sale de su opción, y si no está, de `launch` en [`lynkeus.config.json`](/es/reference/configuration/#arranque), y si tampoco, de su variable de entorno. Un valor que no sirve (`--time-zone Marte/Olimpo`) detiene la ejecución antes de empezar, con código `2`.
+
+Qué hace cada host con ellos:
+
+| Host | seed | locale | zona horaria | epoch |
+|---|---|---|---|---|
+| Sin pantalla (`--host`) | `Math.random` repite desde el mismo punto al arrancar y tras cada caso | lo responde `react-native-localize` | el proceso del host corre en esa zona (`TZ`) | `Date` empieza ahí y sigue corriendo; `lynkeus clock --reset` vuelve a ese instante |
+| `--host-command` | va en el entorno y en `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
+| Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos | no se aplica | no se aplica | no se aplica |
+
+Un host que arranca `--host-command` recibe `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (y `TZ`) y `LYNKEUS_EPOCH` en su entorno, además de los marcadores del comando. [Lynkeus FastSim](/es/guides/fastsim/) los usa como valores por defecto. Un simulador o emulador que solo está conectado conserva la zona horaria y el reloj del Mac; en ese caso la ejecución avisa por stderr qué datos no pudo pasar y los anota en `launch.unsupported` de `run.json`. Sin opciones y sin `launch`, `run.json` no lleva nada de esto.
+
+```bash
+lynkeus case run --host --out run --seed 1 --locale es-AR --time-zone America/Argentina/Buenos_Aires --epoch 2026-03-01T09:00:00Z
+```
 
 #### Si el host se cae
 

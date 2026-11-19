@@ -282,15 +282,18 @@ Headless: airplane mode (requests fail, open sockets drop, NetInfo listeners hea
 
 Also accepted: `network`.
 
-### `lynkeus os clock [--now <iso>] [--advance <ms>] [--reset]`
+### `lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]`
 
-Headless: what Date answers (timers stay real)
+Headless and Lynkeus FastSim: what Date answers; --settle runs what is pending without letting time pass
+
+`--now`, `--advance` and `--reset` move what `Date` answers; timers keep their own time. `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and, on Lynkeus FastSim, `nextDueMs` (when the next timer is due) and `advancedMs` (0: the virtual clock did not move). On the headless host timers are real, so a few milliseconds pass; on Lynkeus FastSim the host owns the clock and none does. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined with `--now` or `--advance`, the time moves first.
 
 | Flag | |
 |---|---|
 | `--now <iso>` | set the time |
 | `--advance <ms>` | move the clock forward |
 | `--reset` | back to the real clock |
+| `--settle` | run what is pending to idle without letting time pass (after any of the above) |
 
 Also accepted: `clock`.
 
@@ -336,9 +339,11 @@ Headless: what the next image picker answers
 
 Also accepted: `gallery`.
 
-### `lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--clear] [--list]`
+### `lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]`
 
-Answer a request before the network: a host stands in for it, on a device the agent answers in the app (--sticky survives a host reset)
+Answer a request before the network, or hold it until you release it (--hold, --release): a host stands in for the network, on a device the agent does it in the app (--sticky survives a host reset)
+
+With a route and no other flag, the matching requests are answered by a rule (`--status`, `--body`, `--delay`, `--times`, `--lost`). `--hold` is a gate instead: matching requests wait, as far as the app can tell still in flight, so a loading state stays on screen as long as you want; `--release [route]` lets the held ones go on, to a rule or to the network, oldest first, and the gate stays for the next requests (`--times n` holds only the first n). `--clear` drops every rule and gate and lets whatever is held go; so does an app reset on a host, unless the hold is `--sticky`. `--list` also shows what is held and for how long. A held request is not waited for: `idle`, a frame's `--settle` and `clock --settle` go on without it, and `requests` and `clock --settle` report it apart as `held`, outside `inFlight`. Works wherever `--status` does (headless, a device with the agent, Lynkeus FastSim); a host that has no netmock answers `Unknown method`.
 
 | Argument | |
 |---|---|
@@ -352,8 +357,10 @@ Answer a request before the network: a host stands in for it, on a device the ag
 | `--times <n>` | only this many times |
 | `--sticky` | keep the rule across an app reset |
 | `--lost` | let the request reach the server and fail it on the way back |
-| `--clear` | drop every rule |
-| `--list` | show the rules |
+| `--hold` | hold matching requests where they are until --release (the route is required; --times holds only the first n) |
+| `--release` | let held requests go on: all of them, or those matching the route |
+| `--clear` | drop every rule and gate, and let held requests go |
+| `--list` | show the rules, the gates and what is held |
 
 ### `lynkeus os permissions <action> <service>`
 
@@ -623,7 +630,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -637,6 +644,10 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 |---|---|
 | `--host` | start `headless start` for the run and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
+| `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
+| `--locale <tag>` | the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE) |
+| `--time-zone <zone>` | the IANA time zone a host the run starts launches with, as in Europe/Madrid (default: launch.timeZone, LYNKEUS_TIME_ZONE) |
+| `--epoch <iso>` | the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
 | `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
