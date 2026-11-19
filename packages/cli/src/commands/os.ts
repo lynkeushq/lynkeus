@@ -67,14 +67,15 @@ export const osCommands = [
   define({
     name: 'os clock',
     group: 'os',
-    summary: 'Headless and Lynkeus FastSim: what Date answers; --settle runs what is pending without letting time pass',
+    summary:
+      'Headless and Lynkeus FastSim: what Date answers; --advance runs the timers that fall due; --settle runs what is pending without letting time pass',
     details:
-      '`--now`, `--advance` and `--reset` move what `Date` answers; timers keep their own time. `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and, on Lynkeus FastSim, `nextDueMs` (when the next timer is due) and `advancedMs` (0: the virtual clock did not move). On the headless host timers are real, so a few milliseconds pass; on Lynkeus FastSim the host owns the clock and none does. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined with `--now` or `--advance`, the time moves first.',
+      '`--now` and `--reset` change what `Date` answers; timers are not touched. `--advance <ms>` moves the clock forward and runs every timer and interval that falls due inside those milliseconds, in due order, each at its own due time (`Date` answers that instant inside its callback), as `jest.advanceTimersByTime` does: a 5 s `setTimeout` fires on `--advance 5000` and not on `--advance 4000`, with no real waiting. Promise work a timer sets off runs before the next timer. A timer that sets itself again forever inside the window stops the advance after 100,000 runs, with an error that names it. `--advance` answers `advancedMs` (how far the clock moved) and `nextDueMs` (milliseconds until the next timer is due, or `null`). `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and `nextDueMs`; on Lynkeus FastSim `advancedMs` counts what the virtual clock moved in the whole command. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined, the time moves first: `--now`, then `--advance` (firing timers), then `--settle`. A host older than this option moves `Date` and fires nothing: the command fails saying so.',
     mcpDetails:
-      'Headless and Lynkeus FastSim: `now`, `advance` and `reset` change what Date answers; `settle` runs everything pending (timers due now, microtasks, renders) to idle without letting time pass, and says what is still in flight. Use it after a press or `advance` instead of `idle` when the clock must stay where you put it. A Simulator or emulator answers that it has no such command.',
+      'Headless and Lynkeus FastSim: `now` and `reset` change what Date answers; `advance` moves the clock forward and fires the timers and intervals that fall due inside it, in order, each at its own due time, like jest.advanceTimersByTime (a 5 s setTimeout fires on advance 5000, not on 4000), and answers advancedMs and nextDueMs; `settle` runs everything pending (timers due now, microtasks, renders) to idle without letting time pass, and says what is still in flight. Use `advance` to see what a delay causes without waiting for it; use settle after a press or `advance` instead of `idle` when the clock must stay where you put it. A Simulator or emulator answers that it has no such command.',
     flags: {
       now: { type: 'string', help: 'set the time', value: 'iso' },
-      advance: { type: 'number', help: 'move the clock forward', value: 'ms' },
+      advance: { type: 'number', help: 'move the clock forward, running the timers that fall due', value: 'ms' },
       reset: { type: 'boolean', help: 'back to the real clock' },
       settle: { type: 'boolean', help: 'run what is pending to idle without letting time pass (after any of the above)' },
     },
@@ -87,6 +88,9 @@ export const osCommands = [
         reset: ctx.flags.reset || undefined,
         settle: ctx.flags.settle || undefined,
       });
+      // A host built before `advance` fired timers moves Date and answers without `advancedMs`.
+      if (typeof ctx.flags.advance === 'number' && typeof answer.advancedMs !== 'number')
+        throw new Error('this host’s clock command does not fire timers on --advance: update Lynkeus FastSim (`lynkeus fastsim install`) or lynkeus-headless');
       // A host built before `settle` takes the other parameters and answers without it.
       if (ctx.flags.settle && typeof answer.settled !== 'boolean')
         throw new Error('this host’s clock command does not settle: update Lynkeus FastSim (`lynkeus fastsim install`) or lynkeus-headless');

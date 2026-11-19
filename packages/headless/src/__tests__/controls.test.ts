@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { AppState } from 'react-native';
 import { host, requestsHeld } from 'lynkeus-agent';
 
@@ -7,6 +7,7 @@ import { reset } from '../runtime.js';
 
 // Captured before installControls swaps the global for its ControlledDate.
 const RealDate = Date;
+const RealTimeout = setTimeout;
 
 type Command = (params: unknown) => unknown;
 const command = (name: string): Command => {
@@ -210,44 +211,168 @@ describe('netmock hold', () => {
 });
 
 describe('clock', () => {
-  const clock = (params: unknown) => command('clock')(params) as { now: string; offsetMs: number };
+  const clock = (params: unknown) => command('clock')(params) as Promise<{ now: string; offsetMs: number; advancedMs: number; nextDueMs: number | null }>;
 
-  beforeEach(() => {
-    clock({ reset: true });
+  beforeEach(async () => {
+    await clock({ reset: true });
   });
 
-  it('Date reads the driver-chosen time', () => {
-    clock({ now: '2027-01-01T00:00:00Z' });
+  it('Date reads the driver-chosen time', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
     expect(Math.abs(Date.now() - RealDate.parse('2027-01-01T00:00:00Z'))).toBeLessThan(1000);
     expect(new Date().toISOString()).toMatch(/^2027-01-01T00:00/);
   });
 
-  it('an explicit argument still builds that date', () => {
-    clock({ now: '2027-01-01T00:00:00Z' });
+  it('an explicit argument still builds that date', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
     expect(new Date(0).toISOString()).toBe('1970-01-01T00:00:00.000Z');
   });
 
-  it('advanceMs moves the clock forward from where it is', () => {
-    clock({ now: '2027-01-01T00:00:00Z' });
-    const { now } = clock({ advanceMs: 3_600_000 });
+  it('advanceMs moves the clock forward from where it is', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
+    const { now, advancedMs } = await clock({ advanceMs: 3_600_000 });
     expect(now).toMatch(/^2027-01-01T01:00/);
+    expect(advancedMs).toBe(3_600_000);
   });
 
-  it('reset returns to real time', () => {
-    clock({ now: '2027-01-01T00:00:00Z' });
-    const { offsetMs } = clock({ reset: true });
+  it('reset returns to real time', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
+    const { offsetMs } = await clock({ reset: true });
     expect(offsetMs).toBe(0);
     expect(Math.abs(Date.now() - RealDate.now())).toBeLessThan(1000);
   });
 
-  it('refuses a time it cannot parse', () => {
-    expect(() => clock({ now: 'next tuesday' })).toThrow(/cannot parse/);
+  it('refuses a time it cannot parse', async () => {
+    await expect(clock({ now: 'next tuesday' })).rejects.toThrow(/cannot parse/);
   });
 
-  it('a reset returns to real time', () => {
-    clock({ now: '2027-01-01T00:00:00Z' });
+  it('a reset returns to real time', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
     reset();
     expect(Math.abs(Date.now() - RealDate.now())).toBeLessThan(1000);
+  });
+});
+
+describe('clock advance fires timers', () => {
+  const clock = (params: unknown) => command('clock')(params) as Promise<{ now: string; advancedMs: number; nextDueMs: number | null }>;
+  const pending: Array<ReturnType<typeof setTimeout>> = [];
+  const timeout = (fn: () => void, ms: number) => {
+    const handle = setTimeout(fn, ms);
+    pending.push(handle);
+    return handle;
+  };
+
+  beforeEach(async () => {
+    await clock({ reset: true });
+  });
+  afterEach(() => {
+    for (const handle of pending.splice(0)) clearTimeout(handle);
+  });
+
+  it('fires a timer inside the advance and leaves one outside it', async () => {
+    const ran: string[] = [];
+    timeout(() => ran.push('5s'), 5000);
+    await clock({ advanceMs: 4000 });
+    expect(ran).toEqual([]);
+    await clock({ advanceMs: 1000 });
+    expect(ran).toEqual(['5s']);
+  });
+
+  it('a timer not yet due keeps its remaining time across an advance', async () => {
+    const ran: string[] = [];
+    timeout(() => ran.push('late'), 10_000);
+    const { nextDueMs } = await clock({ advanceMs: 4000 });
+    expect(nextDueMs).toBeGreaterThan(5900);
+    expect(nextDueMs).toBeLessThanOrEqual(6000);
+    await new Promise((resolve) => RealTimeout(resolve, 30));
+    expect(ran).toEqual([]);
+  });
+
+  it('runs timers in due order, each with Date at its own due time', async () => {
+    await clock({ now: '2027-01-01T00:00:00Z' });
+    const seen: Array<[string, string]> = [];
+    timeout(() => seen.push(['b', new Date().toISOString()]), 2000);
+    timeout(() => seen.push(['a', new Date().toISOString()]), 1000);
+    await clock({ advanceMs: 5000 });
+    const start = RealDate.parse('2027-01-01T00:00:00Z');
+    expect(seen.map(([name]) => name)).toEqual(['a', 'b']);
+    expect(Math.abs(RealDate.parse(seen[0][1]) - (start + 1000))).toBeLessThan(50);
+    expect(Math.abs(RealDate.parse(seen[1][1]) - (start + 2000))).toBeLessThan(50);
+  });
+
+  it('an interval runs once for each period inside the advance', async () => {
+    let count = 0;
+    const handle = setInterval(() => (count += 1), 1000);
+    await clock({ advanceMs: 3500 });
+    clearInterval(handle);
+    expect(count).toBe(3);
+  });
+
+  it('a timer set by a timer inside the window runs in the same advance', async () => {
+    const ran: string[] = [];
+    timeout(() => {
+      ran.push('first');
+      timeout(() => ran.push('second'), 1000);
+    }, 1000);
+    await clock({ advanceMs: 2500 });
+    expect(ran).toEqual(['first', 'second']);
+  });
+
+  it('what a timer sets off in promises runs before the next timer', async () => {
+    const ran: string[] = [];
+    timeout(() => void Promise.resolve().then(() => ran.push('promise')), 1000);
+    timeout(() => ran.push('timer'), 1001);
+    await clock({ advanceMs: 2000 });
+    expect(ran).toEqual(['promise', 'timer']);
+  });
+
+  it('a cleared timer does not run', async () => {
+    const ran: string[] = [];
+    const handle = timeout(() => ran.push('x'), 1000);
+    clearTimeout(handle);
+    await clock({ advanceMs: 2000 });
+    expect(ran).toEqual([]);
+  });
+
+  it('an interval that clears itself stops', async () => {
+    let count = 0;
+    const handle = setInterval(() => {
+      count += 1;
+      if (count === 2) clearInterval(handle);
+    }, 100);
+    await clock({ advanceMs: 5000 });
+    expect(count).toBe(2);
+  });
+
+  it('stops a loop that never lets the window end and names the cause', async () => {
+    let count = 0;
+    const handle = setInterval(() => (count += 1), 1);
+    await expect(clock({ advanceMs: 3_600_000 })).rejects.toThrow(/stopped after 100000 timer runs.*sets itself again/);
+    clearInterval(handle);
+    expect(count).toBe(100_000);
+  });
+
+  it('a callback that throws does not stop the others, and the error comes back', async () => {
+    const ran: string[] = [];
+    timeout(() => {
+      throw new Error('boom');
+    }, 1000);
+    timeout(() => ran.push('after'), 2000);
+    await expect(clock({ advanceMs: 3000 })).rejects.toThrow('boom');
+    expect(ran).toEqual(['after']);
+  });
+
+  it("the handle answers ref, unref and refresh like Node's", async () => {
+    const ran: string[] = [];
+    const handle = timeout(() => ran.push('x'), 1000);
+    expect(handle.unref().hasRef()).toBe(false);
+    expect(handle.ref().hasRef()).toBe(true);
+    await clock({ advanceMs: 600 });
+    handle.refresh();
+    await clock({ advanceMs: 600 });
+    expect(ran).toEqual([]);
+    await clock({ advanceMs: 600 });
+    expect(ran).toEqual(['x']);
   });
 });
 

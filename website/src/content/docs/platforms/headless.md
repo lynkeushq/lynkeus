@@ -222,7 +222,7 @@ Under the host, what a device would receive from the outside world is a command.
 | `lynkeus os deeplink <url>` | Its `Linking` listeners receive the URL, React Navigation's included. |
 | `lynkeus os appstate <active\|background\|inactive>` | `AppState` listeners see the change. Send `background`, then `active`, to test what refetches or locks again on return. On a simulator or an emulator the OS does it for real, and `inactive` does not exist. |
 | `lynkeus os network <off\|on>` | Airplane mode: requests fail, open sockets drop, NetInfo listeners are told. |
-| `lynkeus os clock --now <iso>` | What `Date` answers. Timers stay real. `--advance <ms>` moves it forward; `--reset` returns to the real clock; `--settle` waits a few event-loop turns until the screen stops committing, without waiting for timers due later. |
+| `lynkeus os clock --now <iso>` | What `Date` answers. Timers run on real time, so a countdown still ticks in real seconds. `--advance <ms>` moves the clock forward and runs the timers and intervals that fall due inside it, each at its own due time, without waiting; `--reset` returns `Date` to the real clock; `--settle` waits a few event-loop turns until the screen stops committing, without waiting for timers due later. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none> --next <outcomes>` | The sensor the device has, and what the next prompts answer, in order: `success`, `fail`, `cancel`. `--fallback <outcome>` sets what a fallback prompt answers. |
 | `lynkeus os scan <value> [--type qr]` | The open camera's code scanner receives a value. |
 | `lynkeus os gallery <uri> [--name] [--mime]` | What the next image picker returns. `--cancel` makes the user cancel. |
