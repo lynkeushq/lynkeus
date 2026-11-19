@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The error `lynkeus fastsim install`, `lynkeus fastsim grant` and `fastsim_install` give when there is no key and no sign-in now leads with `lynkeus login` for a person at a terminal and names `LYNKEUS_CLOUD_KEY` second, for CI (`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY to an API key ...`). Exit code 2 as before; the MCP descriptions list the sign-in first too.
+- `lynkeus login` waits 15 minutes for the browser instead of 5, so there is time to read the consent page and pick an organization before the listener goes away.
+- When you click Deny on the sign-in page, `lynkeus login` prints one line, `You chose Deny on lynkeus.io: not signed in. To try again: lynkeus login`, like the browser page, instead of `the sign-in was refused: access_denied`. Exit code 1 as before; other errors from the service keep showing the service's text.
 - `lynkeus fastsim install` and `grant` send a random install id (`x-lynkeus-machine`), kept in `~/.config/lynkeus/machine-id` (`XDG_CONFIG_HOME` moves it), so lynkeus.io can count the machines and CI hosts a plan includes (Team: 5 and 4). The id names an install, not a person, and is not in the cache folder, so a restored CI cache does not make parallel runners one host. When the service warns that the organization is past its plan, `lynkeus fastsim grant` prints it to stderr.
 - In a run with `--frames-on-change` and `--still` (pixel comparisons against a reference), the `app.see` steps right after a step now run before that step's settle and picture and share it, so a toast the step shows is still on screen when it is looked at. Runs without both flags are unchanged.
 
