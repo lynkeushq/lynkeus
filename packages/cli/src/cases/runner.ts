@@ -1039,7 +1039,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
     if (on === 'headless') return !phone;
-    if (on.startsWith('has:')) return !!(await liveCommands(await device(), hello?.commands))?.includes(on.slice(4));
+    if (on.startsWith('has:')) return !!(await liveCommands(await device(), hello))?.includes(on.slice(4));
     return hello?.platform === on;
   };
 
