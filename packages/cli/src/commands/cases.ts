@@ -14,6 +14,7 @@ import { configFile, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
+import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
@@ -408,7 +409,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       const config = ctx.config.cases ?? {};
       const home = config.base ?? ctx.root;
@@ -557,6 +558,9 @@ export const caseCommands = [
           if ('failed' in granted) return granted.failed;
           hostEnv = granted.env;
         }
+        // The config's native constants reach the host's environment: it reads them when it starts, before the app does.
+        const nativeValues = nativeValuesEnv(config.nativeMocks);
+        if (nativeValues) hostEnv = { ...hostEnv, LYNKEUS_NATIVE_VALUES: nativeValues };
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
@@ -774,7 +778,7 @@ export const caseCommands = [
         let seen: { platform?: string; native?: boolean } | undefined;
         await Promise.all(Array.from({ length: jobs }, (_, i) => job(i)));
         await preparing;
-        if (out) out.finish({ platform: seen?.platform, native: seen?.native });
+        if (out) out.finish({ platform: seen?.platform, native: seen?.native, nativeValues: mergeNativeValues(reports.map((r) => r.nativeValues)) });
         native?.stop();
       } finally {
         stop();
@@ -812,6 +816,7 @@ export const caseCommands = [
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
         ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
+        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues))),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(uploaded ? [uploaded.text] : []),
       ].join('\n');
