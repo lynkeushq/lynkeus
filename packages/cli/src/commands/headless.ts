@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { nativeValuesEnv } from '../cases/nativeValues.js';
 import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
@@ -238,7 +239,17 @@ export const headlessCommands = [
       const nodeOptions = [process.env.NODE_OPTIONS, '--dns-result-order=ipv4first'].filter(Boolean).join(' ');
       // LYNKEUS_HEADLESS tells the app's jest setup a host is starting, not its unit tests: a setup that stubs a native
       // SDK whole can leave it real there, so the call reaches the stand-in `nativeMocks` shows.
-      const env = { ...apiFromConfig(ctx.config), ...process.env, LYNKEUS_TOKEN: token, LYNKEUS_HEADLESS: '1', CI: '1', NODE_OPTIONS: nodeOptions };
+      // The config's native constants reach the host's environment, where the app's jest setup (installDefaultMocks) reads them before the app does.
+      const nativeValues = nativeValuesEnv(ctx.config.cases?.nativeMocks);
+      const env = {
+        ...apiFromConfig(ctx.config),
+        ...process.env,
+        LYNKEUS_TOKEN: token,
+        LYNKEUS_HEADLESS: '1',
+        CI: '1',
+        NODE_OPTIONS: nodeOptions,
+        ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
+      };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
       const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
         cwd: ctx.root,

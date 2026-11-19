@@ -211,7 +211,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 | `cases.refs` | objeto | ninguno | Qué parámetros apuntan a algo que creó un paso anterior. Ver abajo. |
 | `cases.macros` | objeto | ninguno | Pasos propios del proyecto: un nombre y la lista de pasos que representa. |
 | `cases.interruptions` | lista | ninguno | Lo que la app puede poner en medio de cualquier paso, y cómo quitarlo. |
-| `cases.nativeMocks` | objeto | ninguno | Qué responden los SDK nativos que un host sin pantalla no puede ejecutar. |
+| `cases.nativeMocks` | objeto | ninguno | Qué responden los SDK nativos que un host sin pantalla no puede ejecutar, y el valor de las constantes nativas que el host no conoce. |
 | `cases.serverEvents` | objeto | ninguno | Un fixture que dice qué le contó el backend a su propia analítica en cada paso, para los reportes. |
 | `cases.appEvents` | objeto | ninguno | El servicio al que va la lista de eventos propia de la app, para que el reporte lo nombre en vez de "App". |
 
@@ -312,6 +312,32 @@ La configuración se envía a la app al comienzo de cada caso, así que un caso 
     command: nativeMocks
     params: { set: { "IdentitySdk.start": { result: { status: "rejected" } } } }
 ```
+
+#### Constantes nativas
+
+Una clave también puede nombrar una constante en lugar de un método: `Módulo.nombre`, que la app lee como `NativeModules.Módulo.nombre`. Ni Lynkeus FastSim ni el host sin pantalla conocen todos los valores que un teléfono real entrega a sus apps. Una propiedad que nadie responde se lee como `true` en Lynkeus FastSim (devuelve una función, y una función es verdadera) y como `undefined` en el host sin pantalla. Cualquiera de las dos lecturas puede llevar a la app por el camino equivocado: un diseño de tableta, una animación omitida.
+
+Al terminar una corrida, los dos hosts informan qué propiedades leyó la app sin que ellos pudieran responderlas. El resumen enumera cada una con un fragmento de `nativeMocks` listo para pegar, y `run.json` guarda la lista en `nativeValues`. Si FastSim respondió con una función y la app la llamó, era una llamada a código nativo y no aparece; si solo se leyó, casi seguro es una constante.
+
+| Campo | Tipo | Qué hace |
+|---|---|---|
+| `value` | cualquiera | Lo que se lee en ambas plataformas. `false` y `null` también son valores. |
+| `ios`, `android` | cualquiera | El valor en una sola plataforma; allí tiene prioridad sobre `value`. |
+| `absent` | `true` o una lista de plataformas | La propiedad no existe en esa plataforma, así que se lee `undefined`. |
+
+```json
+"nativeMocks": {
+  "RNDeviceInfo.isTablet": { "value": false },
+  "RNHaptics.supportedLevels": { "ios": 3, "android": 1 },
+  "RNScreenRecord.isCaptured": { "absent": ["android"] }
+}
+```
+
+La app lee una constante la primera vez que toca el módulo, de modo que el host las aplica al arrancar: la CLI se las pasa en su entorno (`LYNKEUS_NATIVE_VALUES`, en JSON) y, en el host sin pantalla, las lee `installDefaultMocks` de la app. Un `set` a mitad de un caso solo afecta a lo que la app aún no leyó.
+
+El valor correcto está en el código nativo de la librería. Busca en `node_modules/<librería>` el fuente de iOS (`constantsToExport`, `getConstants`) o de Android (`getConstants()` del módulo en Java o Kotlin) que la define, o pídeselo a un agente: la respuesta de `case_run` por MCP trae la misma lista.
+
+Solo se detectan las propiedades leídas directamente del módulo. Lo que la app obtiene con `getConstants()` viene de un objeto simple: una clave que falta ahí da `undefined` y no se lista.
 
 ## Lo que no va en este archivo
 

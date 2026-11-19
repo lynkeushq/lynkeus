@@ -205,7 +205,7 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | `cases.start` | string | none | The route a case begins on, such as the first screen a signed-in person sees. `lynkeus case new` draws its way to the case's screen from here when `--from` is not given. |
 | `cases.macros` | object | none | Steps of your own: a name, and the list of steps it stands for. |
 | `cases.interruptions` | array | none | What the app may put in the way of any step, and the steps that get past it. |
-| `cases.nativeMocks` | object | none | What native SDKs answer on a host that cannot run them. |
+| `cases.nativeMocks` | object | none | What native SDKs answer on a host that cannot run them, and the values of native constants the host does not know. |
 | `cases.serverEvents` | object | none | A fixture that says what the backend told its own analytics during each step, for reports. |
 | `cases.appEvents` | object | none | The service the app's own event list feeds, so a report names it instead of "App". |
 
@@ -267,3 +267,29 @@ Each key is `Module.method`: the native module's name as `NativeModules` has it,
 The mocks are sent to the app at the start of every case, so one case cannot leak its changes into the next. A step changes them during a case with `app.call: { command: nativeMocks, params: { set: { … } } }`; a value of `null` takes a key's mock away.
 
 Native mocks need a host whose app answers the `nativeMocks` command. Where it does not, they have no effect.
+
+#### Native constants
+
+A key can also name a constant instead of a method: `Module.name`, read as `NativeModules.Module.name`. Lynkeus FastSim and the headless host do not know every value a device gives its apps. A property nothing answers reads as `true` on Lynkeus FastSim (it answers with a function, which is truthy) and as `undefined` on headless, and either can send the app down the wrong path: a tablet layout, a skipped animation.
+
+After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed; one that was only read is almost always a constant.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `value` | any | What the property reads as, on both platforms. `false` and `null` count as values. |
+| `ios`, `android` | any | The value on one platform. It wins over `value` there. |
+| `absent` | `true` or a list of platforms | The property does not exist on the platform: it reads as `undefined`. |
+
+```json
+"nativeMocks": {
+  "RNDeviceInfo.isTablet": { "value": false },
+  "RNHaptics.supportedLevels": { "ios": 3, "android": 1 },
+  "RNScreenRecord.isCaptured": { "absent": ["android"] }
+}
+```
+
+Constants are read when the app first touches the module, so the host applies them as it starts: the CLI passes them in the host's environment (`LYNKEUS_NATIVE_VALUES`, JSON), and the app's `installDefaultMocks` reads them under headless. A `set` in the middle of a case changes only what the app has not read yet.
+
+The right value is in the library's native code. Look in `node_modules/<library>` for the iOS (`constantsToExport`, `getConstants`) or Android (`getConstants()` in the Java or Kotlin module) source that defines it, or ask an agent to: the MCP `case_run` answer carries the same list, with the path to look at.
+
+Only properties read straight off the module are caught. A value the app gets from `getConstants()` is a plain object: a key missing there reads as `undefined` and is not listed.
