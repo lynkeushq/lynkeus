@@ -143,6 +143,32 @@ if (!process.env.LYNKEUS_HEADLESS) jest.mock('@sumsub/react-native-mobilesdk-mod
 
 If the package ships untranspiled ES modules, list it in the app's `transformIgnorePatterns` as react-native is.
 
+### Native values the host does not know
+
+Under jest a native property nothing answers reads as `undefined`: `NativeModules.RNFoo.isTablet` is undefined, a
+module that is not there is undefined, `TurboModuleRegistry.get` answers null and `getEnforcing` throws. On a device
+the property has a value, and Lynkeus FastSim answers it with a function, which reads as true: the two hosts guess in
+opposite ways, so the app can take another path than on a phone.
+
+`installDefaultMocks` therefore wraps `NativeModules` and records each property or module the app reads that is not
+there (once each; `then`, `toJSON` and the event emitter's probes are not reads). The `nativeValues` command returns
+the list, and `lynkeus case run` prints it after the run with a `nativeMocks` snippet and keeps it in `run.json`.
+
+The cases config sets the value. An entry with `value` (both platforms), `ios` or `android`, or `absent: true` (or a
+list of platforms) sets a constant instead of answering a call:
+
+```json
+"nativeMocks": {
+  "RNFoo.isTablet": { "value": false },
+  "RNFoo.density": { "ios": 3, "android": 2.75 },
+  "RNFoo.legacyFlag": { "absent": ["android"] }
+}
+```
+
+`lynkeus headless start` puts the constants in `LYNKEUS_NATIVE_VALUES` (JSON) and `installDefaultMocks` applies them
+before the app is required, so a module-level read finds them. A `nativeMocks` `set` during a case applies them too,
+but the app has already read what it read. The value to use is in the library's native code under `node_modules`.
+
 ## What headless cannot tell you
 
 The host runs the app's JavaScript against a real backend, with the native

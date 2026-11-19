@@ -1,6 +1,7 @@
 import { installRuntime, log, resolvable } from '../runtime.js';
 import { installAnalytics } from './analytics.js';
 import { installNativeMocks } from './native.js';
+import { installNativeValues } from './nativeValues.js';
 import { connectivityControls, installControls, netControls, pathOf } from './controls.js';
 import {
   asyncStorage,
@@ -460,6 +461,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   installControls(options.initialUrl ?? null);
   const recorders = installAnalytics();
   installNativeMocks();
+  installNativeValues();
   if ((options.animations ?? 'deferred') === 'deferred') deferAnimationCompletions();
   installNetInfo();
   installWebSocket(options.websocket ?? 'stub', hosts);

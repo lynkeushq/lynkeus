@@ -140,6 +140,21 @@ export type RunLaunch = {
   unsupported?: RunLaunchFact[];
 };
 
+/**
+ * A native property the app read that its host could not answer, so the host's own default stood in: Lynkeus FastSim
+ * (`host: 'fastsim'`) answers with a function, which reads as true, and headless with undefined. `called`, for
+ * FastSim, says whether the app ever called that function: one read and never called is a constant with a wrong
+ * value. A read of a whole module that does not exist has no `property`. The cases config's `nativeMocks` sets it.
+ */
+export type RunNativeValue = {
+  module: string;
+  property?: string;
+  platform: 'ios' | 'android';
+  host: 'fastsim' | 'headless';
+  readAs: 'function' | 'undefined';
+  called?: boolean;
+};
+
 export type RunManifest = {
   schema: typeof RUN_SCHEMA;
   /** ISO 8601. */
@@ -168,6 +183,8 @@ export type RunManifest = {
   };
   /** The seed, locale, time zone and epoch the run was asked to launch with; absent when it asked for none. */
   launch?: RunLaunch;
+  /** The native properties the app read that its host could not answer, over every case of the run. */
+  nativeValues?: RunNativeValue[];
   /** Cases by their last attempt. */
   totals?: { cases: number; passed: number; failed: number; unsupported: number; retried: number };
 };

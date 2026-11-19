@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, RequestRecord, RunEdges, RunLooked, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
+import type { Element, RequestRecord, RunEdges, RunLooked, RunNativeValue, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
@@ -19,20 +19,29 @@ import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
+import { readsOf } from './nativeValues.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
   result?: unknown;
   screen?: { title?: string; subtitle?: string; image?: string; buttons?: Record<string, unknown> };
+  /** A native constant (`Module.name`) for both platforms: what the property reads as. `null` reads as null. */
+  value?: unknown;
+  /** The same for one platform; it wins over `value` there. */
+  ios?: unknown;
+  android?: unknown;
+  /** The property does not exist on this platform (`true` for both, or the platforms listed): it reads as undefined. */
+  absent?: boolean | ('ios' | 'android')[];
 };
 
 export type CasesConfig = {
   /** The folder of the file that declared this, set when the configuration is read. */
   base?: string;
   /**
-   * What native SDKs a headless host cannot run answer, keyed `Module.method` (the native module's name, as
-   * `NativeModules` has it): `result` is what the call resolves with; `screen` puts up a stand-in page with a
+   * What a host answers where the app reads native code it has not got, keyed `Module.method` (the native module's name, as
+   * `NativeModules` has it) or `Module.name` for a constant: `value`, `ios`, `android` and `absent` set what the constant reads as, from the
+   * host's start; `result` is what a call resolves with; `screen` puts up a stand-in page with a
    * `title`, an optional `subtitle` and `image` (a URI), and `buttons`, label to result, each pressable as
    * `#native-mock-<label>`. Sent to the app at the start of every case; a step changes it with
    * `app.call: { command: nativeMocks, params: { set: { … } } }`, and `null` takes a key's mock away.
@@ -109,6 +118,8 @@ export type CaseReport = {
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** What the app told its analytics, each with the step that caused it, when the run asked for it. */
   events?: RunEvent[];
+  /** The native properties the app read that this host could not answer, when it says (`nativeValues`). */
+  nativeValues?: RunNativeValue[];
   /** The case's film, an absolute path, where the host films. */
   video?: string;
   /** Every screen the app went through while the case ran, when the run asked for them (`routes`). */
@@ -1506,6 +1517,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const walked = events.flatMap((e) => (e.kind === 'route' && e.route ? [e.route] : []));
     while (walked.length > 0 && walked[0] === routesStale) walked.shift();
     report.routes = [...new Set(walked)].sort();
+  }
+  if (!options.dry && !options.setupOnly && (await offers('nativeValues'))) {
+    const reads = readsOf(await (await device().catch(() => undefined))?.command('nativeValues').catch(() => undefined));
+    if (reads.length > 0) report.nativeValues = reads;
   }
   if (filming) {
     const d = await device();

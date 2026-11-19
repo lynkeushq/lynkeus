@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { RUN_SCHEMA, type RunCase, type RunLaunch, type RunManifest, type RunStep } from 'lynkeus-protocol';
+import { RUN_SCHEMA, type RunCase, type RunLaunch, type RunManifest, type RunNativeValue, type RunStep } from 'lynkeus-protocol';
 
 import { caseArtifactId, type Case } from './format.js';
 import type { CaseReport } from './runner.js';
@@ -176,11 +176,12 @@ export class RunFile {
     return this.dir;
   }
 
-  finish(app: { platform?: string; native?: boolean } = {}, finishedAt = new Date()): void {
+  finish(app: { platform?: string; native?: boolean; nativeValues?: RunNativeValue[] } = {}, finishedAt = new Date()): void {
     const cases = [...this.last.values()];
     this.manifest.finishedAt = finishedAt.toISOString();
     if (app.platform) this.manifest.platform = app.platform;
     if (app.native !== undefined) this.manifest.native = app.native;
+    if (app.nativeValues?.length) this.manifest.nativeValues = app.nativeValues;
     this.manifest.totals = {
       cases: cases.length,
       passed: cases.filter((c) => c.result === 'passed').length,
