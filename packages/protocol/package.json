@@ -1,6 +1,6 @@
 {
   "name": "lynkeus-protocol",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Wire contract between an app running lynkeus-agent and whatever drives it.",
   "type": "module",
   "main": "./lib/index.js",
