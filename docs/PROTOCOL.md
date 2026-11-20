@@ -184,6 +184,7 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   covered?: boolean         // a touch at its centre would not reach it
   hidden?: HiddenReason     // not presented at all, and why
   offscreen?: boolean       // its rect is outside the window: on screen only after scrolling
+  texts?: { text, frame }[] // a control's own texts with their frames, when it holds more than one
 }
 ```
 

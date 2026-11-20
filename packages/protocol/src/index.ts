@@ -43,6 +43,8 @@ export type Element = {
   hidden?: HiddenReason;
   /** Its rect lies outside the window: on screen only after scrolling. */
   offscreen?: boolean;
+  /** A control's own text, each piece with its frame (a card's name next to its balance), when the control holds more than one. Not elements: `see` and `find` still match the control's `text`. */
+  texts?: { text: string; frame: Frame }[];
 };
 
 export type Screen = {
