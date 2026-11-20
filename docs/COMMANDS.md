@@ -284,14 +284,14 @@ Also accepted: `network`.
 
 ### `lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]`
 
-Headless and Lynkeus FastSim: what Date answers; --settle runs what is pending without letting time pass
+Headless and Lynkeus FastSim: what Date answers; --advance runs the timers that fall due; --settle runs what is pending without letting time pass
 
-`--now`, `--advance` and `--reset` move what `Date` answers; timers keep their own time. `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and, on Lynkeus FastSim, `nextDueMs` (when the next timer is due) and `advancedMs` (0: the virtual clock did not move). On the headless host timers are real, so a few milliseconds pass; on Lynkeus FastSim the host owns the clock and none does. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined with `--now` or `--advance`, the time moves first.
+`--now` and `--reset` change what `Date` answers; timers are not touched. `--advance <ms>` moves the clock forward and runs every timer and interval that falls due inside those milliseconds, in due order, each at its own due time (`Date` answers that instant inside its callback), as `jest.advanceTimersByTime` does: a 5 s `setTimeout` fires on `--advance 5000` and not on `--advance 4000`, with no real waiting. Promise work a timer sets off runs before the next timer. A timer that sets itself again forever inside the window stops the advance after 100,000 runs, with an error that names it. `--advance` answers `advancedMs` (how far the clock moved) and `nextDueMs` (milliseconds until the next timer is due, or `null`). `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and `nextDueMs`; on Lynkeus FastSim `advancedMs` counts what the virtual clock moved in the whole command. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined, the time moves first: `--now`, then `--advance` (firing timers), then `--settle`. A host older than this option moves `Date` and fires nothing: the command fails saying so.
 
 | Flag | |
 |---|---|
 | `--now <iso>` | set the time |
-| `--advance <ms>` | move the clock forward |
+| `--advance <ms>` | move the clock forward, running the timers that fall due |
 | `--reset` | back to the real clock |
 | `--settle` | run what is pending to idle without letting time pass (after any of the above) |
 

@@ -65,26 +65,224 @@ const launchOffset = (): number => {
   return Number.isNaN(at) ? 0 : at - Date.now();
 };
 
-// Timers stay real, so a countdown still ticks in real seconds. Installed
-// before the app loads, so a module that captures `Date` captures this one.
+// What `clock --advance` moves: the app's timers. They run on real time as ever (a countdown still ticks in real
+// seconds), but each is also written down here with the moment it is due, so an advance can run the ones that fall
+// inside it, each at its own due time, without waiting. A library such as @sinonjs/fake-timers stops time or moves it in
+// steps of its own and swaps Date for its own, which would fight the epoch and the offsets Date answers with.
+const ADVANCE_RUN_LIMIT = 100_000;
+
+type VirtualTimer = {
+  id: number;
+  callback: (...args: unknown[]) => void;
+  args: unknown[];
+  dueMs: number;
+  delayMs: number;
+  periodMs: number | null;
+  real: ReturnType<typeof setTimeout> | null;
+  refed: boolean;
+  seq: number;
+};
+
+// What setTimeout returns for the app, standing in for Node's Timeout: the real one behind it changes when an advance
+// re-arms it, the app's reference to it must not.
+class VirtualHandle {
+  constructor(
+    private readonly timer: VirtualTimer,
+    private readonly onRefresh: (timer: VirtualTimer) => void,
+    private readonly onClose: (timer: VirtualTimer) => void,
+  ) {}
+  ref() {
+    this.timer.refed = true;
+    this.timer.real?.ref();
+    return this;
+  }
+  unref() {
+    this.timer.refed = false;
+    this.timer.real?.unref();
+    return this;
+  }
+  hasRef() {
+    return this.timer.refed;
+  }
+  refresh() {
+    this.onRefresh(this.timer);
+    return this;
+  }
+  close() {
+    this.onClose(this.timer);
+    return this;
+  }
+  [Symbol.toPrimitive]() {
+    return this.timer.id;
+  }
+}
+
+// Installed before the app loads, so a module that captures `Date` or `setTimeout` captures these.
 const installClock = () => {
   const RealDate = Date;
+  const realSetTimeout = globalThis.setTimeout;
+  const realClearTimeout = globalThis.clearTimeout;
+  const realSetImmediate = globalThis.setImmediate;
   const launched = launchOffset();
   let offsetMs = launched;
+  // While an advance runs, the instant Date answers, exactly, whatever the real clock reads meanwhile.
+  let frozenDateMs: number | null = null;
   class ControlledDate extends RealDate {
     constructor(...args: unknown[]) {
-      if (args.length === 0) super(RealDate.now() + offsetMs);
+      if (args.length === 0) super(ControlledDate.now());
       else super(...(args as [number]));
     }
     static now() {
-      return RealDate.now() + offsetMs;
+      return frozenDateMs ?? RealDate.now() + offsetMs;
     }
   }
   (globalThis as { Date: unknown }).Date = ControlledDate;
+
+  // The timers' own clock: the real one plus everything advanced so far. `--now` and `--reset` do not touch it.
+  let skewMs = 0;
+  let frozenTimerMs: number | null = null;
+  const timerNow = () => frozenTimerMs ?? RealDate.now() + skewMs;
+  const timers = new Map<number, VirtualTimer>();
+  let nextId = 1;
+  let nextSeq = 0;
+
+  const arm = (timer: VirtualTimer) => {
+    timer.real = realSetTimeout(() => runReal(timer), Math.max(timer.dueMs - timerNow(), 0));
+    if (!timer.refed) timer.real.unref();
+  };
+  const disarm = (timer: VirtualTimer) => {
+    if (timer.real !== null) realClearTimeout(timer.real);
+    timer.real = null;
+  };
+  // A timer coming due: a one-shot is forgotten first, an interval is set for its next turn first, so the callback
+  // can clear its own.
+  const fire = (timer: VirtualTimer) => {
+    if (timer.periodMs === null) {
+      timers.delete(timer.id);
+    } else {
+      timer.dueMs += timer.periodMs;
+      if (frozenTimerMs === null) arm(timer);
+    }
+    timer.callback(...timer.args);
+  };
+  const runReal = (timer: VirtualTimer) => {
+    timer.real = null;
+    // An interval that was blocked for a while runs once, not once for every turn it missed.
+    if (timer.periodMs !== null) timer.dueMs = Math.max(timer.dueMs, timerNow());
+    fire(timer);
+  };
+  const forget = (timer: VirtualTimer) => {
+    disarm(timer);
+    timers.delete(timer.id);
+  };
+  const refresh = (timer: VirtualTimer) => {
+    if (!timers.has(timer.id)) return;
+    disarm(timer);
+    timer.dueMs = timerNow() + timer.delayMs;
+    if (frozenTimerMs === null) arm(timer);
+  };
+  const create = (callback: unknown, delay: unknown, args: unknown[], repeat: boolean) => {
+    if (typeof callback !== 'function') throw new TypeError('The "callback" argument must be of type function');
+    const wait = Math.max(Number(delay) || 1, 1);
+    const timer: VirtualTimer = {
+      id: nextId++,
+      callback: callback as VirtualTimer['callback'],
+      args,
+      delayMs: wait,
+      dueMs: timerNow() + wait,
+      periodMs: repeat ? wait : null,
+      real: null,
+      refed: true,
+      seq: nextSeq++,
+    };
+    timers.set(timer.id, timer);
+    // During an advance nothing runs on real time: the advance re-arms what is left when it ends.
+    if (frozenTimerMs === null) arm(timer);
+    return new VirtualHandle(timer, refresh, forget);
+  };
+  const clear = (handle: unknown) => {
+    const id = typeof handle === 'number' ? handle : handle instanceof VirtualHandle ? Number(handle) : null;
+    const timer = id === null ? undefined : timers.get(id);
+    if (timer) forget(timer);
+  };
+  const g = globalThis as Record<string, unknown>;
+  g.setTimeout = (callback: unknown, delay?: unknown, ...args: unknown[]) => create(callback, delay, args, false);
+  g.setInterval = (callback: unknown, delay?: unknown, ...args: unknown[]) => create(callback, delay, args, true);
+  g.clearTimeout = clear;
+  g.clearInterval = clear;
+
+  const nextDue = (): VirtualTimer | undefined => {
+    let next: VirtualTimer | undefined;
+    for (const timer of timers.values()) {
+      if (!next || timer.dueMs < next.dueMs || (timer.dueMs === next.dueMs && timer.seq < next.seq)) next = timer;
+    }
+    return next;
+  };
+  const nextDueIn = (): number | null => {
+    const next = nextDue();
+    return next ? Math.max(next.dueMs - timerNow(), 0) : null;
+  };
+
+  // Moves the clock `ms` forward and runs every timer that falls due inside it, in due order, each at its own due
+  // time: Date answers that instant in the callback, and a timer it sets for later is due relative to it. Promise
+  // work a callback sets off runs before the next timer does. A timer that keeps re-arming itself inside the window
+  // would never let it end: after ADVANCE_RUN_LIMIT runs the advance stops and says so.
+  let advancing = false;
+  const advance = async (ms: number) => {
+    if (!Number.isFinite(ms) || ms < 0) throw new Error(`clock: cannot advance by ${ms} ms`);
+    if (advancing) throw new Error('clock: an advance is already running');
+    advancing = true;
+    const startTimer = timerNow();
+    const startDate = RealDate.now() + offsetMs;
+    const endTimer = startTimer + ms;
+    for (const timer of timers.values()) disarm(timer);
+    let cursor = startTimer;
+    frozenTimerMs = cursor;
+    frozenDateMs = startDate;
+    let runs = 0;
+    let failure: { error: unknown } | null = null;
+    let looped = false;
+    try {
+      for (;;) {
+        const next = nextDue();
+        if (!next || next.dueMs > endTimer) break;
+        if (runs >= ADVANCE_RUN_LIMIT) {
+          looped = true;
+          break;
+        }
+        cursor = Math.max(next.dueMs, cursor);
+        frozenTimerMs = cursor;
+        frozenDateMs = startDate + (cursor - startTimer);
+        runs += 1;
+        try {
+          fire(next);
+        } catch (error) {
+          failure ??= { error };
+        }
+        await new Promise<void>((resolve) => realSetImmediate(resolve));
+      }
+    } finally {
+      const reached = looped ? cursor : endTimer;
+      frozenTimerMs = null;
+      frozenDateMs = null;
+      skewMs = reached - RealDate.now();
+      offsetMs = startDate + (reached - startTimer) - RealDate.now();
+      for (const timer of timers.values()) arm(timer);
+      advancing = false;
+    }
+    if (looped) {
+      throw new Error(
+        `clock: advance stopped after ${ADVANCE_RUN_LIMIT} timer runs, ${Math.round(cursor - startTimer)} of ${ms} ms in: a timer that sets itself again keeps the window open (a setInterval with a short period, or a setTimeout that calls itself)`,
+      );
+    }
+    if (failure) throw failure.error;
+    return ms;
+  };
+
   onReset(() => {
     offsetMs = launched;
   });
-  qa.register('clock', (params) => {
+  qa.register('clock', async (params) => {
     const p = (params ?? {}) as { now?: string; advanceMs?: number; reset?: boolean; settle?: boolean };
     if (p.reset) offsetMs = launched;
     if (p.now) {
@@ -92,18 +290,17 @@ const installClock = () => {
       if (Number.isNaN(target)) throw new Error(`clock: cannot parse "${p.now}"`);
       offsetMs = target - RealDate.now();
     }
-    if (typeof p.advanceMs === 'number') offsetMs += p.advanceMs;
-    const answer = () => ({ now: new ControlledDate().toISOString(), offsetMs });
+    const moved = typeof p.advanceMs === 'number' ? await advance(p.advanceMs) : 0;
+    const answer = () => ({ now: new ControlledDate().toISOString(), offsetMs, advancedMs: moved, nextDueMs: nextDueIn() });
     if (!p.settle) {
       const done = answer();
-      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s)`);
+      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s${moved ? `, advanced ${moved} ms` : ''})`);
       return done;
     }
-    return settle().then((settled) => {
-      const done = { ...answer(), ...settled };
-      log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s), ${settled.settled ? 'settled' : 'not settled'}`);
-      return done;
-    });
+    const settled = await settle();
+    const done = { ...answer(), ...settled };
+    log(`clock → ${done.now} (offset ${Math.round(offsetMs / 1000)}s), ${settled.settled ? 'settled' : 'not settled'}`);
+    return done;
   });
 };
 
