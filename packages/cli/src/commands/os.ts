@@ -44,7 +44,8 @@ export const osCommands = [
     run: async (ctx) => {
       const device = await ctx.device();
       try {
-        return { json: await device.command('appstate', { state: ctx.args[0] }) };
+        // A host answers at once; a suspended app never does, and the OS has to bring it back.
+        return { json: await device.server.call('appstate', { state: ctx.args[0] }, 3000) };
       } catch (error) {
         // A host stands in for the OS; on a simulator or an emulator the OS itself moves the app.
         if ((await device.resolved()).id === 'headless') throw error;
