@@ -52,6 +52,7 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 | Sección | Qué contiene |
 |---|---|
 | `setup` | Los pasos que preparan el estado antes de que empiece lo que se quiere probar. |
+| `teardown` | Los pasos que devuelven lo que el caso cambió fuera de la app, por ejemplo una cara registrada en un Simulator compartido. Corren después de `steps`, hayan pasado, fallado o quedado omitidos. Un paso que falla aquí se avisa como advertencia y no cambia el resultado; no cuenta entre los pasos del caso. Una ejecución cortada por un timeout no llega a ellos. |
 | `steps` | Los pasos del test. |
 | `expected` | Un texto libre que dice qué demuestra el caso. Es para quien lo lee; no se ejecuta. |
 

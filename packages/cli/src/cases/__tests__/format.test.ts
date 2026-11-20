@@ -133,3 +133,11 @@ test('caseArtifactId never yields an empty, dot or dotted-leading name', () => {
   }
   assert.equal(caseArtifactId('login.2'), 'login.2');
 });
+
+test('a teardown is read like steps and is empty when a case has none', () => {
+  const none = parseCase(CASE, 'cases/gift.md');
+  assert.deepEqual(none.teardown, []);
+  const withIt = parseCase(CASE.replace('expected:', 'teardown:\n  - exec: "echo put back"\nexpected:'), 'cases/gift.md');
+  assert.equal(withIt.teardown.length, 1);
+  assert.equal(withIt.teardown[0]?.verb, 'exec');
+});

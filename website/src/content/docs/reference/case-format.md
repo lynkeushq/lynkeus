@@ -58,6 +58,7 @@ Other keys are allowed and ignored by the runner.
 | Key | Type | Meaning |
 |---|---|---|
 | `setup` | list of steps | What has to exist before the test. A step that fails here stops the case, even with `--continue`. |
+| `teardown` | list of steps | What puts back what the case changed outside the app, such as a face enrolled on a shared Simulator. It runs after the steps, whether they passed, failed or were skipped. A step that fails there is reported as a warning and does not change the result; it is not counted among the case's steps. A run cut by a timeout never reaches it. |
 | `steps` | list of steps | The test itself. |
 | `expected` | string | What a passing run proves, for the reader. The runner does not evaluate it. |
 

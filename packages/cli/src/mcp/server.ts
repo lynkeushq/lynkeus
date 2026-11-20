@@ -98,6 +98,7 @@ To share a run: case_run with out, screenshots and push uploads it and prints th
 
 For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs FastSim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.
 
+A case that changes something outside the app (a face enrolled on a shared Simulator) puts it back in \`teardown:\`, a list of steps with the same syntax as \`steps\`: it runs after them whether they passed, failed or were skipped, a failing teardown step is only a warning, and a run cut by a timeout never reaches it.
 A long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.
 
 For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { coverageOf, impactOf, routesNamed } from '../coverage.js';
 import type { Case } from '../format.js';
 
-const c = (id: string, steps: Case['steps']): Case => ({ file: `${id}.md`, id, meta: {}, setup: [], steps });
+const c = (id: string, steps: Case['steps']): Case => ({ file: `${id}.md`, id, meta: {}, setup: [], teardown: [], steps });
 
 test('a case touches the routes it goes to, waits for or checks', () => {
   const k = c('a', [

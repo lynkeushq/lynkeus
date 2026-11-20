@@ -38,7 +38,9 @@ export const FORMAT = `# Cases
 A case is a markdown file: frontmatter that names it, then \`setup\`, \`steps\`
 and \`expected\`. \`lynkeus case run cases/example.md\` runs one; without files
 it runs every case in this folder. A step that fails stops the case, and the
-report carries the screen, the requests and the reason.
+report carries the screen, the requests and the reason. An optional
+\`teardown\` list puts back what the case changed outside the app (a face
+enrolled on a shared Simulator); it runs after the steps, passed or failed.
 
 ## Frontmatter
 
