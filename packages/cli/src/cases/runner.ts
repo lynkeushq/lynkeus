@@ -1039,7 +1039,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
     if (on === 'headless') return !phone;
-    if (on.startsWith('has:')) return !!(await liveCommands(await device(), hello))?.includes(on.slice(4));
+    if (on.startsWith('has:')) {
+      const name = on.slice(4);
+      const live = await liveCommands(await device(), hello);
+      const held = !!live?.includes(name);
+      // Said when it matters: the app answers otherwise than its hello did, or the command is not there.
+      if (!held || live?.length !== hello?.commands?.length)
+        log(
+          `  ℹ️ has:${name} is ${held} (the hello listed ${hello?.commands?.length ?? 'no'} commands, the app now ${live?.length ?? 'no'}${hello?.commands?.includes(name) ? '' : `; the hello had no ${name}`})`,
+        );
+      return held;
+    }
     return hello?.platform === on;
   };
 
