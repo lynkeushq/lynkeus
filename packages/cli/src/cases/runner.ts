@@ -1470,6 +1470,18 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
 
   await flush();
+  // A case that changes what the next one runs on (a face enrolled on a shared Simulator) puts it back here, whether
+  // its steps passed, failed or were skipped. A teardown step that fails is said and does not change the result.
+  if (!options.dry && !options.setupOnly) {
+    for (const step of c.teardown) {
+      try {
+        const outcome = await perform(step);
+        log(`  ${outcome === 'skipped' ? '⏭️' : '↩️'} teardown ${label(step)}`);
+      } catch (error) {
+        log(`  ⚠️ teardown ${label(step)}  — ${(error instanceof Error ? error.message : String(error)).split('\n')[0]}`);
+      }
+    }
+  }
   if (requestsSeen !== undefined) {
     const d = await device().catch(() => undefined);
     // The last answers of the case, given a moment to arrive.
