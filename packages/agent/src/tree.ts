@@ -99,6 +99,14 @@ const textOf = (fiber: Fiber): string | undefined => {
   return text.length > 0 ? text.slice(0, 200) : undefined;
 };
 
+/** A text inside a button, with its own frame, for the button's `texts`. */
+const addButtonText = (button: Element | undefined, fiber: Fiber): void => {
+  const text = textOf(fiber);
+  const frame = measure(fiber);
+  if (!button || text === undefined || !frame || frame.w <= 0 || frame.h <= 0) return;
+  button.texts = [...(button.texts ?? []), { text, frame }];
+};
+
 // React Native's own default when a style names no size.
 const DEFAULT_FONT_SIZE = 14;
 
@@ -262,6 +270,8 @@ const readFields = (fields: Field[]): void => {
 type Walk = {
   depth: number;
   inButton: boolean;
+  /** The outermost listed button above, whose `texts` collect the text inside it. */
+  button?: number;
   owner?: number;
   hidden?: HiddenReason;
   /** Still a direct child of the app's root, so a full-size view is a layer. */
@@ -316,7 +326,8 @@ export const snapshotElements = (): Snapshot => {
       (kind === 'text' && !at.inButton);
 
     if (!meaningful) {
-      walkChildren(node, inside);
+      if (kind === 'text' && at.button !== undefined) addButtonText(elements[at.button], node);
+      else walkChildren(node, inside);
       return;
     }
 
@@ -363,6 +374,7 @@ export const snapshotElements = (): Snapshot => {
         ...inside,
         depth: at.depth + 1,
         inButton: at.inButton || kind === 'button',
+        button: at.button ?? (kind === 'button' ? element.i : undefined),
         owner: element.i,
       });
     }
@@ -371,6 +383,7 @@ export const snapshotElements = (): Snapshot => {
   for (const root of rootFibers()) {
     walkChildren(root, { depth: 0, inButton: false, rootAttached: true });
   }
+  for (const element of elements) if (element.texts && element.texts.length < 2) delete element.texts;
   placeAsViews(elements);
   if (Platform.OS === 'android') keepOnScreen(elements, layers, window);
   readFields(fields);
