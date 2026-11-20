@@ -21,6 +21,7 @@ import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
+import { liveCommands } from './liveCommands.js';
 import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
@@ -505,7 +506,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const collect = async (index: number) => {
     if (!options.events || sdkRecorded) return;
     const d = await base.device().catch(() => undefined);
-    if (!d?.server.connected) return;
+    if (!d?.server.connected || away) return;
     const now = normalizeEvents(await d.command('events').catch(() => []));
     const route = (await d.screen().catch(() => undefined))?.route;
     const provider = config.appEvents?.provider;
@@ -514,6 +515,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const device = () => base.device();
+  // A phone's app in the background is suspended: its socket may stay open, but nothing answers, so every call to it
+  // waits out its whole timeout (20 s). An app away that long meets its screen lock when it comes back.
+  let away = false;
   const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
   const markRequests = async (d: Device, byHand = false): Promise<void> => {
     if (markedByHand && !byHand) return;
@@ -870,14 +874,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device();
     // An app in the background has no connection to answer with: the step that brings it back must still run.
     const lastSeq = () =>
-      d.trace().then(
-        (t) => t.last,
-        () => undefined,
-      );
+      away
+        ? Promise.resolve(undefined)
+        : d.trace().then(
+            (t) => t.last,
+            () => undefined,
+          );
     mark ??= await lastSeq();
     if (!LOOKING.has(name)) actedFrom = await lastSeq();
     // An interruption handled inside a wait is not the action the wait is about.
-    if ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined) await markRequests(d).catch(() => undefined);
+    if (!away && ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined)) await markRequests(d).catch(() => undefined);
     switch (name) {
       case 'press': {
         await interrupted(value);
@@ -976,6 +982,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         const command = find(name) ?? find(`os ${name}`);
         if (!command) throw new Error(`app.${name} is not a step: Lynkeus has no command ${name}, and the project declares no macro for it`);
         await cli(argvFor(command, value));
+        if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
       }
     }
@@ -1038,7 +1045,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
     if (on === 'headless') return !phone;
-    if (on.startsWith('has:')) return !!hello?.commands?.includes(on.slice(4));
+    if (on.startsWith('has:')) {
+      const name = on.slice(4);
+      const live = await liveCommands(await device(), hello);
+      const held = !!live?.includes(name);
+      // Said when it matters: the app answers otherwise than its hello did, or the command is not there.
+      if (!held || live?.length !== hello?.commands?.length)
+        log(
+          `  ℹ️ has:${name} is ${held} (the hello listed ${hello?.commands?.length ?? 'no'} commands, the app now ${live?.length ?? 'no'}${hello?.commands?.includes(name) ? '' : `; the hello had no ${name}`})`,
+        );
+      return held;
+    }
     return hello?.platform === on;
   };
 
@@ -1065,7 +1082,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
 
   const evidence = options.dry ? undefined : options.evidence;
-  const offers = async (command: string) => !!(await base.device().catch(() => undefined))?.server.hello?.commands?.includes(command);
+  const offers = async (command: string) => !away && !!(await base.device().catch(() => undefined))?.server.hello?.commands?.includes(command);
   const film = evidence?.video && (await offers('record')) ? path.join(evidence.dir, 'video.mp4') : undefined;
   // Asked when the run keeps events or a report: it is a call per step.
   const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
@@ -1145,7 +1162,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (server.length > 0) report.sent = [...(report.sent ?? []), ...server];
     }
     const d = await device().catch(() => undefined);
-    if (!d?.server.connected) return;
+    if (!d?.server.connected || away) return;
     if (capturing) {
       const raw = (await d.command('analytics', { take: true }).catch(() => [])) as { sdk?: string; name?: string; properties?: Record<string, unknown> }[];
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
@@ -1195,7 +1212,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     // its wait and capture are what make a frame per step slow on a device. The shape is the route and each
     // element's id, text and place, read from the app, so a change in any of them still takes a frame.
     let shape: string | undefined;
-    if (evidence?.screenshots && evidence.onChange) {
+    if (evidence?.screenshots && evidence.onChange && !away) {
       shape = await d.screen().then(
         (sc) => `${sc.route}|${sc.elements.map((e) => `${e.testId ?? ''}:${e.text ?? ''}:${Math.round(e.frame.x)},${Math.round(e.frame.y)}`).join(';')}`,
         () => undefined,
@@ -1212,10 +1229,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // moment, not of a state. The wait is paid on every step: short for a report, and long enough for what
       // arrives after a short delay (700 ms) where two runs' frames are compared pixel by pixel.
       const quietMs = evidence.settleMs ?? 150;
-      const settled = await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
-        (r) => r.idle,
-        () => false,
-      );
+      const settled = away
+        ? false
+        : await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
+            (r) => r.idle,
+            () => false,
+          );
       const stem = path.join(
         evidence.dir,
         `${String(index).padStart(2, '0')}-${report.step
@@ -1316,7 +1335,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         }
         // What each pixel shows: comparing two runs' frames needs to tell the data they were given (a name,
         // a balance) from how it was drawn.
-        const screen = await d.screen().catch(() => undefined);
+        const screen = away ? undefined : await d.screen().catch(() => undefined);
         if (screen)
           fs.writeFileSync(
             file.replace(/\.(png|avif)$/, '.json'),
