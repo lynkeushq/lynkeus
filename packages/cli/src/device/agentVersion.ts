@@ -30,3 +30,7 @@ export const appSwitched = (before: string | undefined, now: string, port: numbe
   before && before !== now
     ? `⚠️  Another app attached on port ${port}: ${before} gave way to ${now}. Two apps or hosts are dialing this port and steps go to whichever dialed last; stop one, or give each its own LYNKEUS_PORT.`
     : undefined;
+
+/** A host that runs the app with no device (headless under jest, or Flutter's under `flutter test`): no process to relaunch, nothing for simctl or adb. */
+export const hostedHeadless = (hello: Pick<HelloEvent, 'app'> | null | undefined): boolean =>
+  hello?.app?.runtime === 'headless' || hello?.app?.runtime === 'flutter-headless';

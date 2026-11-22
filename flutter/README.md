@@ -3,6 +3,8 @@
 - `lynkeus_agent/`: the in-app agent, a Dart package. It dials the Lynkeus driver from a debug build, proves the
   project's token, and answers the [protocol](../docs/PROTOCOL.md) from the live widget tree: what the screen shows,
   real touches through Flutter's gesture system, typing through its text input. Release builds leave it out.
+- `lynkeus_headless/`: hosts the app inside `flutter test`, with no simulator: `lynkeus case run --host` in a Flutter
+  project.
 - `sample/`: a small app (iOS and Android) and the cases in `sample/cases/` that run against it.
 
 ## Add the agent to an app
@@ -54,3 +56,9 @@ npx lynkeus case run --device <device>
 
 `flutter run` with the same `--dart-define` works too. Both cases start with `reset`, so they run in any order on one
 launch of the app.
+
+With no simulator at all, from `flutter/sample/`:
+
+```sh
+npx lynkeus case run --host
+```

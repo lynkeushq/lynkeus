@@ -20,7 +20,7 @@ import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
-import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
+import { agentMismatch, appSwitched, helloIdentity, hostedHeadless } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reversePhones } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
@@ -113,7 +113,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
         await picking;
         throw error;
       });
-    const headless = hello.app?.runtime === 'headless';
+    const headless = hostedHeadless(hello);
     const info = {
       ...HEADLESS_HOST,
       name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),

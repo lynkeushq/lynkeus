@@ -143,6 +143,13 @@ packages:
       relative: true
     source: path
     version: "0.7.5"
+  lynkeus_headless:
+    dependency: "direct dev"
+    description:
+      path: "../lynkeus_headless"
+      relative: true
+    source: path
+    version: "0.7.5"
   matcher:
     dependency: transitive
     description:

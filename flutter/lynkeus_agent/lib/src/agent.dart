@@ -26,12 +26,25 @@ abstract final class LynkeusAgent {
   static Link? _link;
   static Methods? _methods;
   static final _pending = <String, Command>{};
+  static ({String token, String? host, int? port, Map<String, Object?> app})? _hosted;
+
+  /// For a host that runs the app itself (lynkeus_headless), before the app's `main()`: the token, the driver's
+  /// address and the app description the app's own [start] call uses when it gives none.
+  static void hostedBy({required String token, String? host, int? port, Map<String, Object?> app = const {}}) =>
+      _hosted = (token: token, host: host, port: port, app: app);
+
+  /// The app's requests in flight: a host that runs its own clock keeps it at the wall's pace while one is out.
+  static int get requestsInFlight => _methods?.network?.inFlight ?? 0;
+
+  /// Driver requests being served: a host fast-forwards its clock while the driver waits on the app.
+  static int get serving => _methods?.serving ?? 0;
 
   /// Starts dialing the driver. Call once from `main()`, before `runApp`. The token comes from
   /// `--dart-define=LYNKEUS_TOKEN=...` unless given; `host` and `port` from `LYNKEUS_HOST` and `LYNKEUS_PORT`.
   static void start({String? token, String? host, int? port, Map<String, Object?> app = const {}}) {
     if (kReleaseMode || _link != null) return;
-    final secret = token ?? _token;
+    final hosted = _hosted;
+    final secret = token ?? hosted?.token ?? _token;
     if (secret.isEmpty) {
       debugPrint(_noToken);
       return;
@@ -40,13 +53,13 @@ abstract final class LynkeusAgent {
     final methods = Methods()..commands.addAll(_pending);
     _pending.clear();
     _methods = methods;
-    final where = host ?? (_host.isEmpty ? null : _host);
+    final where = host ?? hosted?.host ?? (_host.isEmpty ? null : _host);
     _link = Link(
       token: secret,
       // The computer is 10.0.2.2 from the Android emulator, and localhost from a phone on USB once the CLI has run
       // `adb reverse`.
       hosts: where != null ? [where] : (Platform.isAndroid ? ['10.0.2.2', '127.0.0.1'] : ['127.0.0.1']),
-      port: port ?? _port,
+      port: port ?? hosted?.port ?? _port,
       hello: () => {
         'protocolVersion': protocolVersion,
         'agentVersion': agentVersion,
@@ -58,7 +71,7 @@ abstract final class LynkeusAgent {
         'native': true,
         'commands': methods.commandNames(),
         'route': ?methods.currentRoute(),
-        'app': {'runtime': 'flutter', ...app},
+        'app': {'runtime': 'flutter', ...app, ...?hosted?.app},
       },
       serve: methods.call,
     )..start();

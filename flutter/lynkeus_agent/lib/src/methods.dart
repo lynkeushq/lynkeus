@@ -121,8 +121,12 @@ class Methods {
     }
   }
 
+  /// Requests from the driver being served right now.
+  int serving = 0;
+
   Future<Object?> call(String method, Object? params) async {
     final started = _ms();
+    serving++;
     try {
       final result = await _dispatch(method, params);
       if (!_untraced.contains(method)) record({'kind': 'command', 'method': method, 'ms': _ms() - started});
@@ -130,6 +134,8 @@ class Methods {
     } catch (error) {
       record({'kind': 'command', 'method': method, 'ms': _ms() - started, 'error': '$error'});
       rethrow;
+    } finally {
+      serving--;
     }
   }
 
