@@ -322,7 +322,11 @@ export const snapshotElements = (): Snapshot => {
 
     const frame = measure(node);
     const aboveHeader = frame !== undefined && aboveHeaderText(kind, frame, window);
-    if (!frame || (!onScreen(frame, window) && !aboveHeader)) {
+    // On Android the shadow tree's frame can lag a scroll the native view has already made (a pager's page after a
+    // scrollTo without animation), so what it puts outside the window is kept, placed by its view and filtered by
+    // keepOnScreen. Elsewhere the frame is all there is.
+    const outside = frame !== undefined && !onScreen(frame, window) && !aboveHeader;
+    if (!frame || (outside && Platform.OS !== 'android')) {
       if (kind !== 'text') walkChildren(node, inside);
       return;
     }
