@@ -46,7 +46,7 @@ void main() {
 }
 ```
 
-The agent reads the token from a `--dart-define`; without one it stays off and says so in the console. Run the app with it on a Simulator or emulator, then check with `npx lynkeus screen`:
+Start the agent first in `main()`, before `WidgetsFlutterBinding.ensureInitialized()`: under Lynkeus FastSim it installs its own binding, and a binding cannot be replaced once one exists (`lynkeus init` places it there). The agent reads the token from a `--dart-define`; without one it stays off and says so in the console. Run the app with it on a Simulator or emulator, then check with `npx lynkeus screen`:
 
 ```bash
 flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)

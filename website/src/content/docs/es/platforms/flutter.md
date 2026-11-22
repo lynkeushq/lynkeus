@@ -38,7 +38,7 @@ void main() {
 }
 ```
 
-El agente necesita el token del proyecto en el build. En Flutter se pasa con `--dart-define`:
+Arranca el agente lo primero en `main()`, antes de `WidgetsFlutterBinding.ensureInitialized()`: Lynkeus FastSim instala su propio binding y uno ya creado no se puede reemplazar (`lynkeus init` lo deja en ese lugar). El agente necesita el token del proyecto en el build. En Flutter se pasa con `--dart-define`:
 
 ```bash
 flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
