@@ -3,7 +3,7 @@ title: Introducción
 description: Qué es Lynkeus, qué le aporta a cada persona del equipo, cómo encajan sus piezas y por dónde empezar.
 ---
 
-Lynkeus es una herramienta de código abierto para ejecutar tests automatizados sobre apps de React Native. Maneja la app desde adentro del proceso, y deja un reporte de cada ejecución.
+Lynkeus es una herramienta de código abierto para ejecutar tests automatizados sobre apps de React Native y de Flutter (esta última, con [su propia página](/es/platforms/flutter/)). Maneja la app desde adentro del proceso, y deja un reporte de cada ejecución.
 
 Esta página explica la idea de fondo, qué gana cada rol con ella y cómo se relacionan las piezas. Si ya sabes que quieres probarla, salta a [Instalación en React Native](/es/getting-started/installation-react-native/) o a [Instalación en Expo](/es/getting-started/installation-expo/).
 

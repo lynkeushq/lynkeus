@@ -3,7 +3,7 @@ title: Introduction
 description: What Lynkeus is, what each person on a team gets from it, how its pieces fit together, and where to start.
 ---
 
-Lynkeus runs automated tests on React Native apps and produces a report of every run. It is open source (MIT).
+Lynkeus runs automated tests on React Native and Flutter apps (Flutter has [its own page](/platforms/flutter/)) and produces a report of every run. It is open source (MIT).
 
 Most end-to-end tools drive an app from the outside: they ask the operating system what is on screen, or take a screenshot and interpret it. Lynkeus works from the inside. A small **agent** is mounted in a development build of your app. It reads the tree React rendered, so what it reports is what React knows: the current route, every `testID`, the value of each input, which element a touch would reach and which ones a sheet is covering. Touches and keystrokes are synthesized inside the app's process, and a wait ends on the render that satisfies it.
 
@@ -73,7 +73,7 @@ The npm packages are:
 
 ## Requirements
 
-- React Native 0.76 or newer, with the New Architecture.
+- React Native 0.76 or newer, with the New Architecture, or a Flutter app: see [Flutter](/platforms/flutter/).
 - A debug build of the app, for iOS, Android, or both, running on a simulator, an emulator or an Android phone over USB. Expo apps need a development build; Expo Go does not work.
 - Node 22 or newer for the CLI and the headless host.
 

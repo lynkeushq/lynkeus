@@ -5,7 +5,7 @@ command, a package or a service feature. [CONCEPTS.md](CONCEPTS.md) defines the 
 
 ## The rule
 
-Lynkeus knows React Native, the screen, cases, runs and git. It knows nothing about any product: no screens, no
+Lynkeus knows React Native and Flutter, the screen, cases, runs and git. It knows nothing about any product: no screens, no
 users, no backend. Everything product-specific lives with the product and reaches Lynkeus through a contract.
 A piece that would only work for one app does not belong in this repository.
 
@@ -31,7 +31,8 @@ A piece that would only work for one app does not belong in this repository.
 | Layer | Knows | Lives in |
 |---|---|---|
 | Agent | The running React Native app: its tree, touches, keys, requests, SDK calls, console | `packages/agent` |
-| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, Lynkeus FastSim (native drawing without a simulator), headless (Node, no drawing) | the OS tools, the fastsim repository, `packages/headless` |
+| Flutter agent | The same for a Flutter app, in Dart: widget tree, touches, text input, `HttpClient` requests | `flutter/lynkeus_agent` |
+| Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, Lynkeus FastSim (native drawing without a simulator), headless (Node, no drawing; for Flutter, `flutter test`) | the OS tools, the fastsim repository, `packages/headless`, `flutter/lynkeus_headless` |
 | CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration | `packages/cli` |
 | Cloud | Runs over time, reports, people, the forge (GitHub) | lynkeus-cloud |
 | Product | Its cases and flows, what its screens mean, its backend's state | the product's repositories |

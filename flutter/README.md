@@ -31,6 +31,10 @@ Build with the project's token, which `lynkeus init` writes to `.lynkeus/token`:
 flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
 ```
 
+`lynkeus init` does the above in a Flutter project (add `--runtime flutter` when the folder is also a React Native
+app). The full guide, with routes, the network log, the headless host and what does not work yet, is the
+[Flutter page](https://lynkeus.io/platforms/flutter/) of the docs.
+
 A widget with a `ValueKey<String>` (or `Key('...')`) or a `Semantics(identifier: ...)` is found by that test id
 (`#increment`). `LYNKEUS_HOST` and `LYNKEUS_PORT` (also `--dart-define`) change where it dials; by default
 `127.0.0.1:8123`, and on Android `10.0.2.2` then `127.0.0.1`. `LynkeusAgent.register('reset', ...)` adds a command a

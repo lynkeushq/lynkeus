@@ -46,6 +46,8 @@ Al conectarse, el servidor le explica al modelo el orden a seguir. El agente lla
 
 El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
 
+En una app de Flutter no hay nada que compilar con esos comandos: la app se ejecuta con `flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`, y el host sin pantalla necesita `FLUTTER_ROOT` o `flutter` en el `PATH`. Más en [Flutter](/es/platforms/flutter/).
+
 Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
 
 ## 3. Pídele un test

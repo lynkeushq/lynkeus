@@ -9,7 +9,7 @@ Short answers to what people ask before adopting Lynkeus and in their first days
 
 ### What is Lynkeus, in one paragraph?
 
-A tool that runs automated end-to-end tests on React Native apps. A small agent is mounted inside a debug build of your app; a command-line program drives it. Tests are readable files of steps, and every run can be kept as a report with each step, its screenshot and, when it fails, the reason. See the [introduction](/).
+A tool that runs automated end-to-end tests on React Native and Flutter apps. A small agent is mounted inside a debug build of your app; a command-line program drives it. Tests are readable files of steps, and every run can be kept as a report with each step, its screenshot and, when it fails, the reason. See the [introduction](/).
 
 ### How does it compare to Detox, Maestro or Appium?
 
@@ -32,6 +32,10 @@ An Android phone connected over USB works like an emulator: the CLI runs `adb re
 ### Which versions of React Native does it support?
 
 React Native 0.76 or newer, with the New Architecture. On iOS the New Architecture is required: the agent measures elements through Fabric and its native module is a Turbo Module.
+
+### Does it work with Flutter?
+
+Yes, with a Dart agent (`lynkeus_agent`) in a debug build, and a headless host that runs the app under `flutter test`. Cases have the same format. `map`, `case impact`, `smoke` and `crawl` do not work for Flutter yet, and Lynkeus FastSim is not available for it. See [Flutter](/platforms/flutter/).
 
 ### Does it work with Expo?
 

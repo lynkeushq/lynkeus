@@ -5,7 +5,7 @@ description: Add the Lynkeus agent to a React Native CLI app, mount it, give it 
 
 This page takes an app built with the React Native CLI from nothing to a terminal that can read its screen. It is for the developer who installs Lynkeus; once it is done, anyone on the team can write and run tests without touching the app's code again.
 
-If your app uses Expo, follow [Install in an Expo app](/getting-started/installation-expo/) instead.
+If your app uses Expo, follow [Install in an Expo app](/getting-started/installation-expo/) instead. For a Flutter app, see [Flutter](/platforms/flutter/).
 
 ## What you are installing
 
