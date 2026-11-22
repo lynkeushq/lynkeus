@@ -355,6 +355,31 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  packages/exact:
+    dependencies:
+      lynkeus-protocol:
+        specifier: workspace:^
+        version: link:../protocol
+      ws:
+        specifier: ^8.18.0
+        version: 8.22.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.2
+      lynkeus-client:
+        specifier: workspace:^
+        version: link:../client
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/headless:
     dependencies:
       ws:

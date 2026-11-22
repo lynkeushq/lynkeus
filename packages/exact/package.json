@@ -1,0 +1,48 @@
+{
+  "name": "lynkeus-exact",
+  "version": "0.7.5",
+  "description": "A Lynkeus host for apps built with Expo Exact: the same protocol, cases and MCP tools, answered from Exact's agent driver (JSON lines on a native host's stdio).",
+  "type": "module",
+  "main": "./lib/index.js",
+  "types": "./lib/index.d.ts",
+  "bin": {
+    "lynkeus-exact-host": "./lib/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib",
+    "src",
+    "!**/__tests__"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/__tests__/*.test.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lynkeushq/lynkeus.git",
+    "directory": "packages/exact"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "lynkeus-protocol": "workspace:^",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.18.1",
+    "lynkeus-client": "workspace:^",
+    "tsx": "^4.19.2",
+    "typescript": "^6.0.3"
+  },
+  "homepage": "https://github.com/lynkeushq/lynkeus#readme"
+}
