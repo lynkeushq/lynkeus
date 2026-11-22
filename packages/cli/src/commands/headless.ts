@@ -10,6 +10,7 @@ import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
 import { findFlutter, flutterHostEnv, flutterProject, writeFlutterHost } from './flutterHost.js';
+import { flutterChecks, flutterHeadlessCheck } from './flutterStatus.js';
 import { installedFastsim } from './fastsim.js';
 import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
 
@@ -221,7 +222,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const checks = setupChecks(ctx.root);
+      const flutter = !!flutterProject(ctx.root);
+      const checks = flutter ? flutterChecks(ctx.root) : setupChecks(ctx.root);
       const ready = checks.every((c) => c.ok);
       if (ready && !ctx.flags.offline) {
         try {
@@ -231,16 +233,23 @@ export const headlessCommands = [
           checks.push({
             what: 'an app is attached',
             ok: false,
-            fix: 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
+            fix: flutter
+              ? 'run the app in debug with `flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`; or `lynkeus headless start` for no simulator'
+              : 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
           });
         }
       }
-      const unloadable = headlessMissing(ctx.root);
-      checks.push({
-        what: unloadable.length ? 'the app can run headless, in Node with no simulator' : 'the app can run headless (jest, Testing Library, lynkeus-headless)',
-        ok: !unloadable.length && fs.existsSync(path.join(ctx.root, entryOf(ctx))),
-        fix: '`lynkeus headless init` installs what it needs and writes its entry; optional',
-      });
+      if (flutter) checks.push(flutterHeadlessCheck(ctx.root));
+      else {
+        const unloadable = headlessMissing(ctx.root);
+        checks.push({
+          what: unloadable.length
+            ? 'the app can run headless, in Node with no simulator'
+            : 'the app can run headless (jest, Testing Library, lynkeus-headless)',
+          ok: !unloadable.length && fs.existsSync(path.join(ctx.root, entryOf(ctx))),
+          fix: '`lynkeus headless init` installs what it needs and writes its entry; optional',
+        });
+      }
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
       const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
       checks.push({
