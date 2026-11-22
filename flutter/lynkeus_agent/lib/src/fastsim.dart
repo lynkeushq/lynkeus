@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'fence.dart';
 import 'standins.dart';
 
 /*
@@ -59,6 +60,9 @@ class FastSimHost {
   String? get token => env['LYNKEUS_TOKEN'];
   int? get port => int.tryParse(env['LYNKEUS_PORT'] ?? '');
   String? get driverHost => env['LYNKEUS_HOST'];
+
+  /// Where the app's requests may go: what the project allowed, and the driver's own address.
+  Set<String> get networkHosts => {...networkHostsFrom(env), ?driverHost};
 
   /// Makes the agent's binding the app's, if nothing has made one yet: the embedder has no way to give a view its
   /// safe area, so the binding's root view adds it, and the app's plugins have no native side, so its messenger

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:lynkeus_agent/hosts.dart';
 
 /// What `lynkeus headless start` hands the host in the environment: the driver, the launch facts and the screen.
 class HostSettings {
@@ -34,11 +35,7 @@ class HostSettings {
       platform: env['LYNKEUS_PLATFORM'] == 'android' ? TargetPlatform.android : TargetPlatform.iOS,
       size: window == null ? const Size(402, 874) : Size(double.parse(window[1]!), double.parse(window[2]!)),
       devicePixelRatio: window?[3] == null ? 3 : double.parse(window![3]!),
-      networkHosts: (env['LYNKEUS_NETWORK_HOSTS'] ?? '127.0.0.1,localhost,::1,10.0.2.2')
-          .split(',')
-          .map((h) => h.trim())
-          .where((h) => h.isNotEmpty)
-          .toSet(),
+      networkHosts: networkHostsFrom(env),
       locale: parts == null || parts.first.isEmpty
           ? null
           : Locale.fromSubtags(languageCode: parts.first, countryCode: parts.length > 1 ? parts.last : null),

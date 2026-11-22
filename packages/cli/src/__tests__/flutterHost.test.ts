@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { findFlutter, flutterHostEnv, flutterHostTest, flutterProject, writeFlutterHost } from '../commands/flutterHost.js';
+import { findFlutter, flutterHostEnv, flutterHostTest, flutterNetworkEnv, flutterProject, writeFlutterHost } from '../commands/flutterHost.js';
 import { hostedHeadless } from '../device/agentVersion.js';
 
 const project = (pubspec: string | undefined, extra: Record<string, string> = {}): string => {
@@ -83,4 +83,10 @@ test('a Flutter host counts as headless, as the jest host does', () => {
   assert.equal(hostedHeadless({ app: { runtime: 'headless' } }), true);
   assert.equal(hostedHeadless({ app: { runtime: 'flutter' } }), false);
   assert.equal(hostedHeadless(null), false);
+});
+
+test("a FastSim host command gets the project's network hosts, and nothing when the config names none", () => {
+  assert.deepEqual(flutterNetworkEnv({ networkHosts: ['127.0.0.1', 'api.local'] }), { LYNKEUS_NETWORK_HOSTS: '127.0.0.1,api.local' });
+  assert.deepEqual(flutterNetworkEnv({ networkHosts: [] }), {});
+  assert.deepEqual(flutterNetworkEnv(undefined), {});
 });

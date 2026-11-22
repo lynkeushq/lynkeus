@@ -18,6 +18,13 @@ void main() {
     expect(host.port, 8150);
     expect(host.token, 'tok');
     expect(FastSimHost.detect({'FASTSIM_HOST': 'flutter', 'FASTSIM_SAFE_AREA': '62,0'})!.safeArea, isNull);
+    expect(FastSimHost.detect({'FASTSIM_HOST': '1', 'LYNKEUS_HOST': '192.168.1.5'})!.networkHosts, {
+      '127.0.0.1',
+      'localhost',
+      '::1',
+      '10.0.2.2',
+      '192.168.1.5',
+    });
   });
 
   testWidgets('the safe area is the padding, less what the keyboard covers', (tester) async {

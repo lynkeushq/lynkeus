@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lynkeus_agent/src/fence.dart';
 import 'package:lynkeus_agent/src/network.dart';
 
 void main() {
@@ -145,5 +146,50 @@ void main() {
     await fetch('GET', '/x');
     expect(seenHeaders['traceparent'], '00-${'a' * 32}-${'b' * 16}-01');
     expect(records().single['status'], 200);
+  });
+
+  test(
+    'behind the host\'s fence a request to another host fails at once, is listed, and netmock still answers',
+    () async {
+      HttpOverrides.global = FencedHttpOverrides({'127.0.0.1'});
+      network = Network(trace: traced.add)..install();
+      network.commands['netmock']!({
+        'method': 'GET',
+        'path': '/users/deer',
+        'status': 200,
+        'body': {'login': 'deer'},
+      });
+      final client = HttpClient();
+      try {
+        final mocked = await (await client.getUrl(Uri.parse('https://api.github.com/users/deer'))).close();
+        expect(mocked.statusCode, 200);
+        final watch = Stopwatch()..start();
+        await expectLater(
+          client.getUrl(Uri.parse('https://api.github.com/rate_limit')),
+          throwsA(
+            isA<SocketException>().having(
+              (e) => e.message,
+              'message',
+              allOf(contains('api.github.com is outside networkHosts (127.0.0.1)'), contains('networkHosts')),
+            ),
+          ),
+        );
+        expect(watch.elapsedMilliseconds, lessThan(500));
+      } finally {
+        client.close();
+      }
+      final listed = records().map((r) => [r['url'], r['status']]).toList();
+      expect(listed, [
+        ['https://api.github.com/users/deer', 200],
+        ['https://api.github.com/rate_limit', 0],
+      ]);
+      expect(records().last['error'], contains('outside networkHosts'));
+      expect((await fetch('GET', '/now')).$1, 200);
+    },
+  );
+
+  test('the fence\'s hosts come from LYNKEUS_NETWORK_HOSTS, or are this machine', () {
+    expect(networkHostsFrom({}), {'127.0.0.1', 'localhost', '::1', '10.0.2.2'});
+    expect(networkHostsFrom({'LYNKEUS_NETWORK_HOSTS': ' api.local , 127.0.0.1,'}), {'api.local', '127.0.0.1'});
   });
 }

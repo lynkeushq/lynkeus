@@ -22,6 +22,7 @@ import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { hostGrantEnv } from './fastsim.js';
+import { flutterNetworkEnv } from './flutterHost.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -594,6 +595,8 @@ export const caseCommands = [
         // The config's native constants reach the host's environment: it reads them when it starts, before the app does.
         const nativeValues = nativeValuesEnv(config.nativeMocks);
         if (nativeValues) hostEnv = { ...hostEnv, LYNKEUS_NATIVE_VALUES: nativeValues };
+        // A Flutter FastSim host fences its app's network as headless does, to the same flutterHost.networkHosts.
+        if (hostCommand) hostEnv = { ...hostEnv, ...flutterNetworkEnv(ctx.config.flutterHost) };
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
