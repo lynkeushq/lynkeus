@@ -24,3 +24,15 @@ What it reads, and from where:
 - Requests made through dart:io's `HttpClient` (package:http's `IOClient`, dio's default adapter) are wrapped through
   `HttpOverrides.global`: recorded for `requests` and `trace` with secrets redacted by the same rules as the React
   Native agent, counted in flight for `idle`, and answered, held or lost by the driver's `netmock` rules.
+
+## Lynkeus FastSim
+
+Inside the FastSim host (the app's own debug kernel run by Flutter's embedder, on a clock the host moves) the agent
+wakes on `FASTSIM_HOST`, which only the host sets; on a simulator or a phone none of it runs. There it makes the
+app's binding, whose root view carries the device's safe area (the embedder cannot set one), asks the host on
+`lynkeus/fastsim` which commands it serves (`clock`, `screenshot`, …) and forwards them, and tells the host when a
+driver request is being served and how many of the app's requests are out, which is what moves its clock.
+
+For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`.
+An app that makes its binding first still runs and is driven; it gets no safe area, and says `binding: app` in its
+hello.

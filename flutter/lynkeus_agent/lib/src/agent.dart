@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'fastsim.dart';
 import 'link.dart';
 import 'methods.dart';
 import 'network.dart';
@@ -41,25 +42,30 @@ abstract final class LynkeusAgent {
 
   /// Starts dialing the driver. Call once from `main()`, before `runApp`. The token comes from
   /// `--dart-define=LYNKEUS_TOKEN=...` unless given; `host` and `port` from `LYNKEUS_HOST` and `LYNKEUS_PORT`.
+  ///
+  /// Inside Lynkeus FastSim it must come before anything calls `WidgetsFlutterBinding.ensureInitialized()`: the
+  /// binding it then makes gives the app the device's safe area. On a simulator or a phone the order changes nothing.
   static void start({String? token, String? host, int? port, Map<String, Object?> app = const {}}) {
     if (kReleaseMode || _link != null) return;
+    final fastsim = FastSimHost.detect();
     final hosted = _hosted;
-    final secret = token ?? hosted?.token ?? _token;
+    final secret = token ?? fastsim?.token ?? hosted?.token ?? _token;
     if (secret.isEmpty) {
       debugPrint(_noToken);
       return;
     }
+    fastsim?.installBinding();
     WidgetsFlutterBinding.ensureInitialized();
     final methods = Methods()..commands.addAll(_pending);
     _pending.clear();
     _methods = methods;
-    final where = host ?? hosted?.host ?? (_host.isEmpty ? null : _host);
+    final where = host ?? fastsim?.driverHost ?? hosted?.host ?? (_host.isEmpty ? null : _host);
     _link = Link(
       token: secret,
       // The computer is 10.0.2.2 from the Android emulator, and localhost from a phone on USB once the CLI has run
       // `adb reverse`.
       hosts: where != null ? [where] : (Platform.isAndroid ? ['10.0.2.2', '127.0.0.1'] : ['127.0.0.1']),
-      port: port ?? hosted?.port ?? _port,
+      port: port ?? fastsim?.port ?? hosted?.port ?? _port,
       hello: () => {
         'protocolVersion': protocolVersion,
         'agentVersion': agentVersion,
@@ -71,16 +77,42 @@ abstract final class LynkeusAgent {
         'native': true,
         'commands': methods.commandNames(),
         'route': ?methods.currentRoute(),
-        'app': {'runtime': 'flutter', ...app, ...?hosted?.app},
+        'app': {
+          'runtime': 'flutter',
+          ...app,
+          ...?hosted?.app,
+          if (fastsim != null) ...{
+            'runtime': 'flutter-fastsim',
+            'fastsim': {'binding': fastsim.ownsBinding ? 'lynkeus' : 'app'},
+          },
+        },
       },
       serve: methods.call,
-    )..start();
+    );
     // After the link has its own HttpClient, so the agent's socket is not among the app's requests.
     final network = Network(trace: methods.record)..install();
     methods.network = network;
     for (final entry in network.commands.entries) {
       methods.commands.putIfAbsent(entry.key, () => entry.value);
     }
+    final link = _link!;
+    if (fastsim == null) {
+      link.start();
+      return;
+    }
+    void activity() => fastsim.activity(serving: methods.serving, inFlight: network.inFlight);
+    methods.onServing = activity;
+    network.onInFlight = activity;
+    // The driver must see the host's commands (clock first of all) in its first hello, or it takes the app for one
+    // on a device: dial once the host has said what it serves.
+    unawaited(
+      fastsim.hello(agentVersion).then((served) {
+        for (final name in served) {
+          methods.commands[name] = (params) => fastsim.call(name, params);
+        }
+        link.start();
+      }),
+    );
   }
 
   /// A command the driver can call by name, like a core method (`lynkeus call <name>`). Two names mean something to
