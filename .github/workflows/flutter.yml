@@ -1,0 +1,90 @@
+name: Flutter
+
+# Runs for any base branch, so stacked pull requests are checked too (ci.yml only sees pull requests into main).
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'flutter/**'
+      - 'packages/cli/src/commands/flutterHost.ts'
+      - 'packages/cli/src/commands/headless.ts'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'flutter/**'
+      - 'packages/cli/src/commands/flutterHost.ts'
+      - 'packages/cli/src/commands/headless.ts'
+      - '.github/workflows/flutter.yml'
+  merge_group:
+    types:
+      - checks_requested
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.50.1
+          cache: true
+
+      - name: Check each package
+        run: |
+          set -e
+          for package in lynkeus_agent lynkeus_headless sample; do
+            echo "::group::$package"
+            (
+              cd "flutter/$package"
+              flutter pub get
+              dart format --set-exit-if-changed .
+              flutter analyze
+              if [ -d test ]; then flutter test; fi
+            )
+            echo "::endgroup::"
+          done
+
+  headless-e2e:
+    needs: dart
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.50.1
+          cache: true
+
+      - name: Build the CLI
+        run: pnpm build
+
+      - name: Run the sample's cases on the headless host
+        working-directory: flutter/sample
+        env:
+          # The host and the CLI share this secret; the sample has no .lynkeus/token of its own.
+          LYNKEUS_TOKEN: ci-flutter-headless-token
+        run: |
+          flutter pub get
+          node ../../packages/cli/lib/cli.js case run --host
