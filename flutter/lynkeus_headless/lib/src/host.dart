@@ -12,7 +12,9 @@ import 'package:lynkeus_agent/lynkeus_agent.dart';
 
 import 'fence.dart';
 import 'fonts.dart';
+import 'plugins.dart';
 import 'settings.dart';
+import 'standins.dart';
 
 /*
  * How time and I/O share one test.
@@ -40,11 +42,12 @@ class _Real {
 }
 
 class _Host {
-  _Host(this.tester, this.settings, this.name);
+  _Host(this.tester, this.settings, this.name, this.configure);
 
   final WidgetTester tester;
   final HostSettings settings;
   final String name;
+  final void Function(HostConfig host)? configure;
 
   final _real = <_Real>[];
   final _advances = <(Duration, Completer<void>)>[];
@@ -80,6 +83,18 @@ class _Host {
       tester.platformDispatcher.localeTestValue = locale;
     }
     HttpOverrides.global = FencedHttpOverrides(settings.networkHosts);
+    final messenger = tester.binding.defaultBinaryMessenger;
+    final standIns = StandIns(log: _log, trace: Platform.environment['LYNKEUS_CHANNELS'] == 'trace')
+      ..install(messenger);
+    final plugins = PluginState(Directory.systemTemp.createTempSync('lynkeus-host-'));
+    installPlugins(
+      standIns,
+      plugins,
+      LynkeusAgent.register,
+      (channel, message) => messenger.handlePlatformMessage(channel, message, null),
+      settings.platformName,
+    );
+    configure?.call(HostConfig(standIns, plugins));
     final fonts = await tester.runAsync(() => loadFonts(settings.fontsDir)) ?? const [];
     _log('fonts: ${fonts.isEmpty ? 'none loaded (text draws as boxes)' : fonts.join(', ')}');
 
@@ -253,15 +268,35 @@ class _Host {
   }
 }
 
+/// What a project's `configureHost` gets: the channel stand-ins to add its own to, and the common plugins' state.
+class HostConfig {
+  HostConfig(this.standIns, this.plugins);
+  final StandIns standIns;
+  final PluginState plugins;
+}
+
 void _log(String line) => stdout.writeln('lynkeus host: $line');
 
 /// Hosts the app for Lynkeus from a test file that `lynkeus headless start` writes: runs the app's [appMain] inside
 /// `flutter test`, with no simulator, and serves a driver until the exit command or a signal.
 /// [settings] replaces what the environment says (a test of the host itself).
-void hostApp(FutureOr<void> Function() appMain, {required String name, HostSettings Function()? settings}) {
+/// [configure] adds the project's own stand-ins (`test/lynkeus_host.dart`'s `configureHost`, which the CLI imports).
+void hostApp(
+  FutureOr<void> Function() appMain, {
+  required String name,
+  HostSettings Function()? settings,
+  void Function(HostConfig host)? configure,
+}) {
   testWidgets('hosts the app for Lynkeus', (tester) async {
     final given = settings?.call() ?? HostSettings.fromEnvironment();
     if (given.token.isEmpty) throw StateError('lynkeus headless needs LYNKEUS_TOKEN');
-    await _Host(tester, given, name).run(appMain);
+    // An error the app does not catch (an async callback that throws) would reach the test's zone, which ends the test:
+    // the host's own zone logs it and goes on serving, as the app goes on running on a device.
+    final done = Completer<void>();
+    runZonedGuarded(
+      () => _Host(tester, given, name, configure).run(appMain).then(done.complete, onError: done.completeError),
+      (error, stack) => _log('app error: ${'$error'.split('\n').first}'),
+    );
+    await done.future;
   }, timeout: Timeout.none);
 }

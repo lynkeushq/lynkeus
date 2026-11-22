@@ -90,13 +90,16 @@ export const findFlutter = (root: string, env: NodeJS.ProcessEnv = process.env):
 export const flutterHostFile = (root: string, port: number | undefined): string =>
   path.join(lynkeusDir(root), 'host', port ? `lynkeus_host_${port}_test.dart` : 'lynkeus_host_test.dart');
 
-export const flutterHostTest = (project: FlutterProject, entry: string): string => {
+/** Where a project keeps stand-ins of its own: `void configureHost(HostConfig host)`, which the host file passes on. */
+export const PROJECT_HOST = path.join('test', 'lynkeus_host.dart');
+
+export const flutterHostTest = (project: FlutterProject, entry: string, ownStandIns = false): string => {
   const main = entry.replace(/^lib\//, '');
   return `// Written by \`lynkeus headless start\`; runs the app inside flutter test as a host for the agent.
 import 'package:lynkeus_headless/lynkeus_headless.dart';
 import 'package:${project.name}/${main}' as app;
-
-void main() => hostApp(app.main, name: ${JSON.stringify(project.name)});
+${ownStandIns ? "import '../../test/lynkeus_host.dart' as project;\n" : ''}
+void main() => hostApp(app.main, name: ${JSON.stringify(project.name)}${ownStandIns ? ', configure: project.configureHost' : ''});
 `;
 };
 
@@ -104,7 +107,7 @@ void main() => hostApp(app.main, name: ${JSON.stringify(project.name)});
 export const writeFlutterHost = (root: string, project: FlutterProject, entry: string, port: number | undefined): string => {
   const file = flutterHostFile(root, port);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, flutterHostTest(project, entry));
+  fs.writeFileSync(file, flutterHostTest(project, entry, fs.existsSync(path.join(root, PROJECT_HOST))));
   const ignore = path.join(lynkeusDir(root), '.gitignore');
   const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
   if (!ignored.split('\n').includes('host/')) fs.writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}host/\n`);

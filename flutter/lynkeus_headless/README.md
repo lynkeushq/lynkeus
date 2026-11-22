@@ -54,11 +54,44 @@ from outside. The host plays an iPhone-sized iOS device (402x874 points at 3x, w
 - `screenshot`: `{ path }` writes the screen as PNG at the device's pixel size. The app's fonts (its FontManifest),
   Roboto under the system families (Material on iOS asks for San Francisco) and MaterialIcons are loaded first, so
   text is legible rather than flutter_test's boxes.
-- `appstate`: `{ state: active | inactive | background }` as the OS would send it.
+- `appstate`: `{ state: active | inactive | background }` as the OS would send it, through each state in between.
 - `deeplink`: `{ url }`, as the engine delivers a link the OS opened.
 - `memory`: the process's resident size. The Dart VM gives a running program no heap figures, so `--host-heap`
   restarts do not apply to this host.
 - `exit`: ends the host.
+
+## Plugins
+
+flutter_test leaves platform channels unanswered: a plugin's method channel throws `MissingPluginException`, a
+Pigeon one fails to connect. The host answers every channel. These plugins have stand-ins that keep their state in
+memory for the run, answering the channels their platform interfaces fall back to under `flutter test`:
+
+| Plugin | Stand-in | Driven by |
+|---|---|---|
+| shared_preferences | a key-value map | the app |
+| flutter_secure_storage | a key-value map | the app |
+| path_provider | folders under a temporary folder per run | |
+| device_info_plus, package_info_plus | an iPhone 17 on iOS 26.5, or an Android 15 emulator, as the host plays | |
+| url_launcher | answers that it can open a URL, opens nothing, writes it down | `lynkeus call launched` (`{ clear: true }` empties it) |
+| local_auth | a sensor with Face ID enrolled; prompts succeed | `lynkeus os biometrics --available none\|face --next success\|fail\|cancel\|<error code>` |
+| permission_handler | every permission granted | `lynkeus call permissions '{"7": 4}'` (permission number to status) |
+| connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+
+Any other channel gets an empty success (null), so the app's await never hangs, and one `[stub] <channel>` line in
+the host's log. `LYNKEUS_CHANNELS=trace` prints every call and its answer.
+
+A project adds its own in `test/lynkeus_host.dart` (not a `_test.dart` file, so its unit tests leave it alone);
+`lynkeus headless start` passes it on when it is there:
+
+```dart
+import 'package:lynkeus_headless/lynkeus_headless.dart';
+
+void configureHost(HostConfig host) {
+  host.standIns.add('com.example/wallet', (method, args) => method == 'balance' ? 1250 : null);
+  host.standIns.add('dev.flutter.pigeon.wallet.WalletApi', (method, args) => null); // a Pigeon API, by name
+  host.plugins.preferences['flutter.onboarded'] = true;
+}
+```
 
 ## Network
 

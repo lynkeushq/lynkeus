@@ -57,6 +57,14 @@ test('the host file goes under .lynkeus, one per port, and git ignores it', () =
   writeFlutterHost(root, { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined);
   assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8').match(/host\//g)?.length, 1);
   assert.match(flutterHostTest({ name: 'a', hosted: true }, 'lib/app/main_dev.dart'), /package:a\/app\/main_dev\.dart/);
+  assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /configureHost/);
+});
+
+test("a project's own stand-ins in test/lynkeus_host.dart are passed to the host", () => {
+  const root = project(APP, { 'lib/main.dart': 'void main() {}\n', 'test/lynkeus_host.dart': 'void configureHost(Object host) {}\n' });
+  const text = fs.readFileSync(writeFlutterHost(root, { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined), 'utf8');
+  assert.match(text, /import '\.\.\/\.\.\/test\/lynkeus_host\.dart' as project;/);
+  assert.match(text, /configure: project\.configureHost/);
 });
 
 test('finds the SDK from FLUTTER_ROOT, and hands the host its fonts and port', () => {

@@ -2,15 +2,18 @@ import 'dart:async';
 
 import 'package:lynkeus_agent/lynkeus_agent.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 final homeKey = GlobalKey<HomeState>();
 
 void main() {
   LynkeusAgent.start(app: {'name': 'lynkeus_sample'});
-  LynkeusAgent.register('reset', (_) {
+  LynkeusAgent.register('reset', (_) async {
     navigatorKey.currentState?.popUntil((route) => route.isFirst);
     homeKey.currentState?.reset();
+    await (await SharedPreferences.getInstance()).clear();
     return true;
   });
   runApp(const SampleApp());
@@ -147,6 +150,12 @@ class HomeState extends State<Home> {
           child: const Text('Delete everything'),
         ),
         if (_deleted) const Text('Everything was deleted', key: ValueKey('deleted')),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          key: const ValueKey('open-settings'),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const Settings())),
+          child: const Text('Settings'),
+        ),
       ],
     ),
   );
@@ -166,6 +175,72 @@ class Items extends StatelessWidget {
         title: Text('Item ${i + 1}'),
         onTap: () => Navigator.pop(context, 'Item ${i + 1}'),
       ),
+    ),
+  );
+}
+
+final _help = Uri.parse('https://lynkeus.io/help');
+
+class Settings extends StatefulWidget {
+  const Settings({super.key});
+
+  @override
+  State<Settings> createState() => _SettingsState();
+}
+
+class _SettingsState extends State<Settings> {
+  bool? _remember;
+  bool? _linkAvailable;
+  var _opened = false;
+
+  @override
+  void initState() {
+    super.initState();
+    SharedPreferences.getInstance().then((prefs) {
+      if (mounted) setState(() => _remember = prefs.getBool('remember') ?? false);
+    });
+  }
+
+  Future<void> _setRemember(bool value) async {
+    setState(() => _remember = value);
+    await (await SharedPreferences.getInstance()).setBool('remember', value);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Settings')),
+    body: ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        if (_remember != null) ...[
+          SwitchListTile(
+            key: const ValueKey('remember'),
+            title: const Text('Remember me'),
+            value: _remember!,
+            onChanged: _setRemember,
+          ),
+          Text('Remember me: ${_remember! ? 'on' : 'off'}', key: const ValueKey('remember-state')),
+        ],
+        const SizedBox(height: 16),
+        OutlinedButton(
+          key: const ValueKey('check-link'),
+          onPressed: () async {
+            final available = await canLaunchUrl(_help);
+            setState(() => _linkAvailable = available);
+          },
+          child: const Text('Check the help link'),
+        ),
+        if (_linkAvailable != null) Text('Help link: ${_linkAvailable! ? 'available' : 'unavailable'}'),
+        OutlinedButton(
+          key: const ValueKey('open-help'),
+          onPressed: () async {
+            final opened = await launchUrl(_help);
+            setState(() => _opened = opened);
+          },
+          child: const Text('Open help'),
+        ),
+        if (_opened) const Text('Opened help'),
+      ],
     ),
   );
 }
