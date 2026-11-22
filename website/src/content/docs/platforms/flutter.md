@@ -143,6 +143,71 @@ void configureHost(HostConfig host) {
 
 A case can branch on where it runs with `on: headless`.
 
+## Lynkeus FastSim
+
+[Lynkeus FastSim](/guides/fastsim/) runs a Flutter app without Xcode's simulator or an Android emulator. It loads the app's own debug kernel into Flutter's own engine, on an Apple Silicon Mac or on Linux, and moves the app's clock itself, so a three second countdown or a two second page load takes milliseconds. Lynkeus drives it as it drives a simulator, so the same cases run on both. It is part of the Team plan; the [FastSim guide](/guides/fastsim/) covers keys, sign-in and grants, which work as for React Native.
+
+### Install, bundle, run
+
+```bash
+npx lynkeus fastsim install
+```
+
+In a folder whose `pubspec.yaml` takes `flutter` from the SDK, this installs the Flutter build; elsewhere, add `--runtime flutter`. One build draws both platforms, because Flutter's engine draws iOS and Android with the same code: `darwin-arm64-flutter` on an Apple Silicon Mac, `linux-arm64-flutter` or `linux-x64-flutter` on Linux. The first run of each Flutter version downloads that version's engine from Flutter's own storage (about 30 MB on a Mac, 15 MB on Linux) into `~/.cache/lynkeus/fastsim/flutter-engine/`.
+
+Bundle the app, again after each change to its Dart code:
+
+```bash
+FLUTTER=flutter <install folder>/bin/fastsim-bundle . <bundle folder> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+```
+
+The bundle is the app's debug kernel, built with `flutter build bundle --debug --no-track-widget-creation`; flags after `--` (`--dart-define`, `--flavor`, `-t lib/main_dev.dart`) go to that command. `android` in place of `ios` makes the app see an Android phone. `FLUTTER` names the Flutter command when it is not `flutter` on the `PATH` (`fvm flutter`, `mise exec flutter@3.50.1 -- flutter`).
+
+Then run the cases, one host per case:
+
+```bash
+npx lynkeus case run <cases> --ports 8232 --host-command "<install folder>/bin/fastsim-run <bundle folder> {port}"
+```
+
+`--ports` names the port each host's app dials; with `--jobs <n>`, give `n` of them (`--ports 8232,8233`). A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; the app's `print` and `debugPrint` lines, and the stand-ins' `[stub]` lines, are in the `.err` file. `FASTSIM_HOST_FLAGS` passes more to the host, such as `--appearance dark` or `--locale es-AR`.
+
+To compare FastSim's screens with a simulator's or an emulator's, build the reference app from the same code with the same flags: `flutter build ios --simulator --debug` or `flutter build apk --debug --no-track-widget-creation`, with the same `--dart-define` values. Without `--no-track-widget-creation` on both, the two kernels differ, and so can the pixels.
+
+### What the host gives the app
+
+- **A device.** `ios` is an iPhone 17 (402×874 points at 3×, its safe area and its keyboard heights); `android` is a Pixel 9 (411×923 points at 2.625×). `Platform.isIOS` or `Platform.isAndroid` answers for that phone, and the app's platform code takes that path.
+- **A clock of its own.** `DateTime.now()`, `Timer`, `Future.delayed` and `Stopwatch` follow it. It runs ahead while the driver waits on the app and no request is out to a real server, and keeps the wall's pace while one is, so a backend answers in its own time. A request `netmock` answers does not hold it: its `delayMs` passes at the clock's speed. `lynkeus os clock` moves it by hand.
+- **The rest of the host commands**, as on React Native: screenshots, video recording, waiting for a still screen, `lynkeus os appstate` (the app goes through each lifecycle state on the way, as a phone sends them) and a relaunch.
+- **Stand-ins for the plugins.** The app's native side is not there, and the generated plugin registrant does not run, so plugins use their method channels and the same stand-ins as on the [headless host](#headless) answer them. The `lynkeus call` commands that drive them work the same.
+
+### What the app needs
+
+- **The agent starts first.** `LynkeusAgent.start()` has to come before anything calls `WidgetsFlutterBinding.ensureInitialized()`, on the line before it in the same block: inside FastSim the agent makes the app's binding, which gives the screen its safe area and the plugins their stand-ins. An app that made its binding first still runs and is driven, with no safe area, and a plugin awaited before `runApp` can wait forever.
+- **`lynkeus_plugins` when a plugin has no channel to fall back to.** sqflite 2.4 or newer (and with it `cached_network_image`, whose cache is a sqflite database) and shared_preferences' `SharedPreferencesAsync` and `SharedPreferencesWithCache` throw on a host without it, and the images show their error widgets. It is needed when `pubspec.lock` lists `sqflite_platform_interface`, or `shared_preferences_platform_interface` 2.4.0 or newer. Add it next to the agent, as a regular dependency, and call it on the line after the agent starts; on a phone it does nothing:
+
+  ```yaml title="pubspec.yaml"
+  dependencies:
+    lynkeus_plugins:
+      git:
+        url: https://github.com/lynkeushq/lynkeus.git
+        path: flutter/lynkeus_plugins
+  ```
+
+  ```dart title="lib/main.dart"
+  LynkeusAgent.start();
+  LynkeusPlugins.ensureInitialized();
+  ```
+
+  It covers the headless host too.
+
+### Limits
+
+- **Native views are not drawn.** A `UiKitView` or an `AndroidView` (a web view, a map, a native tab bar) keeps its place and size and shows nothing; the app gets an error that names the view, and the log says why.
+- **The Android look is for Linux.** There the engine draws with OpenGL ES on ANGLE and SwiftShader, as the emulator does. A Mac's engine has only Metal, which some of Flutter's Android drawing (the stretch overscroll) lacks, so compare Android screens on Linux. The iOS look matches the simulator on a Mac, with the simulator's own system font when Xcode's iOS runtime is installed; Linux has no stand-in for it yet.
+- **Text in other scripts on Linux.** The Linux engine finds no font for a character missing from the app's fonts, so Chinese, Japanese, emoji and the like draw as boxes there. Cases still pass, since they read the widget tree; the pixels do not match.
+- **Flutter's prebuilt debug engine only.** No profile or release builds, and no custom engine. Flutter 3.50.1 is the version run so far; on Linux arm64 Flutter publishes engines from 3.38 on.
+- **A plugin with only native code or FFI behind it**, and no channel to fall back to, that `lynkeus_plugins` does not cover, has nothing to answer it.
+
 ## Limits today
 
 - **Debug builds only.** A release build carries no agent. See [Security](/security/).
@@ -151,5 +216,5 @@ A case can branch on where it runs with `on: headless`.
 - **`--host-heap` restarts are skipped.** The Dart VM gives a running program no heap figures.
 - **`lynkeus map`, `case impact`, `smoke` and `crawl` do not work for Flutter yet.** They read React Navigation sources.
 - **`lynkeus status` checks React Native setup** and asks for a `package.json`, so its answer is not meaningful in a Flutter project.
-- **Lynkeus FastSim is not available for Flutter yet.**
+- **Lynkeus FastSim** has limits of its own; see [its section](#lynkeus-fastsim).
 - **Two apps cannot dial the same port.** Close the other one, or give one its own with `LYNKEUS_PORT`.
