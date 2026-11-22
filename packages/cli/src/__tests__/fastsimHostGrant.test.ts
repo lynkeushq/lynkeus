@@ -110,6 +110,6 @@ test('a refused grant fails the run with exit code 1, the plans hint and without
 
 test("a Flutter kit's host command is granted under its own build name", () => {
   const home = isolate();
-  const command = kit(home, 'darwin-arm64-ios-flutter');
-  assert.equal(licensedFastsimVariant(command, '/'), 'darwin-arm64-ios-flutter');
+  const command = kit(home, 'darwin-arm64-flutter');
+  assert.equal(licensedFastsimVariant(command, '/'), 'darwin-arm64-flutter');
 });

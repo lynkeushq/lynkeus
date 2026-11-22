@@ -142,9 +142,12 @@ test('the build is chosen by the machine and the platform; Windows goes through 
   assert.throws(() => fastsimVariant('ios', 'darwin', 'x64'), /Apple Silicon/);
   assert.throws(() => fastsimVariant('ios', 'win32', 'x64'), /WSL2/);
   assert.throws(() => fastsimVariant('web', 'darwin', 'arm64'), /ios or android/);
-  // A Flutter app's host is packaged apart; React Native keeps its names.
-  assert.equal(fastsimVariant('ios', 'darwin', 'arm64', 'flutter'), 'darwin-arm64-ios-flutter');
-  assert.equal(fastsimVariant('android', 'linux', 'arm64', 'flutter'), 'linux-arm64-android-flutter');
+  // A Flutter app's host is one package per machine for both platforms; React Native keeps its per-platform names.
+  assert.equal(fastsimVariant('ios', 'darwin', 'arm64', 'flutter'), 'darwin-arm64-flutter');
+  assert.equal(fastsimVariant('android', 'darwin', 'arm64', 'flutter'), 'darwin-arm64-flutter');
+  assert.equal(fastsimVariant('android', 'linux', 'arm64', 'flutter'), 'linux-arm64-flutter');
+  assert.equal(fastsimVariant('ios', 'linux', 'x64', 'flutter'), 'linux-x64-flutter');
+  assert.throws(() => fastsimVariant('ios', 'darwin', 'x64', 'flutter'), /Apple Silicon/);
   assert.equal(fastsimVariant('android', 'linux', 'x64', 'react-native'), 'linux-x64-android');
 });
 

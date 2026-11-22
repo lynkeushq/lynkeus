@@ -117,21 +117,23 @@ export const fastsimRuntime = (flag: unknown, root: string): FastsimRuntime => {
 };
 
 // iOS matches the simulator only on a Mac; Linux draws it with the Inter stand-in. Windows runs the Linux build in WSL2.
-// A Flutter app runs on a host of its own (Flutter's embedder), packaged apart: its build names end in -flutter.
+// A Flutter app runs on a host of its own (Flutter's embedder), one package per machine for both platforms: the engine
+// draws iOS and Android with the same code, and the platform is chosen when the app runs.
 export const fastsimVariant = (
   platform: string,
   os: NodeJS.Platform = process.platform,
   arch: string = process.arch,
   runtime: FastsimRuntime = 'react-native',
 ): string => {
-  const suffix = runtime === 'flutter' ? '-flutter' : '';
-  if (platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);
+  const flutter = runtime === 'flutter';
+  const target = flutter ? 'flutter' : platform;
+  if (!flutter && platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);
   if (os === 'win32') throw new Error('Lynkeus FastSim runs on Windows inside WSL2: run lynkeus there, where it installs the Linux build');
   if (os === 'darwin') {
     if (arch !== 'arm64') throw new Error('Lynkeus FastSim runs on Apple Silicon Macs only');
-    return `darwin-arm64-${platform}${suffix}`;
+    return `darwin-arm64-${target}`;
   }
-  if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${platform}${suffix}`;
+  if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${target}`;
   throw new Error(`Lynkeus FastSim has no build for ${os} on ${arch}`);
 };
 
@@ -389,12 +391,17 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     group: 'runs',
     summary: "Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key",
     details:
-      "Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). A Flutter app (a pubspec.yaml in the folder, or --runtime flutter) gets the Flutter host, darwin-arm64-ios-flutter or linux-arm64-android-flutter and so on: it runs the app's own debug kernel, so bundle it as the Simulator or emulator build is made (`flutter build bundle --debug --no-track-widget-creation` with the same --dart-define values), then `lynkeus case run --host-command \"<kit>/bin/fastsim-run <bundle dir> {port}\"`. With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.",
+      "Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). A Flutter app (a pubspec.yaml in the folder, or --runtime flutter) gets the Flutter host, one build per machine for both platforms (darwin-arm64-flutter, linux-arm64-flutter, linux-x64-flutter; --platform does not apply, the run picks iOS or Android): it runs the app's own debug kernel, so bundle it as the Simulator or emulator build is made (`flutter build bundle --debug --no-track-widget-creation` with the same --dart-define values), then `lynkeus case run --host-command \"<kit>/bin/fastsim-run <bundle dir> {port}\"`. With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.",
     mcpDetails:
       "Downloads Lynkeus FastSim (the fast simulator; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing) for this machine and the platform asked for, and answers where it went. Needs the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it), or else, for CI, LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download Lynkeus FastSim”; other keys are refused with that message). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it. Call it when the person asks for Lynkeus FastSim or their organization has it; otherwise the headless host and the Simulator or emulator are free and cover the same cases. When the service refuses (no FastSim in the plan, no seat, a key without that permission), tell the person what it says and where to get it (an owner subscribes at https://lynkeus.io/pricing or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.",
     flags: {
       version: { type: 'string', help: 'release to install', default: 'latest', value: 'version' },
-      platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
+      platform: {
+        type: 'string',
+        help: 'the platform it draws: ios or android (React Native; a Flutter build draws both)',
+        default: 'ios',
+        value: 'ios|android',
+      },
       runtime: {
         type: 'string',
         help: "the app's runtime: react-native or flutter (default: what this folder is; a Flutter app has a pubspec.yaml)",
@@ -446,7 +453,12 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     details:
       "Asks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout when a script reads it (stdout not a terminal, or --print): FastSim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. At a terminal it prints a summary instead (the variant and until when it is valid), so the token does not sit on screen; --json always carries it. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no FastSim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.",
     flags: {
-      platform: { type: 'string', help: 'the platform it draws: ios or android', default: 'ios', value: 'ios|android' },
+      platform: {
+        type: 'string',
+        help: 'the platform it draws: ios or android (React Native; a Flutter build draws both)',
+        default: 'ios',
+        value: 'ios|android',
+      },
       runtime: {
         type: 'string',
         help: "the app's runtime: react-native or flutter (default: what this folder is; a Flutter app has a pubspec.yaml)",
