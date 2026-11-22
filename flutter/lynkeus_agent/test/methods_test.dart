@@ -259,4 +259,65 @@ void main() {
     expect(await drive(tester, methods, 'reset'), {'done': true});
     expect(await failureOf(tester, methods, 'nope'), 'Unknown method nope');
   });
+
+  testWidgets('waitFor with scroll waits for a list that loads more at its end', (tester) async {
+    var backward = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          // A finger moving down drags the list back up: the scroll gave up on the end and turned around.
+          body: Listener(onPointerMove: (e) => backward |= e.delta.dy > 0, child: const Pages()),
+        ),
+      ),
+    );
+    methods = Methods();
+    final result = asMap(
+      await drive(tester, methods, 'waitFor', {
+        'target': {'text': 'Row 55'},
+        'scroll': true,
+        'timeoutMs': 30000,
+      }),
+    );
+    expect(result['waitedMs'], isA<int>());
+    expect(find.text('Row 55'), findsOneWidget);
+    expect(backward, isFalse, reason: 'the list was loading its next page, not at its end');
+  });
+}
+
+/// Twenty rows a page; reaching the very end shows a footer and adds the next page two seconds later, three pages in
+/// all; a pull to refresh at the top starts over with one page.
+class Pages extends StatefulWidget {
+  const Pages({super.key});
+  @override
+  State<Pages> createState() => _PagesState();
+}
+
+class _PagesState extends State<Pages> {
+  var rows = 20;
+  var loading = false;
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+    onNotification: (n) {
+      if (!loading && rows < 60 && n.metrics.extentAfter < 50) {
+        loading = true;
+        Future<void>.delayed(
+          const Duration(seconds: 1),
+          () => setState(() {
+            rows += 20;
+            loading = false;
+          }),
+        );
+      }
+      return false;
+    },
+    // A pull at the top starts the list over, as flutter_deer's order list does.
+    child: RefreshIndicator(
+      onRefresh: () => Future<void>.delayed(const Duration(seconds: 2), () => setState(() => rows = 20)),
+      child: ListView.builder(
+        itemCount: rows + 1,
+        itemBuilder: (_, i) => SizedBox(height: 60, child: Text(i == rows ? 'Loading more' : 'Row $i')),
+      ),
+    ),
+  );
 }

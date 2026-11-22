@@ -21,6 +21,7 @@ Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 // 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
 const _minSettleLooks = 30;
 const _keep = 500;
+const _listEndMs = 3000;
 
 // Reads would drown the timeline; only actions are worth a line.
 const _untraced = {'screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy'};
@@ -440,8 +441,12 @@ class Methods {
         movedAt = _ms();
       }
       final still = _ms() - movedAt >= 120 || _ms() - lastSwipe > 3000;
-      if (scroll && target != null && !gone && swipes < 30 && still && _ms() - lastSwipe > 400) {
-        if (found == null && swipes > 0 && shape(all) == before) {
+      // A list that loads more at its end holds still there while the next page comes (a spinner in its footer): it
+      // is only the end once it has stayed put a while, not as soon as one swipe moved nothing.
+      final stuck = found == null && swipes > 0 && now == before;
+      final ended = stuck && _ms() - movedAt >= _listEndMs;
+      if (scroll && target != null && !gone && swipes < 30 && still && _ms() - lastSwipe > 400 && (!stuck || ended)) {
+        if (ended) {
           if (back) swipes = 30;
           back = true;
         }
