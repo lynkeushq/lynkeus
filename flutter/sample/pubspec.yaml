@@ -4,7 +4,9 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: ^3.14.0
+  # material_ui's floor; the sample runs on the previous stable too.
+  sdk: ^3.13.0
+  flutter: '>=3.47.0'
 
 dependencies:
   flutter:
