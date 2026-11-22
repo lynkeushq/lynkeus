@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import 'link.dart';
 import 'methods.dart';
+import 'routes.dart';
 
 const agentVersion = '0.7.5';
 const protocolVersion = 2;
@@ -26,9 +27,19 @@ abstract final class LynkeusAgent {
   static Methods? _methods;
   static final _pending = <String, Command>{};
 
+  /// Follows a Navigator's named routes: `MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver])`. Used
+  /// for `route`, `path` and `navigate` unless [start] is given routes of the app's own (a router's).
+  static final navigatorObserver = LynkeusNavigatorObserver();
+
   /// Starts dialing the driver. Call once from `main()`, before `runApp`. The token comes from
   /// `--dart-define=LYNKEUS_TOKEN=...` unless given; `host` and `port` from `LYNKEUS_HOST` and `LYNKEUS_PORT`.
-  static void start({String? token, String? host, int? port, Map<String, Object?> app = const {}}) {
+  static void start({
+    String? token,
+    String? host,
+    int? port,
+    Map<String, Object?> app = const {},
+    LynkeusRoutes? routes,
+  }) {
     if (kReleaseMode || _link != null) return;
     final secret = token ?? _token;
     if (secret.isEmpty) {
@@ -36,7 +47,9 @@ abstract final class LynkeusAgent {
       return;
     }
     WidgetsFlutterBinding.ensureInitialized();
-    final methods = Methods()..commands.addAll(_pending);
+    final methods = Methods()
+      ..commands.addAll(_pending)
+      ..routes = routes ?? navigatorObserver.routes;
     _pending.clear();
     _methods = methods;
     final where = host ?? (_host.isEmpty ? null : _host);
@@ -61,6 +74,7 @@ abstract final class LynkeusAgent {
       },
       serve: methods.call,
     )..start();
+    methods.onNavigation = (route) => _link?.emit({'event': 'navigation', 'route': ?route});
   }
 
   /// A command the driver can call by name, like a core method (`lynkeus call <name>`). Two names mean something to
