@@ -114,7 +114,11 @@ class _Host {
     // An error in the app is the app's, as a red screen is on a device: the host says so and goes on serving, where a
     // widget test would fail at its end.
     final testErrors = FlutterError.onError;
-    FlutterError.onError = (details) => _log('app error: ${details.exceptionAsString().split('\n').first}');
+    FlutterError.onError = (details) {
+      _log('app error: ${details.exceptionAsString().split('\n').first}');
+      final why = explainHostError(details.exception);
+      if (why != null) _log(why);
+    };
     LynkeusAgent.hostedBy(
       token: settings.token,
       host: settings.driverHost,
@@ -299,7 +303,11 @@ void hostApp(
     final done = Completer<void>();
     runZonedGuarded(
       () => _Host(tester, given, name, configure).run(appMain).then(done.complete, onError: done.completeError),
-      (error, stack) => _log('app error: ${'$error'.split('\n').first}'),
+      (error, stack) {
+        _log('app error: ${'$error'.split('\n').first}');
+        final why = explainHostError(error);
+        if (why != null) _log(why);
+      },
     );
     await done.future;
   }, timeout: Timeout.none);

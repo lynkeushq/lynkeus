@@ -77,6 +77,25 @@ class FastSimHost {
     FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns);
     this.standIns = standIns;
     ownsBinding = true;
+    _explainErrors();
+  }
+
+  // Adds the reason to the error an app reports for a plugin no host can stand in for. An app that sets its own
+  // handlers later replaces these, and only loses the extra line.
+  void _explainErrors() {
+    final flutterErrors = FlutterError.onError;
+    FlutterError.onError = (details) {
+      final why = explainHostError(details.exception);
+      if (why != null) debugPrint(why);
+      flutterErrors?.call(details);
+    };
+    final dispatcher = ui.PlatformDispatcher.instance;
+    final uncaught = dispatcher.onError;
+    dispatcher.onError = (error, stack) {
+      final why = explainHostError(error);
+      if (why != null) debugPrint(why);
+      return uncaught?.call(error, stack) ?? false;
+    };
   }
 
   /// Asks the host what it serves; empty when it does not answer.
