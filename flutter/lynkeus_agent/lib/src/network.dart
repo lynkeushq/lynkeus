@@ -90,6 +90,7 @@ class _Record {
   int? ms;
   String? error;
   bool mocked = false;
+  bool answeredHere = false;
   bool finished = false;
   Map<String, Object?>? request;
   Map<String, Object?>? response;
@@ -134,6 +135,7 @@ class Network {
   // Ids keep rising across a hot restart: a runner asks for the requests after the last id it saw.
   var _nextId = DateTime.now().millisecondsSinceEpoch * 1000;
   var _inFlight = 0;
+  var _answeringHere = 0;
   var _keepBodies = false;
   String? _traceparent;
   var _rules = <_Rule>[];
@@ -145,7 +147,11 @@ class Network {
   int get inFlight => math.max(0, _inFlight - _held.length);
   int get held => _held.length;
 
-  /// Told when [inFlight] may have changed: a host with its own clock keeps the wall's pace while a request is out.
+  /// The requests out to a real server. A mocked one is answered by the agent's own timer, which runs on a host's
+  /// clock, so a host with its own clock fast-forwards through its delay; it keeps the wall's pace only for these.
+  int get onWire => math.max(0, inFlight - _answeringHere);
+
+  /// Told when [inFlight] or [onWire] may have changed.
   void Function()? onInFlight;
 
   /// Wraps every HttpClient the app makes from now on, inside whatever overrides it had.
@@ -266,10 +272,17 @@ class Network {
     return record;
   }
 
+  void _answerHere(_Record record) {
+    record.answeredHere = true;
+    _answeringHere++;
+    onInFlight?.call();
+  }
+
   void _finish(_Record record, int status, [Object? error]) {
     if (record.finished) return;
     record.finished = true;
     _inFlight--;
+    if (record.answeredHere) _answeringHere--;
     onInFlight?.call();
     record
       ..status = status
@@ -311,7 +324,10 @@ class _Client implements HttpClient {
     if (gate != null) await gate;
     final rule = network._mockFor(verb, url);
     final keep = network._keepBodies;
-    if (rule != null && !rule.lost) return _MockRequest(network, record, rule, method, url, keep: keep);
+    if (rule != null && !rule.lost) {
+      network._answerHere(record);
+      return _MockRequest(network, record, rule, method, url, keep: keep);
+    }
     final HttpClientRequest request;
     try {
       request = await inner.openUrl(method, url);
