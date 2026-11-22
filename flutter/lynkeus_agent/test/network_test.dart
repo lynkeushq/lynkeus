@@ -126,4 +126,15 @@ void main() {
     expect(seenHeaders['traceparent'], '00-${'a' * 32}-${'b' * 16}-01');
     expect(records().single['status'], 200);
   });
+
+  test('a request is done when its answer arrives, read or not', () async {
+    final client = HttpClient();
+    final response = await (await client.openUrl('GET', at('/missing'))).close();
+    expect(response.statusCode, 404);
+    // An image loader that turns down a status drops the body unread: the request must not stay in flight.
+    expect(network.inFlight, 0);
+    expect(records().single['status'], 404);
+    expect(traced.single['status'], 404);
+    client.close(force: true);
+  });
 }

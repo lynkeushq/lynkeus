@@ -425,6 +425,9 @@ class _TrackedRequest implements HttpClientRequest {
         throw const HttpException('Connection closed while receiving data');
       }
       if (response.headers.value(mockedHeader) != null) record.mocked = true;
+      // Done when the answer arrives, as an XMLHttpRequest's load is: an app may never read a body it does not want
+      // (an image loader turning down a status), and such a request would otherwise keep the screen busy forever.
+      network._finish(record, response.statusCode);
       final tracked = _TrackedResponse(network, record, response, keep: body.on);
       _done.complete(tracked);
       return tracked;
@@ -517,7 +520,7 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
 
   void _end([Object? error]) {
     if (body.on) record.response = _exchange(_flat(inner.headers), body.bytes);
-    network._finish(record, error == null ? inner.statusCode : 0, error);
+    if (error != null) record.error ??= '$error';
   }
 
   @override
