@@ -45,7 +45,7 @@ class Item {
   String? hidden;
   bool offscreen;
 
-  /// What a hit test has to reach for a touch at the centre to land on this element.
+  /// What a hit test has to reach for a touch at the center to land on this element.
   final RenderObject? renderObject;
 
   double get cx => frame.left + frame.width / 2;

@@ -8,7 +8,7 @@ import 'item.dart';
 
 /*
  * The screen as Flutter has it, in one pass over the element tree: what is listed, where it stands (from its render
- * object, in logical points), and what a finger at its centre would reach (Flutter's own hit test).
+ * object, in logical points), and what a finger at its center would reach (Flutter's own hit test).
  *
  * Only the widgets layer is read: Material and Cupertino now ship as packages of their own (material_ui,
  * cupertino_ui) beside the deprecated copies in the SDK, so a type check against one ElevatedButton misses the other.
@@ -548,7 +548,7 @@ class _Walker {
     return null;
   }
 
-  /// A control is covered when Flutter's own hit test at its centre does not pass through it.
+  /// A control is covered when Flutter's own hit test at its center does not pass through it.
   void markCovered(int viewId) {
     for (final e in items) {
       if (e.hidden != null || e.offscreen || e.renderObject == null) continue;

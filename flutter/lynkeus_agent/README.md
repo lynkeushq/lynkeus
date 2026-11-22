@@ -19,5 +19,5 @@ What it reads, and from where:
 - Kinds come from the widgets layer and from what controls tell assistive technology (`Semantics(button: true)`, a
   toggle, a text field's value length, a `GestureDetector` with a tap handler), so the SDK's Material and Cupertino and
   the `material_ui` and `cupertino_ui` packages read the same.
-- `covered` is Flutter's own hit test at the element's centre; `hidden: behind-modal` is everything under the topmost
+- `covered` is Flutter's own hit test at the element's center; `hidden: behind-modal` is everything under the topmost
   modal route's barrier; `inert` is under an `IgnorePointer` or `AbsorbPointer`.

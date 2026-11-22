@@ -1,7 +1,7 @@
 import 'item.dart';
 
 /// How well an element answers a target: 0 = no, higher = better. Exact text on a control beats the same text in a
-/// paragraph, and a substring of a paragraph is no target at all: its centre lands on whatever word sits there.
+/// paragraph, and a substring of a paragraph is no target at all: its center lands on whatever word sits there.
 int score(Item element, Target target) {
   if (target.testId != null) return element.testId == target.testId ? 4 : 0;
   if (target.i != null) return element.i == target.i ? 4 : 0;
@@ -54,7 +54,7 @@ Item? _pickWithin(List<Item> elements, Target full) {
 }
 
 /// Best match for a target. Reachable elements win; a covered one is returned only when nothing reachable matches: an
-/// input under the pressable box that focuses it is still on screen, and a tap at its centre reaches the box, as a
+/// input under the pressable box that focuses it is still on screen, and a tap at its center reaches the box, as a
 /// finger would. Ties go to the later element, which draws on top.
 Item? pick(List<Item> elements, Target target) {
   if (target.isPoint) return null;
