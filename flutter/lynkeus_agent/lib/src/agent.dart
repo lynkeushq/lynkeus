@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import 'link.dart';
 import 'methods.dart';
+import 'network.dart';
 
 const agentVersion = '0.7.5';
 const protocolVersion = 2;
@@ -61,6 +62,12 @@ abstract final class LynkeusAgent {
       },
       serve: methods.call,
     )..start();
+    // After the link has its own HttpClient, so the agent's socket is not among the app's requests.
+    final network = Network(trace: methods.record)..install();
+    methods.network = network;
+    for (final entry in network.commands.entries) {
+      methods.commands.putIfAbsent(entry.key, () => entry.value);
+    }
   }
 
   /// A command the driver can call by name, like a core method (`lynkeus call <name>`). Two names mean something to
