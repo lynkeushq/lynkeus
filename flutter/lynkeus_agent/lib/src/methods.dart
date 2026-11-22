@@ -160,6 +160,7 @@ class Methods {
           'flutter/navigation',
           MethodCall('pushRouteInformation', {'location': url, 'state': null}),
         );
+        await _drawn();
         return {'opened': url};
       case 'dismissKeyboard':
         touch.dismissKeyboard();
@@ -489,6 +490,15 @@ class Methods {
     if (root != null) visit(root);
     if (!navigators.any((n) => n.canPop())) throw AgentError('Nothing to go back to');
     await touch.fromPlatform('flutter/navigation', const MethodCall('popRoute'));
+    await _drawn();
     return {};
+  }
+
+  // A route pushed or popped is only in the navigator until a frame builds it: answering before that let the next
+  // read find the page the app was leaving, still presented, and a press right after find nothing.
+  Future<void> _drawn() async {
+    final binding = SchedulerBinding.instance;
+    binding.ensureVisualUpdate();
+    await binding.endOfFrame.timeout(const Duration(seconds: 1), onTimeout: () {});
   }
 }

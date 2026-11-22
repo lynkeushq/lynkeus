@@ -209,8 +209,18 @@ void main() {
       MaterialApp(routes: {'/': (_) => const Text('Home'), '/settings': (_) => const Text('Settings')}),
     );
     methods = Methods();
-    final opened = await tester.runAsync(() => methods.call('deepLink', {'url': 'sample://app/settings'}));
+    late Future<Object?> pending;
+    var answered = false;
+    await tester.runAsync(() async {
+      pending = methods.call('deepLink', {'url': 'sample://app/settings'})..then((_) => answered = true);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    });
+    // The route is pushed, but no frame has built it yet: the answer waits for one.
+    expect(answered, isFalse);
+    await tester.pump();
+    final opened = await tester.runAsync(() => pending);
     expect(asMap(opened)['opened'], 'sample://app/settings');
+    expect(find.text('Settings', skipOffstage: false), findsOneWidget);
     await tester.pumpAndSettle();
     expect(find.text('Settings'), findsOneWidget);
   });
