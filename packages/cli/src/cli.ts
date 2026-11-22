@@ -20,7 +20,7 @@ import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
-import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
+import { agentMismatch, appSwitched, devicePlatformMismatch, helloIdentity } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reversePhones } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
@@ -114,6 +114,16 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
         throw error;
       });
     const headless = hello.app?.runtime === 'headless';
+    // A device named on the command line (or in the environment or the config) is the one the run is about: an app of
+    // the other platform that dialed in is someone else's, and every step would go to it.
+    if (wantedDevice && !ownHost && !headless) {
+      const named = await picking.catch(() => undefined);
+      const refused = named && named !== HEADLESS_HOST ? devicePlatformMismatch(hello, named, wantedDevice, server.port) : undefined;
+      if (refused) {
+        await server.close();
+        throw new Error(refused);
+      }
+    }
     const info = {
       ...HEADLESS_HOST,
       name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),
