@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -342,7 +343,7 @@ class Methods {
       final from = Offset(fromX, fromY);
       final to = Offset((fromX + dx).clamp(inset, width - inset), (fromY + dy).clamp(inset, height - inset));
       await touch.drag(from, to, durationMs);
-      return {'from': _xy(from), 'to': _xy(to)};
+      return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
     }
     final presets = {
       'up': (Offset(width / 2, height * 0.7), Offset(width / 2, height * 0.3)),
@@ -355,7 +356,44 @@ class Methods {
     final to = _offset(p['to']) ?? preset?.$2;
     if (from == null || to == null) throw AgentError('swipe needs a direction, a target, or from/to points');
     await touch.drag(from, to, durationMs);
-    return {'from': _xy(from), 'to': _xy(to)};
+    return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
+  }
+
+  // Where every scroller is, and whether one is still moving on its own.
+  List<double> _scrollState() {
+    final out = <double>[];
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        out.add(position.hasPixels ? position.pixels : -1);
+        if (position.isScrollingNotifier.value) out.add(double.infinity);
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return out;
+  }
+
+  // A swipe answers once what it set moving has stopped: a fling coasting, a header collapsing. On a device the time
+  // between two commands usually covers it; on a host whose clock barely moves between commands it does not, and the
+  // next swipe would land on a list still moving. Still for 120 ms, as the scroll in waitFor; a scroller that never
+  // stops (an auto-advancing carousel) is let go after 3 s.
+  Future<int> _scrollsSettled({int timeoutMs = 3000}) async {
+    final started = _ms();
+    var last = _scrollState();
+    var stillSince = _ms();
+    while (_ms() - started < timeoutMs) {
+      await _sleep(40);
+      final now = _scrollState();
+      if (now.contains(double.infinity) || !listEquals(now, last)) {
+        last = now;
+        stillSince = _ms();
+      } else if (_ms() - stillSince >= 120) {
+        break;
+      }
+    }
+    return _ms() - started;
   }
 
   // Towards an element that is known but outside the window, or onwards when it has not been built yet; over its own

@@ -159,6 +159,20 @@ void main() {
     expect(find.text('Count: 0'), findsNothing, reason: 'the top of the list moved out');
   });
 
+  testWidgets('a fast swipe answers once the fling it started has stopped', (tester) async {
+    await start(tester);
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: find.byKey(const ValueKey('list')), matching: find.byType(Scrollable)).first,
+        )
+        .position;
+    final swiped = asMap(await drive(tester, methods, 'swipe', {'direction': 'up', 'durationMs': 60}));
+    final landed = position.pixels;
+    expect(position.isScrollingNotifier.value, isFalse);
+    await tester.pump(const Duration(seconds: 1));
+    expect(position.pixels, landed, reason: 'the list had stopped when swipe answered');
+  });
+
   testWidgets('waitFor gone and a timeout that says what it waited for', (tester) async {
     await start(tester);
     await drive(tester, methods, 'press', {'text': 'Open'});
