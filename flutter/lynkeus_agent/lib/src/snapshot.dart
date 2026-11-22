@@ -113,6 +113,14 @@ bool _invisible(Element e) {
   return false;
 }
 
+// Read from the render object, not the widget: a Scrollable turns its IgnorePointer on during a drag or a fling and
+// off again by setting the render object, with no rebuild, so the widget can say the opposite of what a touch meets.
+bool _blocksTouches(Element e) {
+  if (e is! RenderObjectElement) return false;
+  final ro = e.renderObject;
+  return (ro is RenderIgnorePointer && ro.ignoring) || (ro is RenderAbsorbPointer && ro.absorbing);
+}
+
 Element? _onlyChild(Element e) {
   Element? only;
   var count = 0;
@@ -261,9 +269,7 @@ class _Walker {
     if (region != null && region.own != null && identical(region.own, w)) {
       at = at.copyWith(clearRegion: true, inButton: region.kind != 'input');
     }
-    if (at.hidden == null && ((w is IgnorePointer && w.ignoring) || (w is AbsorbPointer && w.absorbing))) {
-      at = at.copyWith(hidden: 'inert');
-    }
+    if (at.hidden == null && _blocksTouches(e)) at = at.copyWith(hidden: 'inert');
     if (w is FocusableActionDetector) at = at.copyWith(actionsEnabled: w.enabled);
 
     if (w is Overlay) {

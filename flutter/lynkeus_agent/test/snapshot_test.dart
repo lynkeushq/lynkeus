@@ -4,6 +4,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/item.dart';
 import 'package:lynkeus_agent/src/snapshot.dart';
@@ -243,5 +244,45 @@ void main() {
       ),
     );
     expect(only(items, (e) => e.testId == 'banner').kind, 'view');
+  });
+
+  testWidgets('inert is what the render object does, not what the widget last said', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: IgnorePointer(
+            ignoring: false,
+            child: TextButton(key: const ValueKey('go'), onPressed: () {}, child: const Text('Go')),
+          ),
+        ),
+      ),
+    );
+    final render = tester.renderObject<RenderIgnorePointer>(
+      find.ancestor(of: find.byKey(const ValueKey('go')), matching: find.byType(IgnorePointer)).first,
+    );
+    // What a Scrollable does to its IgnorePointer during a fling: the render object changes, the widget does not.
+    render.ignoring = true;
+    expect(only(takeSnapshot().elements, (e) => e.testId == 'go').hidden, 'inert');
+    render.ignoring = false;
+    expect(only(takeSnapshot().elements, (e) => e.testId == 'go').hidden, isNull);
+  });
+
+  testWidgets('a list that has stopped scrolling takes touches again', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              for (var i = 0; i < 40; i++) TextButton(key: ValueKey('row-$i'), onPressed: () {}, child: Text('Row $i')),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.fling(find.byType(ListView), const Offset(0, -300), 1000);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(takeSnapshot().elements.where((e) => e.kind == 'button').every((e) => e.hidden == 'inert'), isTrue);
+    await tester.pumpAndSettle();
+    expect(takeSnapshot().elements.where((e) => e.kind == 'button').every((e) => e.hidden == null), isTrue);
   });
 }
