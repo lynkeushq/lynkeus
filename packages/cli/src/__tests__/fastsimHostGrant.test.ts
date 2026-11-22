@@ -107,3 +107,9 @@ test('a refused grant fails the run with exit code 1, the plans hint and without
   assert.match(String(result.failed.text), /no Lynkeus FastSim entitlement\nPlans: https:\/\/lynkeus\.io\/pricing/);
   assert.doesNotMatch(String(result.failed.text), /lk_abc|v1\./);
 });
+
+test("a Flutter kit's host command is granted under its own build name", () => {
+  const home = isolate();
+  const command = kit(home, 'darwin-arm64-ios-flutter');
+  assert.equal(licensedFastsimVariant(command, '/'), 'darwin-arm64-ios-flutter');
+});
