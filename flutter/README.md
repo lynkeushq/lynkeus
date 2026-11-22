@@ -7,6 +7,13 @@
   project.
 - `sample/`: a small app (iOS and Android) and the cases in `sample/cases/` that run against it.
 
+## Supported Flutter versions
+
+Flutter 3.47.9 (Dart 3.13.7) and later, which the pubspecs declare. CI runs the three packages, `flutter analyze`,
+`flutter test` and the sample's headless run on the previous stable (3.47.9), the current stable (3.50.1) and the
+beta channel; the beta is allowed to fail with a warning. Older versions are not tried: Flutter 3.47 moved Material
+into the `material_ui` package, which the sample uses, and the sample's Dart floor is 3.13.
+
 ## Add the agent to an app
 
 ```yaml
