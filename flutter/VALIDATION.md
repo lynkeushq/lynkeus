@@ -132,6 +132,14 @@ that the Android model could not parse; with #172, on the Mac's engine with the 
 The rerun on Linux waits for the host's font fallback, which still draws Chinese text as boxes there (the cases pass;
 the pixels would not).
 
+FastSim fences the app's network as headless does (#177): requests go only to `flutterHost.networkHosts`
+(loopback by default), and anything else fails at once and is listed in `requests`. Without a fence the host had
+called the real GitHub API, whose rate-limit toast showed in the frames. `03-orders` now mocks the one request the home
+page makes (`GET /users/simplezhli`, from the shop tab it builds), so no run depends on the internet. The goods list's
+pictures come from image hosts outside the fence and draw as the app's placeholders on the hosts, while a device
+loads them. With the fence and the mock, three more full runs on FastSim: 8/8 each, 24–26 s wall, `03-orders` 10/10
+in 8.7 s, `08-goods` 1.6 s (it had waited on the real image hosts).
+
 `04-order-search` failed once in a full Simulator run before #173: the home page under it opens a loading dialog,
 which can land on the search page between `see` and `press`. With #173, on the Simulator: 15/15 alone and two full
 runs 8/8 (14/15 and one 7/8 run before). On FastSim, 15/15 both before and after the fix: the host's clock does not

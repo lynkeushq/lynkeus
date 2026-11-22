@@ -6,6 +6,9 @@ description: >
   to refresh: the list starts over with one page, so its footer says it is loading more again.
 ---
 steps:
+  # Home builds the shop tab too, which asks GitHub for its user: answered here, so no run depends on the internet
+  # (a host blocks it; a device would hit the API's rate limit and show it in a toast).
+  - app.mock: { route: "GET /users/simplezhli", body: '{"login":"simplezhli","name":"Deer","avatar_url":""}' }
   - app.deeplink: "/home"
   - app.see: { text: "新订单" }
   - app.press: "待配送"
