@@ -17,4 +17,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Only to parse the device_info stand-in's answers as the plugin does.
+  device_info_plus: '>=12.0.0 <14.0.0'
   flutter_lints: ^6.0.0

@@ -74,7 +74,7 @@ live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the sa
 | path_provider | folders under a temporary folder per run | |
 | device_info_plus, package_info_plus | an iPhone 17 on iOS 26.5, or an Android 15 emulator, as the host plays | |
 | url_launcher | answers that it can open a URL, opens nothing, writes it down | `lynkeus call launched` (`{ clear: true }` empties it) |
-| local_auth | a sensor with Face ID enrolled; prompts succeed | `lynkeus os biometrics --available none\|face --next success\|fail\|cancel\|<error code>` |
+| local_auth | a sensor with Face ID enrolled (a fingerprint on Android); prompts succeed | `lynkeus os biometrics --available none\|face\|fingerprint --next success\|fail\|cancel\|<error code>` |
 | permission_handler | every permission granted | `lynkeus call permissions '{"7": 4}'` (permission number to status) |
 | connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
 | sqflite | the system's SQLite (libsqlite3), databases in a folder of the run | the app |

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/hosts.dart';
@@ -231,5 +232,17 @@ void main() {
       state.reset();
       expect(File(path).existsSync(), isFalse);
     });
+  });
+
+  testWidgets('device_info answers what the plugin parses, as a Pixel on Android and an iPhone on iOS', (tester) async {
+    const channel = MethodChannel('dev.fluttercommunity.plus/device_info');
+    final ios = (await channel.invokeMapMethod<String, Object?>('getDeviceInfo'))!;
+    expect(IosDeviceInfo.fromMap(ios).modelName, 'iPhone 17');
+    installPlugins(standIns, state, (name, handler) => commands[name] = handler, (_, _) async {}, 'android');
+    final android = AndroidDeviceInfo.fromMap((await channel.invokeMapMethod<String, Object?>('getDeviceInfo'))!);
+    expect([android.version.sdkInt, android.version.release, android.isPhysicalDevice], [35, '15', false]);
+    expect(await const MethodChannel('plugins.flutter.io/local_auth').invokeMethod<Object?>('getAvailableBiometrics'), [
+      'fingerprint',
+    ]);
   });
 }

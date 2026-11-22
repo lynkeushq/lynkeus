@@ -66,6 +66,11 @@ void installPlugins(
   Future<void> Function(String channel, ByteData? message) fromPlatform,
   String platform,
 ) {
+  // A Pixel enrolls a fingerprint where an iPhone has Face ID, unless the biometrics command said otherwise.
+  if (platform == 'android' && state.biometrics.length == 1 && state.biometrics.first == 'face') {
+    state.biometrics = ['fingerprint'];
+  }
+
   // shared_preferences keeps keys with the `flutter.` prefix it adds itself.
   standIns.add('plugins.flutter.io/shared_preferences', (method, args) {
     final a = _argMap(args);
@@ -151,6 +156,8 @@ void installPlugins(
         'supported64BitAbis': ['arm64-v8a'], 'supportedAbis': ['arm64-v8a'], 'tags': 'release-keys', 'type': 'user',
         'isPhysicalDevice': false, 'systemFeatures': <String>[], 'serialNumber': 'unknown', 'isLowRamDevice': false,
         'physicalRamSize': 4096, 'availableRamSize': 2048,
+        // device_info_plus 12+ reads these as non-null ints: without them androidInfo throws.
+        'time': 1767225600000, 'freeDiskSize': 4 << 30, 'totalDiskSize': 8 << 30,
       };
     }
     return {
@@ -158,7 +165,8 @@ void installPlugins(
       'localizedModel': 'iPhone',
       'identifierForVendor': '00000000-0000-0000-0000-000000000000',
       'isPhysicalDevice': false,
-      'isiOSAppOnMac': false, 'physicalRamSize': 8192, 'availableRamSize': 4096,
+      'isiOSAppOnMac': false, 'isiOSAppOnVision': false, 'physicalRamSize': 8192, 'availableRamSize': 4096,
+      'freeDiskSize': 64 << 30, 'totalDiskSize': 128 << 30,
       'utsname': {
         'sysname': 'Darwin',
         'nodename': 'lynkeus',
@@ -178,6 +186,9 @@ void installPlugins(
       'buildNumber': '1',
       'buildSignature': '',
       'installerStore': null,
+      // Milliseconds as a string, as both native sides send them.
+      'installTime': '1767225600000',
+      'updateTime': '1767225600000',
     };
   });
 
