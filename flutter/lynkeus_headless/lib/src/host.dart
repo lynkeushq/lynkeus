@@ -8,13 +8,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lynkeus_agent/hosts.dart';
 import 'package:lynkeus_agent/lynkeus_agent.dart';
 
 import 'fence.dart';
 import 'fonts.dart';
-import 'plugins.dart';
 import 'settings.dart';
-import 'standins.dart';
 
 /*
  * How time and I/O share one test.
@@ -84,8 +83,13 @@ class _Host {
     }
     HttpOverrides.global = FencedHttpOverrides(settings.networkHosts);
     final messenger = tester.binding.defaultBinaryMessenger;
-    final standIns = StandIns(log: _log, trace: Platform.environment['LYNKEUS_CHANNELS'] == 'trace')
-      ..install(messenger);
+    final standIns = StandIns(log: _log, trace: Platform.environment['LYNKEUS_CHANNELS'] == 'trace');
+    messenger.allMessagesHandler = (channel, mock, message) {
+      // flutter_test's own (text input, the system channels it mocks) and anything a test set keep answering.
+      if (mock != null) return mock(message);
+      if (!StandIns.handles(channel)) return messenger.delegate.send(channel, message);
+      return standIns.answer(channel, message);
+    };
     final plugins = PluginState(Directory.systemTemp.createTempSync('lynkeus-host-'));
     installPlugins(
       standIns,

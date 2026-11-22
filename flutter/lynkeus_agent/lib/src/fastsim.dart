@@ -7,6 +7,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'standins.dart';
+
 /*
  * Lynkeus FastSim runs the app's own debug kernel in a host process (the engine's embedder, a virtual clock, its
  * own frames), the same kernel a Simulator or an emulator debug build runs. What the agent does differently there
@@ -37,6 +39,9 @@ class FastSimHost {
   /// Whether the binding is the agent's (with the device's safe area), or the app made one first.
   bool ownsBinding = false;
 
+  /// What answers the plugins' channels, when the binding is the agent's; the host answers them otherwise.
+  StandIns? standIns;
+
   /// The OS the host plays. The host also makes dart:io's `Platform` say it; this covers a host without that.
   TargetPlatform? get platform => switch (env['FASTSIM_OS']) {
     'ios' => TargetPlatform.iOS,
@@ -56,7 +61,8 @@ class FastSimHost {
   String? get driverHost => env['LYNKEUS_HOST'];
 
   /// Makes the agent's binding the app's, if nothing has made one yet: the embedder has no way to give a view its
-  /// safe area, so the binding's root view adds it.
+  /// safe area, so the binding's root view adds it, and the app's plugins have no native side, so its messenger
+  /// hands their channels to the stand-ins.
   void installBinding() {
     final os = platform;
     if (os != null) debugDefaultTargetPlatformOverride = os;
@@ -67,7 +73,9 @@ class FastSimHost {
       );
       return;
     }
-    FastSimBinding(safeArea ?? const [0, 0, 0, 0]);
+    final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace');
+    FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns);
+    this.standIns = standIns;
     ownsBinding = true;
   }
 
@@ -109,10 +117,15 @@ class FastSimHost {
 /// The binding the agent creates inside FastSim, before `runApp` would create the plain one: its root view carries
 /// the device's safe area, which the engine's embedder cannot set.
 class FastSimBinding extends WidgetsFlutterBinding {
-  FastSimBinding(this._sides);
+  FastSimBinding(this._sides, this.standIns);
 
   final List<double> _sides;
+  final StandIns standIns;
   SafeAreaView? _view;
+
+  // Outgoing platform messages reach the host only through this messenger, so the plugins are answered here.
+  @override
+  BinaryMessenger createBinaryMessenger() => StandInMessenger(super.createBinaryMessenger(), standIns);
 
   @override
   Widget wrapWithDefaultView(Widget rootWidget) {

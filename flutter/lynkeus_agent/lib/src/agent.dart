@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'fastsim.dart';
 import 'link.dart';
 import 'methods.dart';
 import 'network.dart';
+import 'plugins.dart';
 
 const agentVersion = '0.7.5';
 const protocolVersion = 2;
@@ -94,6 +96,18 @@ abstract final class LynkeusAgent {
     methods.network = network;
     for (final entry in network.commands.entries) {
       methods.commands.putIfAbsent(entry.key, () => entry.value);
+    }
+    final standIns = fastsim?.standIns;
+    if (standIns != null) {
+      final messenger = ServicesBinding.instance.defaultBinaryMessenger;
+      installPlugins(
+        standIns,
+        PluginState(Directory.systemTemp.createTempSync('lynkeus-fastsim-')),
+        register,
+        // ignore: deprecated_member_use
+        (channel, message) => messenger.handlePlatformMessage(channel, message, null),
+        fastsim!.env['FASTSIM_OS'] ?? Platform.operatingSystem,
+      );
     }
     final link = _link!;
     if (fastsim == null) {

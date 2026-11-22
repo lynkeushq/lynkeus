@@ -1,7 +1,7 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
 
 /// What a stand-in answers a call with: a value, or a [PlatformException] it throws.
 typedef StandIn = FutureOr<Object?> Function(String method, List<Object?> args);
@@ -10,10 +10,12 @@ const _codec = StandardMessageCodec();
 const _methods = StandardMethodCodec();
 
 /*
- * Plugins talk to their native side over platform channels, which flutter_test leaves unanswered: a method channel
- * throws MissingPluginException and a Pigeon channel fails to connect. The host answers every channel itself. A
- * stand-in answers the common plugins from memory, as their native side would; any other channel gets an empty
- * success (null) and one `[stub] <channel>` line, so the app's await never hangs and the log says what to stand in.
+ * Where there is no native side (the headless host under flutter test, the FastSim host in Flutter's embedder), a
+ * plugin's platform channel goes unanswered: a method channel throws MissingPluginException, a Pigeon channel fails
+ * to connect, and a message nobody replies to leaves its await hanging. A host that runs the app answers every
+ * channel here instead. A stand-in answers the common plugins from memory, as their native side would; any other
+ * channel gets an empty success (null) and one `[stub] <channel>` line, so the app's await never hangs and the log
+ * says what to stand in. On a simulator or a phone none of this is installed: the real plugins answer.
  *
  * Plugins speak two shapes: a method channel (a method name and arguments, a success or error envelope) and Pigeon
  * (one channel per method, `dev.flutter.pigeon.<package>.<Api>.<method>`, arguments and reply as lists). Both decode
@@ -33,16 +35,11 @@ class StandIns {
 
   void add(String channelOrApi, StandIn handler) => handlers[channelOrApi] = handler;
 
-  void install(TestDefaultBinaryMessenger messenger) {
-    messenger.allMessagesHandler = (channel, mock, message) {
-      // flutter_test's own (text input, the system channels it mocks) and anything a test set keep answering.
-      if (mock != null) return mock(message);
-      if (channel.startsWith('flutter/')) return messenger.delegate.send(channel, message);
-      return _answer(channel, message);
-    };
-  }
+  /// The engine's own channels and the host's are not a plugin's: they go where they would go anyway.
+  static bool handles(String channel) => !channel.startsWith('flutter/') && !channel.startsWith('lynkeus/');
 
-  Future<ByteData?> _answer(String channel, ByteData? message) async {
+  /// The reply a plugin's native side would give to [message] on [channel].
+  Future<ByteData?> answer(String channel, ByteData? message) async {
     final pigeon = channel.startsWith('dev.flutter.pigeon.');
     final String api;
     final String method;
@@ -84,4 +81,25 @@ class StandIns {
         ? _methods.encodeSuccessEnvelope(result)
         : _methods.encodeErrorEnvelope(code: failure.code, message: failure.message, details: failure.details);
   }
+}
+
+/// The app's messenger with the plugins' channels answered by [standIns]: what the FastSim binding gives the app.
+class StandInMessenger extends BinaryMessenger {
+  StandInMessenger(this.inner, this.standIns);
+
+  final BinaryMessenger inner;
+  final StandIns standIns;
+
+  @override
+  Future<ByteData?>? send(String channel, ByteData? message) =>
+      StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+
+  @override
+  void setMessageHandler(String channel, MessageHandler? handler) => inner.setMessageHandler(channel, handler);
+
+  @override
+  // ignore: deprecated_member_use
+  Future<void> handlePlatformMessage(String channel, ByteData? data, ui.PlatformMessageResponseCallback? callback) =>
+      // ignore: deprecated_member_use
+      inner.handlePlatformMessage(channel, data, callback);
 }

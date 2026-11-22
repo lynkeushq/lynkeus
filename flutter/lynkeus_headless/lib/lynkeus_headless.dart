@@ -3,6 +3,5 @@
 library;
 
 export 'src/host.dart' show HostConfig, hostApp;
-export 'src/plugins.dart' show PluginState;
-export 'src/standins.dart' show StandIn, StandIns;
+export 'package:lynkeus_agent/hosts.dart' show PluginState, StandIn, StandIns;
 export 'src/settings.dart' show HostSettings;

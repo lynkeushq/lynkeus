@@ -36,3 +36,9 @@ driver request is being served and how many of the app's requests are out, which
 For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`.
 An app that makes its binding first still runs and is driven; it gets no safe area, and says `binding: app` in its
 hello.
+
+The app has no native side there either, so the agent's binding answers its plugins' channels with the same
+stand-ins the headless host uses (`package:lynkeus_agent/hosts.dart`; the table is in lynkeus_headless's README),
+and the same `launched`, `biometrics`, `permissions` and `network` commands drive them. A plugin whose platform
+implementation calls native code through FFI instead of a channel (shared_preferences_foundation 2.6 on iOS) is
+out of their reach.
