@@ -4,7 +4,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { addAgentToMain, addAgentToPubspec, AGENT_DEPENDENCY, detectRuntime, isFlutterPubspec, setupApp } from '../commands/initFlutter.js';
+import {
+  addAgentToMain,
+  addAgentToPubspec,
+  addHeadlessToPubspec,
+  AGENT_DEPENDENCY,
+  detectRuntime,
+  isFlutterPubspec,
+  pubspecName,
+  setupApp,
+} from '../commands/initFlutter.js';
 
 const PUBSPEC = `name: demo
 description: A demo.
@@ -90,15 +99,83 @@ test('main.dart: a block main gets the call right before runApp, after ensureIni
     "import 'package:flutter/widgets.dart';\nimport 'app.dart';\n\nvoid main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  await setup();\n  runApp(\n    const App(),\n  );\n}\n";
   const edit = addAgentToMain(src);
   assert.ok(edit.done);
-  assert.ok(edit.text.includes("import 'app.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\n"));
+  assert.ok(edit.text.includes("import 'package:flutter/widgets.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\nimport 'app.dart';\n"));
   assert.ok(edit.text.includes('  await setup();\n  LynkeusAgent.start();\n  runApp(\n'));
 });
 
-test('main.dart: multi-line imports and a file with no imports', () => {
-  const multi = addAgentToMain("import 'a.dart'\n    show A;\n\nvoid main() {\n  runApp(A());\n}\n");
+test('main.dart: the import lands in its sorted place among the package imports', () => {
+  const sorted = addAgentToMain(
+    "import 'dart:async';\nimport 'package:flutter/material.dart';\nimport 'package:lynkeus_core/x.dart';\nimport 'package:provider/provider.dart';\nimport 'app.dart';\n\nvoid main() {\n  runApp(A());\n}\n",
+  );
+  assert.ok(
+    sorted.text.startsWith(
+      "import 'dart:async';\nimport 'package:flutter/material.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\nimport 'package:lynkeus_core/x.dart';\n",
+    ),
+  );
+  const last = addAgentToMain("import 'package:flutter/material.dart';\nimport 'app.dart';\n\nvoid main() {\n  runApp(A());\n}\n");
+  assert.ok(last.text.startsWith("import 'package:flutter/material.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\nimport 'app.dart';\n"));
+  const multi = addAgentToMain("import 'package:a/a.dart'\n    show A;\n\nvoid main() {\n  runApp(A());\n}\n");
   assert.ok(multi.text.includes("    show A;\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\n"));
+});
+
+test('main.dart: dart-only, relative-only and no imports', () => {
+  const dart = addAgentToMain("import 'dart:async';\n\nvoid main() {\n  runApp(A());\n}\n");
+  assert.ok(dart.text.startsWith("import 'dart:async';\n\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\n"));
+  const relative = addAgentToMain("import 'app.dart';\n\nvoid main() {\n  runApp(A());\n}\n");
+  assert.ok(relative.text.startsWith("import 'package:lynkeus_agent/lynkeus_agent.dart';\n\nimport 'app.dart';\n"));
   const bare = addAgentToMain('void main() {\n  runApp(A());\n}\n');
   assert.ok(bare.text.startsWith("import 'package:lynkeus_agent/lynkeus_agent.dart';\n\nvoid main()"));
+});
+
+test('main.dart: the app name from the pubspec goes into start()', () => {
+  const edit = addAgentToMain('void main() => runApp(A());\n', 'shop_app');
+  assert.ok(edit.text.includes("  LynkeusAgent.start(app: {'name': 'shop_app'});\n  runApp(A());"));
+  assert.match(addAgentToMain('void main() {}\n', 'shop_app').note, /LynkeusAgent\.start\(app: \{'name': 'shop_app'\}\);/);
+  assert.equal(pubspecName(PUBSPEC), 'demo');
+  assert.equal(pubspecName("name: 'quoted_app' # comment\n"), 'quoted_app');
+});
+
+test('the headless dependency goes in dev_dependencies, whatever is in it', () => {
+  const plain = addHeadlessToPubspec(PUBSPEC);
+  assert.ok(plain.text.includes('dev_dependencies:\n  lynkeus_headless:\n    git:\n'));
+  assert.ok(plain.text.includes('path: flutter/lynkeus_headless'));
+  const commented = addHeadlessToPubspec(
+    'name: a\ndependencies:\n  flutter:\n    sdk: flutter\n\ndev_dependencies:\n  # tests\n  # more\n  flutter_test:\n    sdk: flutter\n',
+  );
+  assert.ok(commented.done);
+  assert.ok(commented.text.includes('dev_dependencies:\n  lynkeus_headless:'));
+  const onlyComments = addHeadlessToPubspec(
+    'name: a\ndependencies:\n  flutter:\n    sdk: flutter\ndev_dependencies:   # none yet\n  # nothing\n\nflutter:\n  uses-material-design: true\n',
+  );
+  assert.ok(onlyComments.done);
+  assert.ok(onlyComments.text.includes('dev_dependencies:   # none yet\n  lynkeus_headless:'));
+  assert.ok(onlyComments.text.includes('\nflutter:\n  uses-material-design: true\n'));
+  const missing = addHeadlessToPubspec('name: a\ndependencies:\n  flutter:\n    sdk: flutter\n');
+  assert.ok(missing.done);
+  assert.ok(
+    missing.text.endsWith(
+      '\n\ndev_dependencies:\n  lynkeus_headless:\n    git:\n      url: https://github.com/lynkeushq/lynkeus.git\n      path: flutter/lynkeus_headless\n',
+    ),
+  );
+  const had = addHeadlessToPubspec(`${PUBSPEC}  lynkeus_headless:\n    path: ../h\n`);
+  assert.match(had.note, /already depends/);
+});
+
+test('init --headless adds lynkeus_headless, names the app, and notes the git dependency', () => {
+  const root = tmp({ 'pubspec.yaml': PUBSPEC, 'lib/main.dart': 'void main() => runApp(A());\n' });
+  const notes = setupApp(root, { install: true, headless: true });
+  const pubspec = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
+  assert.ok(pubspec.includes('lynkeus_headless:'));
+  assert.ok(fs.readFileSync(path.join(root, 'lib/main.dart'), 'utf8').includes("LynkeusAgent.start(app: {'name': 'demo'});"));
+  const text = notes.join('\n');
+  assert.match(text, /lynkeus case run --host/);
+  assert.match(text, /FLUTTER_ROOT/);
+  assert.match(text, /dependency_overrides:\n\s+lynkeus_agent:\n\s+path: /);
+  const plain = setupApp(tmp({ 'pubspec.yaml': PUBSPEC, 'lib/main.dart': 'void main() => runApp(A());\n' }), { install: true });
+  assert.ok(!plain.join('\n').includes('case run --host'));
+  const again = setupApp(root, { install: true, headless: true });
+  assert.equal(fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), pubspec);
+  assert.ok(again.some((n) => n.includes('already depends on lynkeus_headless')));
 });
 
 test('main.dart: already started is left alone; no recognizable runApp prints the lines', () => {

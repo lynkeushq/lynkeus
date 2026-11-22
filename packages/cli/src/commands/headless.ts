@@ -145,11 +145,12 @@ export const headlessCommands = [
     flags: {
       'no-install': { type: 'boolean', help: 'do not add the agent package to the app; mount it only' },
       runtime: { type: 'string', help: 'react-native or flutter (default: what this folder is)', value: 'react-native|flutter' },
+      headless: { type: 'boolean', help: 'Flutter: also add lynkeus_headless to dev_dependencies, to run with `case run --host`' },
     },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const lines = setupApp(ctx.root, { runtime: ctx.flags.runtime as string | undefined, install: !ctx.flags['no-install'] });
+      const lines = setupApp(ctx.root, { runtime: ctx.flags.runtime as string | undefined, install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
       return { text: lines.join('\n'), json: lines };
     },
   }),
