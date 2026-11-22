@@ -1,5 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -111,6 +113,39 @@ void main() {
       await failureOf(tester, methods, 'press', {'testId': 'nope'}),
       contains('No element matches {"testId":"nope"}'),
     );
+  });
+
+  testWidgets('press waits out a loading dialog that covers its target for a moment', (tester) async {
+    await start(tester);
+    final context = tester.element(find.byType(Sample));
+    // What a page below does: it opens a loading dialog and closes it when its request is back.
+    unawaited(
+      showDialog<void>(
+        context: context,
+        builder: (_) => const Center(child: Text('Loading')),
+      ),
+    );
+    await tester.pump();
+    Future<void>.delayed(const Duration(milliseconds: 600), () => Navigator.of(context).pop());
+    final result = asMap(await drive(tester, methods, 'press', {'testId': 'increment'}));
+    expect(asMap(result['element'])['testId'], 'increment');
+    expect(find.text('Count: 1'), findsOneWidget);
+  });
+
+  testWidgets('press says the target is behind a dialog that stays', (tester) async {
+    await start(tester);
+    unawaited(
+      showDialog<void>(
+        context: tester.element(find.byType(Sample)),
+        builder: (_) => const Center(child: Text('Stays')),
+      ),
+    );
+    await tester.pump();
+    expect(
+      await failureOf(tester, methods, 'press', {'testId': 'increment'}),
+      contains('{"testId":"increment"} is not presented (behind-modal)'),
+    );
+    expect(find.text('Count: 0'), findsOneWidget);
   });
 
   testWidgets('type goes through the keyboard path: formatters and onChanged run, submit ends it', (tester) async {

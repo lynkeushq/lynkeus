@@ -53,6 +53,23 @@ Item? _pickWithin(List<Item> elements, Target full) {
   }
 }
 
+/// The best match among elements a modal or an overlay on top hides: the target is there, under a layer that may go
+/// away (a loading dialog the page below opened).
+Item? pickBehind(List<Item> elements, Target target) {
+  if (target.isPoint) return null;
+  Item? best;
+  var bestScore = 0;
+  for (final element in elements) {
+    if (element.hidden != 'behind-modal' && element.hidden != 'behind-overlay') continue;
+    final s = score(element, target);
+    if (s > 0 && s >= bestScore) {
+      best = element;
+      bestScore = s;
+    }
+  }
+  return best;
+}
+
 /// Best match for a target. Reachable elements win; a covered one is returned only when nothing reachable matches: an
 /// input under the pressable box that focuses it is still on screen, and a tap at its center reaches the box, as a
 /// finger would. Ties go to the later element, which draws on top.

@@ -207,7 +207,11 @@ class Methods {
 
   Item _presented(Target target) {
     final element = find(target);
-    if (element == null) throw AgentError('No element matches ${_describe(target)}');
+    if (element == null) {
+      final behind = pickBehind(_elements(), target);
+      if (behind != null) throw AgentError('${_describe(target)} is not presented (${behind.hidden})');
+      throw AgentError('No element matches ${_describe(target)}');
+    }
     if (element.hidden != null) throw AgentError('${_describe(target)} is not presented (${element.hidden})');
     return element;
   }
@@ -230,19 +234,22 @@ class Methods {
     final deadline = _ms() + timeoutMs;
     var looks = 0;
     bool waiting() => _ms() < deadline || looks < _minSettleLooks;
-    // A control still becoming interactive (a sheet sliding in) reads as inert for a moment: wait it out within the
-    // same deadline before calling it not presented.
+    // A control still becoming interactive (a sheet sliding in) reads as inert for a moment, and one a passing layer
+    // covers (a loading dialog the page below opened) reads as behind it: wait either out within the same deadline
+    // before calling it not presented, as a person waits for the spinner to go.
     bool inert() => !target.isPoint && find(target)?.hidden == 'inert';
+    bool behind() => !target.isPoint && find(target) == null && pickBehind(_elements(), target) != null;
+    bool blocked() => inert() || behind();
     _Point? look() {
       try {
         return _pointOf(target);
       } on AgentError catch (error) {
-        if (waiting() && error.message.endsWith('is not presented (inert)')) return null;
+        if (waiting() && error.message.contains('is not presented (')) return null;
         rethrow;
       }
     }
 
-    while (inert() && waiting()) {
+    while (blocked() && waiting()) {
       looks++;
       await _sleep(40);
     }
@@ -250,7 +257,7 @@ class Methods {
     while (waiting()) {
       looks++;
       await _sleep(40);
-      if (inert()) continue;
+      if (blocked()) continue;
       final current = look();
       if (current == null) continue;
       final before = previous?.element;
