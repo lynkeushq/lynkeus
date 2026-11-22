@@ -34,6 +34,16 @@ const tokenIgnored = (root: string): boolean => {
   return (read(path.join(root, '.lynkeus', '.gitignore')) ?? '').split(/\r?\n/).includes('token');
 };
 
+/** Where `start(` and the first `ensureInitialized(` are in `main.dart`, when both are; comment lines do not count. */
+export const startOrder = (main: string | undefined): { ok: boolean; startLine: number; initLine: number } | undefined => {
+  if (!main) return undefined;
+  const lines = main.split(/\r?\n/).map((line) => (line.trim().startsWith('//') ? '' : line));
+  const startAt = lines.findIndex((line) => line.includes('LynkeusAgent.start('));
+  const initAt = lines.findIndex((line) => /\bensureInitialized\(/.test(line));
+  if (startAt < 0 || initAt < 0) return undefined;
+  return { ok: startAt < initAt, startLine: startAt + 1, initLine: initAt + 1 };
+};
+
 /** What a Flutter project has of Lynkeus and what it lacks, each with the one thing that fixes it. Reads files only. */
 export const flutterChecks = (root: string): SetupCheck[] => {
   const project = flutterProject(root);
@@ -53,6 +63,13 @@ export const flutterChecks = (root: string): SetupCheck[] => {
         ? 'there is no lib/main.dart: call `LynkeusAgent.start();` before runApp in the app’s main()'
         : '`lynkeus init` adds `LynkeusAgent.start();` before runApp',
   });
+  const order = startOrder(main);
+  if (order)
+    checks.push({
+      what: 'the agent starts before the binding (LynkeusAgent.start before WidgetsFlutterBinding.ensureInitialized)',
+      ok: order.ok,
+      fix: `in lib/main.dart move the LynkeusAgent.start(...) line (line ${order.startLine}) above WidgetsFlutterBinding.ensureInitialized() (line ${order.initLine}): Lynkeus FastSim's agent installs its own binding for the safe area and plugin stand-ins, and a binding cannot be replaced once one exists`,
+    });
   const token = readToken(root);
   checks.push({ what: 'the project has a token', ok: !!token, fix: '`lynkeus init` makes one in .lynkeus/token' });
   if (fs.existsSync(tokenFile(root)))

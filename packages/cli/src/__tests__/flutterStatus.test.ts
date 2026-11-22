@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { flutterChecks, flutterHeadlessCheck } from '../commands/flutterStatus.js';
+import { flutterChecks, flutterHeadlessCheck, startOrder } from '../commands/flutterStatus.js';
 
 const PUBSPEC = (extra = '') => `name: shop_app\ndependencies:\n  flutter:\n    sdk: flutter\n${extra}`;
 
@@ -99,4 +99,19 @@ test('`lynkeus status` reads a Flutter project as Flutter and a React Native one
   assert.match(rn, /lynkeus-agent is a dependency/);
   assert.match(rn, /babel\.config\.js has lynkeus-agent\/babel/);
   assert.doesNotMatch(rn, /pubspec/);
+});
+
+test('the agent must start before ensureInitialized(): a pass, a fail with the line to move, and no check without a binding call', () => {
+  const run = (main: string) =>
+    withEnv({ LYNKEUS_TOKEN: undefined, FLUTTER_ROOT: fakeSdk('3.50.1') }, () =>
+      byWhat(flutterChecks(project({ 'pubspec.yaml': PUBSPEC('  lynkeus_agent:\n    path: x\n'), 'lib/main.dart': main })), /before the binding/),
+    );
+  const good = run('void main() async {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n');
+  assert.equal(good?.ok, true);
+  const bad = run('void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  LynkeusAgent.start();\n  runApp(A());\n}\n');
+  assert.equal(bad?.ok, false);
+  assert.match(bad!.fix!, /line 3\) above WidgetsFlutterBinding\.ensureInitialized\(\) \(line 2\)/);
+  assert.match(bad!.fix!, /FastSim/);
+  assert.equal(run('void main() {\n  LynkeusAgent.start();\n  runApp(A());\n}\n'), undefined);
+  assert.equal(startOrder('// ensureInitialized() later\nvoid main() {\n  LynkeusAgent.start();\n  ensureInitialized();\n}\n')?.ok, true);
 });
