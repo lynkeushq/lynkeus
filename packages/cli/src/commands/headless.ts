@@ -10,7 +10,8 @@ import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
 import { installedFastsim } from './fastsim.js';
-import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
+import { headlessMissing, init, installHeadless, jestPreset, setupChecks } from './init.js';
+import { setupApp } from './initFlutter.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -140,14 +141,15 @@ export const headlessCommands = [
     group: 'drive',
     summary: "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
     details:
-      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
-    flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
+      'React Native, Expo (an Expo Router app gets an entry of its own) or Flutter (adds lynkeus_agent to pubspec.yaml and starts it from lib/main.dart; run the app with `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
+    flags: {
+      'no-install': { type: 'boolean', help: 'do not add the agent package to the app; mount it only' },
+      runtime: { type: 'string', help: 'react-native or flutter (default: what this folder is)', value: 'react-native|flutter' },
+    },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const lines = [...(ctx.flags['no-install'] ? [] : [installAgent(ctx.root)]), ...mountAgent(ctx.root)];
-      lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
-      lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
+      const lines = setupApp(ctx.root, { runtime: ctx.flags.runtime as string | undefined, install: !ctx.flags['no-install'] });
       return { text: lines.join('\n'), json: lines };
     },
   }),
