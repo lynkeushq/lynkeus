@@ -94,7 +94,7 @@ const closeOf = (text: string, open: number): number => {
 };
 
 export const mainByHand = (appName?: string): string =>
-  `add to lib/main.dart:\n    ${AGENT_IMPORT}\n  and, in main(), before runApp(...):\n    ${agentStart(appName)}`;
+  `add to lib/main.dart:\n    ${AGENT_IMPORT}\n  and, in main(), before WidgetsFlutterBinding.ensureInitialized() when there is one, otherwise before runApp(...):\n    ${agentStart(appName)}`;
 
 /** Puts the agent's import where `directives_ordering` wants it: among the `package:` imports, sorted by URI. */
 const withImport = (text: string, eol: string): string => {
@@ -112,10 +112,28 @@ const withImport = (text: string, eol: string): string => {
 /** Imports the agent and starts it before `runApp(`, in a block `main` or in an arrow `main` that becomes one. */
 export const addAgentToMain = (text: string, appName?: string): Edit => {
   const AGENT_START = agentStart(appName);
-  if (text.includes('LynkeusAgent.start(')) return { text, done: true, note: 'lib/main.dart already starts the agent' };
+  const initialized = /^([ \t]*)(?![ \t/])[^\n]*?\bensureInitialized\(/m.exec(text);
+  const started = text.indexOf('LynkeusAgent.start(');
+  if (started >= 0) {
+    if (initialized && initialized.index < started)
+      return {
+        text,
+        done: false,
+        note: 'lib/main.dart starts the agent after WidgetsFlutterBinding.ensureInitialized(): move the LynkeusAgent.start(...) line above it. Under Lynkeus FastSim the agent installs its own binding (safe area, plugin stand-ins), and a binding cannot be replaced once one exists.',
+      };
+    return { text, done: true, note: 'lib/main.dart already starts the agent' };
+  }
   const eol = eolOf(text);
   const arrow = /^([ \t]*)((?:Future<void>|void)\s+main\s*\(\s*\)\s*)(async\s*)?=>\s*runApp\(/m.exec(text);
   const plain = /^([ \t]*)runApp\(/m.exec(text);
+  // The agent goes before the first ensureInitialized(), in the same block, since a binding cannot be replaced once it exists.
+  const at = arrow
+    ? undefined
+    : initialized
+      ? { index: initialized.index, indent: initialized[1]! }
+      : plain
+        ? { index: plain.index, indent: plain[1]! }
+        : undefined;
   let next: string;
   if (arrow) {
     const open = arrow.index + arrow[0].length - 1;
@@ -125,8 +143,8 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
     const call = text.slice(open - 'runApp'.length, close);
     const head = `${indent}${arrow[2]!.trimEnd()}${arrow[3] ? ' async' : ''} {`;
     next = `${text.slice(0, arrow.index)}${head}${eol}${indent}  ${AGENT_START}${eol}${indent}  ${call};${eol}${indent}}${text.slice(close + 1)}`;
-  } else if (plain) {
-    next = `${text.slice(0, plain.index)}${plain[1]}${AGENT_START}${eol}${text.slice(plain.index)}`;
+  } else if (at) {
+    next = `${text.slice(0, at.index)}${at.indent}${AGENT_START}${eol}${text.slice(at.index)}`;
   } else {
     return { text, done: false, note: `no runApp( in lib/main.dart; ${mainByHand(appName)}` };
   }

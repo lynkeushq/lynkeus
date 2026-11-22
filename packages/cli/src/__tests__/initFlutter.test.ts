@@ -94,13 +94,43 @@ test('main.dart: an arrow main becomes a block that starts the agent first', () 
   );
 });
 
-test('main.dart: a block main gets the call right before runApp, after ensureInitialized', () => {
-  const src =
-    "import 'package:flutter/widgets.dart';\nimport 'app.dart';\n\nvoid main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  await setup();\n  runApp(\n    const App(),\n  );\n}\n";
-  const edit = addAgentToMain(src);
+test('main.dart: a plain block main gets the call right before runApp', () => {
+  const edit = addAgentToMain("import 'package:flutter/widgets.dart';\n\nvoid main() {\n  setup();\n  runApp(\n    const App(),\n  );\n}\n");
   assert.ok(edit.done);
-  assert.ok(edit.text.includes("import 'package:flutter/widgets.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\nimport 'app.dart';\n"));
-  assert.ok(edit.text.includes('  await setup();\n  LynkeusAgent.start();\n  runApp(\n'));
+  assert.ok(edit.text.includes('  setup();\n  LynkeusAgent.start();\n  runApp(\n'));
+});
+
+test('main.dart: the agent starts before the first ensureInitialized(), in the same block', () => {
+  const async = addAgentToMain(
+    "import 'package:flutter/widgets.dart';\nimport 'app.dart';\n\nvoid main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  await setup();\n  runApp(const App());\n}\n",
+  );
+  assert.ok(async.done);
+  assert.ok(async.text.includes('void main() async {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();\n  await setup();\n'));
+  assert.ok(async.text.includes("import 'package:flutter/widgets.dart';\nimport 'package:lynkeus_agent/lynkeus_agent.dart';\nimport 'app.dart';\n"));
+  const zone = addAgentToMain(
+    'void main() {\n  runZonedGuarded(() async {\n    WidgetsFlutterBinding.ensureInitialized();\n    await setup();\n    runApp(const App());\n  }, (e, s) {});\n}\n',
+  );
+  assert.ok(zone.text.includes('  runZonedGuarded(() async {\n    LynkeusAgent.start();\n    WidgetsFlutterBinding.ensureInitialized();\n'));
+  const closure = addAgentToMain(
+    'void main() {\n  handleError(() async {\n    // ensureInitialized() comes next\n    final binding = WidgetsFlutterBinding.ensureInitialized();\n    runApp(const App());\n  });\n}\n',
+  );
+  assert.ok(
+    closure.text.includes(
+      '  handleError(() async {\n    // ensureInitialized() comes next\n    LynkeusAgent.start();\n    final binding = WidgetsFlutterBinding',
+    ),
+  );
+});
+
+test('main.dart: a start() already before ensureInitialized() is left alone; one after it is reported, not moved', () => {
+  const right = 'void main() async {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n';
+  assert.equal(addAgentToMain(right).text, right);
+  assert.ok(addAgentToMain(right).done);
+  const wrong = 'void main() async {\n  WidgetsFlutterBinding.ensureInitialized();\n  LynkeusAgent.start();\n  runApp(A());\n}\n';
+  const edit = addAgentToMain(wrong);
+  assert.equal(edit.text, wrong);
+  assert.ok(!edit.done);
+  assert.match(edit.note, /move the LynkeusAgent\.start\(\.\.\.\) line above it/);
+  assert.match(edit.note, /FastSim/);
 });
 
 test('main.dart: the import lands in its sorted place among the package imports', () => {
