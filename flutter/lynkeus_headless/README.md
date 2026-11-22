@@ -77,9 +77,16 @@ live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the sa
 | local_auth | a sensor with Face ID enrolled; prompts succeed | `lynkeus os biometrics --available none\|face --next success\|fail\|cancel\|<error code>` |
 | permission_handler | every permission granted | `lynkeus call permissions '{"7": 4}'` (permission number to status) |
 | connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+| sqflite | the system's SQLite (libsqlite3), databases in a folder of the run | the app |
 
 Any other channel gets an empty success (null), so the app's await never hangs, and one `[stub] <channel>` line in
 the host's log. `LYNKEUS_CHANNELS=trace` prints every call and its answer.
+
+Two of these plugins never reach their channel unless the app also depends on `lynkeus_plugins` and calls
+`LynkeusPlugins.ensureInitialized()` on the line after `LynkeusAgent.start()`: sqflite 2.4 (and with it
+cached_network_image, whose cache is a sqflite database) and shared_preferences' `SharedPreferencesAsync` and
+`SharedPreferencesWithCache`. Their platform interfaces have no method-channel default, and the registrant that would
+set one does not run on a host. Native views (UiKitView, AndroidView, and so web views) stay blank on any host.
 
 A project adds its own in `test/lynkeus_host.dart` (not a `_test.dart` file, so its unit tests leave it alone);
 `lynkeus headless start` passes it on when it is there:

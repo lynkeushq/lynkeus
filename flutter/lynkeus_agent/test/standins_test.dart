@@ -126,4 +126,110 @@ void main() {
     );
     expect(explainHostError(StateError('something else')), isNull);
   });
+
+  testWidgets('sqflite\'s channel is a real SQLite in a folder of the run', (tester) async {
+    await tester.runAsync(() async {
+      const sql = MethodChannel('com.tekartik.sqflite');
+      final dir = await sql.invokeMethod<String>('getDatabasesPath');
+      expect(dir, startsWith(state.folder.path));
+      final path = '$dir/app.db';
+      final opened = await sql.invokeMapMethod<String, Object?>('openDatabase', {'path': path, 'singleInstance': true});
+      final id = opened!['id'];
+      await sql.invokeMethod<void>('execute', {
+        'id': id,
+        'sql':
+            'CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT UNIQUE, score REAL, data BLOB); PRAGMA user_version = 2',
+      });
+      expect(
+        await sql.invokeMethod<int>('insert', {
+          'id': id,
+          'sql': 'INSERT INTO t (name, score, data) VALUES (?, ?, ?)',
+          'arguments': [
+            'Ana',
+            1.5,
+            Uint8List.fromList([1, 2]),
+          ],
+        }),
+        1,
+      );
+      final begin = await sql.invokeMethod<Object?>('execute', {
+        'id': id,
+        'sql': 'BEGIN IMMEDIATE',
+        'inTransaction': true,
+      });
+      expect(begin, {'transactionId': isA<int>()});
+      final batch = await sql.invokeMethod<List<Object?>>('batch', {
+        'id': id,
+        'continueOnError': true,
+        'operations': [
+          {
+            'method': 'insert',
+            'sql': 'INSERT INTO t (name) VALUES (?)',
+            'arguments': ['Bo'],
+          },
+          {
+            'method': 'insert',
+            'sql': 'INSERT INTO t (name) VALUES (?)',
+            'arguments': ['Ana'],
+          },
+          {
+            'method': 'update',
+            'sql': 'UPDATE t SET score = score + 1 WHERE name = ?',
+            'arguments': ['Ana'],
+          },
+        ],
+      });
+      expect(batch![0], {'result': 2});
+      expect(((batch[1]! as Map)['error'] as Map)['message'], contains('UNIQUE'));
+      expect(batch[2], {'result': 1});
+      await sql.invokeMethod<void>('execute', {'id': id, 'sql': 'COMMIT', 'inTransaction': false});
+      expect(
+        await sql.invokeMethod<Object?>('query', {'id': id, 'sql': 'SELECT name, score, data FROM t ORDER BY id'}),
+        {
+          'columns': ['name', 'score', 'data'],
+          'rows': [
+            [
+              'Ana',
+              2.5,
+              Uint8List.fromList([1, 2]),
+            ],
+            ['Bo', null, null],
+          ],
+        },
+      );
+      expect(await sql.invokeMethod<Object?>('query', {'id': id, 'sql': 'PRAGMA user_version'}), {
+        'columns': ['user_version'],
+        'rows': [
+          [2],
+        ],
+      });
+      await expectLater(
+        sql.invokeMethod<int>('insert', {
+          'id': id,
+          'sql': 'INSERT INTO t (name) VALUES (?)',
+          'arguments': ['Bo'],
+        }),
+        throwsA(isA<PlatformException>().having((e) => e.code, 'code', 'sqlite_error')),
+      );
+      expect(await sql.invokeMapMethod<String, Object?>('openDatabase', {'path': path, 'singleInstance': true}), {
+        'id': id,
+        'recovered': true,
+        'recoveredInTransaction': false,
+      });
+      await sql.invokeMethod<void>('closeDatabase', {'id': id});
+      expect(await sql.invokeMethod<bool>('databaseExists', {'path': path}), isTrue);
+      await sql.invokeMethod<void>('deleteDatabase', {'path': path});
+      expect(await sql.invokeMethod<bool>('databaseExists', {'path': path}), isFalse);
+    });
+  });
+
+  testWidgets('a database is gone after a reset of the run', (tester) async {
+    await tester.runAsync(() async {
+      const sql = MethodChannel('com.tekartik.sqflite');
+      final path = '${await sql.invokeMethod<String>('getDatabasesPath')}/x.db';
+      await sql.invokeMapMethod<String, Object?>('openDatabase', {'path': path});
+      state.reset();
+      expect(File(path).existsSync(), isFalse);
+    });
+  });
 }

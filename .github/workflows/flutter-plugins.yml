@@ -1,0 +1,57 @@
+name: Flutter plugins companion
+
+# lynkeus_plugins depends on plugin platform interfaces with wide ranges: its tests run against the newest and the
+# oldest versions those ranges allow. Its own file, so the package list in flutter.yml stays as it is.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'flutter/lynkeus_plugins/**'
+      - 'flutter/lynkeus_agent/**'
+      - '.github/workflows/flutter-plugins.yml'
+  pull_request:
+    paths:
+      - 'flutter/lynkeus_plugins/**'
+      - 'flutter/lynkeus_agent/**'
+      - '.github/workflows/flutter-plugins.yml'
+  merge_group:
+    types:
+      - checks_requested
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lynkeus-plugins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.50.1
+          cache: true
+
+      - name: Newest versions
+        working-directory: flutter/lynkeus_plugins
+        run: |
+          flutter pub upgrade
+          dart format --set-exit-if-changed .
+          flutter analyze
+          flutter test
+
+      - name: Oldest versions
+        working-directory: flutter/lynkeus_plugins
+        run: |
+          flutter pub downgrade
+          flutter test

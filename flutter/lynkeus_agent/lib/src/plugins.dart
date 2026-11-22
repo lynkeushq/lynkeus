@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'sqlite.dart';
 import 'standins.dart';
 
 /*
@@ -30,7 +31,18 @@ class PluginState {
   var online = true;
   final _connectivityListeners = <void Function()>[];
 
+  /// sqflite's open databases by the id the app holds.
+  final _databases = <int, ({String path, SqliteDatabase db})>{};
+  var _nextDatabase = 0;
+  var _nextTransaction = 0;
+
   void reset() {
+    for (final open in _databases.values) {
+      open.db.close();
+    }
+    _databases.clear();
+    final databases = Directory('${folder.path}/databases');
+    if (databases.existsSync()) databases.deleteSync(recursive: true);
     preferences.clear();
     secure.clear();
     launched.clear();
@@ -233,6 +245,8 @@ void installPlugins(
     return null;
   });
 
+  _installSqflite(standIns, state);
+
   register('launched', (params) {
     final urls = List.of(state.launched);
     if (params is Map && params['clear'] == true) state.launched.clear();
@@ -265,5 +279,121 @@ void installPlugins(
       listener();
     }
     return {'online': state.online};
+  });
+}
+
+/*
+ * sqflite's native side: the method channel `com.tekartik.sqflite` that sqflite_common speaks (openDatabase,
+ * execute, insert, update, query, batch, ...), answered by the system's SQLite. Databases live in a folder of the
+ * run. sqflite 2.4 reaches this channel under a host only once its factory is set (package lynkeus_plugins).
+ */
+void _installSqflite(StandIns standIns, PluginState state) {
+  String databasesPath() => _folder(state, 'databases');
+
+  ({String path, SqliteDatabase db}) open(Map<Object?, Object?> a) {
+    final id = a['id'];
+    final found = state._databases[id];
+    if (found == null) throw PlatformException(code: 'sqlite_error', message: 'database_closed $id');
+    return found;
+  }
+
+  PlatformException failure(SqliteException error, String? sql, Object? arguments) => PlatformException(
+    code: 'sqlite_error',
+    message: '${error.message} (code ${error.code})',
+    details: {'sql': ?sql, 'arguments': ?arguments},
+  );
+
+  Object? run(String method, Map<Object?, Object?> a) {
+    final sql = a['sql'] as String?;
+    final arguments = (a['arguments'] as List<Object?>?) ?? const [];
+    final db = open(a).db;
+    try {
+      final result = db.run(sql ?? '', arguments);
+      return switch (method) {
+        'execute' => a['inTransaction'] == true ? {'transactionId': ++state._nextTransaction} : null,
+        'insert' => result.changes == 0 ? null : result.lastInsertRowId,
+        'update' => result.changes,
+        'query' => {'columns': result.columns, 'rows': result.rows},
+        _ => throw PlatformException(code: 'sqlite_error', message: 'unknown batch method $method'),
+      };
+    } on SqliteException catch (error) {
+      throw failure(error, sql, arguments);
+    }
+  }
+
+  standIns.add('com.tekartik.sqflite', (method, args) {
+    final a = _argMap(args);
+    switch (method) {
+      case 'getPlatformVersion':
+        return 'Lynkeus host';
+      case 'getDatabasesPath':
+        return databasesPath();
+      case 'options':
+      case 'debugMode':
+        return null;
+      case 'databaseExists':
+        return File('${a['path']}').existsSync();
+      case 'deleteDatabase':
+        final path = '${a['path']}';
+        state._databases.removeWhere((_, open) {
+          if (open.path != path) return false;
+          open.db.close();
+          return true;
+        });
+        for (final suffix in const ['', '-journal', '-wal', '-shm']) {
+          final file = File('$path$suffix');
+          if (file.existsSync()) file.deleteSync();
+        }
+        return null;
+      case 'openDatabase':
+        final path = '${a['path']}';
+        if (a['singleInstance'] == true) {
+          for (final entry in state._databases.entries) {
+            if (entry.value.path == path) {
+              return {'id': entry.key, 'recovered': true, 'recoveredInTransaction': entry.value.db.inTransaction};
+            }
+          }
+        }
+        final sqlite = Sqlite.load();
+        if (sqlite == null) {
+          throw PlatformException(
+            code: 'sqlite_error',
+            message: 'lynkeus: this host has no system SQLite (libsqlite3): ${Sqlite.loadError}',
+          );
+        }
+        if (path != ':memory:') Directory(File(path).parent.path).createSync(recursive: true);
+        try {
+          final db = sqlite.open(path, readOnly: a['readOnly'] == true);
+          final id = ++state._nextDatabase;
+          state._databases[id] = (path: path, db: db);
+          return {'id': id};
+        } on SqliteException catch (error) {
+          throw failure(error, null, null);
+        }
+      case 'closeDatabase':
+        state._databases.remove(a['id'])?.db.close();
+        return null;
+      case 'execute':
+      case 'insert':
+      case 'update':
+      case 'query':
+        return run(method, a);
+      case 'batch':
+        final results = <Object?>[];
+        final continueOnError = a['continueOnError'] == true;
+        for (final operation in (a['operations'] as List<Object?>?) ?? const []) {
+          final op = {...a, ...operation! as Map<Object?, Object?>};
+          try {
+            results.add({'result': run('${op['method']}', op)});
+          } on PlatformException catch (error) {
+            if (!continueOnError) rethrow;
+            results.add({
+              'error': {'code': error.code, 'message': error.message, 'data': error.details},
+            });
+          }
+        }
+        return a['noResult'] == true ? const <Object?>[] : results;
+    }
+    throw PlatformException(code: 'sqlite_error', message: 'lynkeus: sqflite method $method is not stood in for');
   });
 }
