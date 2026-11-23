@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { ScreenGraph } from './types.js';
+
 export type RouteParamsInfo = { route: string; free: boolean; shape: string };
 
 export const readRouteParams = (root: string, paramsFile = 'app/navigation/types.d.ts'): RouteParamsInfo[] => {
@@ -37,3 +39,14 @@ export const readRouteParams = (root: string, paramsFile = 'app/navigation/types
   }
   return [...out.values()];
 };
+
+/**
+ * A Flutter app has no params type: what a route needs is read with the route itself (go_router's `:id`, a required
+ * `extra`), and a widget pushed without a name cannot be opened by one.
+ */
+export const flutterRouteParams = (graph: ScreenGraph): RouteParamsInfo[] =>
+  Object.values(graph.screens).map((s) => ({
+    route: s.route,
+    free: !s.unnamed && !s.params?.length,
+    shape: s.unnamed ? 'pushed without a name' : s.params?.length ? `{ ${s.params.join(', ')} }` : 'undefined',
+  }));

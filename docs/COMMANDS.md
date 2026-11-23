@@ -413,6 +413,8 @@ what Lynkeus knows before touching anything, from the app's source and from walk
 
 Read the source once: routes, testIDs, navigations → .lynkeus/graph.json
 
+In a React Native app, from React Navigation in TypeScript. In a Flutter app (a pubspec that takes flutter from the SDK, in a folder that is not also a React Native app), from the Dart under lib/, with no Dart SDK needed: go_router routes (nested, shell, typed), a Navigator's named routes and onGenerateRoute, paths a router of the app's own registers with a builder, and widgets pushed without a name, named after their class. What it cannot read is printed as a warning with its file and line and kept in the graph's warnings.
+
 | Flag | |
 |---|---|
 | `--as-base` | also keep it as graph.base.json, for `map check` to diff against |
@@ -574,7 +576,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 | Flag | |
 |---|---|
-| `--params <file>` | route params type map, relative to the app |
+| `--params <file>` | route params type map, relative to the app (React Native; Flutter reads them with its routes) |
 | `--screenshots` | one capture per screen |
 | `--overlay-when <target>` | a target the app raises on its own (a lock screen, a rating prompt) |
 | `--overlay-flow <flow.json>` | the flow that clears it |

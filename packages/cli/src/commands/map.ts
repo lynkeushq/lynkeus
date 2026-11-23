@@ -12,6 +12,7 @@ import * as screens from '../knowledge/screens.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
 import { describeGraphDiff, diffGraphs } from './check.js';
+import { flutterProject } from './flutterHost.js';
 
 const baseGraphFile = (root: string) => path.join(lynkeusDir(root), 'graph.base.json');
 
@@ -33,14 +34,18 @@ const describeAffected = (affected: Affected[], chain: boolean): string[] => {
 /** Source files a branch changed against `base`, committed or not. */
 export const changedSources = (root: string, base: string, err: (line: string) => void): string[] => {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  // A Flutter app's graph names files from the app's folder, which is often not the repository's root.
+  const flutter = !!flutterProject(root);
+  const diff = flutter ? ['diff', '--name-only', '--relative'] : ['diff', '--name-only'];
+  const source = flutter ? /\.dart$/ : /\.[cm]?[jt]sx?$/;
   try {
-    const names = `${git('diff', '--name-only', `${base}...HEAD`)}\n${git('diff', '--name-only', 'HEAD')}`;
+    const names = `${git(...diff, `${base}...HEAD`)}\n${git(...diff, 'HEAD')}`;
     return [
       ...new Set(
         names
           .split('\n')
           .map((l) => l.trim())
-          .filter((l) => /\.[cm]?[jt]sx?$/.test(l)),
+          .filter((l) => source.test(l)),
       ),
     ];
   } catch (error) {
@@ -54,15 +59,25 @@ export const mapCommands = [
     name: 'map build',
     group: 'map',
     summary: 'Read the source once: routes, testIDs, navigations → .lynkeus/graph.json',
+    details:
+      "In a React Native app, from React Navigation in TypeScript. In a Flutter app (a pubspec that takes flutter from the SDK, in a folder that is not also a React Native app), from the Dart under lib/, with no Dart SDK needed: go_router routes (nested, shell, typed), a Navigator's named routes and onGenerateRoute, paths a router of the app's own registers with a builder, and widgets pushed without a name, named after their class. What it cannot read is printed as a warning with its file and line and kept in the graph's warnings.",
     flags: { 'as-base': { type: 'boolean', help: 'also keep it as graph.base.json, for `map check` to diff against' } },
     needs: 'nothing',
     run: async (ctx) => {
-      if (!fs.existsSync(path.join(ctx.root, 'tsconfig.json')))
+      const flutter = !!flutterProject(ctx.root);
+      if (!flutter && !fs.existsSync(path.join(ctx.root, 'tsconfig.json')))
         return { text: `No tsconfig.json under ${ctx.root}: run this inside a React Native app (or pass --root).`, code: 1 };
       const started = Date.now();
-      // The extractor brings a compiler with it; only this command pays for loading it.
-      const { extractScreenGraph } = await import('../knowledge/extract.js');
-      const graph = extractScreenGraph({ root: ctx.root });
+      let graph: ScreenGraph;
+      if (flutter) {
+        const { extractFlutterGraph } = await import('../knowledge/extractFlutter.js');
+        graph = extractFlutterGraph({ root: ctx.root });
+        for (const warning of graph.warnings) ctx.err(`  warning  ${warning}`);
+      } else {
+        // The extractor brings a compiler with it; only this command pays for loading it.
+        const { extractScreenGraph } = await import('../knowledge/extract.js');
+        graph = extractScreenGraph({ root: ctx.root });
+      }
       writeJson(graphFile(ctx.root), graph);
       if (ctx.flags['as-base']) writeJson(baseGraphFile(ctx.root), graph);
       const routes = new Set(Object.keys(graph.screens));
