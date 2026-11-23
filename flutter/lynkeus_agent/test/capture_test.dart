@@ -76,6 +76,7 @@ void main() {
   Future<bool> capture(WidgetTester tester) async {
     final drawn = binding.capture();
     await tester.pump();
+    await tester.pump();
     return drawn;
   }
 
@@ -124,6 +125,24 @@ void main() {
     binding.release();
   });
 
+  // A device can leave the last frame drawn off its screen until another one comes: the Android emulator's screenshot
+  // showed a list's spinner after the list had loaded. The capture frame is drawn twice, and the second is held.
+  testWidgets('the capture frame is drawn twice before the hold, and also with nothing to pin', (tester) async {
+    var frames = 0;
+    binding.addPersistentFrameCallback((_) => frames++);
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: _Spinners())));
+    var before = frames;
+    expect(await capture(tester), isTrue);
+    expect(frames - before, 2);
+    expect(binding.holding, isTrue);
+    binding.release();
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('Still'))));
+    before = frames;
+    expect(await capture(tester), isFalse);
+    expect(frames - before, 2);
+    expect(binding.holding, isFalse);
+  });
+
   testWidgets('frames are held until released, then drawn at real time', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: _Spinners())));
     await tester.pump(const Duration(milliseconds: 500));
@@ -142,6 +161,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: _Spinners())));
     var serving = true;
     final drawn = binding.capture(limit: const Duration(seconds: 1), stillServing: () => serving);
+    await tester.pump();
     await tester.pump();
     expect(await drawn, isTrue);
     await tester.pump(const Duration(milliseconds: 1500));
@@ -228,7 +248,9 @@ void main() {
     Future<Map<String, Object?>> idle(WidgetTester tester, Map<String, Object?> params) =>
         idleOf(tester, methods, params);
 
-    testWidgets('answers with the capture frame held; a capture keeps it, an action lets it go', (tester) async {
+    testWidgets('answers with the capture frame held; a capture keeps it, any other request lets it go', (
+      tester,
+    ) async {
       await tester.pumpWidget(const MaterialApp(home: Scaffold(body: _Spinners())));
       methods = Methods()
         ..capture = binding
@@ -238,9 +260,13 @@ void main() {
       expect(binding.holding, isTrue);
       expect(spinners(tester).loop.value, 0);
       expect(await methods.call('screenshot', {}), 'taken');
-      await methods.call('screen', null);
       expect(binding.holding, isTrue);
-      await methods.call('dismissKeyboard', null);
+      var read = false;
+      unawaited(methods.call('screen', null).then((_) => read = true));
+      for (var t = 0; t < 20 && !read; t++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(read, isTrue);
       expect(binding.holding, isFalse);
       await tester.pump();
     });

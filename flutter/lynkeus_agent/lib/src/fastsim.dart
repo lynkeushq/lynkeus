@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'binding.dart';
 import 'capture.dart';
 import 'fence.dart';
 import 'standins.dart';
@@ -78,17 +79,16 @@ class FastSimHost {
   void installBinding() {
     final os = platform;
     if (os != null) debugDefaultTargetPlatformOverride = os;
-    if (BindingBase.debugBindingType() != null) {
+    if (BindingBase.debugBindingType() == null) LynkeusBinding();
+    if (WidgetsBinding.instance is! FastSimHooks) {
       debugPrint(
-        'lynkeus: FastSim needs LynkeusAgent.start() before WidgetsFlutterBinding.ensureInitialized(): the app made '
-        'its binding first, so the safe area and the plugin stand-ins are off.',
+        'lynkeus: the app made its own binding before LynkeusAgent.start(), so on FastSim the safe area and the '
+        'plugin stand-ins are off. $bindingRemedy',
       );
       return;
     }
-    final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace', hostSaysViews: true);
-    FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns, hidden: safeAreaHidden);
-    this.standIns = standIns;
-    ownsBinding = true;
+    standIns = FastSimRoot.current?.standIns;
+    ownsBinding = standIns != null;
     _explainErrors();
   }
 
@@ -149,10 +149,40 @@ class FastSimHost {
   }
 }
 
-/// The binding the agent creates inside FastSim, before `runApp` would create the plain one: its root view carries
-/// the device's safe area, which the engine's embedder cannot set. Its capture frames are the agent's on any side.
-class FastSimBinding extends LynkeusBinding {
-  FastSimBinding(this._sides, this.standIns, {this.hidden});
+/// What the agent's binding does inside FastSim, from its constructor on: its root view carries the device's safe
+/// area, which the engine's embedder cannot set, and its messenger answers the app's plugins with the stand-ins.
+mixin FastSimHooks on WidgetsBinding {
+  @override
+  BinaryMessenger createBinaryMessenger() {
+    final inner = super.createBinaryMessenger();
+    return FastSimRoot.current?.messenger(this, inner) ?? inner;
+  }
+
+  @override
+  Widget wrapWithDefaultView(Widget rootWidget) =>
+      FastSimRoot.current?.rootView(this, rootWidget) ?? super.wrapWithDefaultView(rootWidget);
+}
+
+/// What [FastSimHooks] keeps: made when the binding is, inside FastSim only.
+class FastSimRoot {
+  FastSimRoot._(this._sides, this.standIns, {this.hidden});
+
+  /// Inside FastSim, the binding's; null elsewhere.
+  static FastSimRoot? get current => _current ??= _detect();
+  static FastSimRoot? _current;
+  static var _detected = false;
+
+  static FastSimRoot? _detect() {
+    if (_detected) return null;
+    _detected = true;
+    final host = FastSimHost.detect();
+    if (host == null) return null;
+    return FastSimRoot._(
+      host.safeArea ?? const [0, 0, 0, 0],
+      StandIns(log: debugPrint, trace: host.env['LYNKEUS_CHANNELS'] == 'trace', hostSaysViews: true),
+      hidden: host.safeAreaHidden,
+    );
+  }
 
   final List<double> _sides;
   final StandIns standIns;
@@ -161,12 +191,14 @@ class FastSimBinding extends LynkeusBinding {
   final List<double>? hidden;
   final bars = SystemBars();
   SafeAreaView? _view;
+  WidgetsBinding? _binding;
 
   // Outgoing platform messages reach the host only through this messenger, so the plugins are answered here, and
   // the app hiding or showing the system bars moves the safe area as on a phone.
-  @override
-  BinaryMessenger createBinaryMessenger() =>
-      StandInMessenger(super.createBinaryMessenger(), standIns, sent: hidden == null ? null : _watchBars);
+  BinaryMessenger messenger(WidgetsBinding binding, BinaryMessenger inner) {
+    _binding = binding;
+    return StandInMessenger(inner, standIns, sent: hidden == null ? null : _watchBars);
+  }
 
   void _watchBars(String channel, ByteData? message) {
     if (channel != SystemChannels.platform.name || message == null) return;
@@ -178,14 +210,17 @@ class FastSimBinding extends LynkeusBinding {
     }
     if (!bars.follow(call)) return;
     final view = _view;
-    if (view == null) return;
+    final binding = _binding;
+    if (view == null || binding == null) return;
     view.sides = bars.sides(_sides, hidden!);
-    scheduleMicrotask(handleMetricsChanged);
+    scheduleMicrotask(binding.handleMetricsChanged);
   }
 
-  @override
-  Widget wrapWithDefaultView(Widget rootWidget) {
-    _view ??= SafeAreaView(platformDispatcher.implicitView!, hidden == null ? _sides : bars.sides(_sides, hidden!));
+  Widget rootView(WidgetsBinding binding, Widget rootWidget) {
+    _view ??= SafeAreaView(
+      binding.platformDispatcher.implicitView!,
+      hidden == null ? _sides : bars.sides(_sides, hidden!),
+    );
     // Without the deprecated render view and pipeline owner, View makes its own for the wrapper; it still draws into
     // the engine's view, since the wrapper's render() is the engine view's.
     return View(view: _view!, child: rootWidget);

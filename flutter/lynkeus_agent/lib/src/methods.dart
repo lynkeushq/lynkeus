@@ -29,8 +29,27 @@ const _listEndMs = 3000;
 // How long past its timeout `idle` keeps waiting on work that ends on its own (a request out, a launch's timer).
 const _waitedOutMs = 10000;
 
-// Driver requests that leave a capture frame held: the captures themselves and the reads that go with them.
-const _keepCapture = {'screenshot', 'still', 'screen', 'find', 'ping', 'requests', 'trace', 'debug'};
+// The requests a capture frame is held for: the captures themselves. Any other request ends the hold, a read too: a
+// wait that polls `screen` for a snackbar to close needs the frames that close it.
+const _keepCapture = {'screenshot', 'still', 'ping'};
+
+// Requests that do not act on the app: the launch's timers are those set before the first request that does.
+const _passive = {
+  ..._keepCapture,
+  'screen',
+  'find',
+  'requests',
+  'trace',
+  'debug',
+  'idle',
+  'waitFor',
+  'busy',
+  'netmock',
+  'netcache',
+  'networkBodies',
+  'traceContext',
+  'clock',
+};
 
 // Reads would drown the timeline; only actions are worth a line.
 const _untraced = {'screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy'};
@@ -185,7 +204,7 @@ class Methods {
   int serving = 0;
 
   /// The binding's capture frames, when the binding is the agent's (capture.dart).
-  FrameCapture? capture;
+  CaptureFrames? capture;
 
   // When `idle` last answered: a request out since then is the step's own.
   var _answeredAt = 0;
@@ -195,7 +214,13 @@ class Methods {
 
   Future<Object?> call(String method, Object? params) async {
     final started = _ms();
-    if (!_keepCapture.contains(method)) capture?.release();
+    if (!_keepCapture.contains(method) && (capture?.holding ?? false)) {
+      capture!.release();
+      // What the held frames would have done first: a route just popped absorbs pointers until the next frame, and a
+      // press sent before it reaches nothing.
+      await SchedulerBinding.instance.endOfFrame.timeout(const Duration(seconds: 1), onTimeout: () {});
+    }
+    if (!_passive.contains(method)) capture?.endLaunchWatch();
     serving++;
     onServing?.call();
     try {
@@ -495,6 +520,24 @@ class Methods {
     return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
   }
 
+  // Whether every vertical scroller is at its end in a direction: its bottom, or its top when [up]. A swipe that did
+  // not move a list short of its end (one sent while a page still slid in) says nothing about where the list ends.
+  bool _atEdge(bool up) {
+    var all = true;
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        if (position.axis == Axis.vertical && position.hasPixels && position.hasContentDimensions) {
+          all &= up ? position.pixels <= position.minScrollExtent + 1 : position.pixels >= position.maxScrollExtent - 1;
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return all;
+  }
+
   // Every vertical scroller's offset and extent, in tree order.
   List<String> _verticalScrolls() {
     final out = <String>[];
@@ -604,6 +647,18 @@ class Methods {
     await _drag(Offset(x, cy + (up ? -half : half)), Offset(x, cy + (up ? half : -half)), 250, holdMs: 120);
   }
 
+  // Nothing the app does on its own is under way: no request out, no one-shot timer of its due within [withinMs], no
+  // animation running to an end. False when the binding cannot tell.
+  bool _workDone(int withinMs) {
+    final frames = capture;
+    if (frames == null) return false;
+    final now = _ms();
+    return (network?.inFlight ?? 0) == 0 &&
+        !frames.loadingImages &&
+        !frames.animating &&
+        !frames.timerDue(longestMs: withinMs, beforeMs: now + withinMs, sinceMs: now);
+  }
+
   Future<Map<String, Object?>> _waitFor(Map<String, Object?> p) async {
     final target = p['target'] == null ? null : Target.parse(p['target']);
     final anyOf = p['anyOf'] is List ? (p['anyOf']! as List).map(Target.parse).toList() : null;
@@ -669,9 +724,10 @@ class Methods {
       }
       final still = _ms() - movedAt >= 120 || _ms() - lastSwipe > 3000;
       // A list that loads more at its end holds still there while the next page comes (a spinner in its footer): it
-      // is only the end once it has stayed put a while, not as soon as one swipe moved nothing.
+      // is only the end once nothing that could bring more is under way (no request out, no timer of the app's due,
+      // nothing animating), or, where that cannot be known, once it has stayed put a while.
       final stuck = found == null && swipes > 0 && now == before;
-      final ended = stuck && _ms() - movedAt >= _listEndMs;
+      final ended = stuck && (_ms() - movedAt >= _listEndMs || (still && _atEdge(back) && _workDone(_listEndMs)));
       if (scroll && target != null && !gone && swipes < 30 && still && _ms() - lastSwipe > 400 && (!stuck || ended)) {
         if (ended) {
           if (back) swipes = 30;
@@ -689,38 +745,71 @@ class Methods {
 
   // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure.
   //
-  // Work that ends on its own is waited out past the timeout, up to [_waitedOutMs] more: a request the app made
-  // since the last answer (a device's can take seconds where a host replays it at once), and the timers its launch
-  // set (a splash's), until idle first finds the app quiet. A request that was already out at the last answer (a
-  // long poll) keeps the app busy, but only until the timeout.
+  // Not quiet while work that ends on its own is under way, so that the screen it answers on, and the capture frame,
+  // are of the state that work ends in on any side (capture.dart): a one-shot timer the app set for no longer than
+  // [timeoutMs] (a page's 2 s load, a toast's dismissal), or one its launch set; an animation that runs to an end; a
+  // request the app made since the last answer (a device's can take seconds where a host replays it at once). The
+  // timers and the requests are waited for past the timeout, up to [_waitedOutMs] more, as they end at a time of their
+  // own. A request that was already out at the last answer (a long poll) keeps the app busy, but only until the
+  // timeout. An animation keeps the app from being quiet within the timeout, and past it when waited-out work set it
+  // off.
   //
   // The answer comes with the capture frame drawn and held when something loops on screen (capture.dart).
   Future<Map<String, Object?>> _idle(Map<String, Object?> p) async {
     final quietMs = _int(p['quietMs']) ?? 150;
     final after = _int(p['after']);
-    var deadline = _ms() + (_int(p['timeoutMs']) ?? 3000);
+    final timeoutMs = _int(p['timeoutMs']) ?? 3000;
+    final started = _ms();
+    var deadline = started + timeoutMs;
     final latest = deadline + _waitedOutMs;
     final since = _answeredAt;
-    capture?.endLaunchWatch();
     var lastCommit = _commitCount();
     var quietSince = _ms();
     var arrived = after == null || lastCommit > after;
+    var waited = false;
+    var heldBy = const <String>[];
     Map<String, Object?>? answer;
     while (answer == null && _ms() < deadline) {
       await _sleep(30);
       final now = _ms();
       final commit = _commitCount();
       if (after != null && commit > after) arrived = true;
-      final ending = (network?.inFlightSince(since) ?? 0) > 0 || (capture?.launchTimerDue(latest) ?? false);
-      if (ending) deadline = math.min(latest, math.max(deadline, now + quietMs + 60));
-      if (commit != lastCommit || ending || await _busy()) {
+      final requested = (network?.inFlightSince(since) ?? 0) > 0;
+      final timer = capture?.timerDue(longestMs: timeoutMs, beforeMs: latest, sinceMs: started) ?? false;
+      final decoding = capture?.loadingImages ?? false;
+      // An animation a step starts itself (a page sliding in, a switch's thumb) ends within the quiet a frame's settle
+      // asks for; one that waited-out work sets off may start at its end, and is waited for as well.
+      final animating = waited && (capture?.animating ?? false);
+      waited |= requested || timer || decoding;
+      // What a waited-out timer or answer sets off (a toast fading, an image fading in) is waited for as well.
+      if (requested || timer || animating) {
+        deadline = math.min(latest, math.max(deadline, now + quietMs + 60));
+      }
+      // A timer or an animation still to end keeps the answer back, but does not start the quiet over: what it
+      // changes when it ends does, as any change. An image still being loaded or decoded (an asset's icon) is drawn a
+      // moment later, as soon on one side as late on the other.
+      final busy = await _busy();
+      final changed = commit != lastCommit;
+      if (changed || requested || decoding || busy) {
         lastCommit = commit;
         quietSince = now;
-      } else if (arrived && now - quietSince >= quietMs) {
+      } else if (arrived && now - quietSince >= quietMs && !timer && !animating) {
         answer = {'commit': commit, 'idle': true};
       }
+      final why = [
+        if (changed) 'change',
+        if (requested) 'request',
+        if (timer) 'timer',
+        if (animating) 'animation',
+        if (decoding) 'image',
+        if (busy) 'busy',
+      ];
+      if (why.isNotEmpty) heldBy = why;
     }
     answer ??= {'commit': _commitCount(), 'idle': false};
+    // What made an idle wait past its quiet shows in the trace: what a step's settle costs, and why.
+    final took = _ms() - started;
+    if (took > quietMs + 250) record({'kind': 'idle', 'ms': took, 'idle': answer['idle'], 'last': heldBy});
     _answeredAt = _ms();
     if (answer['idle'] == true) capture?.endLaunch();
     await capture?.capture(stillServing: () => serving > 0);

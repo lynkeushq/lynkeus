@@ -4,3 +4,4 @@ library;
 
 export 'src/agent.dart' show LynkeusAgent;
 export 'src/routes.dart' show LynkeusNavigatorObserver, LynkeusRoutes;
+export 'src/binding.dart' show LynkeusBinding;

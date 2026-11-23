@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'binding.dart';
 import 'capture.dart';
 import 'fastsim.dart';
 import 'fence.dart';
@@ -90,24 +91,39 @@ abstract final class LynkeusAgent {
       return;
     }
     fastsim?.installBinding();
-    if (BindingBase.debugBindingType() == null) {
-      LynkeusBinding();
-    } else if (fastsim == null && hosted == null && WidgetsBinding.instance is! FrameCapture) {
-      debugPrint(
-        'lynkeus: the app made its binding before LynkeusAgent.start(), so captured frames catch spinners wherever '
-        'they are and idle does not wait for the launch\'s timers. Call LynkeusAgent.start() first in main().',
-      );
-    }
+    if (BindingBase.debugBindingType() == null) LynkeusBinding();
     WidgetsFlutterBinding.ensureInitialized();
     _standingIn = hosted != null || fastsim?.standIns != null;
     final binding = WidgetsBinding.instance;
+    final CaptureFrames? frames;
+    if (binding is FrameCapture) {
+      frames = binding;
+      if (binding.runtimeType == LynkeusBinding) _explainSecondBinding();
+    } else if (hosted == null) {
+      // An app's own binding, made before the agent started: its frames and touches are wrapped where the engine hands
+      // them over, which is less than the agent's binding knows.
+      frames = ForeignFrames.install(binding);
+      debugPrint(
+        'lynkeus: the app made its own binding (${binding.runtimeType}) before LynkeusAgent.start(): idle waits for '
+        "the app's timers, but captured frames catch spinners and fades wherever they are"
+        '${fastsim != null ? ', and FastSim gives no safe area' : ''}. $bindingRemedy',
+      );
+    } else {
+      frames = null;
+    }
+    appFrames = frames;
     final methods = Methods()
       ..onHost = fastsim != null || hosted != null
-      ..capture = binding is FrameCapture ? binding : null
+      ..capture = frames
       ..commands.addAll(_pending)
       ..routes = routes ?? _routes ?? defaultRoutes(navigatorObserver, RouterRoutes());
     _pending.clear();
     _methods = methods;
+    // How long a device's screen stood still on a capture frame shows in the run's trace.
+    if (frames != null) {
+      frames.onHoldEnded = (ms, {required expired}) =>
+          methods.record({'kind': 'hold', 'ms': ms, 'expired': ?(expired ? true : null)});
+    }
     final where = host ?? fastsim?.driverHost ?? hosted?.host ?? (_host.isEmpty ? null : _host);
     _link = Link(
       token: secret,
@@ -195,6 +211,19 @@ abstract final class LynkeusAgent {
         link.start();
       }),
     );
+  }
+
+  // An app that makes a binding class of its own after the agent made its binding fails Flutter's check in main():
+  // say why and what to change, next to Flutter's own message.
+  static void _explainSecondBinding() {
+    final dispatcher = PlatformDispatcher.instance;
+    final uncaught = dispatcher.onError;
+    dispatcher.onError = (error, stack) {
+      if ('$error'.contains('Binding is already initialized to LynkeusBinding')) {
+        debugPrint('lynkeus: the app made a binding of its own after LynkeusAgent.start(). $bindingRemedy');
+      }
+      return uncaught?.call(error, stack) ?? false;
+    };
   }
 
   /// A command the driver can call by name, like a core method (`lynkeus call <name>`). Two names mean something to

@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'capture.dart';
 import 'link.dart';
 import 'snapshot.dart' show viewId;
 
@@ -23,7 +24,13 @@ final _clock = clock.stopwatch()..start();
 
 Duration _now() => Duration(microseconds: _clock.elapsedMicroseconds);
 
-void _dispatch(PointerEvent event) => GestureBinding.instance.handlePointerEvent(event);
+void _dispatch(PointerEvent event) => _asApp(() => GestureBinding.instance.handlePointerEvent(event));
+
+// Typed text runs the app's onChanged and its debounce: where `idle` knows the timers it sets, as a touch's.
+T _asApp<T>(T Function() run) {
+  final frames = appFrames;
+  return frames == null ? run() : frames.asApp(run);
+}
 
 Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 
@@ -107,13 +114,13 @@ EditableTextState _field() {
   return field;
 }
 
-void _deliver(EditableTextState field, TextEditingValue next) {
+void _deliver(EditableTextState field, TextEditingValue next) => _asApp(() {
   final before = field.textEditingValue;
   TextInput.updateEditingValue(next);
   // A field that holds focus without an input connection yet (it attaches on the focus change's microtask) did not
   // get it: hand it to the field the way the connection would have.
   if (field.mounted && field.textEditingValue == before && next != before) field.updateEditingValue(next);
-}
+});
 
 /// Types into the focused field where its cursor is, replacing its selection.
 void typeText(String text) {
@@ -167,10 +174,12 @@ void deleteBackward(int count) {
 void submit() {
   final field = _field();
   final action = field.widget.textInputAction;
-  field.performAction(action == null || action == TextInputAction.newline ? TextInputAction.done : action);
+  _asApp(
+    () => field.performAction(action == null || action == TextInputAction.newline ? TextInputAction.done : action),
+  );
 }
 
-void dismissKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
+void dismissKeyboard() => _asApp(() => FocusManager.instance.primaryFocus?.unfocus());
 
 bool get keyboardFocused => _focusedField() != null;
 
