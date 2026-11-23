@@ -130,6 +130,14 @@ void typeText(String text) {
   );
 }
 
+/// Empties the focused field, as selecting all of its text and pressing backspace would: wherever the tap that focused
+/// it left the cursor (the middle of a time picker's "10"), nothing of the old text stays.
+void clearText() {
+  final field = _field();
+  if (field.textEditingValue.text.isEmpty) return;
+  _deliver(field, const TextEditingValue());
+}
+
 /// Deletes [count] characters before the cursor of the focused field, as a backspace key would.
 void deleteBackward(int count) {
   final field = _field();

@@ -175,6 +175,29 @@ void main() {
     expect(FocusManager.instance.primaryFocus?.context?.widget, isNot(isA<EditableText>()));
   });
 
+  testWidgets('type with clear empties the field wherever the tap left the cursor', (tester) async {
+    final hour = TextEditingController(text: '10');
+    final focus = FocusNode();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TextField(
+            controller: hour,
+            focusNode: focus,
+            decoration: const InputDecoration(labelText: 'Hour'),
+          ),
+        ),
+      ),
+    );
+    methods = Methods();
+    focus.requestFocus();
+    await tester.pump();
+    // The tap that focuses a field can put the cursor between its digits.
+    hour.selection = const TextSelection.collapsed(offset: 1);
+    await drive(tester, methods, 'type', {'text': '7', 'clear': true});
+    expect(hour.text, '7');
+  });
+
   testWidgets('a suggestion under a focused field is pressed with the keyboard up, which keeps it there', (
     tester,
   ) async {

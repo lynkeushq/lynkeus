@@ -440,7 +440,7 @@ class Methods {
     }
     if (p['clear'] == true) {
       final current = _elements().where((e) => e.focused).firstOrNull?.value ?? element?.value ?? '';
-      if (current.isNotEmpty) touch.deleteBackward(current.characters.length);
+      if (current.isNotEmpty) touch.clearText();
     }
     if (p['paste'] == true) {
       touch.typeText(text);
