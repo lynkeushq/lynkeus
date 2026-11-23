@@ -12,6 +12,7 @@ import 'package:lynkeus_agent/hosts.dart';
 import 'package:lynkeus_agent/lynkeus_agent.dart';
 
 import 'fonts.dart';
+import 'native.dart';
 import 'settings.dart';
 
 /*
@@ -102,6 +103,8 @@ class _Host {
     configure?.call(HostConfig(standIns, plugins));
     final fonts = await tester.runAsync(() => loadFonts(settings.fontsDir)) ?? const [];
     _log('fonts: ${fonts.isEmpty ? 'none loaded (text draws as boxes)' : fonts.join(', ')}');
+    final libraries = loadNativeLibraries(Directory.current);
+    if (libraries.isNotEmpty) _log('native libraries: ${libraries.join(', ')}');
 
     _fake = clock;
     _launchOffset = settings.epoch == null ? Duration.zero : settings.epoch!.difference(_fake.now());
