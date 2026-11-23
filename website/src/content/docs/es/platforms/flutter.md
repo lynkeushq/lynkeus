@@ -200,7 +200,7 @@ LynkeusAgent.start();
 LynkeusPlugins.ensureInitialized();
 ```
 
-En un simulador, un emulador o un teléfono no hace nada. `lynkeus init` solo lo agrega cuando tu `pubspec.lock` muestra uno de esos plugins, y `lynkeus status` lo comprueba. Las vistas nativas (un WebView, un mapa, un video) quedan en blanco en cualquier host, porque no hay nada que las dibuje.
+En un simulador, un emulador o un teléfono no hace nada. `lynkeus init` solo lo agrega cuando tu `pubspec.lock` muestra uno de esos plugins, y `lynkeus status` lo comprueba. Las vistas nativas (un WebView, un mapa, un video) quedan en blanco en el host sin pantalla, porque no hay nada que las dibuje, y un paso que apunta adentro de una falla con un error que dice cuál es. Lynkeus FastSim, en cambio, pinta un recuadro en su lugar: está en [sus límites](#lynkeus-fastsim).
 
 Un proyecto agrega los suyos en `test/lynkeus_host.dart` (no termina en `_test.dart`, para que sus pruebas unitarias lo ignoren). `lynkeus headless start` lo usa si existe:
 
@@ -263,7 +263,7 @@ Una animación que no termina nunca tampoco cambia el frame de un paso. Si al co
 
 ### Límites
 
-- **Las vistas nativas no se dibujan.** Un `UiKitView` o un `AndroidView` (una web view, un mapa, una barra de pestañas nativa) ocupa su lugar y su tamaño pero queda vacío; la app recibe un error que nombra la vista y el log explica por qué.
+- **Las vistas nativas son un recuadro.** Un `UiKitView`, un `AndroidView` o un `PlatformViewLink` (una web view, un mapa, una barra de pestañas nativa) conserva su lugar y su tamaño, y FastSim pinta ahí un rectángulo gris con el tipo de la vista y la leyenda «native view, not drawn». Lo que Flutter dibuja encima, como un botón sobre un mapa, se ve y responde a los toques igual que en el teléfono. Cualquier otro paso que cae dentro de la vista (`press`, `type`, el punto de partida de un `swipe`) falla con el error `this point is inside native view <tipo>, which only exists on a device`, en vez de tocar en el vacío. `screen` informa el rectángulo de cada vista en `platformViews` en todos los entornos, y la comparación de píxeles tapa esos rectángulos de los dos lados, así que el recuadro nunca cuenta como diferencia. Lo que muestra la vista se prueba en un simulador, un emulador o un teléfono, donde los pasos sobre ella sí funcionan.
 - **El aspecto de Android es para Linux.** Ahí el motor dibuja con OpenGL ES sobre ANGLE y SwiftShader, igual que el emulador. El motor del Mac solo tiene Metal, y parte de lo que Flutter dibuja en Android (el estiramiento al pasarse del borde de una lista) no existe para Metal: compara las pantallas de Android en Linux. El aspecto de iOS coincide con el simulador en un Mac, con la fuente del sistema del propio simulador si está instalado el runtime de iOS de Xcode; en Linux todavía no hay reemplazo para esa fuente.
 - **Texto de otras escrituras en Linux.** El motor de Linux no busca otra fuente cuando a la de la app le falta un carácter, así que el chino, el japonés, los emoji y similares salen como cuadrados. Los casos pasan igual, porque leen el árbol de widgets; los píxeles no coinciden.
 - **Solo el motor de depuración que publica Flutter.** Nada de builds de profile o release, ni motores propios. Por ahora se probó con Flutter 3.50.1; en Linux arm64, Flutter publica motores a partir de la 3.38.

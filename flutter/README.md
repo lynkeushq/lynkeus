@@ -48,6 +48,11 @@ A widget with a `ValueKey<String>` (or `Key('...')`) or a `Semantics(identifier:
 `127.0.0.1:8123`, and on Android `10.0.2.2` then `127.0.0.1`. `LynkeusAgent.register('reset', ...)` adds a command a
 case can call (`app.call: { command: reset }`).
 
+Native views (`UiKitView`, `AndroidView`, `PlatformViewLink`: a web view, a map) are real on a simulator, an emulator
+or a phone. Lynkeus FastSim draws a labeled placeholder in their place and headless draws nothing; on both, a step
+whose point falls inside one fails with an error that names the view, unless Flutter content drawn over it takes the
+touch. `screen` reports their rectangles as `platformViews` on every side, and the pixel comparison masks them.
+
 ## Run the sample's cases
 
 From `flutter/sample/`, with a token in `.lynkeus/token` (`openssl rand -hex 24 > .lynkeus/token` if there is none):

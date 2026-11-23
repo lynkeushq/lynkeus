@@ -184,7 +184,7 @@ LynkeusAgent.start();
 LynkeusPlugins.ensureInitialized();
 ```
 
-It does nothing on a Simulator, an emulator or a phone. `lynkeus init` adds it only when your `pubspec.lock` shows one of those plugins, and `lynkeus status` checks it. Native views (a WebView, a map, a video) stay blank on any host, because nothing draws them.
+It does nothing on a Simulator, an emulator or a phone. `lynkeus init` adds it only when your `pubspec.lock` shows one of those plugins, and `lynkeus status` checks it. Native views (a WebView, a map, a video) stay blank under headless, because nothing draws them, and a step aimed inside one fails with an error that names it. Lynkeus FastSim draws a placeholder there instead; see [its limits](#lynkeus-fastsim).
 
 A project adds its own stand-ins in `test/lynkeus_host.dart`, which `lynkeus headless start` passes on:
 
@@ -245,7 +245,7 @@ A step's frame is the same on both sides even with something animating forever. 
 
 ### Limits
 
-- **Native views are not drawn.** A `UiKitView` or an `AndroidView` (a web view, a map, a native tab bar) keeps its place and size and shows nothing; the app gets an error that names the view, and the log says why.
+- **Native views are placeholders.** A `UiKitView`, an `AndroidView` or a `PlatformViewLink` (a web view, a map, a native tab bar) keeps its place and size, and FastSim draws a gray box there labeled with the view's type and "native view, not drawn". Flutter content drawn over the view, such as a button on a map, shows and takes taps as on a phone. Any other step whose point falls inside the view (`press`, `type`, the start of a `swipe`) fails with `this point is inside native view <type>, which only exists on a device` instead of touching nothing. `screen` reports each view's rectangle under `platformViews` on every side, and the pixel comparison masks those rectangles on both, so the placeholder is never a difference. Cover what the view shows on a simulator, an emulator or a phone, where steps inside it work.
 - **The Android look is for Linux.** There the engine draws with OpenGL ES on ANGLE and SwiftShader, as the emulator does. A Mac's engine has only Metal, which some of Flutter's Android drawing (the stretch overscroll) lacks, so compare Android screens on Linux. The iOS look matches the simulator on a Mac, with the simulator's own system font when Xcode's iOS runtime is installed; Linux has no stand-in for it yet.
 - **Text in other scripts on Linux.** The Linux engine finds no font for a character missing from the app's fonts, so Chinese, Japanese, emoji and the like draw as boxes there. Cases still pass, since they read the widget tree; the pixels do not match.
 - **Flutter's prebuilt debug engine only.** No profile or release builds, and no custom engine. Flutter 3.50.1 is the version run so far; on Linux arm64 Flutter publishes engines from 3.38 on.
