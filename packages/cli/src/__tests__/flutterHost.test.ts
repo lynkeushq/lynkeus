@@ -85,9 +85,15 @@ test('a plugin with no channel default that the lock shows is registered for the
   assert.match(text, /registerPlugins: _registerPlugins\);/);
   assert.match(text, /flutter_local_notifications\.AndroidFlutterLocalNotificationsPlugin\.registerWith\(\);/);
   assert.match(text, /flutter_local_notifications\.IOSFlutterLocalNotificationsPlugin\.registerWith\(\);/);
-  const work = 'packages:\n  workmanager:\n    version: "0.10.10"\n  workmanager_android:\n    version: "0.10.9"\n  workmanager_apple:\n    version: "0.9.11"\n';
+  const work =
+    'packages:\n  workmanager:\n    version: "0.10.10"\n  workmanager_android:\n    version: "0.10.9"\n  workmanager_apple:\n    version: "0.9.11"\n';
   const scheduled = fs.readFileSync(
-    writeFlutterHost(project(APP, { 'lib/main.dart': 'void main() {}\n', 'pubspec.lock': work }), { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined),
+    writeFlutterHost(
+      project(APP, { 'lib/main.dart': 'void main() {}\n', 'pubspec.lock': work }),
+      { name: 'shop_app', hosted: true },
+      'lib/main.dart',
+      undefined,
+    ),
     'utf8',
   );
   assert.match(scheduled, /^import 'package:workmanager_android\/workmanager_android\.dart' as workmanager_android;$/m);
