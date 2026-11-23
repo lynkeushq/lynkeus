@@ -23,6 +23,7 @@ import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { hostGrantEnv } from './fastsim.js';
 import { flutterNetworkEnv } from './flutterHost.js';
+import { startNetRecord, takeNetRecord } from '../cases/netCache.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -34,11 +35,11 @@ import { LiveLine } from '../cases/liveLine.js';
 const lastWords = new WeakMap<ChildProcess, () => string>();
 let started = 0;
 
-export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
+export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch, extraEnv: NodeJS.ProcessEnv = {}): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
     cwd: root,
-    env: { ...process.env, ...launchEnv(launch) },
+    env: { ...process.env, ...extraEnv, ...launchEnv(launch) },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
@@ -398,6 +399,16 @@ export const caseCommands = [
         type: 'boolean',
         help: 'with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent',
       },
+      'net-cache': {
+        type: 'string',
+        help: "a folder of recorded remote fetches (the React Native host's --net_cache): a Flutter host answers from it what its network fence blocks",
+        value: 'dir',
+      },
+      'net-record': {
+        type: 'boolean',
+        help: "with --net-cache: the app's agent records each successful remote GET into it (on a device, or a host with its fence opened); a Flutter agent only",
+      },
+      'net-record-credentials': { type: 'boolean', help: 'with --net-record: also record requests that sent an Authorization header or cookies' },
       'host-timeout': { type: 'number', help: 'with --keep-hosts: how long a host may take to attach (it builds the app first)', default: 600000, value: 'ms' },
       'in-order': { type: 'boolean', help: 'with --jobs: take the cases in the order given, not the longest first' },
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
@@ -494,7 +505,12 @@ export const caseCommands = [
               : [portFromEnv(ctx.config) ?? 8123],
           );
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
-      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
+      const netCache = typeof ctx.flags['net-cache'] === 'string' ? path.resolve(ctx.root, ctx.flags['net-cache']) : undefined;
+      const netRecord = ctx.flags['net-record'] === true;
+      if (netRecord && !netCache) return { text: '--net-record needs --net-cache <dir>: the folder the recorded fetches go to', code: 2 };
+      // A host answers from the folder what its network fence blocks; recording happens in the app, case by case.
+      const netEnv: NodeJS.ProcessEnv = netCache && !netRecord ? { LYNKEUS_NET_CACHE: netCache } : {};
+      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch, netEnv) : undefined;
       // With --keep-hosts, each job's own long-lived host, by job.
       const kept: (ChildProcess | undefined)[] = [];
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
@@ -561,7 +577,7 @@ export const caseCommands = [
           log(`host: ${why}; starting it again`);
           await stopHost(runHost);
           try {
-            runHost = await startHost(ctx.root, ctx.err, launch);
+            runHost = await startHost(ctx.root, ctx.err, launch, netEnv);
             await (await server())?.waitForApp(30_000);
           } catch (error) {
             log(`host: did not come back: ${(error as Error).message}`);
@@ -596,7 +612,7 @@ export const caseCommands = [
         const nativeValues = nativeValuesEnv(config.nativeMocks);
         if (nativeValues) hostEnv = { ...hostEnv, LYNKEUS_NATIVE_VALUES: nativeValues };
         // A Flutter FastSim host fences its app's network as headless does, to the same flutterHost.networkHosts.
-        if (hostCommand) hostEnv = { ...hostEnv, ...flutterNetworkEnv(ctx.config.flutterHost) };
+        if (hostCommand) hostEnv = { ...hostEnv, ...flutterNetworkEnv(ctx.config.flutterHost), ...netEnv };
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
@@ -727,6 +743,9 @@ export const caseCommands = [
                         .device()
                         .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
                         .catch(() => undefined);
+                    const recordingOn = netRecord && !dry ? await scoped.base.device().catch(() => undefined) : undefined;
+                    if (recordingOn && !(await startNetRecord(recordingOn, ctx.flags['net-record-credentials'] === true)))
+                      log("--net-record: this app's agent cannot record its fetches (a Flutter agent can; the React Native host has --net_record)");
                     const report = await runCase(c, {
                       base: scoped.base,
                       config,
@@ -743,6 +762,12 @@ export const caseCommands = [
                       nativeLogs: native,
                       onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
+                    if (recordingOn && netCache) {
+                      // A fetch the last step started (an image) is recorded once its body has arrived.
+                      await recordingOn.idle({ quietMs: 300, timeoutMs: 5000 }).catch(() => undefined);
+                      const taken = await takeNetRecord(recordingOn, netCache).catch(() => undefined);
+                      if (taken?.files) log(`recorded ${taken.files} remote fetches (${Math.round(taken.bytes / 1024)} KB) into ${netCache}`);
+                    }
                     const mine = keepHosts ? kept[index] : runHost;
                     const lost = report.result === 'failed' && mine ? await hostLost(mine, mine === runHost ? await server() : undefined) : undefined;
                     if (lost) {

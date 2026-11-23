@@ -60,6 +60,23 @@ from outside. The host plays an iPhone-sized iOS device (402x874 points at 3x, w
   restarts do not apply to this host.
 - `exit`: ends the host.
 
+## Remote fetches
+
+The host stays off the internet (`networkHosts`), so a network image draws as its placeholder where a device shows
+the picture. Record what the app fetches on a run where the network is real, and the hosts answer from it:
+
+```sh
+npx lynkeus case run --device <simulator> --net-cache qa/net --net-record   # records each successful remote GET
+npx lynkeus case run --host --net-cache qa/net                               # replays what the fence would block
+```
+
+The folder is the React Native host's `--net_cache`: one file per URL (the first 16 bytes of its SHA-256, in hex)
+holding the body as the app read it, and `<name>.json` with the URL, the status and a few headers (`content-type`,
+`cache-control`, `expires`, `etag`, `last-modified`, `date`). Only GETs that answered 2xx are recorded, and none that
+sent an `Authorization` header or cookies unless `--net-record-credentials` says so. A replayed answer is listed in
+`requests` as `replayed`; `netmock` still answers first. WebSockets, streamed bodies and anything but GET are not
+recorded.
+
 ## Plugins
 
 flutter_test leaves platform channels unanswered: a plugin's method channel throws `MissingPluginException`, a

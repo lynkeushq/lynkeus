@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/fence.dart';
+import 'package:lynkeus_agent/src/netcache.dart';
 import 'package:lynkeus_agent/src/network.dart';
 
 void main() {
@@ -191,5 +192,98 @@ void main() {
   test('the fence\'s hosts come from LYNKEUS_NETWORK_HOSTS, or are this machine', () {
     expect(networkHostsFrom({}), {'127.0.0.1', 'localhost', '::1', '10.0.2.2'});
     expect(networkHostsFrom({'LYNKEUS_NETWORK_HOSTS': ' api.local , 127.0.0.1,'}), {'api.local', '127.0.0.1'});
+  });
+
+  test('records successful GETs from beyond this machine, and none that carried credentials unless asked', () async {
+    network.local = {};
+    network.commands['netcache']!({'record': true});
+    await fetch('GET', '/photo.png');
+    await fetch('POST', '/form', body: 'x');
+    await fetch('GET', '/missing');
+    final client = HttpClient();
+    try {
+      final private = await client.getUrl(at('/private'));
+      private.headers.set(HttpHeaders.authorizationHeader, 'Bearer secret');
+      await (await private.close()).drain<void>();
+    } finally {
+      client.close();
+    }
+    final taken = network.commands['netcache']!({'take': true})! as Map;
+    final entries = (taken['entries']! as List).cast<Map<String, Object?>>();
+    expect(entries.map((e) => e['url']), ['${at('/photo.png')}']);
+    expect(entries.single['status'], 200);
+    expect((entries.single['headers']! as Map)['content-type'], startsWith('application/json'));
+    expect(jsonDecode(utf8.decode(base64.decode(entries.single['body']! as String))), containsPair('echo', ''));
+    expect(taken['left'], 0);
+    network.commands['netcache']!({'record': true, 'credentials': true});
+    final again = HttpClient();
+    try {
+      final private = await again.getUrl(at('/private'));
+      private.headers.set(HttpHeaders.authorizationHeader, 'Bearer secret');
+      await (await private.close()).drain<void>();
+    } finally {
+      again.close();
+    }
+    expect(
+      ((network.commands['netcache']!({'take': true})! as Map)['entries']! as List).single,
+      containsPair('url', '${at('/private')}'),
+    );
+  });
+
+  test('a URL is kept under the React Native host\'s name for it', () {
+    expect(netCacheName('https://images.example/photo.png'), 'd1f88d0472c300623644b9b7d2a9412a');
+  });
+
+  test('on a host, a fetch the fence would block is answered from the recorded folder, after netmock', () async {
+    final folder = Directory.systemTemp.createTempSync('netcache');
+    const photo = 'https://images.example/photo.png';
+    final pixels = [137, 80, 78, 71, 1, 2, 3];
+    File('${folder.path}/${netCacheName(photo)}').writeAsBytesSync(pixels);
+    File('${folder.path}/${netCacheName(photo)}.json').writeAsStringSync(
+      jsonEncode({
+        'url': photo,
+        'status': 200,
+        'headers': {'content-type': 'image/png'},
+      }),
+    );
+    // As the React Native host leaves them: the body alone, and an empty file for a URL it could not have.
+    const old = 'https://images.example/old.jpg';
+    File('${folder.path}/${netCacheName(old)}').writeAsBytesSync([255, 216]);
+    File('${folder.path}/${netCacheName('https://images.example/gone.png')}').writeAsBytesSync([]);
+    HttpOverrides.global = FencedHttpOverrides({'127.0.0.1'});
+    network = Network(trace: traced.add)..install();
+    network
+      ..replay = NetCache(folder)
+      ..fenced = (host) => host != '127.0.0.1';
+    network.commands['netmock']!({'method': 'GET', 'path': '/mocked.png', 'status': 200, 'body': 'mock'});
+    final client = HttpClient();
+    Future<(int, String?, List<int>)> get(String url) async {
+      final response = await (await client.getUrl(Uri.parse(url))).close();
+      final bytes = await response.fold<List<int>>([], (all, chunk) => all..addAll(chunk));
+      return (response.statusCode, response.headers.contentType?.mimeType, bytes);
+    }
+
+    try {
+      final (status, type, bytes) = await get(photo);
+      expect([status, type, bytes], [200, 'image/png', pixels]);
+      final (oldStatus, oldType, oldBytes) = await get(old);
+      expect(
+        [oldStatus, oldType, oldBytes],
+        [
+          200,
+          null,
+          [255, 216],
+        ],
+      );
+      expect((await get('https://images.example/mocked.png')).$3, utf8.encode('mock'));
+      await expectLater(get('https://images.example/gone.png'), throwsA(isA<SocketException>()));
+      await expectLater(get('https://images.example/never.png'), throwsA(isA<SocketException>()));
+    } finally {
+      client.close();
+    }
+    expect(records().where((r) => r['replayed'] == true).map((r) => r['url']), [photo, old]);
+    expect(network.onWire, 0);
+    expect((await fetch('GET', '/now')).$1, 200, reason: 'what the fence allows still goes out');
+    folder.deleteSync(recursive: true);
   });
 }

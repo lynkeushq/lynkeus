@@ -630,7 +630,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--net-cache <dir>] [--net-record] [--net-record-credentials] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -673,6 +673,9 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
 | `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
+| `--net-cache <dir>` | a folder of recorded remote fetches (the React Native host's --net_cache): a Flutter host answers from it what its network fence blocks |
+| `--net-record` | with --net-cache: the app's agent records each successful remote GET into it (on a device, or a host with its fence opened); a Flutter agent only |
+| `--net-record-credentials` | with --net-record: also record requests that sent an Authorization header or cookies |
 | `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |
 | `--in-order` | with --jobs: take the cases in the order given, not the longest first |
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
