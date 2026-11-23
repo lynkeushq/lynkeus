@@ -41,6 +41,15 @@ abstract final class LynkeusAgent {
   /// wall's pace while one is out.
   static int get requestsInFlight => _methods?.network?.onWire ?? 0;
 
+  /// Whether the app runs on a Lynkeus host (headless or FastSim) whose stand-ins answer the plugins' channels: no
+  /// plugin's native side is there. Known once [start] has run; false on a simulator or a phone.
+  static bool get standingIn => _standingIn;
+  static var _standingIn = false;
+
+  /// For a package's tests: as if the app ran on a host.
+  @visibleForTesting
+  static set debugStandingIn(bool value) => _standingIn = value;
+
   /// Driver requests being served: a host fast-forwards its clock while the driver waits on the app.
   static int get serving => _methods?.serving ?? 0;
 
@@ -70,6 +79,7 @@ abstract final class LynkeusAgent {
     }
     fastsim?.installBinding();
     WidgetsFlutterBinding.ensureInitialized();
+    _standingIn = hosted != null || fastsim?.standIns != null;
     final methods = Methods()
       ..commands.addAll(_pending)
       ..routes = routes ?? navigatorObserver.routes;
