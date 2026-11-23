@@ -5,7 +5,10 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { findFlutter, flutterHostEnv, flutterHostTest, flutterNetworkEnv, flutterProject, writeFlutterHost } from '../commands/flutterHost.js';
+import { headlessCommands } from '../commands/headless.js';
 import { hostedHeadless } from '../device/agentVersion.js';
+import type { ScreenGraph } from '../knowledge/types.js';
+import type { Base } from '../registry.js';
 
 const project = (pubspec: string | undefined, extra: Record<string, string> = {}): string => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flutter-'));
@@ -48,14 +51,31 @@ test('a React Native app, a pure Dart package or no pubspec is not a Flutter app
   assert.equal(flutterProject(project('name: x\ndependencies:\n  flutter_lints: ^6.0.0\nflutter:\n  uses-material-design: true\n')), undefined);
 });
 
+const rn = (deps: string) => ({ 'package.json': `{"name":"rn","${deps}":{"react-native":"0.80.0"}}` });
+
 test('a Flutter pubspec beside a React Native package.json is the React Native app, as init decides', () => {
-  const rn = (deps: string) => ({ 'package.json': `{"name":"rn","${deps}":{"react-native":"0.80.0"}}` });
   assert.equal(flutterProject(project(APP, rn('dependencies'))), undefined);
   assert.equal(flutterProject(project(APP, rn('devDependencies'))), undefined);
-  assert.deepEqual(flutterProject(project(APP, { 'package.json': '{"name":"tools","devDependencies":{"prettier":"3"}}' })), {
+  assert.equal(flutterProject(project(APP, rn('peerDependencies'))), undefined);
+  assert.deepEqual(flutterProject(project(APP, { 'package.json': '{"name":"tools","devDependencies":{"prettier":"3"},"peerDependencies":{"react":"*"}}' })), {
     name: 'shop_app',
     hosted: true,
   });
+});
+
+test('headless start runs a React Native library with a Flutter example module under jest, not under flutter test', async () => {
+  const root = project(APP, { ...rn('peerDependencies'), '.lynkeus/token': 'secret\n' });
+  const start = headlessCommands.find((c) => c.name === 'headless start')!;
+  const base: Base = {
+    root,
+    config: {},
+    attached: false,
+    err: () => undefined,
+    device: () => Promise.reject(new Error('no device')),
+    graph: () => ({}) as ScreenGraph,
+  };
+  const out = await start.run({ ...base, args: [], flags: {}, passthrough: [] });
+  assert.match(typeof out === 'object' ? String(out.text) : '', /runs the app under jest/);
 });
 
 test('the host file goes under .lynkeus, one per port, and git ignores it', () => {

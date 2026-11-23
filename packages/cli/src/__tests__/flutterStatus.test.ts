@@ -105,6 +105,14 @@ test('`lynkeus status` reads a React Native app with a Flutter pubspec beside it
   const both = status(project({ 'pubspec.yaml': PUBSPEC(), 'package.json': JSON.stringify({ name: 'demo', dependencies: { 'react-native': '0.80.0' } }) }));
   assert.match(both, /lynkeus-agent is a dependency/);
   assert.doesNotMatch(both, /pubspec/);
+  const library = status(
+    project({
+      'pubspec.yaml': PUBSPEC(),
+      'package.json': JSON.stringify({ name: 'lib', devDependencies: { typescript: '5' }, peerDependencies: { 'react-native': '*' } }),
+    }),
+  );
+  assert.match(library, /lynkeus-agent is a dependency/);
+  assert.doesNotMatch(library, /pubspec/);
 });
 
 test('the agent must start before ensureInitialized(): a pass, a fail with the line to move, and no check without a binding call', () => {

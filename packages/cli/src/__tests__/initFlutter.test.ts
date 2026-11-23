@@ -13,6 +13,7 @@ import {
   addPluginsToPubspec,
   AGENT_DEPENDENCY,
   detectRuntime,
+  hasReactNative,
   isFlutterPubspec,
   pluginsDependencyLike,
   pubspecName,
@@ -269,6 +270,15 @@ test('runtime detection: Flutter by pubspec, React Native wins a mixed folder un
   assert.equal(detectRuntime(rn), 'react-native');
   assert.throws(() => detectRuntime(rn, 'flutter'), /needs a pubspec/);
   assert.throws(() => detectRuntime(rn, 'dart'), /react-native or flutter/);
+});
+
+test('runtime detection: react-native as a peer dependency is React Native too; a package.json without it leaves Flutter', () => {
+  const library = tmp({ 'pubspec.yaml': PUBSPEC, 'package.json': JSON.stringify({ peerDependencies: { react: '*', 'react-native': '*' } }) });
+  assert.equal(detectRuntime(library), 'react-native');
+  assert.equal(hasReactNative(library), true);
+  const tools = tmp({ 'pubspec.yaml': PUBSPEC, 'package.json': JSON.stringify({ peerDependencies: { react: '*' }, devDependencies: { prettier: '3' } }) });
+  assert.equal(detectRuntime(tools), 'flutter');
+  assert.equal(hasReactNative(tools), false);
 });
 
 test('flutter init edits, makes the token, ignores it, and a second run changes nothing', () => {

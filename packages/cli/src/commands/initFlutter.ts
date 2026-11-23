@@ -263,14 +263,17 @@ export const addPluginsToMain = (text: string): Edit => {
 
 const readIfExists = (file: string): string | undefined => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined);
 
-/** A React Native app: react-native among the dependencies of the folder's package.json. Such a folder keeps its React Native behavior even with a Flutter pubspec beside it. */
+/**
+ * React Native code: react-native among the dependencies, dev or peer dependencies of the folder's package.json. Such
+ * a folder keeps its React Native behavior even with a Flutter pubspec beside it; a peer dependency is a React Native
+ * library or a monorepo package, whose Flutter example module is not the project.
+ */
 export const hasReactNative = (root: string): boolean => {
   try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    return !!(manifest.dependencies?.['react-native'] ?? manifest.devDependencies?.['react-native']);
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Partial<
+      Record<'dependencies' | 'devDependencies' | 'peerDependencies', Record<string, string>>
+    >;
+    return !!(manifest.dependencies?.['react-native'] ?? manifest.devDependencies?.['react-native'] ?? manifest.peerDependencies?.['react-native']);
   } catch {
     return false;
   }

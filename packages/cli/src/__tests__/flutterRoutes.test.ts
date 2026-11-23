@@ -37,9 +37,9 @@ const mapBuild = async (b: Base) => {
   return typeof out === 'object' ? (out.code ?? 0) : 0;
 };
 
-const reactNativeAndFlutter = () =>
+const reactNativeAndFlutter = (key: 'dependencies' | 'peerDependencies' = 'dependencies') =>
   tmp({
-    'package.json': JSON.stringify({ name: 'both', dependencies: { 'react-native': '0.80.0' } }),
+    'package.json': JSON.stringify({ name: 'both', [key]: { 'react-native': '0.80.0' } }),
     'tsconfig.json': JSON.stringify({ compilerOptions: { jsx: 'react-jsx', strict: true }, include: ['app'] }),
     'app/navigation/Root.tsx':
       'import { Main } from \'../screens/Main\';\nexport const Root = () => <Stack.Navigator><Stack.Screen name="Main" component={Main} /></Stack.Navigator>;\n',
@@ -59,6 +59,13 @@ test('a folder that is React Native and Flutter keeps the React Native graph, fr
   assert.deepEqual(graph.screens.Main, { route: 'Main', component: 'Main', file: 'app/screens/Main.tsx', declaredIn: 'app/navigation/Root.tsx' });
   assert.ok(!Object.keys(graph.files).some((f) => f.endsWith('.dart')));
   assert.deepEqual(lines, []);
+});
+
+test('a React Native library with a Flutter example module, react-native only among its peers, keeps the React Native graph', async () => {
+  const root = reactNativeAndFlutter('peerDependencies');
+  assert.equal(flutterProject(root), undefined);
+  assert.equal(await mapBuild(base(root)), 0);
+  assert.deepEqual(Object.keys(base(root).graph().screens), ['Main']);
 });
 
 test('a React Native diff lists TypeScript sources from the repository root, never Dart ones', () => {

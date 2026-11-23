@@ -199,4 +199,7 @@ test('a Flutter pubspec beside a React Native package.json is the React Native a
   assert.equal(fastsimRuntime('flutter', root), 'flutter');
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'app', devDependencies: { 'react-native': '0.80.0' } }));
   assert.equal(projectRuntime(root), 'react-native');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'lib', peerDependencies: { 'react-native': '*' } }));
+  assert.equal(projectRuntime(root), 'react-native');
+  assert.equal(fastsimRuntime(undefined, root), 'react-native');
 });
