@@ -251,3 +251,7 @@ Para comparar las pantallas de FastSim con las de un simulador o un emulador, ar
 - `map`, `case impact`, `smoke` y `crawl` necesitan los fuentes de React Navigation y todavía no funcionan con Flutter.
 - Lynkeus FastSim tiene sus propios límites, en [su sección](#lynkeus-fastsim).
 - Dos apps que llaman al mismo puerto entran en conflicto: cierra la otra o usa otro puerto con `LYNKEUS_PORT`.
+
+## Software de terceros y marcas
+
+Los paquetes de Dart tienen licencia MIT, y sus dependencias usan licencias BSD o Apache. Flutter y Dart son marcas registradas de Google LLC. Lynkeus no está afiliado a Google ni cuenta con su respaldo.

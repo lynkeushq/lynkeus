@@ -74,3 +74,22 @@ With no simulator at all, from `flutter/sample/`:
 ```sh
 npx lynkeus case run --host
 ```
+
+## Third-party software and trademarks
+
+The packages are MIT licensed (see the `LICENSE` file in each). What they depend on at run time is BSD or Apache
+licensed, read from each package's `LICENSE` in the pub cache:
+
+| Dependency | Used by | License |
+|---|---|---|
+| flutter, flutter_test (SDK) | all | BSD-3-Clause (The Flutter Authors) |
+| clock 1.1.3 | `lynkeus_agent`, `lynkeus_headless` | Apache-2.0 |
+| crypto 3.0.8 | `lynkeus_agent` | BSD-3-Clause (the Dart project authors) |
+| shared_preferences_platform_interface 2.4.2 | `lynkeus_plugins` | BSD-3-Clause (The Flutter Authors) |
+| sqflite_platform_interface 2.4.4 | `lynkeus_plugins` | BSD-2-Clause (Alexandre Roux Tekartik) |
+| plugin_platform_interface 2.1.8 (transitive) | `lynkeus_plugins` | BSD-3-Clause (The Flutter Authors) |
+
+Their own transitive dependencies (meta, collection, async, characters, path, stack_trace, vector_math,
+material_color_utilities) are BSD-3-Clause, except material_color_utilities (Apache-2.0).
+
+Flutter and Dart are trademarks of Google LLC. Lynkeus is not affiliated with or endorsed by Google.
