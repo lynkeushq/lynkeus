@@ -1,9 +1,11 @@
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/hosts.dart';
+import 'package:lynkeus_agent/src/sqlite.dart' show sqliteLibraries;
 
 void main() {
   late List<String> logged;
@@ -286,6 +288,13 @@ void main() {
       contains('SharedPreferencesAsync'),
     );
     expect(explainHostError(StateError('something else')), isNull);
+  });
+
+  test('the system SQLite is looked for by the machine, not by the platform a host plays', () {
+    expect(sqliteLibraries(Abi.macosArm64).first, '/usr/lib/libsqlite3.dylib');
+    expect(sqliteLibraries(Abi.linuxArm64), ['libsqlite3.so.0', 'libsqlite3.so']);
+    expect(sqliteLibraries(Abi.linuxX64), ['libsqlite3.so.0', 'libsqlite3.so']);
+    expect(sqliteLibraries(Abi.current()).isNotEmpty, isTrue);
   });
 
   testWidgets('sqflite\'s channel is a real SQLite in a folder of the run', (tester) async {

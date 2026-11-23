@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:ffi';
-import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 /*
  * The few calls of SQLite's C API a host needs to stand in for sqflite's native side, bound with dart:ffi to the
@@ -159,6 +160,13 @@ class SqliteException implements Exception {
 /// What a statement gave back: its rows, and the changes and row id it left on the connection.
 typedef SqliteResult = ({List<String> columns, List<List<Object?>> rows, int changes, int lastInsertRowId});
 
+/// Where the system's SQLite is, by the machine the engine runs on and not by `Platform`: Lynkeus FastSim makes an
+/// app on a Mac say Android, and one on Linux say iOS.
+@visibleForTesting
+List<String> sqliteLibraries(Abi abi) => const {Abi.macosArm64, Abi.macosX64, Abi.iosArm64, Abi.iosX64}.contains(abi)
+    ? const ['/usr/lib/libsqlite3.dylib', 'libsqlite3.dylib']
+    : const ['libsqlite3.so.0', 'libsqlite3.so'];
+
 /// The system's SQLite, or null where it cannot be loaded.
 class Sqlite {
   Sqlite._(this._api);
@@ -168,10 +176,7 @@ class Sqlite {
 
   static Sqlite? load() {
     if (_loaded != null || loadError != null) return _loaded;
-    final candidates = Platform.isMacOS || Platform.isIOS
-        ? ['/usr/lib/libsqlite3.dylib', 'libsqlite3.dylib']
-        : ['libsqlite3.so.0', 'libsqlite3.so'];
-    for (final name in candidates) {
+    for (final name in sqliteLibraries(Abi.current())) {
       try {
         return _loaded = Sqlite._(_Api(DynamicLibrary.open(name)));
       } on Object catch (error) {
