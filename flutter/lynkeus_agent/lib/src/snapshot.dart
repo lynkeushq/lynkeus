@@ -159,12 +159,14 @@ bool _hasBarrier(Element e, int depth) {
   return found;
 }
 
+// A disabled control takes no touch, so a tap handler around one (an InkWell over an IconButton with no onPressed) is
+// what a finger meets: the handler stays the button.
 bool _holdsControl(Element e) {
   var found = false;
   e.visitChildElements((c) {
     if (found) return;
     final role = _roleOf(c);
-    found = (role != null && role.control) || _holdsControl(c);
+    found = (role != null && role.control && role.enabled != false) || _holdsControl(c);
   });
   return found;
 }
@@ -253,6 +255,18 @@ class _Walker {
   final _labels = HashMap<Element, String>.identity();
   int visited = 0;
 
+  /// What an OverlayPortal shows (a menu, a tooltip): built under its anchor, drawn in the Overlay on top of the page.
+  final _deferred = <(Element, _At)>[];
+
+  /// Walks what OverlayPortals put on top, after everything else: apart from its anchor (a menu's items are not the
+  /// text of the button that opened it), and later in the listing, as it draws over the rest.
+  void walkDeferred() {
+    while (_deferred.isNotEmpty) {
+      final (e, at) = _deferred.removeAt(0);
+      walkChildren(e, at);
+    }
+  }
+
   void walkChildren(Element e, _At at) {
     for (final child in _onstage(e)) {
       walk(child, at);
@@ -263,6 +277,11 @@ class _Walker {
     visited++;
     final w = e.widget;
     if (_invisible(e)) return;
+    // OverlayPortal's overlay child, a private widget of the framework's.
+    if (w.runtimeType.toString() == '_DeferredLayout') {
+      _deferred.add((e, _At(clip: Offset.zero & window, hidden: inherited.hidden)));
+      return;
+    }
 
     var at = inherited;
     final region = at.region;
@@ -587,6 +606,7 @@ _Walker _walkScreen() {
   final walker = _Walker(window);
   final root = WidgetsBinding.instance.rootElement;
   if (root != null) walker.walk(root, _At(clip: Offset.zero & window));
+  walker.walkDeferred();
   walker.markCovered(viewId());
   return walker;
 }

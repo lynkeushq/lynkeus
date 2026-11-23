@@ -148,6 +148,63 @@ void main() {
     expect(row.text, 'Ana');
   });
 
+  testWidgets('a tap handler around a disabled icon button is the button a finger meets, enabled', (tester) async {
+    var taps = 0;
+    final items = await screenOf(
+      tester,
+      Center(
+        child: InkWell(
+          key: const ValueKey('cell'),
+          onTap: () => taps++,
+          excludeFromSemantics: true,
+          child: const IconButton(onPressed: null, icon: Icon(Icons.check)),
+        ),
+      ),
+    );
+    final cell = only(items, (e) => e.testId == 'cell');
+    expect(cell.kind, 'button');
+    expect(cell.enabled, isTrue);
+    await tester.tapAt(cell.frame.center);
+    expect(taps, 1);
+  });
+
+  testWidgets('an open menu lists its items apart from the button that opened it, on top', (tester) async {
+    // Cupertino-style menus put the OverlayPortal inside the button that opens them.
+    final portal = OverlayPortalController();
+    await screenOf(
+      tester,
+      Align(
+        alignment: Alignment.topLeft,
+        child: TextButton(
+          onPressed: portal.show,
+          child: OverlayPortal(
+            controller: portal,
+            overlayChildBuilder: (_) => Positioned(
+              top: 100,
+              left: 20,
+              child: Column(
+                children: [
+                  TextButton(onPressed: () {}, child: const Text('By Status')),
+                  TextButton(onPressed: () {}, child: const Text('Habit Type')),
+                ],
+              ),
+            ),
+            child: const Text('Filters'),
+          ),
+        ),
+      ),
+    );
+    portal.show();
+    await tester.pump();
+    final items = takeSnapshot().elements;
+    final anchor = only(items, (e) => e.kind == 'button' && (e.text ?? '').startsWith('Filters'));
+    expect(anchor.text, 'Filters');
+    final status = only(items, (e) => e.kind == 'button' && e.text == 'By Status');
+    expect(status.frame.top, 100);
+    expect(only(items, (e) => e.kind == 'button' && e.text == 'Habit Type').i, greaterThan(status.i));
+    expect(status.i, greaterThan(anchor.i));
+  });
+
   testWidgets('lists only what is on screen: the top route, the visible rows', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
