@@ -749,7 +749,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const press = async (value: StepValue): Promise<'skipped' | undefined> => {
-    const given = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    // `app.press: 5` is YAML's number: the element at that index, as `"5"` is.
+    const given = typeof value === 'string' || typeof value === 'number' ? { target: String(value) } : ((value ?? {}) as Record<string, unknown>);
     const { text, ...named } = given;
     const params: Record<string, unknown> = 'target' in given || 'testId' in given || typeof text !== 'string' ? given : { ...named, target: text };
     const target = targetIn(params);

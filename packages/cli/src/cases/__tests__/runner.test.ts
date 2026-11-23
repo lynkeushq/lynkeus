@@ -179,6 +179,20 @@ test('a press names its control by testId, and a type takes a deadline for its f
   assert.equal(calls.filter((x) => x.method === 'press' && (x.params as { testId?: string }).testId === 'refresh').length, 1);
 });
 
+test('a press given a bare number presses the element at that index, as a quoted one does', async () => {
+  const c = parseCase('---\nid: index\n---\nsteps:\n  - app.press: 5\n  - app.press: "5"\n', 'index.md');
+  const { base, calls } = fakeApp();
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => [s.status, s.error]),
+    Array(2).fill(['passed', undefined]),
+  );
+  assert.deepEqual(
+    calls.filter((x) => x.method === 'press').map((x) => (x.params as { i?: number }).i),
+    [5, 5],
+  );
+});
+
 test('the first step that fails stops the case and leaves the evidence', async () => {
   const c = parseCase('---\nid: red\n---\nsteps:\n  - app.see: { text: "Goodbye", timeoutMs: 200 }\n  - app.press: "#refresh"\n', 'red.md');
   const { base, calls } = fakeApp();
