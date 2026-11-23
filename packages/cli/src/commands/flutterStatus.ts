@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { readToken, tokenFile } from '../config.js';
 import { findFlutter, flutterProject } from './flutterHost.js';
+import { nativeViewPlugins, pluginsNeeded } from './flutterPlugins.js';
 import type { SetupCheck } from './init.js';
 
 const read = (file: string): string | undefined => {
@@ -70,6 +71,18 @@ export const flutterChecks = (root: string): SetupCheck[] => {
       ok: order.ok,
       fix: `in lib/main.dart move the LynkeusAgent.start(...) line (line ${order.startLine}) above WidgetsFlutterBinding.ensureInitialized() (line ${order.initLine}): Lynkeus FastSim's agent installs its own binding for the safe area and plugin stand-ins, and a binding cannot be replaced once one exists`,
     });
+  const dependsOnPlugins = /^[ \t]+lynkeus_plugins:/m.test(pubspec);
+  const called = !!main && /LynkeusPlugins\.ensureInitialized\(/.test(main);
+  const afterStart =
+    !!main && main.indexOf('LynkeusAgent.start(') >= 0 && main.indexOf('LynkeusAgent.start(') < main.indexOf('LynkeusPlugins.ensureInitialized(');
+  for (const need of pluginsNeeded(root))
+    checks.push({
+      what: `lynkeus_plugins is set up for ${need.package}`,
+      ok: dependsOnPlugins && called && afterStart,
+      fix: `${need.because}; without lynkeus_plugins ${need.failure} on a host. Add it to dependencies next to lynkeus_agent and call LynkeusPlugins.ensureInitialized() on the line after LynkeusAgent.start(...) (\`lynkeus init\` does both)`,
+    });
+  for (const name of nativeViewPlugins(root))
+    checks.push({ what: `${name} draws a native view, which stays blank on a host (nothing to fix; a simulator or emulator shows it)`, ok: true });
   const token = readToken(root);
   checks.push({ what: 'the project has a token', ok: !!token, fix: '`lynkeus init` makes one in .lynkeus/token' });
   if (fs.existsSync(tokenFile(root)))

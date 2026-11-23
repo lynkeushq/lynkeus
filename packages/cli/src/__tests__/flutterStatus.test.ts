@@ -115,3 +115,24 @@ test('the agent must start before ensureInitialized(): a pass, a fail with the l
   assert.equal(run('void main() {\n  LynkeusAgent.start();\n  runApp(A());\n}\n'), undefined);
   assert.equal(startOrder('// ensureInitialized() later\nvoid main() {\n  LynkeusAgent.start();\n  ensureInitialized();\n}\n')?.ok, true);
 });
+
+test('the companion check follows pubspec.lock: needed and missing fails with the plugin and its failure, set up passes, not needed adds nothing', () => {
+  const lock = (packages: string[]) =>
+    `packages:\n${packages.map((name) => `  ${name}:\n    dependency: transitive\n    source: hosted\n    version: "2.4.1"\n`).join('')}sdks:\n  dart: ">=3.8.0 <4.0.0"\n`;
+  const run = (packages: string[], extra: string, main: string) =>
+    withEnv({ LYNKEUS_TOKEN: undefined, FLUTTER_ROOT: fakeSdk('3.50.1') }, () =>
+      flutterChecks(project({ 'pubspec.yaml': PUBSPEC(`  lynkeus_agent:\n    path: x\n${extra}`), 'lib/main.dart': main, 'pubspec.lock': lock(packages) })),
+    );
+  const started = 'void main() {\n  LynkeusAgent.start();\n  runApp(A());\n}\n';
+  const missing = byWhat(run(['sqflite_platform_interface'], '', started), /lynkeus_plugins is set up/);
+  assert.equal(missing?.ok, false);
+  assert.match(missing!.fix!, /databaseFactory not initialized/);
+  assert.match(missing!.fix!, /LynkeusPlugins\.ensureInitialized\(\)/);
+  const ready = 'void main() {\n  LynkeusAgent.start();\n  LynkeusPlugins.ensureInitialized();\n  runApp(A());\n}\n';
+  assert.equal(byWhat(run(['sqflite_platform_interface'], '  lynkeus_plugins:\n    path: y\n', ready), /lynkeus_plugins is set up/)?.ok, true);
+  const early = 'void main() {\n  LynkeusPlugins.ensureInitialized();\n  LynkeusAgent.start();\n  runApp(A());\n}\n';
+  assert.equal(byWhat(run(['sqflite_platform_interface'], '  lynkeus_plugins:\n    path: y\n', early), /lynkeus_plugins is set up/)?.ok, false);
+  assert.equal(byWhat(run(['http'], '', started), /lynkeus_plugins/), undefined);
+  const view = byWhat(run(['webview_flutter'], '', started), /native view/);
+  assert.equal(view?.ok, true);
+});
