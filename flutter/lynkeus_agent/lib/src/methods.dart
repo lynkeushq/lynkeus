@@ -422,6 +422,23 @@ class Methods {
     return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
   }
 
+  // Every vertical scroller's offset and extent, in tree order.
+  List<String> _verticalScrolls() {
+    final out = <String>[];
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        if (position.axis == Axis.vertical && position.hasPixels && position.hasContentDimensions) {
+          out.add('${position.pixels.round()}/${position.maxScrollExtent.round()}');
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return out;
+  }
+
   // Where every scroller is, and whether one is still moving on its own.
   List<double> _scrollState() {
     final out = <double>[];
@@ -510,7 +527,9 @@ class Methods {
     var before = '';
     var moving = '';
     var movedAt = 0;
-    String shape(List<Item> all) => all.map((e) => '${e.testId ?? e.text ?? ''}@${e.frame.top.round()}').join('|');
+    // Whether the lists moved: where every vertical scroller is and how far it reaches. Not the elements' frames, which
+    // something animating inside a list (a bouncing star, a carousel) keeps changing at the list's end.
+    String shape(List<Item> all) => _verticalScrolls().join('|');
     final started = _ms();
     final deadline = started + (_int(p['timeoutMs']) ?? 5000);
     while (true) {

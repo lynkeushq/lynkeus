@@ -348,6 +348,35 @@ void main() {
     expect(await failureOf(tester, methods, 'nope'), 'Unknown method nope');
   });
 
+  testWidgets('waitFor with scroll turns back at the end of a list that something keeps animating', (tester) async {
+    final controller = ScrollController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            controller: controller,
+            children: [
+              for (var i = 0; i < 40; i++) SizedBox(height: 60, child: Text('Row $i')),
+              const Bouncing(),
+            ],
+          ),
+        ),
+      ),
+    );
+    controller.jumpTo(controller.position.maxScrollExtent);
+    await tester.pump();
+    methods = Methods();
+    final result = asMap(
+      await drive(tester, methods, 'waitFor', {
+        'target': {'text': 'Row 0'},
+        'scroll': true,
+        'timeoutMs': 30000,
+      }),
+    );
+    expect(result['waitedMs'], isA<int>());
+    expect(find.text('Row 0'), findsOneWidget);
+  });
+
   testWidgets('waitFor with scroll waits for a list that loads more at its end', (tester) async {
     var backward = false;
     await tester.pumpWidget(
@@ -405,6 +434,36 @@ class _PagesState extends State<Pages> {
       child: ListView.builder(
         itemCount: rows + 1,
         itemBuilder: (_, i) => SizedBox(height: 60, child: Text(i == rows ? 'Loading more' : 'Row $i')),
+      ),
+    ),
+  );
+}
+
+/// A label that never stops moving up and down, as an app's animated hero does.
+class Bouncing extends StatefulWidget {
+  const Bouncing({super.key});
+  @override
+  State<Bouncing> createState() => _BouncingState();
+}
+
+class _BouncingState extends State<Bouncing> with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 500))
+    ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 80,
+    child: AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Padding(
+        padding: EdgeInsets.only(top: 40 * _controller.value),
+        child: const Text('Support us'),
       ),
     ),
   );
