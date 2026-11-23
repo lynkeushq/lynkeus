@@ -85,14 +85,19 @@ class StandIns {
 
 /// The app's messenger with the plugins' channels answered by [standIns]: what the FastSim binding gives the app.
 class StandInMessenger extends BinaryMessenger {
-  StandInMessenger(this.inner, this.standIns);
+  StandInMessenger(this.inner, this.standIns, {this.sent});
 
   final BinaryMessenger inner;
   final StandIns standIns;
 
+  /// Shown every message the app sends on, before it goes: what the binding acts on as the device would.
+  final void Function(String channel, ByteData? message)? sent;
+
   @override
-  Future<ByteData?>? send(String channel, ByteData? message) =>
-      StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+  Future<ByteData?>? send(String channel, ByteData? message) {
+    sent?.call(channel, message);
+    return StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+  }
 
   @override
   void setMessageHandler(String channel, MessageHandler? handler) => inner.setMessageHandler(channel, handler);

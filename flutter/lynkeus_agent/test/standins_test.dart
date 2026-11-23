@@ -100,4 +100,15 @@ void main() {
     expect(StandIns.handles('plugins.flutter.io/shared_preferences'), isTrue);
     expect(StandIns.handles('dev.flutter.pigeon.shared_preferences_foundation.UserDefaultsApi.getAll'), isTrue);
   });
+
+  testWidgets('the app\'s messenger shows what it sends before routing it', (tester) async {
+    final seen = <String>[];
+    final messenger = StandInMessenger(
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.delegate,
+      standIns,
+      sent: (channel, _) => seen.add(channel),
+    );
+    await messenger.send('com.example/unknown', null);
+    expect(seen, ['com.example/unknown']);
+  });
 }
