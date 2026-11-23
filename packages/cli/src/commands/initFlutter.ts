@@ -152,6 +152,42 @@ const enclosingIf = (text: string, from: number, at: number): number | undefined
   return undefined;
 };
 
+/** The end of the `if` statement that starts at `at` (a whole `else if`/`else` chain), past its line; -1 if unread. */
+const endOfIf = (text: string, at: number): number => {
+  let i = text.indexOf('if', at);
+  for (;;) {
+    const cond = text.indexOf('(', i);
+    const condEnd = cond < 0 ? -1 : closeOf(text, cond);
+    const open = condEnd < 0 ? -1 : text.indexOf('{', condEnd);
+    let end = open < 0 ? -1 : closeOf(text, open);
+    if (end < 0) return -1;
+    for (;;) {
+      const rest = /^\s*else\b\s*/.exec(text.slice(end + 1));
+      if (!rest) {
+        const eol = text.indexOf('\n', end);
+        return eol < 0 ? text.length : eol + 1;
+      }
+      const next = end + 1 + rest[0].length;
+      if (text.startsWith('if', next)) {
+        i = next;
+        break;
+      }
+      if (text[next] !== '{') return -1;
+      end = closeOf(text, next);
+      if (end < 0) return -1;
+    }
+  }
+};
+
+/** A binding class of the app's own that main() makes: the agent then starts after it and works with it. */
+const ownBinding = (text: string, from: number, to: number): string | undefined =>
+  [...text.slice(from, to).matchAll(/\b([A-Z]\w*Binding)\s*(?:\.ensureInitialized\(|\()/g)]
+    .map((m) => m[1]!)
+    .find((name) => !['WidgetsFlutterBinding', 'LynkeusBinding'].includes(name));
+
+const ownBindingNote = (name: string): string =>
+  `main() makes its own binding (${name}), so the agent starts after it and works with it, though it cannot hold spinners at their start or wait out fades, nor give FastSim's safe area: for all of that, make ${name} extend LynkeusBinding (from package:lynkeus_agent) instead of WidgetsFlutterBinding`;
+
 export const mainByHand = (appName?: string): string =>
   `add to lib/main.dart:\n    ${AGENT_IMPORT}\n  and, in main(), before WidgetsFlutterBinding.ensureInitialized() when there is one, otherwise before runApp(...):\n    ${agentStart(appName)}`;
 
@@ -184,7 +220,18 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
   const from = body?.start ?? 0;
   const initialized = within(binding);
   const started = text.indexOf('LynkeusAgent.start(');
+  // Where the binding call ends, the whole `if` when it is one of its branches.
+  const branch = initialized ? enclosingIf(text, from, initialized.index) : undefined;
+  const bindingEnd = initialized ? (branch !== undefined ? endOfIf(text, branch) : text.indexOf('\n', initialized.index) + 1 || text.length) : -1;
+  const own = initialized && bindingEnd > 0 ? ownBinding(text, branch ?? initialized.index, bindingEnd) : undefined;
   if (started >= 0) {
+    if (own && started < bindingEnd)
+      return {
+        text,
+        done: false,
+        note: `lib/main.dart starts the agent before the app's own binding (${own}), which Flutter then refuses ("Binding is already initialized to LynkeusBinding"): move the LynkeusAgent.start(...) line after it. ${ownBindingNote(own)}.`,
+      };
+    if (own) return { text, done: true, note: 'lib/main.dart already starts the agent' };
     if (initialized && initialized.index < started)
       return {
         text,
@@ -197,17 +244,18 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
   const arrow = /^([ \t]*)((?:Future<void>|void)\s+main\s*\(\s*\)\s*)(async\s*)?=>\s*runApp\(/m.exec(text);
   const plain = within(launch);
   // The agent goes before the first ensureInitialized(), in the same block, since a binding cannot be replaced once it
-  // exists; before the whole `if` when that call is one of its branches.
-  const branch = initialized ? enclosingIf(text, from, initialized.index) : undefined;
+  // exists; before the whole `if` when that call is one of its branches. After it when the binding is the app's own.
   const at = arrow
     ? undefined
-    : branch !== undefined
-      ? { index: branch, indent: /^[ \t]*/.exec(text.slice(branch))![0] }
-      : initialized
-        ? { index: initialized.index, indent: initialized[1]! }
-        : plain
-          ? { index: plain.index, indent: plain[1]! }
-          : undefined;
+    : own
+      ? { index: bindingEnd, indent: /^[ \t]*/.exec(text.slice(branch ?? text.lastIndexOf('\n', initialized!.index) + 1))![0] }
+      : branch !== undefined
+        ? { index: branch, indent: /^[ \t]*/.exec(text.slice(branch))![0] }
+        : initialized
+          ? { index: initialized.index, indent: initialized[1]! }
+          : plain
+            ? { index: plain.index, indent: plain[1]! }
+            : undefined;
   let next: string;
   if (arrow) {
     const open = arrow.index + arrow[0].length - 1;
@@ -223,7 +271,11 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
     return { text, done: false, note: `no runApp( in lib/main.dart; ${mainByHand(appName)}` };
   }
   next = withImport(next, eol);
-  return { text: next, done: true, note: 'added the import and LynkeusAgent.start() to lib/main.dart' };
+  return {
+    text: next,
+    done: true,
+    note: `added the import and LynkeusAgent.start() to lib/main.dart${own ? `; ${ownBindingNote(own)}` : ''}`,
+  };
 };
 
 const PLUGINS_URI = 'package:lynkeus_plugins/lynkeus_plugins.dart';

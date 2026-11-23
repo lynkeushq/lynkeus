@@ -126,7 +126,7 @@ test('main.dart: the agent starts before the first ensureInitialized(), in the s
   );
 });
 
-test('main.dart: the agent starts in main(), not in another entry point before it, and before an if that picks the binding', () => {
+test("main.dart: the agent starts in main(), not in another entry point before it, and after an if that makes the app's own binding", () => {
   const src = [
     "import 'package:flutter/widgets.dart';",
     '',
@@ -149,11 +149,18 @@ test('main.dart: the agent starts in main(), not in another entry point before i
   const edit = addAgentToMain(src, 'habits');
   assert.ok(edit.done);
   assert.ok(edit.text.includes('Future<void> backgroundMain() async {\n  WidgetsFlutterBinding.ensureInitialized();'));
-  assert.ok(edit.text.includes("Future<void> main() async {\n  LynkeusAgent.start(app: {'name': 'habits'});\n  if (Platform.isIOS) {\n"));
+  // Made after the agent's, FixedBinding would fail Flutter's check that a binding is made once.
+  assert.ok(
+    edit.text.includes("    WidgetsFlutterBinding.ensureInitialized();\n  }\n  LynkeusAgent.start(app: {'name': 'habits'});\n  runApp(const App());"),
+    edit.text,
+  );
+  assert.match(edit.note, /FixedBinding extend LynkeusBinding/);
   const chain = addAgentToMain(
     'void main() {\n  if (a) {\n    setup();\n  } else if (b) {\n    setup();\n  } else {\n    MyBinding.ensureInitialized();\n  }\n  runApp(A());\n}\n',
   );
-  assert.ok(chain.text.startsWith("import 'package:lynkeus_agent/lynkeus_agent.dart';\n\nvoid main() {\n  LynkeusAgent.start();\n  if (a) {\n"));
+  assert.ok(chain.text.includes('    MyBinding.ensureInitialized();\n  }\n  LynkeusAgent.start();\n  runApp(A());'), chain.text);
+  const plain = addAgentToMain('void main() {\n  if (a) {\n    setup();\n  } else {\n    WidgetsFlutterBinding.ensureInitialized();\n  }\n  runApp(A());\n}\n');
+  assert.ok(plain.text.includes('void main() {\n  LynkeusAgent.start();\n  if (a) {\n'), plain.text);
   const helper = addAgentToMain('void main() {\n  bootstrap();\n}\n\nvoid bootstrap() {\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n');
   assert.ok(helper.text.includes('void bootstrap() {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();'));
 });
@@ -168,6 +175,17 @@ test('main.dart: a start() already before ensureInitialized() is left alone; one
   assert.ok(!edit.done);
   assert.match(edit.note, /move the LynkeusAgent\.start\(\.\.\.\) line above it/);
   assert.match(edit.note, /FastSim/);
+});
+
+test("main.dart: a start() before the app's own binding is reported, with the remedy", () => {
+  const wrong = 'void main() {\n  LynkeusAgent.start();\n  MyBinding.ensureInitialized();\n  runApp(A());\n}\n';
+  const edit = addAgentToMain(wrong);
+  assert.equal(edit.text, wrong);
+  assert.ok(!edit.done);
+  assert.match(edit.note, /move the LynkeusAgent\.start\(\.\.\.\) line after it/);
+  assert.match(edit.note, /extend LynkeusBinding/);
+  const right = 'void main() {\n  MyBinding.ensureInitialized();\n  LynkeusAgent.start();\n  runApp(A());\n}\n';
+  assert.ok(addAgentToMain(right).done);
 });
 
 test('main.dart: the import lands in its sorted place among the package imports', () => {
