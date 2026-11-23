@@ -76,4 +76,44 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
     expect(await served, isEmpty);
   });
+
+  test('the system bars the app hides move the safe area as on the phone, edge by edge', () {
+    const pixel = [54.095238, 0.0, 24.0, 0.0];
+    const pixelHidden = [54.095238, 0.0, 0.0, 0.0];
+    final bars = SystemBars();
+    MethodCall overlays(List<String> shown) => MethodCall('SystemChrome.setEnabledSystemUIOverlays', shown);
+    MethodCall mode(String m) => MethodCall('SystemChrome.setEnabledSystemUIMode', 'SystemUiMode.$m');
+
+    expect(bars.sides(pixel, pixelHidden), pixel);
+    // flutter_deer's main: manual, with no overlays.
+    expect(bars.follow(overlays([])), isTrue);
+    expect(bars.sides(pixel, pixelHidden), [54.095238, 0.0, 0.0, 0.0]);
+    expect(bars.follow(overlays(['SystemUiOverlay.top', 'SystemUiOverlay.bottom'])), isTrue);
+    expect(bars.sides(pixel, pixelHidden), pixel);
+    expect(bars.follow(overlays(['SystemUiOverlay.top'])), isTrue);
+    expect([bars.top, bars.bottom], [true, false]);
+    expect(bars.follow(mode('edgeToEdge')), isTrue);
+    expect(bars.follow(mode('immersiveSticky')), isTrue);
+    expect([bars.top, bars.bottom], [false, false]);
+    expect(bars.follow(mode('leanBack')), isFalse, reason: 'nothing changed');
+    // Measured on the Pixel 9 emulator: a restore puts back the mode last set, so nothing moves.
+    expect(bars.follow(const MethodCall('SystemChrome.restoreSystemUIOverlays')), isFalse);
+    expect(bars.follow(const MethodCall('SystemChrome.setSystemUIOverlayStyle', {})), isFalse);
+    expect(FastSimHost.detect({'FASTSIM_HOST': '1', 'FASTSIM_SAFE_AREA_HIDDEN': '62,0,34,0'})!.safeAreaHidden, [
+      62,
+      0,
+      34,
+      0,
+    ]);
+  });
+
+  testWidgets('a safe area view takes new sides', (tester) async {
+    tester.view.devicePixelRatio = 2.625;
+    final view = SafeAreaView(tester.view, [54.095238, 0, 24, 0]);
+    expect(view.padding.bottom, closeTo(63, 0.01));
+    view.sides = [54.095238, 0, 0, 0];
+    expect(view.padding.bottom, 0);
+    expect(view.padding.top, closeTo(142, 0.01));
+    tester.view.reset();
+  });
 }

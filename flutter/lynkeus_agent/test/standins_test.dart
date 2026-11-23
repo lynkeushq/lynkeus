@@ -100,4 +100,41 @@ void main() {
     expect(StandIns.handles('plugins.flutter.io/shared_preferences'), isTrue);
     expect(StandIns.handles('dev.flutter.pigeon.shared_preferences_foundation.UserDefaultsApi.getAll'), isTrue);
   });
+
+  testWidgets('the app\'s messenger shows what it sends before routing it', (tester) async {
+    final seen = <String>[];
+    final messenger = StandInMessenger(
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.delegate,
+      standIns,
+      sent: (channel, _) => seen.add(channel),
+    );
+    await messenger.send('com.example/unknown', null);
+    expect(seen, ['com.example/unknown']);
+  });
+
+  testWidgets('a native view gets a clear error, said once per view type, and its other calls succeed', (tester) async {
+    const views = MethodChannel('flutter/platform_views');
+    Future<Object?> create(int id) => views.invokeMethod<Object?>('create', {'id': id, 'viewType': 'TabBar'});
+    await expectLater(
+      create(1),
+      throwsA(isA<PlatformException>().having((e) => e.message, 'message', contains('TabBar is a native view'))),
+    );
+    await expectLater(create(2), throwsA(isA<PlatformException>()));
+    expect(await views.invokeMethod<Object?>('dispose', 1), isNull);
+    expect(logged.where((l) => l.contains('TabBar')), hasLength(1));
+  });
+
+  test('says why a plugin with no channel default fails under a host, and nothing for other errors', () {
+    final webview = AssertionError(
+      'A platform implementation for `webview_flutter` has not been set. Please ensure that an implementation of '
+      '`WebViewPlatform` has been registered',
+    );
+    expect(explainHostError(webview), allOf(contains('`webview_flutter`'), contains('native view')));
+    expect(explainHostError(StateError('databaseFactory not initialized\n...')), contains('`sqflite`'));
+    expect(
+      explainHostError(StateError('The SharedPreferencesAsyncPlatform instance must be set.')),
+      contains('SharedPreferencesAsync'),
+    );
+    expect(explainHostError(StateError('something else')), isNull);
+  });
 }

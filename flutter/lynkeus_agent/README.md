@@ -61,7 +61,10 @@ Inside the FastSim host (the app's own debug kernel run by Flutter's embedder, o
 wakes on `FASTSIM_HOST`, which only the host sets; on a simulator or a phone none of it runs. There it makes the
 app's binding, whose root view carries the device's safe area (the embedder cannot set one), asks the host on
 `lynkeus/fastsim` which commands it serves (`clock`, `screenshot`, …) and forwards them, and tells the host when a
-driver request is being served and how many of the app's requests are out, which is what moves its clock.
+driver request is being served and how many of the app's requests are out to a real server, which is what moves
+its clock: it runs ahead while the driver waits and nothing is on the wire, and at the wall's pace otherwise. A
+request `netmock` answers is not on the wire, so its `delayMs` passes on the host's clock. Images come through
+the same `HttpClient`, so `Image.network` fetches count too; the host keeps no cache of its own.
 
 For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`.
 An app that makes its binding first still runs and is driven; it gets no safe area, and says `binding: app` in its

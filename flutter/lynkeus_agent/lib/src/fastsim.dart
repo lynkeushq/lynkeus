@@ -50,8 +50,13 @@ class FastSimHost {
   };
 
   /// The device's safe area in logical points: top, right, bottom, left.
-  List<double>? get safeArea {
-    final sides = env['FASTSIM_SAFE_AREA']?.split(',').map((s) => double.tryParse(s.trim())).toList();
+  List<double>? get safeArea => _sides(env['FASTSIM_SAFE_AREA']);
+
+  /// What each edge keeps when its system bar is hidden (a cutout, a home indicator); same order.
+  List<double>? get safeAreaHidden => _sides(env['FASTSIM_SAFE_AREA_HIDDEN']);
+
+  static List<double>? _sides(String? text) {
+    final sides = text?.split(',').map((s) => double.tryParse(s.trim())).toList();
     return sides != null && sides.length == 4 && sides.every((s) => s != null) ? sides.cast<double>() : null;
   }
 
@@ -74,9 +79,28 @@ class FastSimHost {
       return;
     }
     final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace');
-    FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns);
+    FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns, hidden: safeAreaHidden);
     this.standIns = standIns;
     ownsBinding = true;
+    _explainErrors();
+  }
+
+  // Adds the reason to the error an app reports for a plugin no host can stand in for. An app that sets its own
+  // handlers later replaces these, and only loses the extra line.
+  void _explainErrors() {
+    final flutterErrors = FlutterError.onError;
+    FlutterError.onError = (details) {
+      final why = explainHostError(details.exception);
+      if (why != null) debugPrint(why);
+      flutterErrors?.call(details);
+    };
+    final dispatcher = ui.PlatformDispatcher.instance;
+    final uncaught = dispatcher.onError;
+    dispatcher.onError = (error, stack) {
+      final why = explainHostError(error);
+      if (why != null) debugPrint(why);
+      return uncaught?.call(error, stack) ?? false;
+    };
   }
 
   /// Asks the host what it serves; empty when it does not answer.
@@ -117,19 +141,40 @@ class FastSimHost {
 /// The binding the agent creates inside FastSim, before `runApp` would create the plain one: its root view carries
 /// the device's safe area, which the engine's embedder cannot set.
 class FastSimBinding extends WidgetsFlutterBinding {
-  FastSimBinding(this._sides, this.standIns);
+  FastSimBinding(this._sides, this.standIns, {this.hidden});
 
   final List<double> _sides;
   final StandIns standIns;
+
+  /// The safe area with the system bars hidden; null when the host did not say.
+  final List<double>? hidden;
+  final bars = SystemBars();
   SafeAreaView? _view;
 
-  // Outgoing platform messages reach the host only through this messenger, so the plugins are answered here.
+  // Outgoing platform messages reach the host only through this messenger, so the plugins are answered here, and
+  // the app hiding or showing the system bars moves the safe area as on a phone.
   @override
-  BinaryMessenger createBinaryMessenger() => StandInMessenger(super.createBinaryMessenger(), standIns);
+  BinaryMessenger createBinaryMessenger() =>
+      StandInMessenger(super.createBinaryMessenger(), standIns, sent: hidden == null ? null : _watchBars);
+
+  void _watchBars(String channel, ByteData? message) {
+    if (channel != SystemChannels.platform.name || message == null) return;
+    final MethodCall call;
+    try {
+      call = SystemChannels.platform.codec.decodeMethodCall(message);
+    } on Object {
+      return;
+    }
+    if (!bars.follow(call)) return;
+    final view = _view;
+    if (view == null) return;
+    view.sides = bars.sides(_sides, hidden!);
+    scheduleMicrotask(handleMetricsChanged);
+  }
 
   @override
   Widget wrapWithDefaultView(Widget rootWidget) {
-    _view ??= SafeAreaView(platformDispatcher.implicitView!, _sides);
+    _view ??= SafeAreaView(platformDispatcher.implicitView!, hidden == null ? _sides : bars.sides(_sides, hidden!));
     // Without the deprecated render view and pipeline owner, View makes its own for the wrapper; it still draws into
     // the engine's view, since the wrapper's render() is the engine view's.
     return View(view: _view!, child: rootWidget);
@@ -151,16 +196,17 @@ class _Padding implements ui.ViewPadding {
 
 /// The engine's view with the device's safe area: everything else is the engine view's own.
 class SafeAreaView implements ui.FlutterView {
-  SafeAreaView(this._real, List<double> sides)
-    : _viewPadding = _Padding(
-        sides[3] * _real.devicePixelRatio,
-        sides[0] * _real.devicePixelRatio,
-        sides[1] * _real.devicePixelRatio,
-        sides[2] * _real.devicePixelRatio,
-      );
+  SafeAreaView(this._real, this.sides);
 
   final ui.FlutterView _real;
-  final ui.ViewPadding _viewPadding;
+
+  /// Top, right, bottom, left, in logical points.
+  List<double> sides;
+
+  ui.ViewPadding get _viewPadding {
+    final dpr = _real.devicePixelRatio;
+    return _Padding(sides[3] * dpr, sides[0] * dpr, sides[1] * dpr, sides[2] * dpr);
+  }
 
   @override
   ui.ViewPadding get viewPadding => _viewPadding;
@@ -203,4 +249,44 @@ class SafeAreaView implements ui.FlutterView {
   void render(ui.Scene scene, {ui.Size? size}) => _real.render(scene, size: size);
   @override
   void updateSemantics(ui.SemanticsUpdate update) => _real.updateSemantics(update);
+}
+
+/// Which system bars the app shows, as it told the platform: the status bar is the top edge's, the navigation bar or
+/// home indicator the bottom's. Measured on the Pixel 9 emulator: a hidden navigation bar takes the bottom inset to 0
+/// while the cutout keeps the top; immersive, immersiveSticky and leanBack hide both, edgeToEdge shows both, and a
+/// restore puts back what was last set. On the iPhone 17 Simulator no mode moves the safe area, which the host says
+/// by giving the same insets for hidden bars.
+class SystemBars {
+  var top = true;
+  var bottom = true;
+
+  /// Takes a flutter/platform call; true when it changed what is shown.
+  bool follow(MethodCall call) {
+    final (wasTop, wasBottom) = (top, bottom);
+    switch (call.method) {
+      case 'SystemChrome.setEnabledSystemUIMode':
+        final mode = '${call.arguments}'.split('.').last;
+        if (mode == 'edgeToEdge') {
+          top = bottom = true;
+        } else if (mode == 'immersive' || mode == 'immersiveSticky' || mode == 'leanBack') {
+          top = bottom = false;
+        }
+      case 'SystemChrome.setEnabledSystemUIOverlays':
+        final overlays = <String>[
+          if (call.arguments is List)
+            for (final o in call.arguments as List) '$o'.split('.').last,
+        ];
+        top = overlays.contains('top');
+        bottom = overlays.contains('bottom');
+    }
+    return top != wasTop || bottom != wasBottom;
+  }
+
+  /// The safe area for what is shown: each edge from [shown] while its bar is, else from [hidden].
+  List<double> sides(List<double> shown, List<double> hidden) => [
+    top ? shown[0] : hidden[0],
+    shown[1],
+    bottom ? shown[2] : hidden[2],
+    shown[3],
+  ];
 }

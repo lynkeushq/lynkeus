@@ -22,7 +22,15 @@ const _methods = StandardMethodCodec();
  * to a method name and a list of arguments here.
  */
 class StandIns {
-  StandIns({required this.log, this.trace = false});
+  StandIns({required this.log, this.trace = false}) {
+    // A host draws no native views: an app's UiKitView or AndroidView gets a clear error instead of the engine's
+    // MissingPluginException, and the rest of the screen goes on.
+    for (final channel in _platformViews) {
+      add(channel, _platformView);
+    }
+  }
+
+  static const _platformViews = ['flutter/platform_views', 'flutter/platform_views_2'];
 
   final void Function(String line) log;
 
@@ -35,8 +43,21 @@ class StandIns {
 
   void add(String channelOrApi, StandIn handler) => handlers[channelOrApi] = handler;
 
-  /// The engine's own channels and the host's are not a plugin's: they go where they would go anyway.
-  static bool handles(String channel) => !channel.startsWith('flutter/') && !channel.startsWith('lynkeus/');
+  /// The engine's own channels and the host's are not a plugin's: they go where they would go anyway. Native views
+  /// are the one engine channel answered here, since no host has them.
+  static bool handles(String channel) =>
+      _platformViews.contains(channel) || (!channel.startsWith('flutter/') && !channel.startsWith('lynkeus/'));
+
+  final _blankViews = <String>{};
+
+  Object? _platformView(String method, List<Object?> args) {
+    if (method != 'create') return null;
+    final params = args.isNotEmpty && args.first is Map ? args.first! as Map : const {};
+    final type = '${params['viewType'] ?? 'a native view'}';
+    final message = noPlatformViews(type);
+    if (_blankViews.add(type)) log(message);
+    throw PlatformException(code: 'unsupported', message: message);
+  }
 
   /// The reply a plugin's native side would give to [message] on [channel].
   Future<ByteData?> answer(String channel, ByteData? message) async {
@@ -85,14 +106,19 @@ class StandIns {
 
 /// The app's messenger with the plugins' channels answered by [standIns]: what the FastSim binding gives the app.
 class StandInMessenger extends BinaryMessenger {
-  StandInMessenger(this.inner, this.standIns);
+  StandInMessenger(this.inner, this.standIns, {this.sent});
 
   final BinaryMessenger inner;
   final StandIns standIns;
 
+  /// Shown every message the app sends on, before it goes: what the binding acts on as the device would.
+  final void Function(String channel, ByteData? message)? sent;
+
   @override
-  Future<ByteData?>? send(String channel, ByteData? message) =>
-      StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+  Future<ByteData?>? send(String channel, ByteData? message) {
+    sent?.call(channel, message);
+    return StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+  }
 
   @override
   void setMessageHandler(String channel, MessageHandler? handler) => inner.setMessageHandler(channel, handler);
@@ -102,4 +128,25 @@ class StandInMessenger extends BinaryMessenger {
   Future<void> handlePlatformMessage(String channel, ByteData? data, ui.PlatformMessageResponseCallback? callback) =>
       // ignore: deprecated_member_use
       inner.handlePlatformMessage(channel, data, callback);
+}
+
+/// Why a native view stays blank under a host.
+String noPlatformViews(String viewType) =>
+    'lynkeus: $viewType is a native view (UiKitView, AndroidView), and a Lynkeus host (headless or FastSim) draws '
+    'none: it stays blank there. Cases can still check everything around it; look at it on a simulator or a phone.';
+
+/// A plugin with no method-channel default fails under a host, where the plugin registrant does not run and no
+/// platform implementation is set: the line that says so, for the error the app reports; null for any other error.
+String? explainHostError(Object error) {
+  final text = '$error';
+  final plugin =
+      RegExp(r'platform implementation for `([\w]+)` has not been set').firstMatch(text)?.group(1) ??
+      (text.contains('databaseFactory not initialized') ? 'sqflite' : null) ??
+      (text.contains('SharedPreferencesAsyncPlatform instance must be set')
+          ? 'shared_preferences (SharedPreferencesAsync, SharedPreferencesWithCache)'
+          : null);
+  if (plugin == null) return null;
+  return 'lynkeus: `$plugin` has no method-channel default, and a Lynkeus host (headless or FastSim) registers no '
+      "plugin's native implementation, so it does not work there${plugin == 'webview_flutter' ? ' (a web view is a native view, which a host does not draw)' : ''}. "
+      'Cover that screen on a simulator or a phone.';
 }

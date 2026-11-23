@@ -3,4 +3,4 @@
 library;
 
 export 'src/plugins.dart' show PluginState, installPlugins;
-export 'src/standins.dart' show StandIn, StandInMessenger, StandIns;
+export 'src/standins.dart' show StandIn, StandInMessenger, StandIns, explainHostError, noPlatformViews;

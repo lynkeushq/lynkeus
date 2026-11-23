@@ -120,6 +120,26 @@ void main() {
     expect(served, ['GET /items']);
   });
 
+  test(
+    'a mocked request is in flight until it answers, but not on the wire: its delay is the agent\'s timer',
+    () async {
+      final changes = <(int, int)>[];
+      network.onInFlight = () => changes.add((network.inFlight, network.onWire));
+      network.commands['netmock']!({'method': 'GET', 'path': '/later', 'status': 200, 'delayMs': 200});
+      final mocked = fetch('GET', '/later');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect((network.inFlight, network.onWire), (1, 0));
+      final real = fetch('GET', '/now');
+      await Future<void>.delayed(Duration.zero);
+      expect(network.onWire, 1);
+      await real;
+      await mocked;
+      expect((network.inFlight, network.onWire), (0, 0));
+      expect(changes, contains((1, 0)));
+      expect(changes.last, (0, 0));
+    },
+  );
+
   test('a held request waits for the release and is not counted in flight', () async {
     network.commands['netmock']!({'action': 'hold', 'path': '^/slow'});
     final pending = fetch('GET', '/slow');

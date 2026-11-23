@@ -37,8 +37,9 @@ abstract final class LynkeusAgent {
   static void hostedBy({required String token, String? host, int? port, Map<String, Object?> app = const {}}) =>
       _hosted = (token: token, host: host, port: port, app: app);
 
-  /// The app's requests in flight: a host that runs its own clock keeps it at the wall's pace while one is out.
-  static int get requestsInFlight => _methods?.network?.inFlight ?? 0;
+  /// The app's requests out to a real server (mocked ones are not): a host that runs its own clock keeps it at the
+  /// wall's pace while one is out.
+  static int get requestsInFlight => _methods?.network?.onWire ?? 0;
 
   /// Driver requests being served: a host fast-forwards its clock while the driver waits on the app.
   static int get serving => _methods?.serving ?? 0;
@@ -128,7 +129,7 @@ abstract final class LynkeusAgent {
       link.start();
       return;
     }
-    void activity() => fastsim.activity(serving: methods.serving, inFlight: network.inFlight);
+    void activity() => fastsim.activity(serving: methods.serving, inFlight: network.onWire);
     methods.onServing = activity;
     network.onInFlight = activity;
     // The driver must see the host's commands (clock first of all) in its first hello, or it takes the app for one
