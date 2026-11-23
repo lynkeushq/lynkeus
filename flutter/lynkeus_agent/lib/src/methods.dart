@@ -1,0 +1,842 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+
+import 'capture.dart';
+import 'item.dart';
+import 'link.dart';
+import 'matching.dart';
+import 'network.dart';
+import 'routes.dart';
+import 'snapshot.dart';
+import 'touch.dart' as touch;
+
+typedef Command = FutureOr<Object?> Function(Object? params);
+
+int _ms() => clock.now().millisecondsSinceEpoch;
+Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
+
+// 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
+const _minSettleLooks = 30;
+const _keep = 500;
+const _listEndMs = 3000;
+// How long past its timeout `idle` keeps waiting on work that ends on its own (a request out, a launch's timer).
+const _waitedOutMs = 10000;
+
+// The requests a capture frame is held for: the captures themselves. Any other request ends the hold, a read too: a
+// wait that polls `screen` for a snackbar to close needs the frames that close it.
+const _keepCapture = {'screenshot', 'still', 'ping'};
+
+// Requests that do not act on the app: the launch's timers are those set before the first request that does.
+const _passive = {
+  ..._keepCapture,
+  'screen',
+  'find',
+  'requests',
+  'trace',
+  'debug',
+  'idle',
+  'waitFor',
+  'busy',
+  'netmock',
+  'netcache',
+  'networkBodies',
+  'traceContext',
+  'clock',
+};
+
+// Reads would drown the timeline; only actions are worth a line.
+const _untraced = {'screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy'};
+
+String _describe(Target target) => jsonEncode(target.toJson());
+
+// Within a point is the same place: a breathing CTA is not a transition.
+bool _sameFrame(Item a, Item b) =>
+    (a.frame.left - b.frame.left).abs() < 1 &&
+    (a.frame.top - b.frame.top).abs() < 1 &&
+    (a.frame.width - b.frame.width).abs() < 1 &&
+    (a.frame.height - b.frame.height).abs() < 1;
+
+class _Point {
+  _Point(this.x, this.y, [this.element]);
+  final double x;
+  final double y;
+  final Item? element;
+  Map<String, Object?> toJson() => {'x': x, 'y': y, if (element != null) 'element': element!.toJson()};
+}
+
+Map<String, Object?> _params(Object? params) => params is Map ? params.cast<String, Object?>() : const {};
+
+int? _int(Object? v) => v is num ? v.toInt() : null;
+double? _double(Object? v) => v is num ? v.toDouble() : null;
+Offset? _offset(Object? v) {
+  if (v is! Map) return null;
+  final x = _double(v['x']);
+  final y = _double(v['y']);
+  return x == null || y == null ? null : Offset(x, y);
+}
+
+Map<String, Object?> _xy(Offset o) => {'x': o.dx, 'y': o.dy};
+
+/// The protocol's methods (docs/PROTOCOL.md), answered from the live widget tree.
+class Methods {
+  Methods() {
+    SchedulerBinding.instance.addPersistentFrameCallback((_) => _frames++);
+  }
+
+  final commands = <String, Command>{};
+
+  /// The app's requests, once the agent wraps its HttpClient.
+  Network? network;
+
+  /// Whether the app runs on a Lynkeus host (headless or FastSim), where native views do not exist: a touch aimed
+  /// inside one fails there, since on a device the view would take it. False on a simulator, an emulator or a phone.
+  bool onHost = false;
+
+  // Before any finger goes down: on a host, a touch at [point] must not land where a device has a native view.
+  void _reachable(Offset point) {
+    if (!onHost) return;
+    final type = nativeViewAt(point);
+    if (type == null) return;
+    throw AgentError(
+      '(${point.dx.toStringAsFixed(1)}, ${point.dy.toStringAsFixed(1)}): this point is inside native view $type, '
+      'which only exists on a device. Lynkeus FastSim draws a placeholder there and headless draws nothing; aim the '
+      'step at Flutter content, or cover this view on a simulator, an emulator or a phone.',
+    );
+  }
+
+  Future<void> _tap(Offset at, int holdMs) {
+    _reachable(at);
+    return touch.tap(at, holdMs);
+  }
+
+  Future<void> _drag(Offset from, Offset to, int durationMs, {int holdMs = 0}) {
+    _reachable(from);
+    return touch.drag(from, to, durationMs, holdMs: holdMs);
+  }
+
+  LynkeusRoutes? _routes;
+
+  /// Told the focused route whenever it may have changed: the link sends it to the driver as a `navigation` event.
+  void Function(String? route)? onNavigation;
+
+  LynkeusRoutes? get routes => _routes;
+
+  set routes(LynkeusRoutes? routes) {
+    _routes?.changes.removeListener(_routeChanged);
+    _routes = routes;
+    routes?.changes.addListener(_routeChanged);
+  }
+
+  void _routeChanged() {
+    final route = currentRoute();
+    record({'kind': 'route', 'route': ?route, 'path': path()});
+    onNavigation?.call(route);
+  }
+
+  String? currentRoute() => _routes?.current();
+
+  List<String> path() {
+    final routes = _routes;
+    if (routes == null) return const [];
+    final current = routes.current();
+    return routes.path?.call() ?? [?current];
+  }
+
+  int _frames = 0;
+  int _commit = 0;
+  int _lookedAt = -1;
+  String _digest = '';
+
+  final _trace = <Map<String, Object?>>[];
+  int _nextSeq = 1;
+
+  List<String> commandNames() => commands.keys.toList()..sort();
+
+  void record(Map<String, Object?> event) {
+    _trace.add({'seq': _nextSeq++, 't': _ms(), ...event});
+    if (_trace.length > _keep) _trace.removeAt(0);
+  }
+
+  // A count of the changes the screen went through: a frame that moved, added or changed what is listed counts, a
+  // spinner turning does not, so a screen with an endless animation still goes idle.
+  Snapshot _snapshot() {
+    final snapshot = takeSnapshot();
+    final digest = snapshot.elements
+        .map(
+          (e) =>
+              '${e.kind}|${e.testId}|${e.text}|${e.value}|${e.frame.left.round()},${e.frame.top.round()},${e.frame.width.round()},${e.frame.height.round()}|${e.enabled}|${e.hidden}|${e.focused}|${e.covered}',
+        )
+        .join('\n');
+    if (digest != _digest) {
+      _digest = digest;
+      _commit++;
+    }
+    _lookedAt = _frames;
+    return snapshot;
+  }
+
+  int _commitCount() {
+    if (_frames != _lookedAt) _snapshot();
+    return _commit;
+  }
+
+  List<Item> _elements() => _snapshot().elements;
+
+  Future<bool> _busy() async {
+    if ((network?.inFlight ?? 0) > 0) return true;
+    final custom = commands['busy'];
+    if (custom == null) return false;
+    try {
+      return await custom(null) == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Requests from the driver being served right now.
+  int serving = 0;
+
+  /// The binding's capture frames, when the binding is the agent's (capture.dart).
+  CaptureFrames? capture;
+
+  // When `idle` last answered: a request out since then is the step's own.
+  var _answeredAt = 0;
+
+  /// Told when [serving] changes: a host with its own clock runs it ahead while the driver waits.
+  void Function()? onServing;
+
+  Future<Object?> call(String method, Object? params) async {
+    final started = _ms();
+    if (!_keepCapture.contains(method) && (capture?.holding ?? false)) {
+      capture!.release();
+      // What the held frames would have done first: a route just popped absorbs pointers until the next frame, and a
+      // press sent before it reaches nothing.
+      await SchedulerBinding.instance.endOfFrame.timeout(const Duration(seconds: 1), onTimeout: () {});
+    }
+    if (!_passive.contains(method)) capture?.endLaunchWatch();
+    serving++;
+    onServing?.call();
+    try {
+      final result = await _dispatch(method, params);
+      if (!_untraced.contains(method)) record({'kind': 'command', 'method': method, 'ms': _ms() - started});
+      return result;
+    } catch (error) {
+      record({'kind': 'command', 'method': method, 'ms': _ms() - started, 'error': '$error'});
+      rethrow;
+    } finally {
+      serving--;
+      onServing?.call();
+    }
+  }
+
+  Future<Object?> _dispatch(String method, Object? params) async {
+    final p = _params(params);
+    switch (method) {
+      case 'ping':
+        return {'pong': true, 'native': true, 'commands': commandNames()};
+      case 'screen':
+        return _screen();
+      case 'find':
+        return find(Target.parse(params))?.toJson();
+      case 'press':
+        return _press(p);
+      case 'type':
+        return _type(p);
+      case 'swipe':
+        return _swipe(p);
+      case 'waitFor':
+        return _waitFor(p);
+      case 'idle':
+        return _idle(p);
+      case 'back':
+        return _back();
+      case 'navigate':
+        final name = p['name'];
+        if (name is! String || name.isEmpty) throw AgentError('navigate needs a route name');
+        final go = _routes?.navigate;
+        if (go == null) {
+          throw AgentError(
+            'navigate needs the app\'s routes: LynkeusAgent.navigatorObserver or LynkeusAgent.start(routes: ...)',
+          );
+        }
+        await go(name, p['params'] is Map ? (p['params']! as Map).cast<String, Object?>() : null);
+        return {'route': name};
+      case 'deepLink':
+        final url = p['url'];
+        if (url is! String || url.isEmpty) throw AgentError('deepLink needs a url');
+        await touch.fromPlatform(
+          'flutter/navigation',
+          MethodCall('pushRouteInformation', {'location': url, 'state': null}),
+        );
+        await _drawn();
+        return {'opened': url};
+      case 'dismissKeyboard':
+        touch.dismissKeyboard();
+        return true;
+      case 'requests':
+        return network?.requests(_int(p['since'])) ?? {'inFlight': 0, 'requests': const <Object?>[]};
+      case 'trace':
+        final since = _int(p['since']);
+        return {
+          'last': _nextSeq - 1,
+          'events': since == null ? _trace : _trace.where((e) => (e['seq']! as int) > since).toList(),
+        };
+      case 'debug':
+        return {...debugTree(), 'frames': _frames, 'commit': _commit};
+      case 'batch':
+        final calls = p['calls'];
+        if (calls is! List) throw AgentError('batch needs calls: [{ method, params? }]');
+        final results = <Object?>[];
+        for (final call in calls) {
+          final c = _params(call);
+          final name = c['method'];
+          if (name is! String) throw AgentError('batch: each call needs a method');
+          results.add(await _dispatch(name, c['params']));
+        }
+        return {'results': results};
+    }
+    final custom = commands[method];
+    if (custom != null) return await custom(params);
+    throw AgentError('Unknown method $method');
+  }
+
+  Future<Map<String, Object?>> _screen() async {
+    final started = _ms();
+    final snapshot = _snapshot();
+    return {
+      'route': ?currentRoute(),
+      'path': path(),
+      'elements': [for (final e in snapshot.elements) e.toJson()],
+      'commit': _commit,
+      'busy': await _busy(),
+      'window': {'w': snapshot.window.width, 'h': snapshot.window.height},
+      'presenting': ?snapshot.presenting,
+      'platformViews': ?_nonEmpty(platformViews()),
+      'costMs': _ms() - started,
+    };
+  }
+
+  Item? find(Target target) => pick(_elements(), target);
+
+  static List<Map<String, Object?>>? _nonEmpty(List<Map<String, Object?>> list) => list.isEmpty ? null : list;
+  Item _presented(Target target) {
+    final element = find(target);
+    if (element == null) {
+      final behind = pickBehind(_elements(), target);
+      if (behind != null) throw AgentError('${_describe(target)} is not presented (${behind.hidden})');
+      throw AgentError('No element matches ${_describe(target)}');
+    }
+    if (element.hidden != null) throw AgentError('${_describe(target)} is not presented (${element.hidden})');
+    return element;
+  }
+
+  _Point _pointOf(Target target) {
+    if (target.isPoint) return _Point(target.x!, target.y!);
+    final element = _presented(target);
+    return _Point(element.cx, element.cy, element);
+  }
+
+  // What a scroll brings in is all there, not cut by the window's edge, where a press may find it half under a tab
+  // bar and push it on. One taller than the window has its center in.
+  bool _whollyInWindow(Item e) {
+    final w = windowSize();
+    if (!_inWindow(e)) return false;
+    return e.frame.height > w.height || (e.frame.top >= 0 && e.frame.bottom <= w.height);
+  }
+
+  bool _inWindow(Item e) {
+    final w = windowSize();
+    return !e.offscreen && e.cx >= 0 && e.cy >= 0 && e.cx <= w.width && e.cy <= w.height;
+  }
+
+  // An element still sliding in would be tapped where it was. Two identical measurements 40 ms apart mean it has
+  // landed. A fling coasts for a while, and a finger that lands on it stops the scroll where it is: wait it out, or
+  // the screen depends on when the tap came.
+  Future<_Point> _settled(Target target, {int timeoutMs = 3000}) async {
+    final deadline = _ms() + timeoutMs;
+    var looks = 0;
+    bool waiting() => _ms() < deadline || looks < _minSettleLooks;
+    // A control still becoming interactive (a sheet sliding in) reads as inert for a moment, and one a passing layer
+    // covers (a loading dialog the page below opened) reads as behind it: wait either out within the same deadline
+    // before calling it not presented, as a person waits for the spinner to go.
+    bool inert() => !target.isPoint && find(target)?.hidden == 'inert';
+    bool behind() => !target.isPoint && find(target) == null && pickBehind(_elements(), target) != null;
+    bool blocked() => inert() || behind();
+    _Point? look() {
+      try {
+        return _pointOf(target);
+      } on AgentError catch (error) {
+        if (waiting() && error.message.contains('is not presented (')) return null;
+        rethrow;
+      }
+    }
+
+    while (blocked() && waiting()) {
+      looks++;
+      await _sleep(40);
+    }
+    var previous = look();
+    while (waiting()) {
+      looks++;
+      await _sleep(40);
+      if (blocked()) continue;
+      final current = look();
+      if (current == null) continue;
+      final before = previous?.element;
+      if (current.element == null || (before != null && _sameFrame(current.element!, before))) return current;
+      previous = current;
+    }
+    return previous ?? _pointOf(target);
+  }
+
+  Future<_Point> _pressNative(Target target, int holdMs) async {
+    var point = await _settled(target);
+    // A target the keyboard covers is out of a finger's reach: close the keyboard first and measure again once the
+    // layout moves back. One above it is tapped with the keyboard up, as a person taps a suggestion under a search
+    // field, which closing the keyboard would take away.
+    if (point.element?.kind != 'input' && point.y > _aboveKeyboard() && _elements().any((e) => e.focused)) {
+      touch.dismissKeyboard();
+      await _sleep(300);
+      point = await _settled(target);
+    }
+    await _tap(Offset(point.x, point.y), holdMs);
+    return point;
+  }
+
+  /// A drag by points (a driver scrolling the window) moved up above the keyboard, when it would touch it: on a phone a
+  /// finger there types, and the app's content under it never sees the drag. Shorter only when it does not fit.
+  (Offset, Offset) _offKeyboard(Offset from, Offset to) {
+    const margin = 8.0;
+    final top = _aboveKeyboard() - margin;
+    final lowest = math.max(from.dy, to.dy);
+    if (lowest <= top) return (from, to);
+    final length = (from.dy - to.dy).abs();
+    final room = math.max(top - margin, 0.0);
+    final scale = length > room && length > 0 ? room / length : 1.0;
+    double place(double y) => top - (lowest - y) * scale;
+    return (Offset(from.dx, place(from.dy)), Offset(to.dx, place(to.dy)));
+  }
+
+  /// Where the keyboard starts, in points from the top: the window's height less the inset the keyboard takes.
+  double _aboveKeyboard() {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    final view = dispatcher.implicitView ?? dispatcher.views.first;
+    return windowSize().height - view.viewInsets.bottom / view.devicePixelRatio;
+  }
+
+  Future<Map<String, Object?>> _press(Map<String, Object?> p) async {
+    final target = Target.parse(p);
+    // A finger cannot reach what is outside the window, so bring it in first.
+    final known = target.isPoint ? null : find(target);
+    if (known != null && known.hidden == null && !_inWindow(known)) {
+      await _waitFor({'target': target.toJson(), 'scroll': true, 'timeoutMs': 5000});
+    }
+    return {...(await _pressNative(target, _int(p['holdMs']) ?? 50)).toJson(), 'mode': 'native'};
+  }
+
+  Future<Map<String, Object?>> _type(Map<String, Object?> p) async {
+    final text = p['text'];
+    if (text is! String) throw AgentError('type needs text');
+    final targetJson = p['target'];
+    final target = targetJson == null ? null : Target.parse(targetJson);
+    Item? element;
+    if (target != null) {
+      final found = find(target);
+      if (found?.kind == 'input' && found?.hidden == 'inert') {
+        element = found;
+      } else {
+        // As press does: a field its list clips (a form under the keyboard) is scrolled in before the finger lands.
+        if (found != null && found.hidden == null && !_inWindow(found)) {
+          await _waitFor({'target': target.toJson(), 'scroll': true, 'timeoutMs': 5000});
+        }
+        element = (await _pressNative(target, 50)).element;
+        // The field needs a frame to take focus and attach to the keyboard before it accepts input.
+        await _sleep(80);
+        // A screen that makes room for the keyboard moves the field meanwhile; wait it out like a person would.
+        await _settled(target);
+      }
+    }
+    if (p['clear'] == true) {
+      final current = _elements().where((e) => e.focused).firstOrNull?.value ?? element?.value ?? '';
+      if (current.isNotEmpty) touch.clearText();
+    }
+    if (p['paste'] == true) {
+      touch.typeText(text);
+    } else {
+      // A field that formats on every change races keys that come faster than a frame.
+      for (final char in text.characters) {
+        touch.typeText(char);
+        await _sleep(25);
+      }
+    }
+    if (p['submit'] == true) touch.submit();
+    return {'typed': text, if (element != null) 'element': element.toJson()};
+  }
+
+  Future<Map<String, Object?>> _swipe(Map<String, Object?> p) async {
+    final window = windowSize();
+    final width = window.width;
+    final height = window.height;
+    final durationMs = _int(p['durationMs']) ?? 250;
+    final direction = p['direction'] is String ? p['direction'] as String : null;
+    if (p['target'] != null) {
+      final target = Target.parse(p['target']);
+      final landed = await _settled(target);
+      final element = landed.element ?? _presented(target);
+      final dir = direction ?? 'up';
+      final distance = _double(p['distance']) ?? (dir == 'up' || dir == 'down' ? height : width) * 0.6;
+      final dx = dir == 'left' ? -distance : (dir == 'right' ? distance : 0.0);
+      final dy = dir == 'up' ? -distance : (dir == 'down' ? distance : 0.0);
+      // Keep the finger inside the target, and clip the end at the window, using the edge that maximizes the drag.
+      const inset = 8.0;
+      final f = element.frame;
+      var fromX = dx < 0 ? f.right - inset : (dx > 0 ? f.left + inset : element.cx);
+      var fromY = dy < 0 ? f.bottom - inset : (dy > 0 ? f.top + inset : element.cy);
+      fromX = fromX.clamp(inset, width - inset);
+      fromY = fromY.clamp(inset, height - inset);
+      final from = Offset(fromX, fromY);
+      final to = Offset((fromX + dx).clamp(inset, width - inset), (fromY + dy).clamp(inset, height - inset));
+      await _drag(from, to, durationMs);
+      return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
+    }
+    final presets = {
+      'up': (Offset(width / 2, height * 0.7), Offset(width / 2, height * 0.3)),
+      'down': (Offset(width / 2, height * 0.3), Offset(width / 2, height * 0.7)),
+      'left': (Offset(width * 0.8, height / 2), Offset(width * 0.2, height / 2)),
+      'right': (Offset(width * 0.2, height / 2), Offset(width * 0.8, height / 2)),
+    };
+    final preset = direction == null ? null : presets[direction];
+    final asked = (_offset(p['from']) ?? preset?.$1, _offset(p['to']) ?? preset?.$2);
+    if (asked.$1 == null || asked.$2 == null) throw AgentError('swipe needs a direction, a target, or from/to points');
+    final (from, to) = _offKeyboard(asked.$1!, asked.$2!);
+    await _drag(from, to, durationMs);
+    return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
+  }
+
+  // Whether every vertical scroller is at its end in a direction: its bottom, or its top when [up]. A swipe that did
+  // not move a list short of its end (one sent while a page still slid in) says nothing about where the list ends.
+  bool _atEdge(bool up) {
+    var all = true;
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        if (position.axis == Axis.vertical && position.hasPixels && position.hasContentDimensions) {
+          all &= up ? position.pixels <= position.minScrollExtent + 1 : position.pixels >= position.maxScrollExtent - 1;
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return all;
+  }
+
+  // Every vertical scroller's offset and extent, in tree order.
+  List<String> _verticalScrolls() {
+    final out = <String>[];
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        if (position.axis == Axis.vertical && position.hasPixels && position.hasContentDimensions) {
+          out.add('${position.pixels.round()}/${position.maxScrollExtent.round()}');
+        }
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return out;
+  }
+
+  // Until the vertical scrollers have held still for 120 ms (at most 3 s): a carousel turning on its own does not count.
+  Future<void> _listsSettled() async {
+    final started = _ms();
+    var last = _verticalScrolls();
+    var stillSince = _ms();
+    while (_ms() - started < 3000 && _ms() - stillSince < 120) {
+      await _sleep(40);
+      final now = _verticalScrolls();
+      if (!listEquals(now, last)) {
+        last = now;
+        stillSince = _ms();
+      }
+    }
+  }
+
+  // Where every scroller is, and whether one is still moving on its own.
+  List<double> _scrollState() {
+    final out = <double>[];
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is ScrollableState) {
+        final position = (e.state as ScrollableState).position;
+        out.add(position.hasPixels ? position.pixels : -1);
+        if (position.isScrollingNotifier.value) out.add(double.infinity);
+      }
+      e.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return out;
+  }
+
+  // A swipe answers once what it set moving has stopped: a fling coasting, a header collapsing. On a device the time
+  // between two commands usually covers it; on a host whose clock barely moves between commands it does not, and the
+  // next swipe would land on a list still moving. Still for 120 ms, as the scroll in waitFor; a scroller that never
+  // stops (an auto-advancing carousel) is let go after 3 s.
+  Future<int> _scrollsSettled({int timeoutMs = 3000}) async {
+    final started = _ms();
+    var last = _scrollState();
+    var stillSince = _ms();
+    while (_ms() - started < timeoutMs) {
+      await _sleep(40);
+      final now = _scrollState();
+      if (now.contains(double.infinity) || !listEquals(now, last)) {
+        last = now;
+        stillSince = _ms();
+      } else if (_ms() - stillSince >= 120) {
+        break;
+      }
+    }
+    return _ms() - started;
+  }
+
+  // Towards an element that is known but outside the window, or onwards when it has not been built yet; over its own
+  // scroller when it has one.
+  Future<void> _swipeTowards(List<Item> all, Item? target, bool back) async {
+    final win = windowSize();
+    Item? scroller;
+    for (var p = target?.parent; p != null && scroller == null; p = all[p].parent) {
+      if (all[p].kind == 'scroll') scroller = all[p];
+    }
+    if (scroller == null) {
+      final scrolls = all.where((e) => e.kind == 'scroll' && e.hidden == null).toList()
+        ..sort((a, b) => (b.frame.width * b.frame.height).compareTo(a.frame.width * a.frame.height));
+      scroller = scrolls.firstOrNull;
+    }
+    final box = scroller?.frame ?? Offset.zero & win;
+    final left = math.max(box.left, 0.0);
+    final top = math.max(box.top, 0.0);
+    final right = math.min(box.right, win.width);
+    // A finger on the keyboard types; the drag has to start and end above it.
+    final bottom = math.min(box.bottom, _aboveKeyboard());
+    final cx = (left + right) / 2;
+    final cy = (top + bottom) / 2;
+    final dx = (right - left) * 0.3;
+    final dy = (bottom - top) * 0.3;
+    final at = target == null ? null : Offset(target.cx, target.cy);
+    // The finger travels along the target's own row or column: a drag anywhere else on the scroller may belong to
+    // something else (a pager of tabs).
+    if (at != null && (at.dx < 0 || at.dx > win.width) && at.dy >= 0 && at.dy <= win.height) {
+      final forward = at.dx > win.width;
+      await _drag(Offset(cx + (forward ? dx : -dx), at.dy), Offset(cx + (forward ? -dx : dx), at.dy), 250);
+      return;
+    }
+    final up = at == null ? back : at.dy < top;
+    final x = at == null ? cx : at.dx.clamp(left + 1, right - 1);
+    // Held still before the finger lifts, so the list stops where the finger left it: a fling would carry it more
+    // than a window past a row that was being built, or swing it back and forth over one that is known. Towards a
+    // known row, about the distance that centers it.
+    final half = at == null ? dy : math.min((at.dy - cy).abs(), dy * 2) / 2;
+    await _drag(Offset(x, cy + (up ? -half : half)), Offset(x, cy + (up ? half : -half)), 250, holdMs: 120);
+  }
+
+  // Nothing the app does on its own is under way: no request out, no one-shot timer of its due within [withinMs], no
+  // animation running to an end. False when the binding cannot tell.
+  bool _workDone(int withinMs) {
+    final frames = capture;
+    if (frames == null) return false;
+    final now = _ms();
+    return (network?.inFlight ?? 0) == 0 &&
+        !frames.loadingImages &&
+        !frames.animating &&
+        !frames.timerDue(longestMs: withinMs, beforeMs: now + withinMs, sinceMs: now);
+  }
+
+  Future<Map<String, Object?>> _waitFor(Map<String, Object?> p) async {
+    final target = p['target'] == null ? null : Target.parse(p['target']);
+    final anyOf = p['anyOf'] is List ? (p['anyOf']! as List).map(Target.parse).toList() : null;
+    final gone = p['gone'] == true;
+    final enabled = p['enabled'] is bool ? p['enabled'] as bool : null;
+    final scroll = p['scroll'] == true;
+    final route = p['route'] is String ? p['route'] as String : null;
+    if (anyOf != null && gone) throw AgentError('waitFor: gone takes one target, not anyOf');
+    var swipes = 0;
+    var lastSwipe = 0;
+    var settledAt = -1;
+    // A target that is not built yet gives no direction: go down until the list stops moving, then back up, and give
+    // up when that stops moving too.
+    var back = false;
+    var before = '';
+    var moving = '';
+    var movedAt = 0;
+    // Whether the lists moved: where every vertical scroller is and how far it reaches. Not the elements' frames, which
+    // something animating inside a list (a bouncing star, a carousel) keeps changing at the list's end.
+    String shape(List<Item> all) => _verticalScrolls().join('|');
+    final started = _ms();
+    final deadline = started + (_int(p['timeoutMs']) ?? 5000);
+    while (true) {
+      final current = currentRoute();
+      final routeOk = route == null || current == route;
+      final all = target != null || anyOf != null ? _elements() : <Item>[];
+      final found = target == null ? null : pick(all, target);
+      // Enabled means it takes a touch now: a control under something that blocks touches reads as enabled but inert.
+      bool stateOk(Item? e) =>
+          e != null && (enabled == null || (e.enabled == enabled && (!enabled || e.hidden != 'inert')));
+      final present = target == null ? true : stateOk(found) && !(scroll && !_whollyInWindow(found!));
+      final targetOk = gone ? !present : present;
+      final matched = anyOf?.where((t) => stateOk(pick(all, t))).firstOrNull;
+      final anyOk = anyOf == null || matched != null;
+      // A list a swipe set coasting can carry the target in and out again: found while it moves, it counts once the
+      // lists have stopped and it is still there, so the next step does not reach for a row that has gone by.
+      if (routeOk && targetOk && anyOk && scroll && swipes > 0 && lastSwipe > settledAt) {
+        await _listsSettled();
+        settledAt = _ms();
+        continue;
+      }
+      if (routeOk && targetOk && anyOk) {
+        return {'route': ?current, if (matched != null) 'matched': matched.toJson(), 'waitedMs': _ms() - started};
+      }
+      // A screen that closes itself (a success screen) can come and go before the wait looks: reached after the mark
+      // counts.
+      final since = _int(p['since']);
+      if (route != null && since != null && target == null && anyOf == null && !gone) {
+        final reached = _trace.any((e) => (e['seq']! as int) > since && e['kind'] == 'route' && e['route'] == route);
+        if (reached) return {'route': ?current, 'waitedMs': _ms() - started, 'passed': true};
+      }
+      if (_ms() > deadline) {
+        throw AgentError(
+          'Timed out waiting for ${route ?? ''} ${target == null ? '' : _describe(target)}${gone ? ' to disappear' : ''} (on $current)',
+        );
+      }
+      // A scroller keeps moving after the finger lifts. The next swipe waits for it to stop, so that whether one more
+      // is needed is decided where the scroll ends, not on its way.
+      final now = shape(all);
+      if (now != moving) {
+        moving = now;
+        movedAt = _ms();
+      }
+      final still = _ms() - movedAt >= 120 || _ms() - lastSwipe > 3000;
+      // A list that loads more at its end holds still there while the next page comes (a spinner in its footer): it
+      // is only the end once nothing that could bring more is under way (no request out, no timer of the app's due,
+      // nothing animating), or, where that cannot be known, once it has stayed put a while.
+      final stuck = found == null && swipes > 0 && now == before;
+      final ended = stuck && (_ms() - movedAt >= _listEndMs || (still && _atEdge(back) && _workDone(_listEndMs)));
+      if (scroll && target != null && !gone && swipes < 30 && still && _ms() - lastSwipe > 400 && (!stuck || ended)) {
+        if (ended) {
+          if (back) swipes = 30;
+          back = true;
+        }
+        before = shape(all);
+        await _swipeTowards(all, found, back);
+        swipes += 1;
+        lastSwipe = _ms();
+        continue;
+      }
+      await _sleep(40);
+    }
+  }
+
+  // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure.
+  //
+  // Not quiet while work that ends on its own is under way, so that the screen it answers on, and the capture frame,
+  // are of the state that work ends in on any side (capture.dart): a one-shot timer the app set for no longer than
+  // [timeoutMs] (a page's 2 s load, a toast's dismissal), or one its launch set; an animation that runs to an end; a
+  // request the app made since the last answer (a device's can take seconds where a host replays it at once). The
+  // timers and the requests are waited for past the timeout, up to [_waitedOutMs] more, as they end at a time of their
+  // own. A request that was already out at the last answer (a long poll) keeps the app busy, but only until the
+  // timeout. An animation keeps the app from being quiet within the timeout, and past it when waited-out work set it
+  // off.
+  //
+  // The answer comes with the capture frame drawn and held when something loops on screen (capture.dart).
+  Future<Map<String, Object?>> _idle(Map<String, Object?> p) async {
+    final quietMs = _int(p['quietMs']) ?? 150;
+    final after = _int(p['after']);
+    final timeoutMs = _int(p['timeoutMs']) ?? 3000;
+    final started = _ms();
+    var deadline = started + timeoutMs;
+    final latest = deadline + _waitedOutMs;
+    final since = _answeredAt;
+    var lastCommit = _commitCount();
+    var quietSince = _ms();
+    var arrived = after == null || lastCommit > after;
+    var waited = false;
+    var heldBy = const <String>[];
+    Map<String, Object?>? answer;
+    while (answer == null && _ms() < deadline) {
+      await _sleep(30);
+      final now = _ms();
+      final commit = _commitCount();
+      if (after != null && commit > after) arrived = true;
+      final requested = (network?.inFlightSince(since) ?? 0) > 0;
+      final timer = capture?.timerDue(longestMs: timeoutMs, beforeMs: latest, sinceMs: started) ?? false;
+      final decoding = capture?.loadingImages ?? false;
+      // An animation a step starts itself (a page sliding in, a switch's thumb) ends within the quiet a frame's settle
+      // asks for; one that waited-out work sets off may start at its end, and is waited for as well.
+      final animating = waited && (capture?.animating ?? false);
+      waited |= requested || timer || decoding;
+      // What a waited-out timer or answer sets off (a toast fading, an image fading in) is waited for as well.
+      if (requested || timer || animating) {
+        deadline = math.min(latest, math.max(deadline, now + quietMs + 60));
+      }
+      // A timer or an animation still to end keeps the answer back, but does not start the quiet over: what it
+      // changes when it ends does, as any change. An image still being loaded or decoded (an asset's icon) is drawn a
+      // moment later, as soon on one side as late on the other.
+      final busy = await _busy();
+      final changed = commit != lastCommit;
+      if (changed || requested || decoding || busy) {
+        lastCommit = commit;
+        quietSince = now;
+      } else if (arrived && now - quietSince >= quietMs && !timer && !animating) {
+        answer = {'commit': commit, 'idle': true};
+      }
+      final why = [
+        if (changed) 'change',
+        if (requested) 'request',
+        if (timer) 'timer',
+        if (animating) 'animation',
+        if (decoding) 'image',
+        if (busy) 'busy',
+      ];
+      if (why.isNotEmpty) heldBy = why;
+    }
+    answer ??= {'commit': _commitCount(), 'idle': false};
+    // What made an idle wait past its quiet shows in the trace: what a step's settle costs, and why.
+    final took = _ms() - started;
+    if (took > quietMs + 250) record({'kind': 'idle', 'ms': took, 'idle': answer['idle'], 'last': heldBy});
+    _answeredAt = _ms();
+    if (answer['idle'] == true) capture?.endLaunch();
+    await capture?.capture(stillServing: () => serving > 0);
+    return answer;
+  }
+
+  // The system back: what the engine sends for Android's back button, which pops the top route, a dialog first.
+  Future<Map<String, Object?>> _back() async {
+    final navigators = <NavigatorState>[];
+    void visit(Element e) {
+      if (e is StatefulElement && e.state is NavigatorState) navigators.add(e.state as NavigatorState);
+      e.debugVisitOnstageChildren(visit);
+    }
+
+    final root = WidgetsBinding.instance.rootElement;
+    if (root != null) visit(root);
+    if (!navigators.any((n) => n.canPop())) throw AgentError('Nothing to go back to');
+    await touch.fromPlatform('flutter/navigation', const MethodCall('popRoute'));
+    await _drawn();
+    return {'route': ?currentRoute()};
+  }
+
+  // A route pushed or popped is only in the navigator until a frame builds it: answering before that let the next
+  // read find the page the app was leaving, still presented, and a press right after find nothing.
+  Future<void> _drawn() async {
+    final binding = SchedulerBinding.instance;
+    binding.ensureVisualUpdate();
+    await binding.endOfFrame.timeout(const Duration(seconds: 1), onTimeout: () {});
+  }
+}

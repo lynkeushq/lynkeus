@@ -1,0 +1,67 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+
+/*
+ * The folder `case run --net-cache` names: remote fetches a reference run recorded, which a host answers from while
+ * it stays off the internet. Its layout is the React Native host's --net_cache: one file per URL, named by the first
+ * 16 bytes of the URL's SHA-256 in hex, holding the body; `<name>.json` beside it keeps the URL, status and headers.
+ */
+
+export type NetCacheEntry = { method?: string; url: string; status: number; headers: Record<string, string>; body: string };
+
+/** The file a URL is kept in. */
+export const netCacheName = (url: string): string => crypto.createHash('sha256').update(url).digest('hex').slice(0, 32);
+
+/**
+ * Writes recorded fetches (bodies in base64) into the folder; returns how many and how many bytes of body. A HEAD (a
+ * connectivity check) keeps its status and headers beside an empty body, which the React Native host reads as a URL
+ * it does not have; it never replaces what a GET of the same URL recorded.
+ */
+export const writeNetCache = (dir: string, entries: NetCacheEntry[]): { files: number; bytes: number } => {
+  fs.mkdirSync(dir, { recursive: true });
+  let bytes = 0;
+  let files = 0;
+  for (const e of entries) {
+    const name = netCacheName(e.url);
+    const head = e.method === 'HEAD';
+    if (head && fs.existsSync(path.join(dir, `${name}.json`))) continue;
+    const body = head ? Buffer.alloc(0) : Buffer.from(e.body, 'base64');
+    fs.writeFileSync(path.join(dir, name), body);
+    const meta = { url: e.url, status: e.status, headers: e.headers, ...(head ? { method: 'HEAD' } : {}) };
+    fs.writeFileSync(path.join(dir, `${name}.json`), `${JSON.stringify(meta, null, 2)}\n`);
+    bytes += body.length;
+    files += 1;
+  }
+  return { files, bytes };
+};
+
+type Commands = { command: (name: string, params?: unknown) => Promise<unknown> };
+
+/** Asks the app's agent to record (or stop recording) its remote fetches; false when this agent cannot. */
+export const startNetRecord = async (device: Commands, credentials: boolean): Promise<boolean> =>
+  device.command('netcache', { record: true, credentials }).then(
+    () => true,
+    () => false,
+  );
+
+/** Takes what the agent recorded, a piece at a time, into the folder. */
+export const takeNetRecord = async (device: Commands, dir: string): Promise<{ files: number; bytes: number }> => {
+  const total = { files: 0, bytes: 0 };
+  for (let pieces = 0; pieces < 100; pieces++) {
+    const got = (await device.command('netcache', { take: true })) as { entries?: NetCacheEntry[]; left?: number };
+    const written = writeNetCache(dir, got.entries ?? []);
+    total.files += written.files;
+    total.bytes += written.bytes;
+    if (!got.left) break;
+  }
+  return total;
+};
+
+/**
+ * What a host the run starts is told: the folder it replays from, or, when the run records, to record from its launch,
+ * before the driver attaches (what an app fetches as it starts, a connectivity check or its first screen's data, is
+ * otherwise lost).
+ */
+export const netCacheEnv = (dir: string | undefined, record: boolean, credentials: boolean): NodeJS.ProcessEnv =>
+  record ? { LYNKEUS_NET_RECORD: credentials ? 'credentials' : '1' } : dir ? { LYNKEUS_NET_CACHE: dir } : {};

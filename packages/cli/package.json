@@ -20,9 +20,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --import tsx --test src/__tests__/*.test.ts src/knowledge/__tests__/*.test.ts src/cases/__tests__/*.test.ts",
+    "test": "node --import tsx --test src/__tests__/*.test.ts src/knowledge/__tests__/*.test.ts src/cases/__tests__/*.test.ts src/runtimes/*/__tests__/*.test.ts",
     "dev": "tsx src/cli.ts",
-    "docs": "node lib/cli.js help --markdown > ../../docs/COMMANDS.md"
+    "docs": "node lib/cli.js help --markdown > ../../docs/COMMANDS.md",
+    "goldens:rn": "node scripts/goldens-rn.mjs",
+    "check:boundary": "node scripts/check-runtime-boundary.mjs"
   },
   "repository": {
     "type": "git",

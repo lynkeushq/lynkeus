@@ -20,6 +20,7 @@ import { plan } from '../knowledge/plan.js';
 import { describeTreeDiff, diffTrees, screenTree } from '../knowledge/tree.js';
 import { type Ctx, define } from '../registry.js';
 import { execute } from '../runtime.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { parseTarget } from '../targets.js';
 import { crawl } from './crawl.js';
 import { describeFlake, summarizeRuns } from './flake.js';
@@ -210,7 +211,7 @@ export const runsCommands = [
     summary: 'Open every parameter-free route (or the prefixes given) and record what renders',
     positionals: [{ name: 'Route.Prefix', help: 'only routes under these prefixes', rest: true }],
     flags: {
-      params: { type: 'string', help: 'route params type map, relative to the app', value: 'file' },
+      params: { type: 'string', help: 'route params type map, relative to the app (React Native; Flutter reads them with its routes)', value: 'file' },
       screenshots: { type: 'boolean', help: 'one capture per screen' },
       ...OVERLAY_FLAGS,
     },
@@ -233,6 +234,7 @@ export const runsCommands = [
         overlay: overlayOf(ctx.flags),
         appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
         errorCopy: anyOf(ctx.config.errorCopy),
+        routeParams: (await runtimeAt(ctx.root)).routeParams(ctx.root, ctx.flags.params as string | undefined, graph),
         onResult: (r) =>
           ctx.err(
             `  ${r.ok ? '✓' : '✗'} ${String(r.ms).padStart(5)}ms ${r.route.padEnd(36)} ${String(r.elements).padStart(3)} el${r.problems.length ? `  ${r.problems.join('; ')}` : ''}`,

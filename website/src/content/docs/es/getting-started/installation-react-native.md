@@ -7,6 +7,8 @@ Esta página instala Lynkeus en una app creada con React Native CLI. Al terminar
 
 Si tu app usa Expo, sigue [Instalación en Expo](/es/getting-started/installation-expo/): los pasos cambian.
 
+Si tu app es de Flutter, la preparación es otra: sigue [Flutter](/es/platforms/flutter/).
+
 ## Qué vas a instalar
 
 Son dos paquetes, y hacen cosas distintas.

@@ -121,7 +121,7 @@ const signature = (c: Command): string => {
 const inGroups = () => (Object.keys(GROUPS) as Group[]).map((g) => ({ ...GROUPS[g], list: all.filter((c) => c.group === g) })).filter((g) => g.list.length);
 
 export const usage = (): string => {
-  const lines = ['Lynkeus — drive a React Native app from the outside, through the agent inside it', ''];
+  const lines = ['Lynkeus — drive a React Native or Flutter app from the outside, through the agent inside it', ''];
   for (const g of inGroups()) {
     lines.push(`${g.title} — ${g.blurb}`);
     for (const c of g.list) {

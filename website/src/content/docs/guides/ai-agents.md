@@ -9,7 +9,7 @@ An AI agent that tests an app from screenshots pays twice: each picture costs ma
 
 ## Before you start
 
-- A React Native app, bare or Expo, that you can build and open in a simulator or emulator.
+- A React Native app, bare or Expo, or a [Flutter](/platforms/flutter/) app, that you can build and open in a simulator or emulator.
 - An AI client that supports MCP servers over stdio.
 
 :::note[Since 0.4.0]
@@ -44,7 +44,7 @@ Set lynkeus up in this app.
 
 The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file.
 
-The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
+The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. In a Flutter project (a `pubspec.yaml` that depends on `flutter`), `init` edits `pubspec.yaml` and `lib/main.dart` instead, and the app is run with `flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`; the headless host needs `FLUTTER_ROOT` or `flutter` on `PATH` (see [Flutter](/platforms/flutter/)). An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
 
 To run without a simulator, ask it to set the app up headless: `headless_init` installs jest, Testing Library and `lynkeus-headless` and writes the entry, `headless_doctor` names any native module still to mock, and cases then run in Node with `case_run` and `host`. The app's backend must be local; `apiUrl` in `lynkeus.config.json` gives it to the host.
 

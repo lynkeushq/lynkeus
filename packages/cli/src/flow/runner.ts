@@ -2,6 +2,7 @@ import path from 'node:path';
 
 import type { Element } from 'lynkeus-protocol';
 
+import { hostedHeadless } from '../device/agentVersion.js';
 import type { Device } from '../device/driver.js';
 import { writeJson } from '../files.js';
 import { drainEvents, type RunEvent, writeEvents } from '../knowledge/events.js';
@@ -144,7 +145,7 @@ const execute = async (step: FlowStep, flow: Flow, device: Device, vars: Record<
       ));
     if (step.launch.clean && hello) await device.command('reset').catch(() => undefined);
     // A headless host has no process to relaunch; the reset was the fresh start.
-    if (hello?.app?.runtime === 'headless') return;
+    if (hostedHeadless(hello)) return;
     const appId = step.launch.appId ?? flow.appId ?? device.appId;
     if (!appId) throw new Error('launch needs an appId (step, flow, or --app)');
     await device.launchApp(appId, { fresh: step.launch.fresh ?? true });

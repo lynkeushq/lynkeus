@@ -224,15 +224,17 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install]`
+### `lynkeus init [--no-install] [--runtime <react-native|flutter>] [--headless]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
-React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
+React Native, Expo (an Expo Router app gets an entry of its own) or Flutter (adds lynkeus_agent to pubspec.yaml and starts it from lib/main.dart; run the app with `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
 
 | Flag | |
 |---|---|
-| `--no-install` | do not add lynkeus-agent to the app; mount it only |
+| `--no-install` | do not add the agent package to the app; mount it only |
+| `--runtime <react-native|flutter>` | react-native or flutter (default: what this folder is) |
+| `--headless` | Flutter: also add lynkeus_headless to dev_dependencies, to run with `case run --host` |
 
 ### `lynkeus status [--offline]`
 
@@ -411,6 +413,8 @@ what Lynkeus knows before touching anything, from the app's source and from walk
 
 Read the source once: routes, testIDs, navigations → .lynkeus/graph.json
 
+In a React Native app, from React Navigation in TypeScript. In a Flutter app (a pubspec that takes flutter from the SDK, in a folder that is not also a React Native app), from the Dart under lib/, with no Dart SDK needed: go_router routes (nested, shell, typed), a Navigator's named routes and onGenerateRoute, paths a router of the app's own registers with a builder, and widgets pushed without a name, named after their class. What it cannot read is printed as a warning with its file and line and kept in the graph's warnings.
+
 | Flag | |
 |---|---|
 | `--as-base` | also keep it as graph.base.json, for `map check` to diff against |
@@ -572,7 +576,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 | Flag | |
 |---|---|
-| `--params <file>` | route params type map, relative to the app |
+| `--params <file>` | route params type map, relative to the app (React Native; Flutter reads them with its routes) |
 | `--screenshots` | one capture per screen |
 | `--overlay-when <target>` | a target the app raises on its own (a lock screen, a rating prompt) |
 | `--overlay-flow <flow.json>` | the flow that clears it |
@@ -630,7 +634,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--net-cache <dir>] [--net-record] [--net-record-credentials] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -673,6 +677,9 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
 | `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
+| `--net-cache <dir>` | a folder of recorded remote fetches (the React Native host's --net_cache): a Flutter host answers from it what its network fence blocks |
+| `--net-record` | with --net-cache: the app's agent records each successful remote GET into it (on a device, or a host with its fence opened); a Flutter agent only |
+| `--net-record-credentials` | with --net-record: also record requests that sent an Authorization header or cookies |
 | `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |
 | `--in-order` | with --jobs: take the cases in the order given, not the longest first |
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
@@ -892,22 +899,23 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 | `--prefix <path>` | allowed backend path prefix (default `/api/mobile/`) |
 | `--ttl <seconds>` | session lifetime in seconds (max 3600) (default `900`) |
 
-### `lynkeus fastsim install [--version <version>] [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--force] [--no-browser]`
+### `lynkeus fastsim install [--version <version>] [--platform <ios|android>] [--runtime <react-native|flutter>] [--variant <name>] [--cloud <url>] [--force] [--no-browser]`
 
 Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.
+Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). A Flutter app (a pubspec.yaml in a folder whose package.json does not depend on react-native, or --runtime flutter) gets the Flutter host, one build per machine for both platforms (darwin-arm64-flutter, linux-arm64-flutter, linux-x64-flutter; --platform does not apply, the run picks iOS or Android): it runs the app's own debug kernel, so bundle it as the Simulator or emulator build is made (`flutter build bundle --debug --no-track-widget-creation` with the same --dart-define values), then `lynkeus case run --host-command "<kit>/bin/fastsim-run <bundle dir> {port}"`. With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
 | `--version <version>` | release to install (default `latest`) |
-| `--platform <ios|android>` | the platform it draws: ios or android (default `ios`) |
+| `--platform <ios|android>` | the platform it draws: ios or android (React Native; a Flutter build draws both) (default `ios`) |
+| `--runtime <react-native|flutter>` | the app's runtime: react-native or flutter (default: what this folder is; a Flutter app has a pubspec.yaml and no react-native dependency) |
 | `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--force` | download again even when that release is installed |
 | `--no-browser` | when a sign-in is needed, print its address instead of opening it |
 
-### `lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--print]`
+### `lynkeus fastsim grant [--platform <ios|android>] [--runtime <react-native|flutter>] [--variant <name>] [--cloud <url>] [--print]`
 
 Print a fresh grant a Lynkeus FastSim host needs to start, fetched from lynkeus.io (cached for an hour)
 
@@ -915,7 +923,8 @@ Asks lynkeus.io for a grant for the build this machine runs (--platform ios unle
 
 | Flag | |
 |---|---|
-| `--platform <ios|android>` | the platform it draws: ios or android (default `ios`) |
+| `--platform <ios|android>` | the platform it draws: ios or android (React Native; a Flutter build draws both) (default `ios`) |
+| `--runtime <react-native|flutter>` | the app's runtime: react-native or flutter (default: what this folder is; a Flutter app has a pubspec.yaml and no react-native dependency) |
 | `--variant <name>` | a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android) |
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--print` | print the token even at a terminal (it is printed anyway when stdout is a pipe) |
@@ -947,9 +956,9 @@ the app hosted in Node under jest, no simulator.
 
 ### `lynkeus headless start [--entry <file>]`
 
-Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator
+Host the app headless and wait for a driver; same protocol, no simulator (React Native: Node with jest + RNTL; Flutter: flutter test)
 
-Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
+Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest (React Native) or `flutter test` (Flutter). When the host crashes, the last lines say what the error usually means.
 
 | Flag | |
 |---|---|

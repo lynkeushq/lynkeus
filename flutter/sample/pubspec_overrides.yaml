@@ -1,0 +1,4 @@
+# lynkeus_headless asks for a hosted lynkeus_agent; the sample uses the one beside it.
+dependency_overrides:
+  lynkeus_agent:
+    path: ../lynkeus_agent

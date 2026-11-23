@@ -24,8 +24,20 @@ after(() => fixtures.close());
 
 type Call = { method: string; params: unknown };
 
+const projectAt = (files: Record<string, string>) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-project-'));
+  for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), text);
+  return dir;
+};
+const FLUTTER_PUBSPEC = 'name: shop\ndependencies:\n  flutter:\n    sdk: flutter\n';
+const RN_MANIFEST = JSON.stringify({ dependencies: { 'react-native': '0.76.0' } });
+const reactNativeRoot = projectAt({ 'package.json': RN_MANIFEST });
+const flutterRoot = projectAt({ 'pubspec.yaml': FLUTTER_PUBSPEC });
+// A React Native app with a Flutter pubspec beside it keeps its React Native behavior.
+const bothRoot = projectAt({ 'package.json': RN_MANIFEST, 'pubspec.yaml': FLUTTER_PUBSPEC });
+
 // An app with one button that, pressed, shows the points the fixtures hold.
-const fakeApp = () => {
+const fakeApp = (at = root) => {
   const calls: Call[] = [];
   let shown = 'Hello';
   // The app's requests as it numbers them; a press asks for the points again.
@@ -66,7 +78,7 @@ const fakeApp = () => {
     command: async (name: string) => (name === 'events' ? [{ name: 'points_viewed', properties: { points: 25 } }] : {}),
   } as unknown as Device;
   const base: Base = {
-    root,
+    root: at,
     config: {},
     attached: true,
     err: () => undefined,
@@ -143,6 +155,52 @@ test('a wait can ask for its target to be enabled', async () => {
   assert.equal((waited.params as { enabled?: boolean }).enabled, true);
 });
 
+// What one `app.wait: { text }` asked the app for: a route, a target, or nothing (a wait of that many ms).
+const waitForText = async (at: string, text: string, interrupting: boolean) => {
+  const c = parseCase(`---\nid: words\n---\nsteps:\n  - app.wait: { text: ${JSON.stringify(text)} }\n`, 'words.md');
+  const { base, calls } = fakeApp(at);
+  const device = await base.device();
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return { waitedMs: 0 };
+  };
+  const interruptions = interrupting ? [{ see: '#nowhere', do: [{ 'app.press': '#refresh' }] }] : undefined;
+  const report = await runCase(c, { base, config: { ...config, interruptions }, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  const waited = calls.filter((x) => x.method === 'waitFor').map((x) => x.params as { target?: unknown; route?: string });
+  return waited.length === 0 ? 'ms' : waited.map((w) => (w.route !== undefined ? { route: w.route } : { target: w.target }));
+};
+
+test('in a React Native project a wait for { text } reads its value as the CLI does, with or without interruptions', async () => {
+  const meanings: [string, unknown][] = [
+    ['Home', [{ route: 'Home' }]],
+    ['Home.Main', [{ route: 'Home.Main' }]],
+    ['5', 'ms'],
+    ['#id', [{ target: { testId: 'id' } }]],
+    ['go home', [{ target: { text: 'go home' } }]],
+  ];
+  for (const at of [reactNativeRoot, bothRoot])
+    for (const interrupting of [false, true])
+      for (const [text, meaning] of meanings) assert.deepEqual(await waitForText(at, text, interrupting), meaning, `${text}, interruptions: ${interrupting}`);
+});
+
+test('in a Flutter project a wait for { text } waits for that text, whatever it looks like, with or without interruptions', async () => {
+  for (const interrupting of [false, true])
+    for (const text of ['Delete', 'Home.Main', '5', '#id', 'go home', 'Say "Hi"'])
+      assert.deepEqual(await waitForText(flutterRoot, text, interrupting), [{ target: { text } }], `${text}, interruptions: ${interrupting}`);
+  const c = parseCase('---\nid: words\n---\nsteps:\n  - app.wait: { text: \'Say "Hi"\', gone: true }\n  - app.wait: Delete\n', 'words.md');
+  const { base, calls } = fakeApp(flutterRoot);
+  const device = await base.device();
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return { waitedMs: 0 };
+  };
+  await runCase(c, { base, config, fixtures });
+  const waits = calls.filter((x) => x.method === 'waitFor').map((x) => x.params as { target?: unknown; route?: string; gone?: boolean });
+  assert.deepEqual([waits[0]?.target, waits[0]?.gone], [{ text: 'Say "Hi"' }, true]);
+  assert.equal(waits[1]?.route, 'Delete');
+});
+
 test('a wait takes object targets in anyOf, and refuses gone with anyOf', async () => {
   const wait = find('wait')!;
   assert.deepEqual(argvFor(wait, { anyOf: [{ testId: 'a' }, { text: 'b', nth: 1 }, '#c'] }), ['wait', '--anyOf', '#a', '--anyOf', '"b"[1]', '--anyOf', '#c']);
@@ -177,6 +235,22 @@ test('a press names its control by testId, and a type takes a deadline for its f
     Array(2).fill(['passed', undefined]),
   );
   assert.equal(calls.filter((x) => x.method === 'press' && (x.params as { testId?: string }).testId === 'refresh').length, 1);
+});
+
+test('a press given a bare number presses the element at that index, as a quoted one does, in either runtime', async () => {
+  const c = parseCase('---\nid: index\n---\nsteps:\n  - app.press: 5\n  - app.press: "5"\n', 'index.md');
+  for (const at of [reactNativeRoot, flutterRoot]) {
+    const { base, calls } = fakeApp(at);
+    const report = await runCase(c, { base, config, fixtures });
+    assert.deepEqual(
+      report.steps.map((s) => [s.status, s.error]),
+      Array(2).fill(['passed', undefined]),
+    );
+    assert.deepEqual(
+      calls.filter((x) => x.method === 'press').map((x) => (x.params as { i?: number }).i),
+      [5, 5],
+    );
+  }
 });
 
 test('the first step that fails stops the case and leaves the evidence', async () => {
@@ -511,6 +585,62 @@ steps:
   assert.equal(swipes, 2);
 });
 
+// A control listed just below the window: a Flutter app is pulled toward it 110 pt at a time; React Native keeps the
+// screenful it has always pulled first.
+const pullsToJustBelow = async (at: string): Promise<number[]> => {
+  const c = parseCase(
+    `---
+id: just-below
+---
+steps:
+  - app.press: "#refresh"
+`,
+    'just-below.md',
+  );
+  const { base, calls } = fakeApp(at);
+  const device = await base.device();
+  const fake = device as unknown as {
+    server: {
+      hello?: { native: boolean };
+      call: (method: string, params: { testId?: string; from?: { y: number }; to?: { y: number } }) => Promise<unknown>;
+    };
+    screen: () => Promise<unknown>;
+  };
+  const listed = fake.screen;
+  const call = fake.server.call;
+  fake.server.hello = { native: true };
+  const pulls: number[] = [];
+  let y = 870;
+  const screenNow = async () => {
+    const screen = (await listed()) as { elements: { frame: { y: number } }[] };
+    screen.elements[0]!.frame.y = y;
+    return screen;
+  };
+  fake.server.call = async (method, params) => {
+    if (method === 'swipe') {
+      const pull = params.to!.y - params.from!.y;
+      pulls.push(pull);
+      y += pull;
+      return {};
+    }
+    if (method === 'find') return params.testId === 'refresh' ? { ...(await screenNow()).elements[0] } : null;
+    return call(method, params);
+  };
+  fake.screen = screenNow;
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(calls.filter((x) => x.method === 'press').length, 1);
+  return pulls;
+};
+
+test('a control listed just below the window is reached in short pulls in a Flutter app', async () => {
+  assert.deepEqual(await pullsToJustBelow(flutterRoot), [-110]);
+});
+
+test('React Native keeps its screenful pull toward a control just below the window', async () => {
+  for (const at of [reactNativeRoot, bothRoot]) assert.deepEqual(await pullsToJustBelow(at), [-380], at);
+});
+
 test('a step kept to a host whose app has a command runs only there', async () => {
   const c = parseCase(
     `---
@@ -779,6 +909,41 @@ test('with frames on change and a still wait, the looks after a step run before 
       assert.equal(report.steps[1]?.screenshot, report.steps[0]?.screenshot);
       assert.equal(report.steps[2]?.screenshot, report.steps[0]?.screenshot);
     } else assert.ok(shot < lastSee, order.join(' | '));
+  }
+});
+
+test("on a Flutter app, the looks after a step run before its frame's settle, which waits out a toast", async () => {
+  const c = parseCase('---\nid: toast\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n', 'toast.md');
+  for (const runtime of ['flutter', 'react-native']) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot'], app: { runtime } };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      if (name === 'screenshot') {
+        order.push('screenshot');
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-toast-'));
+    const report = await runCase(c, {
+      base,
+      config,
+      fixtures,
+      onStep: (p) => {
+        if (p.status) order.push(`${p.step}:${p.status}`);
+      },
+      evidence: { dir, screenshots: true, settleMs: 700, frames: 'png' },
+    });
+    assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+    const shot = order.indexOf('screenshot');
+    const see = order.findIndex((o) => /see/.test(o));
+    if (runtime === 'flutter') {
+      assert.ok(shot > see, order.join(' | '));
+      assert.equal(report.steps[1]?.screenshot, report.steps[0]?.screenshot);
+    } else assert.ok(shot < see, order.join(' | '));
   }
 });
 

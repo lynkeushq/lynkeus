@@ -47,6 +47,10 @@ export type ScreenNode = {
   /** Null when the component could not be resolved to a file. */
   file: SourcePath | null;
   declaredIn: SourcePath;
+  /** Flutter: what the route needs to open (go_router's `:id`, a required `extra`), so `smoke` leaves it out. */
+  params?: string[];
+  /** Flutter: a widget pushed without a route name; the agent can neither report it as the route nor open it by name. */
+  unnamed?: boolean;
 };
 
 export type ScreenGraph = {

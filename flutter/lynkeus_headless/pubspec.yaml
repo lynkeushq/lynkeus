@@ -1,0 +1,31 @@
+name: lynkeus_headless
+description: Hosts a Flutter app inside `flutter test` for Lynkeus, with no simulator, so the same cases run headless.
+version: 0.7.5
+homepage: https://lynkeus.io
+repository: https://github.com/lynkeushq/lynkeus/tree/main/flutter/lynkeus_headless
+topics:
+  - testing
+  - automation
+  - flutter-test
+  - headless
+  - ui
+
+environment:
+  sdk: ^3.8.0
+  flutter: '>=3.47.9'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  clock: ^1.1.1
+  lynkeus_agent: ^0.7.5
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+
+platforms:
+  linux:
+  macos:
+  windows:

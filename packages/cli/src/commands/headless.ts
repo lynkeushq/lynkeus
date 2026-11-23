@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,8 +8,10 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
+import { chooseRuntime, loadRuntime, runtimeAt } from '../runtimes/index.js';
 import { installedFastsim } from './fastsim.js';
-import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
+import { runHost } from './hostProcess.js';
+import { headlessMissing, init, installHeadless, jestPreset } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -140,14 +141,17 @@ export const headlessCommands = [
     group: 'drive',
     summary: "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
     details:
-      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
-    flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
+      'React Native, Expo (an Expo Router app gets an entry of its own) or Flutter (adds lynkeus_agent to pubspec.yaml and starts it from lib/main.dart; run the app with `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
+    flags: {
+      'no-install': { type: 'boolean', help: 'do not add the agent package to the app; mount it only' },
+      runtime: { type: 'string', help: 'react-native or flutter (default: what this folder is)', value: 'react-native|flutter' },
+      headless: { type: 'boolean', help: 'Flutter: also add lynkeus_headless to dev_dependencies, to run with `case run --host`' },
+    },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const lines = [...(ctx.flags['no-install'] ? [] : [installAgent(ctx.root)]), ...mountAgent(ctx.root)];
-      lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
-      lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
+      const runtime = await loadRuntime(chooseRuntime(ctx.root, ctx.flags.runtime as string | undefined));
+      const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
       return { text: lines.join('\n'), json: lines };
     },
   }),
@@ -160,7 +164,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const checks = setupChecks(ctx.root);
+      const runtime = await runtimeAt(ctx.root);
+      const checks = runtime.setupChecks(ctx.root);
       const ready = checks.every((c) => c.ok);
       if (ready && !ctx.flags.offline) {
         try {
@@ -170,16 +175,11 @@ export const headlessCommands = [
           checks.push({
             what: 'an app is attached',
             ok: false,
-            fix: 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
+            fix: runtime.attachFix,
           });
         }
       }
-      const unloadable = headlessMissing(ctx.root);
-      checks.push({
-        what: unloadable.length ? 'the app can run headless, in Node with no simulator' : 'the app can run headless (jest, Testing Library, lynkeus-headless)',
-        ok: !unloadable.length && fs.existsSync(path.join(ctx.root, entryOf(ctx))),
-        fix: '`lynkeus headless init` installs what it needs and writes its entry; optional',
-      });
+      checks.push(runtime.headlessCheck(ctx.root, entryOf(ctx)));
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
       const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
       checks.push({
@@ -204,9 +204,9 @@ export const headlessCommands = [
   define({
     name: 'headless start',
     group: 'headless',
-    summary: 'Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator',
+    summary: 'Host the app headless and wait for a driver; same protocol, no simulator (React Native: Node with jest + RNTL; Flutter: flutter test)',
     details:
-      "Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.",
+      "Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest (React Native) or `flutter test` (Flutter). When the host crashes, the last lines say what the error usually means.",
     flags: ENTRY_FLAG,
     aliases: ['headless'],
     needs: 'nothing',
@@ -219,6 +219,8 @@ export const headlessCommands = [
           text: 'lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it.',
           code: 1,
         };
+      const runtime = await runtimeAt(ctx.root);
+      if (runtime.startHeadless) return runtime.startHeadless(ctx, token);
       const missing = headlessMissing(ctx.root);
       if (missing.length)
         return { text: `lynkeus headless runs the app under jest and needs ${missing.join(', ')}; \`lynkeus headless init\` installs them.`, code: 1 };
@@ -251,42 +253,9 @@ export const headlessCommands = [
         ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
       };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
-      const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
-        cwd: ctx.root,
-        stdio: ['inherit', 'inherit', 'pipe'],
-        env,
-        // Its own process group: npx, jest and the host it runs end together. Stopping only npx left the
-        // host dialing the port, where a later run's driver took it for the app it meant to drive.
-        detached: true,
-      });
-      const stop = (signal: NodeJS.Signals) => {
-        try {
-          if (child.pid) process.kill(-child.pid, signal);
-        } catch {
-          // already gone
-        }
+      return {
+        code: await runHost(ctx, 'npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], env),
       };
-      const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-      const forward = signals.map((signal) => {
-        const handler = () => stop(signal);
-        process.on(signal, handler);
-        return () => process.off(signal, handler);
-      });
-      const onExit = () => stop('SIGTERM');
-      process.on('exit', onExit);
-      let tail = '';
-      child.stderr?.on('data', (chunk: Buffer) => {
-        process.stderr.write(chunk);
-        tail = (tail + chunk.toString()).slice(-20000);
-      });
-      const code = await new Promise<number>((resolve) => child.on('exit', (c) => resolve(c ?? 0)));
-      for (const off of forward) off();
-      process.off('exit', onExit);
-      if (code) {
-        const found = explainError(tail);
-        if (found.length) ctx.err(describeExplanations(found));
-      }
-      return { code };
     },
   }),
   define({

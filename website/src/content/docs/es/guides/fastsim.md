@@ -3,7 +3,7 @@ title: Correr casos en Lynkeus FastSim
 description: Corre tus casos en Lynkeus FastSim, un simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, e instálalo para la plataforma que pruebas.
 ---
 
-Lynkeus FastSim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. Lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
+Lynkeus FastSim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. También corre apps de Flutter, con un host propio: lo cuenta [Apps de Flutter](#apps-de-flutter). Lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
 
 ## Cuándo usarlo
 
@@ -67,9 +67,29 @@ Lynkeus levanta un host en un puerto libre para cada caso, espera a que la app s
 
 La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.err`; los errores de JavaScript y las líneas de la consola están en el `.err`.
 
+## Apps de Flutter
+
+Una app de Flutter corre en el host de Flutter de FastSim, que carga el kernel de depuración de la app en el propio motor de Flutter. Las keys, el inicio de sesión, los grants y los lugares son los de arriba; cambian el build, el bundle y lo que la app necesita.
+
+- **Un build por máquina, para las dos plataformas**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` lo elige solo en una carpeta cuyo `pubspec.yaml` toma `flutter` del SDK, o con `--runtime flutter`; `--platform` no cuenta. Para probar el grant, `lynkeus fastsim grant --runtime flutter`. El build ocupa unos 57 MB en Mac y 64 MB en Linux, sobre todo por las fuentes de Android, y en Linux necesita zlib y OpenSSL 3 instalados en el sistema (`libssl3` en Debian y Ubuntu). El motor de la versión de Flutter de la app se baja del almacenamiento de Flutter la primera vez que corre esa versión.
+- **El bundle es el kernel de depuración de la app**, armado con tu Flutter. Lo que va después de `--` llega a `flutter build bundle`, así que pásale los mismos `--dart-define` que usan tus builds de depuración:
+
+  ```bash
+  FLUTTER=flutter <carpeta instalada>/bin/fastsim-bundle <carpeta de la app> <carpeta del bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+  npx lynkeus case run <casos> --ports 8232 --host-command "<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}"
+  ```
+
+  Con `android` en vez de `ios`, la app ve un Pixel 9 en lugar de un iPhone 17. Vuelve a empaquetar cada vez que cambie el código Dart. En un Mac, un bundle de `ios` se lleva de tu Flutter los shaders del motor del Simulador de iOS, porque el host dibuja con ellos; si tu Flutter todavía no bajó los archivos de iOS, `fastsim-bundle` se detiene y te pide correr una vez `flutter precache --ios`.
+- **La app arranca el agente antes de que nada inicialice el binding de Flutter** (si tiene un binding propio, hereda de `LynkeusBinding`), y depende de `lynkeus_plugins` si usa sqflite 2.4 o más nuevo (también a través de las imágenes de red en caché) o `SharedPreferencesAsync` de shared_preferences: mira [Preparación](/es/platforms/flutter/#preparación).
+- **Las pantallas de Android se comparan en Linux** y las de iOS en un Mac. Las vistas nativas (web views, mapas, barras de pestañas nativas) se ven como un recuadro gris, y un paso dentro de una falla. Con el aspecto de Android, si a las fuentes de la app les falta un carácter (chino, árabe, emoji), se dibuja con las fuentes de Android que trae el build de Linux.
+
+- **El host de Flutter pone una valla a la red de la app**, solo loopback y `10.0.2.2`, como el headless (`flutterHost.networkHosts` en `lynkeus.config.json` permite más), y `case run --net-cache <carpeta>` responde con lo grabado lo que la valla bloquea; mira [la valla de red](/es/platforms/flutter/#la-valla-de-red).
+
+Los detalles están en la [página de Flutter](/es/platforms/flutter/#lynkeus-fastsim): qué le da el host a la app, las reglas y los límites.
+
 ## Desde un agente de IA por MCP
 
-El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android`, con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor, o con la sesión que guardaste al ejecutar `lynkeus login` en una terminal. El servidor nunca abre un navegador: si no hay key ni sesión guardada, ejecuta tú `lynkeus fastsim install` o `lynkeus login` en una terminal. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
+El [servidor MCP](/es/guides/ai-agents/) ofrece los mismos pasos como herramientas. El agente llama a `fastsim_install` con `platform` en `ios` o `android` (o `runtime` en `flutter`, para una app de Flutter), con `LYNKEUS_CLOUD_KEY` en el entorno donde arrancó el servidor, o con la sesión que guardaste al ejecutar `lynkeus login` en una terminal. El servidor nunca abre un navegador: si no hay key ni sesión guardada, ejecuta tú `lynkeus fastsim install` o `lynkeus login` en una terminal. Luego lee el `README.md` de la carpeta que devuelve la herramienta, ejecuta `bin/fastsim-bundle` para empaquetar la app y llama a `case_run` con `host_command` igual a `<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}`. Para correr casos en paralelo, agrega `jobs`.
 
 ## Qué reemplaza y dónde llega
 

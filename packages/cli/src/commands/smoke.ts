@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Device } from '../device/driver.js';
 import { writeJson } from '../files.js';
 import { problemsOf } from '../knowledge/problems.js';
-import { readRouteParams } from '../knowledge/route-params.js';
+import { type RouteParamsInfo, readRouteParams } from '../knowledge/route-params.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { clearOverlayIfShown, type Overlay } from './overlay.js';
 
@@ -31,12 +31,15 @@ export type SmokeOptions = {
   overlay?: Overlay;
   appId?: string;
   errorCopy?: RegExp;
+  /** What each route needs to open, as the app's runtime reads it; the params type of a React Native app when left out. */
+  routeParams?: RouteParamsInfo[];
   onResult?: (r: SmokeResult) => void;
 };
 
 export const smoke = async (options: SmokeOptions): Promise<SmokeResult[]> => {
   const { device, graph } = options;
-  const params = new Map(readRouteParams(options.appRoot, options.paramsFile).map((p) => [p.route, p]));
+  const read = options.routeParams ?? readRouteParams(options.appRoot, options.paramsFile);
+  const params = new Map(read.map((p) => [p.route, p]));
   const routes = Object.keys(graph.screens)
     .filter((r) => (options.only ? options.only.some((o) => r === o || r.startsWith(o)) : true))
     .filter((r) => params.get(r)?.free ?? false)

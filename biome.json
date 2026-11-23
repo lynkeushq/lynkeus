@@ -6,7 +6,15 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["packages/*/src/**", "example/src/**", "!**/lib", "!**/node_modules", "!**/generated"]
+    "includes": [
+      "packages/*/src/**",
+      "example/src/**",
+      "!**/lib",
+      "!**/node_modules",
+      "!**/generated",
+      "!**/__tests__/goldens/rn",
+      "!**/__tests__/goldens/corpus"
+    ]
   },
   "formatter": {
     "enabled": true,

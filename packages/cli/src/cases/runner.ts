@@ -16,6 +16,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute } from '../runtime.js';
+import { type RuntimeAdapter, runtimeAt } from '../runtimes/index.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -280,6 +281,9 @@ const targetArg = (item: unknown): string => {
   if (typeof t.text === 'string' && t.testId === undefined) return `"${t.text}"${nth}`;
   throw new Error(`a target in a list is a string, { testId } or { text }: ${JSON.stringify(item)}`);
 };
+
+/** A text as a target that can only be that text: in quotes of a kind it does not hold. */
+export const quotedText = (text: string): string => (text.includes('"') ? `'${text}'` : `"${text}"`);
 
 export const argvFor = (command: Command, value: StepValue): string[] => {
   const argv = command.name.split(' ');
@@ -650,7 +654,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
    * stops changing; then back up in short pulls (at the top of a sheet a short
    * pull springs back, where a long one would drag the sheet shut).
    */
-  const scrollTo = async (there: () => Promise<boolean>, upward = false): Promise<boolean> => {
+  const scrollTo = async (there: () => Promise<boolean>, toward?: 'above' | 'below'): Promise<boolean> => {
     const d = await device();
     if (!d.server.hello?.native) return false;
     const { w, h } = (await d.screen()).window;
@@ -684,8 +688,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       }
       return there();
     };
-    if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     const middle = Math.round(h * 0.5);
+    if (toward === 'below' && (await policy()).shortPullsBelow) return pull(middle, middle - 110, 30, 'down');
+    if (toward !== 'above' && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     return pull(middle, middle + 110, 30, 'up');
   };
 
@@ -749,7 +754,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const press = async (value: StepValue): Promise<'skipped' | undefined> => {
-    const given = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    // `app.press: 5` is YAML's number: the element at that index, as `"5"` is.
+    const given = typeof value === 'string' || typeof value === 'number' ? { target: String(value) } : ((value ?? {}) as Record<string, unknown>);
     const { text, ...named } = given;
     const params: Record<string, unknown> = 'target' in given || 'testId' in given || typeof text !== 'string' ? given : { ...named, target: text };
     const target = targetIn(params);
@@ -786,7 +792,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       return undefined;
     };
     const side = await outside();
-    if (side) await scrollTo(async () => (await outside()) === undefined, side === 'above');
+    if (side) await scrollTo(async () => (await outside()) === undefined, side);
     // The control may still be disabled while what it depends on loads. The waits go through the app,
     // so a host with its own clock moves it on instead of standing still while this one sleeps.
     const deadline = Date.now() + (typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000);
@@ -846,6 +852,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const hello = helloOf(d);
     return !!hello?.native && !hello.commands?.includes('clock');
   };
+
+  // How the app's runtime wants targets reached, read once per case.
+  let reaching: RuntimeAdapter['runner'] | undefined;
+  const policy = async () => (reaching ??= (await runtimeAt(base.root)).runner);
 
   let handling = false;
   const interrupted = async (value: StepValue): Promise<void> => {
@@ -932,10 +942,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
-          const what = typeof value === 'string' ? value : String(params?.what ?? '');
+          // Where the runtime says so, `{ text: Delete }` names a text, never a route, whatever its case, as it does in
+          // app.see. Otherwise it keeps the CLI's reading of it: a route, milliseconds, a #testId or a text.
+          let named = params;
+          let asking: StepValue = value;
+          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined && (await policy()).waitTextIsText) {
+            const { text, ...rest } = params;
+            named = { ...rest, what: quotedText(text) };
+            asking = named as StepValue;
+          }
+          const what = typeof asking === 'string' ? asking : String(named?.what ?? '');
           const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
-            const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
+            const asked: Record<string, unknown> = { ...(typeof asking === 'string' ? { what: asking } : (named ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
             for (;;) {
               await interrupted(value);
@@ -947,7 +966,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
                 throw new Error(outcome.error ?? outcome.text ?? 'wait failed');
               }
             }
-          } else await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value));
+          } else
+            await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof asking === 'string' ? { what: asking } : (named ?? {})), ...since } : asking));
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
           if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         }
@@ -1396,6 +1416,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   const looksFirst = !!evidence?.onChange && !!evidence.stillMs;
+  // A Flutter agent's idle, the settle before a frame, waits out what ends on its own, a toast's timer among it, so
+  // the frame is of the state it ends in on any device or host: the `app.see` steps after a step look first.
+  const settlesFirst = async () =>
+    !!evidence?.screenshots &&
+    String(
+      (await device().then(
+        (d) => d.server.hello?.app?.runtime,
+        () => undefined,
+      )) ?? '',
+    ).startsWith('flutter');
   let held: { report: StepReport; n: number; at: number | undefined; t0: number; looks: StepReport[] } | undefined;
   const flush = async () => {
     if (!held) return;
@@ -1457,7 +1487,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
-        else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [] };
+        else if (todo[index + 1]?.verb === 'app.see' && (looksFirst || (await settlesFirst()))) held = { report: done, n: steps.length, at, t0, looks: [] };
         else await record(done, steps.length, at, t0);
       }
     } catch (error) {

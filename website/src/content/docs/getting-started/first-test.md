@@ -9,7 +9,7 @@ Driving by hand first is not a detour. A case is made of the same commands, so a
 
 ## Before you start
 
-- The agent is installed and `npx lynkeus screen` prints your app's screen. If not, follow [Install in a React Native app](/getting-started/installation-react-native/) or [Install in an Expo app](/getting-started/installation-expo/).
+- The agent is installed and `npx lynkeus screen` prints your app's screen. If not, follow [Install in a React Native app](/getting-started/installation-react-native/), [Install in an Expo app](/getting-started/installation-expo/) or, for Flutter, [Flutter](/platforms/flutter/).
 - The app is running on a simulator or emulator.
 - The CLI has the token the app was bundled with: the project's `.lynkeus/token`, which `lynkeus init` made, or `LYNKEUS_TOKEN` in your shell when you set a value of your own.
 

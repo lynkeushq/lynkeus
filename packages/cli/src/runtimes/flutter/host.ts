@@ -1,0 +1,169 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { lynkeusDir, pubspecName, runtimeOf } from '../api.js';
+import { lockedVersions } from './plugins.js';
+
+/** A Flutter app: its pubspec names the package and depends on the Flutter SDK. */
+export type FlutterProject = { name: string; hosted: boolean };
+
+/** The top-level sections of a pubspec, each with its indented lines: enough to read names, never a YAML parser. */
+const sections = (pubspec: string): Map<string, string[]> => {
+  const out = new Map<string, string[]>();
+  let current: string[] | undefined;
+  for (const line of pubspec.split(/\r?\n/)) {
+    if (/^\s*(#.*)?$/.test(line)) continue;
+    const top = /^([A-Za-z_][\w-]*):(.*)$/.exec(line);
+    if (top) {
+      current = [top[2]!.trim()];
+      out.set(top[1]!, current);
+    } else current?.push(line);
+  }
+  return out;
+};
+
+/** The app's package keys under a section (`dependencies:`), at the first indentation level. */
+const keysOf = (lines: string[] | undefined): string[] => {
+  if (!lines) return [];
+  const indent = lines
+    .slice(1)
+    .map((l) => /^(\s+)\S/.exec(l)?.[1]?.length ?? 0)
+    .find((n) => n > 0);
+  return lines
+    .slice(1)
+    .filter((l) => (/^(\s+)\S/.exec(l)?.[1]?.length ?? 0) === indent)
+    .map((l) => l.trim().split(':')[0]!);
+};
+
+/**
+ * The Flutter app at `root`, if it is one (`runtimeOf` says which runtime a folder is).
+ * `hosted`: lynkeus_headless is among its dependencies, so `flutter test` can host it.
+ */
+export const flutterProject = (root: string): FlutterProject | undefined => {
+  if (runtimeOf(root) !== 'flutter') return undefined;
+  const text = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
+  const parts = sections(text);
+  const hosted = [...keysOf(parts.get('dependencies')), ...keysOf(parts.get('dev_dependencies'))].includes('lynkeus_headless');
+  return { name: pubspecName(text)!, hosted };
+};
+
+export type FlutterSdk = { bin: string; root: string };
+
+const executable = (file: string) => {
+  try {
+    fs.accessSync(file, fs.constants.X_OK);
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+};
+
+/** The Flutter SDK: FLUTTER_ROOT, then `flutter` on PATH, then what mise has for the project. Undefined when none. */
+export const findFlutter = (root: string, env: NodeJS.ProcessEnv = process.env): FlutterSdk | undefined => {
+  const fromBin = (bin: string): FlutterSdk => {
+    const real = fs.realpathSync(bin);
+    return { bin: real, root: path.dirname(path.dirname(real)) };
+  };
+  if (env.FLUTTER_ROOT && executable(path.join(env.FLUTTER_ROOT, 'bin', 'flutter'))) return fromBin(path.join(env.FLUTTER_ROOT, 'bin', 'flutter'));
+  for (const dir of (env.PATH ?? '').split(path.delimiter)) {
+    const bin = path.join(dir, 'flutter');
+    // A mise shim answers for whichever version the folder pins, or fails: what mise resolves below is surer.
+    if (dir && !dir.includes('mise/shims') && executable(bin)) return fromBin(bin);
+  }
+  const mise = spawnSync('mise', ['which', 'flutter'], { cwd: root, env, encoding: 'utf8' });
+  const found = mise.status === 0 ? mise.stdout.trim() : '';
+  return found && executable(found) ? fromBin(found) : undefined;
+};
+
+/**
+ * The test file `flutter test` runs to host the app. It lives in .lynkeus, not test/: a host never ends, and the
+ * app's own `flutter test` would run it with the rest of its tests and hang.
+ */
+export const flutterHostFile = (root: string, port: number | undefined): string =>
+  path.join(lynkeusDir(root), 'host', port ? `lynkeus_host_${port}_test.dart` : 'lynkeus_host_test.dart');
+
+/** Where a project keeps stand-ins of its own: `void configureHost(HostConfig host)`, which the host file passes on. */
+export const PROJECT_HOST = path.join('test', 'lynkeus_host.dart');
+
+/** A plugin's class for one platform: the library that declares it and its name. */
+type PlatformClass = { library: string; name: string };
+
+/**
+ * Plugins with no method-channel default whose iOS and Android classes speak a channel the agent stands in for. Their
+ * registrant does not run under flutter test, so the host file sets the class for the platform the host plays.
+ */
+export const HOST_REGISTRATIONS: { package: string; ios: PlatformClass; android: PlatformClass }[] = [
+  {
+    package: 'flutter_local_notifications',
+    ios: { library: 'package:flutter_local_notifications/flutter_local_notifications.dart', name: 'IOSFlutterLocalNotificationsPlugin' },
+    android: { library: 'package:flutter_local_notifications/flutter_local_notifications.dart', name: 'AndroidFlutterLocalNotificationsPlugin' },
+  },
+  {
+    package: 'workmanager',
+    ios: { library: 'package:workmanager_apple/workmanager_apple.dart', name: 'WorkmanagerApple' },
+    android: { library: 'package:workmanager_android/workmanager_android.dart', name: 'WorkmanagerAndroid' },
+  },
+];
+
+/** The package a `package:` library belongs to, which the host file also imports it as. */
+const packageOf = (library: string) => /^package:([\w]+)\//.exec(library)![1]!;
+
+/** The registrations the app's `pubspec.lock` calls for: the plugin and both its platform packages are locked. */
+export const hostRegistrations = (root: string): typeof HOST_REGISTRATIONS => {
+  let lock: string;
+  try {
+    lock = fs.readFileSync(path.join(root, 'pubspec.lock'), 'utf8');
+  } catch {
+    return [];
+  }
+  const locked = lockedVersions(lock);
+  return HOST_REGISTRATIONS.filter((r) => [r.package, packageOf(r.ios.library), packageOf(r.android.library)].every((p) => locked.has(p)));
+};
+
+export const flutterHostTest = (project: FlutterProject, entry: string, ownStandIns = false, registrations: typeof HOST_REGISTRATIONS = []): string => {
+  const main = entry.replace(/^lib\//, '');
+  const libraries = [...new Set(registrations.flatMap((r) => [r.ios.library, r.android.library]))];
+  const imports = libraries.map((library) => `import '${library}' as ${packageOf(library)};\n`).join('');
+  const calls = registrations.map(
+    (r) =>
+      `  if (platform == 'android') {\n    ${packageOf(r.android.library)}.${r.android.name}.registerWith();\n  } else {\n    ${packageOf(r.ios.library)}.${r.ios.name}.registerWith();\n  }\n`,
+  );
+  const args = [...(ownStandIns ? ['configure: project.configureHost'] : []), ...(registrations.length ? ['registerPlugins: _registerPlugins'] : [])];
+  return `// Written by \`lynkeus headless start\`; runs the app inside flutter test as a host for the agent.
+${imports}import 'package:lynkeus_headless/lynkeus_headless.dart';
+import 'package:${project.name}/${main}' as app;
+${ownStandIns ? "import '../../test/lynkeus_host.dart' as project;\n" : ''}
+void main() => hostApp(app.main, name: ${JSON.stringify(project.name)}${args.map((a) => `, ${a}`).join('')});
+${registrations.length ? `\n// Plugins with no method-channel default, set as their registrant would for the platform the host plays.\nvoid _registerPlugins(String platform) {\n${calls.join('')}}\n` : ''}`;
+};
+
+/** Writes the host file, and keeps the folder that holds it out of git. */
+export const writeFlutterHost = (root: string, project: FlutterProject, entry: string, port: number | undefined): string => {
+  const file = flutterHostFile(root, port);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, flutterHostTest(project, entry, fs.existsSync(path.join(root, PROJECT_HOST)), hostRegistrations(root)));
+  const ignore = path.join(lynkeusDir(root), '.gitignore');
+  const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+  if (!ignored.split('\n').includes('host/')) fs.writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}host/\n`);
+  return file;
+};
+
+/** The environment `flutter test` hands the host: the driver, the screen and the fonts that make text legible. */
+/** The hosts a Flutter host's app may reach (`flutterHost.networkHosts`); nothing when the config names none. */
+export const flutterNetworkEnv = (options: { networkHosts?: string[] } = {}): Record<string, string> =>
+  options.networkHosts?.length ? { LYNKEUS_NETWORK_HOSTS: options.networkHosts.join(',') } : {};
+
+export const flutterHostEnv = (
+  sdk: FlutterSdk,
+  token: string,
+  port: number | undefined,
+  options: { networkHosts?: string[]; platform?: string; window?: string } = {},
+): Record<string, string> => ({
+  LYNKEUS_TOKEN: token,
+  LYNKEUS_PORT: String(port ?? 8123),
+  LYNKEUS_FONTS: path.join(sdk.root, 'bin', 'cache', 'artifacts', 'material_fonts'),
+  ...flutterNetworkEnv(options),
+  ...(options.platform ? { LYNKEUS_PLATFORM: options.platform } : {}),
+  ...(options.window ? { LYNKEUS_WINDOW: options.window } : {}),
+});

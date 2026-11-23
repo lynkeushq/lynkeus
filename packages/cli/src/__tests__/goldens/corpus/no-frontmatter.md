@@ -1,0 +1,2 @@
+steps:
+  - app.press: "#a"

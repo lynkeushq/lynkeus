@@ -189,6 +189,30 @@ agent with `auto()` so it finds the router's navigation, and installs `jest-expo
 `headless start` maps style sheets to an empty module and the `tsconfig.json`
 aliases, the longest first, since jest-expo tries `@/*` before `@/assets/*`.
 
+## Flutter
+
+A Flutter app is hosted differently: `lynkeus headless start` and `lynkeus case run --host` recognize a
+`pubspec.yaml` that depends on `flutter`, write `.lynkeus/host/lynkeus_host_test.dart` and run it with `flutter test`,
+through the `lynkeus_headless` package (a `dev_dependencies` entry of the app). The app's own `main()` runs with real
+layout and software paint; the agent dials the driver as on a device, so every command in [DRIVE.md](DRIVE.md) works.
+
+- The CLI finds Flutter through `FLUTTER_ROOT`, then `flutter` on `PATH`, then `mise which flutter`. `--entry` names
+  another `main` than `lib/main.dart`. The host file is under `.lynkeus/host/`, kept out of git, so the app's own
+  `flutter test` never runs it.
+- Time is flutter_test's fake clock: while the driver waits and no request of the app is out, the clock moves a whole
+  frame per turn. `lynkeus os clock` (`--advance`, `--settle`, `--now`, `--reset`) drives it by hand. The app's clock
+  is `package:clock`; `DateTime.now()` reads the real wall.
+- `flutterHost` in `lynkeus.config.json` sets `platform` (`ios` or `android`), `window` (`412x915@2.625`) and
+  `networkHosts` (loopback and 10.0.2.2 by default; any other host fails as a socket error).
+- Plugin channels are answered by in-memory stand-ins, listed with the `lynkeus call` command that drives each in the
+  [Flutter page](https://lynkeus.io/platforms/flutter/#plugin-stand-ins); any other channel gets a null success and one
+  `[stub] <channel>` line (`LYNKEUS_CHANNELS=trace` prints every call). A project's own go in `test/lynkeus_host.dart`
+  (`void configureHost(HostConfig host)`).
+- Not applied: `--seed`, and `--host-heap` restarts (the Dart VM gives no heap figures). `headless init` and
+  `headless doctor` are for React Native.
+
+The details are in `flutter/lynkeus_headless/README.md` and the [Flutter page](https://lynkeus.io/platforms/flutter/).
+
 ## Security posture
 
 - `headless start` refuses to run without a token. The token is the

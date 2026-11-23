@@ -1,0 +1,360 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { ensureToken, pubspecName } from '../api.js';
+import { pluginsNeeded } from './plugins.js';
+
+/** Where `lynkeus_agent` comes from. One place to change when the package is published on pub.dev (`['lynkeus_agent: ^x.y.z']`). */
+const gitDependency = (name: string): string[] => [`${name}:`, '  git:', '    url: https://github.com/lynkeushq/lynkeus.git', `    path: flutter/${name}`];
+
+export const AGENT_DEPENDENCY: string[] = gitDependency('lynkeus_agent');
+export const HEADLESS_DEPENDENCY: string[] = gitDependency('lynkeus_headless');
+
+const AGENT_IMPORT = "import 'package:lynkeus_agent/lynkeus_agent.dart';";
+const AGENT_URI = 'package:lynkeus_agent/lynkeus_agent.dart';
+
+/** `app.name` is what the CLI shows for the app; the agent takes it from #149's `start(app: {...})`. */
+const agentStart = (appName?: string): string => `LynkeusAgent.start(${appName ? `app: {'name': '${appName}'}` : ''});`;
+
+export type Edit = { text: string; note: string; done: boolean };
+
+const eolOf = (text: string): string => (text.includes('\r\n') ? '\r\n' : '\n');
+
+const byHand = (section: string, lines: string[]): string => `add this under ${section} in pubspec.yaml:\n    ${lines.join('\n    ')}`;
+
+/**
+ * Adds a dependency right under its section's header, so comments and the rest of the file stay as they are. A
+ * `dev_dependencies` section that is missing is added at the end; one with nothing but comments gets the usual indent.
+ */
+const addDependency = (text: string, section: 'dependencies' | 'dev_dependencies', name: string, lines: string[]): Edit => {
+  const eol = eolOf(text);
+  const all = text.split(/\r?\n/);
+  const header = all.findIndex((line) => new RegExp(`^${section}:\\s*(#.*)?$`).test(line));
+  if (header < 0) {
+    if (section === 'dependencies') return { text, done: false, note: byHand(section, lines) };
+    const body = [`${section}:`, ...lines.map((line) => `  ${line}`)].join(eol);
+    return { text: `${text}${text.endsWith('\n') ? '' : eol}${eol}${body}${eol}`, done: true, note: `added ${name} to pubspec.yaml (new ${section} section)` };
+  }
+  let end = all.length;
+  for (let i = header + 1; i < all.length; i++) {
+    if (/^\S/.test(all[i]!) && !all[i]!.startsWith('#')) {
+      end = i;
+      break;
+    }
+  }
+  const body = all.slice(header + 1, end);
+  if (body.some((line) => new RegExp(`^[ \\t]+${name}:`).test(line))) return { text, done: true, note: `pubspec.yaml already depends on ${name}` };
+  const first = body.find((line) => /^[ \t]+\S/.test(line) && !line.trim().startsWith('#'));
+  const indent = first ? /^[ \t]*/.exec(first)![0] : '  ';
+  all.splice(header + 1, 0, ...lines.map((line) => `${indent}${line}`));
+  return { text: all.join(eol), done: true, note: `added ${name} to pubspec.yaml` };
+};
+
+export const addAgentToPubspec = (text: string): Edit => addDependency(text, 'dependencies', 'lynkeus_agent', AGENT_DEPENDENCY);
+export const addHeadlessToPubspec = (text: string): Edit => addDependency(text, 'dev_dependencies', 'lynkeus_headless', HEADLESS_DEPENDENCY);
+
+/** The index just past the bracket that closes the one at `open` (`(` or `{`), skipping string literals and line comments. */
+const closeOf = (text: string, open: number): number => {
+  const [opening, closing] = text[open] === '{' ? ['{', '}'] : ['(', ')'];
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    const c = text[i]!;
+    if (c === "'" || c === '"') {
+      for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === opening) depth++;
+    else if (c === closing && --depth === 0) return i + 1;
+  }
+  return -1;
+};
+
+/** The body of a block `main`, from just past its `{` to its `}`: other functions in the file (a background entry point) are not the app's start. */
+const mainBody = (text: string): { start: number; end: number } | undefined => {
+  const head = /^(?:(?:Future<void>|FutureOr<void>|void)\s+)?main\s*\([^)]*\)\s*(?:async\s*)?\{/m.exec(text);
+  if (!head) return undefined;
+  const open = head.index + head[0].length - 1;
+  const close = closeOf(text, open);
+  return close < 0 ? undefined : { start: open + 1, end: close - 1 };
+};
+
+/** The index of the bracket that opens the one closing at `close` (`)` or `}`), scanning back no further than `from`. */
+const openOf = (text: string, from: number, close: number): number => {
+  const [opening, closing] = text[close] === '}' ? ['{', '}'] : ['(', ')'];
+  let depth = 0;
+  for (let i = close; i >= from; i--) {
+    if (text[i] === closing) depth++;
+    else if (text[i] === opening && --depth === 0) return i;
+  }
+  return -1;
+};
+
+/**
+ * Where a binding call at `at` sits in a branch of an `if`: the start of the line that opens that `if` (the first of
+ * an `else if` chain), so the agent goes before the whole statement and starts on every branch (`if (Platform.isIOS) {
+ * MyBinding.ensureInitialized(); } else { WidgetsFlutterBinding.ensureInitialized(); }`). Undefined when it is not.
+ */
+const enclosingIf = (text: string, from: number, at: number): number | undefined => {
+  let depth = 0;
+  let brace = -1;
+  for (let i = at - 1; i >= from && brace < 0; i--) {
+    if (text[i] === '}') depth++;
+    else if (text[i] === '{' && depth-- === 0) brace = i;
+  }
+  const trimmedEnd = (end: number): number => from + text.slice(from, end).trimEnd().length;
+  while (brace >= from) {
+    const before = trimmedEnd(brace);
+    let elseAt: number;
+    if (text[before - 1] === ')') {
+      const open = openOf(text, from, before - 1);
+      const head = open < 0 ? from : trimmedEnd(open);
+      if (!/\bif$/.test(text.slice(from, head))) return undefined;
+      const ifAt = head - 2;
+      const prior = trimmedEnd(ifAt);
+      if (!/\belse$/.test(text.slice(from, prior))) return text.lastIndexOf('\n', ifAt - 1) + 1;
+      elseAt = prior - 4;
+    } else if (/\belse$/.test(text.slice(from, before))) {
+      elseAt = before - 4;
+    } else return undefined;
+    // An `else` belongs to the `if` before it: go on from the block that ends there.
+    const closed = trimmedEnd(elseAt) - 1;
+    if (text[closed] !== '}') return undefined;
+    brace = openOf(text, from, closed);
+  }
+  return undefined;
+};
+
+/** The end of the `if` statement that starts at `at` (a whole `else if`/`else` chain), past its line; -1 if unread. */
+const endOfIf = (text: string, at: number): number => {
+  let i = text.indexOf('if', at);
+  for (;;) {
+    const cond = text.indexOf('(', i);
+    const condEnd = cond < 0 ? -1 : closeOf(text, cond);
+    const open = condEnd < 0 ? -1 : text.indexOf('{', condEnd);
+    let end = open < 0 ? -1 : closeOf(text, open);
+    if (end < 0) return -1;
+    for (;;) {
+      const rest = /^\s*else\b\s*/.exec(text.slice(end + 1));
+      if (!rest) {
+        const eol = text.indexOf('\n', end);
+        return eol < 0 ? text.length : eol + 1;
+      }
+      const next = end + 1 + rest[0].length;
+      if (text.startsWith('if', next)) {
+        i = next;
+        break;
+      }
+      if (text[next] !== '{') return -1;
+      end = closeOf(text, next);
+      if (end < 0) return -1;
+    }
+  }
+};
+
+/** A binding class of the app's own that main() makes: the agent then starts after it and works with it. */
+const ownBinding = (text: string, from: number, to: number): string | undefined =>
+  [...text.slice(from, to).matchAll(/\b([A-Z]\w*Binding)\s*(?:\.ensureInitialized\(|\()/g)]
+    .map((m) => m[1]!)
+    .find((name) => !['WidgetsFlutterBinding', 'LynkeusBinding'].includes(name));
+
+const ownBindingNote = (name: string): string =>
+  `main() makes its own binding (${name}), so the agent starts after it and works with it, though it cannot hold spinners at their start or wait out fades, nor give FastSim's safe area: for all of that, make ${name} extend LynkeusBinding (from package:lynkeus_agent) instead of WidgetsFlutterBinding`;
+
+export const mainByHand = (appName?: string): string =>
+  `add to lib/main.dart:\n    ${AGENT_IMPORT}\n  and, in main(), before WidgetsFlutterBinding.ensureInitialized() when there is one, otherwise before runApp(...):\n    ${agentStart(appName)}`;
+
+/** Puts the agent's import where `directives_ordering` wants it: among the `package:` imports, sorted by URI. */
+const withImport = (text: string, eol: string, uri = AGENT_URI): string => {
+  const line = `import '${uri}';`;
+  const imports = [...text.matchAll(/^import\s+['"]([^'"]+)['"][^;]*;[ \t]*$/gm)].map((m) => ({ uri: m[1]!, start: m.index!, end: m.index! + m[0].length }));
+  const packages = imports.filter((i) => i.uri.startsWith('package:'));
+  const after = packages.find((i) => i.uri > uri);
+  if (after) return `${text.slice(0, after.start)}${line}${eol}${text.slice(after.start)}`;
+  const last = packages[packages.length - 1] ?? imports.filter((i) => i.uri.startsWith('dart:')).pop();
+  if (last) return `${text.slice(0, last.end)}${eol}${last.uri.startsWith('dart:') ? eol : ''}${line}${text.slice(last.end)}`;
+  // Only relative imports, or none: the package import leads them, with a blank line between.
+  const first = imports[0];
+  return first ? `${text.slice(0, first.start)}${line}${eol}${eol}${text.slice(first.start)}` : `${line}${eol}${eol}${text}`;
+};
+
+/** Imports the agent and starts it before `runApp(`, in a block `main` or in an arrow `main` that becomes one. */
+export const addAgentToMain = (text: string, appName?: string): Edit => {
+  const AGENT_START = agentStart(appName);
+  const binding = /^([ \t]*)(?![ \t/])[^\n]*?\bensureInitialized\(/gm;
+  const launch = /^([ \t]*)runApp\(/gm;
+  // A main that hands off to a helper (`void main() { bootstrap(); }`) is searched as a whole file.
+  let body = mainBody(text);
+  const within = (pattern: RegExp): RegExpExecArray | null => {
+    pattern.lastIndex = body?.start ?? 0;
+    return pattern.exec(body ? text.slice(0, body.end) : text);
+  };
+  if (body && !within(binding) && !within(launch)) body = undefined;
+  const from = body?.start ?? 0;
+  const initialized = within(binding);
+  const started = text.indexOf('LynkeusAgent.start(');
+  // Where the binding call ends, the whole `if` when it is one of its branches.
+  const branch = initialized ? enclosingIf(text, from, initialized.index) : undefined;
+  const bindingEnd = initialized ? (branch !== undefined ? endOfIf(text, branch) : text.indexOf('\n', initialized.index) + 1 || text.length) : -1;
+  const own = initialized && bindingEnd > 0 ? ownBinding(text, branch ?? initialized.index, bindingEnd) : undefined;
+  if (started >= 0) {
+    if (own && started < bindingEnd)
+      return {
+        text,
+        done: false,
+        note: `lib/main.dart starts the agent before the app's own binding (${own}), which Flutter then refuses ("Binding is already initialized to LynkeusBinding"): move the LynkeusAgent.start(...) line after it. ${ownBindingNote(own)}.`,
+      };
+    if (own) return { text, done: true, note: 'lib/main.dart already starts the agent' };
+    if (initialized && initialized.index < started)
+      return {
+        text,
+        done: false,
+        note: 'lib/main.dart starts the agent after WidgetsFlutterBinding.ensureInitialized(): move the LynkeusAgent.start(...) line above it. Under Lynkeus FastSim the agent installs its own binding (safe area, plugin stand-ins), and a binding cannot be replaced once one exists.',
+      };
+    return { text, done: true, note: 'lib/main.dart already starts the agent' };
+  }
+  const eol = eolOf(text);
+  const arrow = /^([ \t]*)((?:Future<void>|void)\s+main\s*\(\s*\)\s*)(async\s*)?=>\s*runApp\(/m.exec(text);
+  const plain = within(launch);
+  // The agent goes before the first ensureInitialized(), in the same block, since a binding cannot be replaced once it
+  // exists; before the whole `if` when that call is one of its branches. After it when the binding is the app's own.
+  const at = arrow
+    ? undefined
+    : own
+      ? { index: bindingEnd, indent: /^[ \t]*/.exec(text.slice(branch ?? text.lastIndexOf('\n', initialized!.index) + 1))![0] }
+      : branch !== undefined
+        ? { index: branch, indent: /^[ \t]*/.exec(text.slice(branch))![0] }
+        : initialized
+          ? { index: initialized.index, indent: initialized[1]! }
+          : plain
+            ? { index: plain.index, indent: plain[1]! }
+            : undefined;
+  let next: string;
+  if (arrow) {
+    const open = arrow.index + arrow[0].length - 1;
+    const close = closeOf(text, open);
+    if (close < 0 || text[close] !== ';') return { text, done: false, note: `could not read main() in lib/main.dart; ${mainByHand(appName)}` };
+    const indent = arrow[1]!;
+    const call = text.slice(open - 'runApp'.length, close);
+    const head = `${indent}${arrow[2]!.trimEnd()}${arrow[3] ? ' async' : ''} {`;
+    next = `${text.slice(0, arrow.index)}${head}${eol}${indent}  ${AGENT_START}${eol}${indent}  ${call};${eol}${indent}}${text.slice(close + 1)}`;
+  } else if (at) {
+    next = `${text.slice(0, at.index)}${at.indent}${AGENT_START}${eol}${text.slice(at.index)}`;
+  } else {
+    return { text, done: false, note: `no runApp( in lib/main.dart; ${mainByHand(appName)}` };
+  }
+  next = withImport(next, eol);
+  return {
+    text: next,
+    done: true,
+    note: `added the import and LynkeusAgent.start() to lib/main.dart${own ? `; ${ownBindingNote(own)}` : ''}`,
+  };
+};
+
+const PLUGINS_URI = 'package:lynkeus_plugins/lynkeus_plugins.dart';
+const PLUGINS_CALL = 'LynkeusPlugins.ensureInitialized();';
+
+/** `lynkeus_plugins` from wherever `lynkeus_agent` comes from: the same git url and ref, or the sibling folder of its path. */
+export const pluginsDependencyLike = (pubspec: string): string[] => {
+  const lines = pubspec.split(/\r?\n/);
+  const at = lines.findIndex((l) => /^[ \t]+lynkeus_agent:/.test(l));
+  if (at < 0) return gitDependency('lynkeus_plugins');
+  const indent = /^[ \t]*/.exec(lines[at]!)![0].length;
+  const block = [lines[at]!];
+  for (let i = at + 1; i < lines.length && (lines[i]!.trim() === '' || /^[ \t]*/.exec(lines[i]!)![0].length > indent); i++)
+    if (lines[i]!.trim()) block.push(lines[i]!);
+  return block.map((l) => l.slice(indent).replace(/lynkeus_agent/g, 'lynkeus_plugins'));
+};
+
+export const addPluginsToPubspec = (text: string): Edit => addDependency(text, 'dependencies', 'lynkeus_plugins', pluginsDependencyLike(text));
+
+/** Calls the companion on the line after the agent starts, in the same block, and imports it. */
+export const addPluginsToMain = (text: string): Edit => {
+  if (text.includes('LynkeusPlugins.ensureInitialized(')) return { text, done: true, note: 'lib/main.dart already calls LynkeusPlugins.ensureInitialized()' };
+  const start = /^([ \t]*)[^\n]*LynkeusAgent\.start\(/m.exec(text);
+  if (!start) return { text, done: false, note: `lib/main.dart does not start the agent yet; after LynkeusAgent.start(...) add:\n    ${PLUGINS_CALL}` };
+  const open = start.index + start[0].length - 1;
+  const close = closeOf(text, open);
+  const end = close < 0 ? -1 : text.indexOf(';', close);
+  if (end < 0) return { text, done: false, note: `could not read LynkeusAgent.start(...) in lib/main.dart; after it add:\n    ${PLUGINS_CALL}` };
+  const eol = eolOf(text);
+  const next = `${text.slice(0, end + 1)}${eol}${start[1]}${PLUGINS_CALL}${text.slice(end + 1)}`;
+  return {
+    text: withImport(next, eol, PLUGINS_URI),
+    done: true,
+    note: 'added the import and LynkeusPlugins.ensureInitialized() after LynkeusAgent.start() in lib/main.dart',
+  };
+};
+
+const readIfExists = (file: string): string | undefined => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined);
+
+const GIT_NOTE = [
+  'lynkeus_agent (and lynkeus_headless) are git dependencies on github.com/lynkeushq/lynkeus until they are on pub.dev, so `flutter pub get` needs that',
+  '      repository to have them. From a checkout of Lynkeus, point at it instead in pubspec.yaml:',
+  '        dependency_overrides:',
+  '          lynkeus_agent:',
+  '            path: /path/to/lynkeus/flutter/lynkeus_agent',
+];
+
+/** Flutter setup: the dependency, the start call in `lib/main.dart`, the token. Changes only what is missing. */
+export const initFlutter = (root: string, opts: { install: boolean; headless?: boolean }): string[] => {
+  const notes: string[] = [];
+  const pubspecFile = path.join(root, 'pubspec.yaml');
+  const pubspec = fs.readFileSync(pubspecFile, 'utf8');
+  if (opts.install) {
+    let text = pubspec;
+    for (const add of [addAgentToPubspec, ...(opts.headless ? [addHeadlessToPubspec] : [])]) {
+      const edit = add(text);
+      text = edit.text;
+      notes.push(edit.note);
+    }
+    if (text !== pubspec) fs.writeFileSync(pubspecFile, text);
+  } else if (opts.headless) {
+    notes.push('--headless adds lynkeus_headless to pubspec.yaml, so it does nothing with --no-install');
+  }
+  const mainFile = path.join(root, 'lib', 'main.dart');
+  const main = readIfExists(mainFile);
+  const name = pubspecName(pubspec);
+  let started = false;
+  if (main === undefined) {
+    notes.push(`no lib/main.dart; ${mainByHand(name)}`);
+  } else {
+    const edit = addAgentToMain(main, name);
+    if (edit.text !== main) fs.writeFileSync(mainFile, edit.text);
+    notes.push(edit.note);
+    started = edit.done;
+  }
+  const needs = pluginsNeeded(root);
+  let pluginsAdded = false;
+  if (needs.length) {
+    const why = needs.map((n) => `${n.because}: without lynkeus_plugins, ${n.failure}`).join('; ');
+    if (!opts.install)
+      notes.push(
+        `lynkeus_plugins is needed on a host (${why}); add it next to lynkeus_agent and call LynkeusPlugins.ensureInitialized() after LynkeusAgent.start()`,
+      );
+    else if (!started || main === undefined)
+      notes.push(`lynkeus_plugins is needed on a host (${why}); once the agent starts in main(), add it and call LynkeusPlugins.ensureInitialized() after it`);
+    else {
+      const latest = fs.readFileSync(pubspecFile, 'utf8');
+      const dep = addPluginsToPubspec(latest);
+      if (dep.text !== latest) fs.writeFileSync(pubspecFile, dep.text);
+      const mainNow = fs.readFileSync(mainFile, 'utf8');
+      const call = addPluginsToMain(mainNow);
+      if (call.text !== mainNow) fs.writeFileSync(mainFile, call.text);
+      pluginsAdded = dep.text !== latest || call.text !== mainNow;
+      // The reason is told when something was added; a second run says only that it is already there.
+      notes.push(`${dep.note}; ${call.note}`);
+      if (pluginsAdded) notes.push(`  why: ${why}`);
+    }
+  }
+  if (ensureToken(root).made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
+  notes.push('next: flutter pub get, then run the app with the token:');
+  notes.push('      flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)');
+  notes.push('      the agent runs in debug builds; `lynkeus status` says whether it attached');
+  if (opts.headless) notes.push('      or with no simulator: lynkeus case run --host  (needs flutter on PATH or FLUTTER_ROOT)');
+  if (AGENT_DEPENDENCY.includes('  git:')) {
+    notes.push(...GIT_NOTE);
+    if (opts.headless) notes.push('          lynkeus_headless:', '            path: /path/to/lynkeus/flutter/lynkeus_headless');
+    if (pluginsAdded) notes.push('          lynkeus_plugins:', '            path: /path/to/lynkeus/flutter/lynkeus_plugins');
+  }
+  return notes;
+};

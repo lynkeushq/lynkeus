@@ -45,7 +45,7 @@ export default defineConfig({
             'guides/ci',
           ].map(page),
         },
-        { label: 'Platforms', translations: { es: 'Plataformas' }, items: ['platforms/ios', 'platforms/android', 'platforms/expo', 'platforms/headless'].map(page) },
+        { label: 'Platforms', translations: { es: 'Plataformas' }, items: ['platforms/ios', 'platforms/android', 'platforms/expo', 'platforms/flutter', 'platforms/headless'].map(page) },
         {
           label: 'Reference',
           translations: { es: 'Referencia' },

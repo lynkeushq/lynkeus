@@ -20,7 +20,7 @@ import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
-import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
+import { agentMismatch, appSwitched, devicePlatformMismatch, helloIdentity, hostedHeadless } from './device/agentVersion.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reversePhones } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
@@ -94,7 +94,8 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     });
     // A host started for the case is the device: looking for the configured simulator would only replace a
     // late app's error with one about a simulator nobody asked for.
-    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device;
+    const given = { flag: g.device as string | undefined, env: process.env.LYNKEUS_DEVICE };
+    const wantedDevice = given.flag ?? given.env ?? config.device;
     const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice(wantedDevice);
     if (g.launch && appId) {
       const d = new Device(await picking, { appId, server });
@@ -113,7 +114,17 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
         await picking;
         throw error;
       });
-    const headless = hello.app?.runtime === 'headless';
+    const headless = hostedHeadless(hello);
+    // An Android device named for this run (not by the config, which both platforms share) is the one the run is
+    // about: an iOS app that dialed in is someone else's, and every step would go to it.
+    if ((given.flag || given.env) && !ownHost && !headless) {
+      const named = await picking.catch(() => undefined);
+      const refused = named && named !== HEADLESS_HOST ? devicePlatformMismatch(hello, named, given, server.port) : undefined;
+      if (refused) {
+        await server.close();
+        throw new Error(refused);
+      }
+    }
     const info = {
       ...HEADLESS_HOST,
       name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),

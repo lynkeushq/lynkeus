@@ -29,7 +29,7 @@ report carries the screen, the requests and the reason.
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
+| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered (`qa.register` in React Native, `LynkeusAgent.register` in Flutter). |
 | `app.run` | `{ flow, vars? }` | A Lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other Lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
@@ -43,7 +43,7 @@ A request a mock answered (or whose answer it lost) is marked `mocked`: a failed
 case's evidence says `(mocked)` after it, and its reasons never blame the
 backend for the 500 the case asked for.
 
-A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
+A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`. In a Flutter project `app.wait: { text: Next }` is always a text too; in a React Native one it reads its value as `app.wait: Next` does (a route, milliseconds, `#testId` or a text).
 
 One case runs on a host and on a device. What only one of them needs — closing a
 native screen the host never shows — is kept to it; everywhere else it is

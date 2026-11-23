@@ -7,6 +7,9 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { type FastsimRelease, fastsimVariant, installedFastsim, installFastsim, newestFirst } from '../commands/fastsim.js';
+import { flutter } from '../runtimes/flutter/index.js';
+import { runtimeFlag, runtimeOf } from '../runtimes/index.js';
+import { reactNative } from '../runtimes/react-native/index.js';
 
 const archive = (files: Record<string, string>) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-fastsim-src-'));
@@ -141,7 +144,14 @@ test('the build is chosen by the machine and the platform; Windows goes through 
   assert.equal(fastsimVariant('ios', 'linux', 'arm64'), 'linux-arm64-ios');
   assert.throws(() => fastsimVariant('ios', 'darwin', 'x64'), /Apple Silicon/);
   assert.throws(() => fastsimVariant('ios', 'win32', 'x64'), /WSL2/);
-  assert.throws(() => fastsimVariant('web', 'darwin', 'arm64'), /ios or android/);
+  assert.throws(() => reactNative.fastsimBuild('web'), /ios or android/);
+  // A Flutter app's host is one package per machine for both platforms; React Native keeps its per-platform names.
+  assert.equal(fastsimVariant(flutter.fastsimBuild('ios'), 'darwin', 'arm64'), 'darwin-arm64-flutter');
+  assert.equal(fastsimVariant(flutter.fastsimBuild('android'), 'darwin', 'arm64'), 'darwin-arm64-flutter');
+  assert.equal(fastsimVariant(flutter.fastsimBuild('android'), 'linux', 'arm64'), 'linux-arm64-flutter');
+  assert.equal(fastsimVariant(flutter.fastsimBuild('ios'), 'linux', 'x64'), 'linux-x64-flutter');
+  assert.throws(() => fastsimVariant(flutter.fastsimBuild('ios'), 'darwin', 'x64'), /Apple Silicon/);
+  assert.equal(fastsimVariant(reactNative.fastsimBuild('android'), 'linux', 'x64'), 'linux-x64-android');
 });
 
 test('a refusal for no plan or no seat says where to get it; a refused key and other errors add nothing', async () => {
@@ -167,4 +177,32 @@ test('installedFastsim lists the installed releases without calling anyone', () 
   fs.mkdirSync(path.join(dir, 'grants'));
   fs.mkdirSync(path.join(dir, '2026.11.3', 'half-unpacked'), { recursive: true });
   assert.deepEqual(installedFastsim(dir), [{ version: '2026.11.17', variant: 'darwin-arm64-ios' }]);
+});
+
+test('the runtime is the flag, else what the folder is: a pubspec that takes flutter from the SDK', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-runtime-'));
+  assert.equal(runtimeOf(root), 'react-native');
+  fs.writeFileSync(path.join(root, 'pubspec.yaml'), 'name: app\ndependencies:\n  flutter:\n    sdk: flutter\n');
+  assert.equal(runtimeOf(root), 'flutter');
+  assert.equal(runtimeFlag(undefined, root), 'flutter');
+  assert.equal(runtimeFlag('react-native', root), 'react-native');
+  assert.throws(() => runtimeFlag('web', root), /react-native or flutter/);
+  fs.writeFileSync(path.join(root, 'pubspec.yaml'), 'name: tool\ndependencies:\n  path: ^1.9.0\n');
+  assert.equal(runtimeOf(root), 'react-native');
+});
+
+test('a Flutter pubspec beside a React Native package.json is the React Native app, as init decides, unless --runtime says flutter', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-runtime-'));
+  fs.writeFileSync(path.join(root, 'pubspec.yaml'), 'name: app\ndependencies:\n  flutter:\n    sdk: flutter\n');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'tools', devDependencies: { prettier: '3' } }));
+  assert.equal(runtimeOf(root), 'flutter');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'react-native': '0.80.0' } }));
+  assert.equal(runtimeOf(root), 'react-native');
+  assert.equal(runtimeFlag(undefined, root), 'react-native');
+  assert.equal(runtimeFlag('flutter', root), 'flutter');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'app', devDependencies: { 'react-native': '0.80.0' } }));
+  assert.equal(runtimeOf(root), 'react-native');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'lib', peerDependencies: { 'react-native': '*' } }));
+  assert.equal(runtimeOf(root), 'react-native');
+  assert.equal(runtimeFlag(undefined, root), 'react-native');
 });
