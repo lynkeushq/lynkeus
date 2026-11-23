@@ -1,0 +1,4 @@
+# Local development and CI resolve the sibling package; pub leaves this file out of the published package.
+dependency_overrides:
+  lynkeus_agent:
+    path: ../lynkeus_agent

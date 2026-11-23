@@ -7,8 +7,7 @@ command in docs/DRIVE.md work unchanged.
 ```yaml
 # pubspec.yaml of the app
 dev_dependencies:
-  lynkeus_headless:
-    path: ../lynkeus_headless   # until it is published
+  lynkeus_headless: ^0.7.5
 ```
 
 ```sh

@@ -1,8 +1,14 @@
 name: lynkeus_plugins
 description: Lets the Flutter plugins that have no method-channel default run on a Lynkeus host (headless or FastSim). Does nothing on a simulator or a phone.
 version: 0.7.5
-repository: https://github.com/lynkeushq/lynkeus
-publish_to: none
+homepage: https://lynkeus.io
+repository: https://github.com/lynkeushq/lynkeus/tree/main/flutter/lynkeus_plugins
+topics:
+  - testing
+  - automation
+  - flutter-test
+  - plugins
+  - mocking
 
 environment:
   sdk: ^3.8.0
@@ -13,8 +19,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  lynkeus_agent:
-    path: ../lynkeus_agent
+  lynkeus_agent: ^0.7.5
   shared_preferences_platform_interface: '>=2.4.0 <3.0.0'
   sqflite_platform_interface: '>=2.4.0 <3.0.0'
 
@@ -24,3 +29,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   shared_preferences: '>=2.3.0 <3.0.0'
   sqflite_common: '>=2.5.0 <3.0.0'
+
+platforms:
+  linux:
+  macos:
+  windows:

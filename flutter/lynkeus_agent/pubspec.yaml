@@ -1,8 +1,14 @@
 name: lynkeus_agent
 description: The in-app agent that lets Lynkeus read and drive a Flutter app on a simulator, an emulator or a phone.
 version: 0.7.5
-repository: https://github.com/lynkeushq/lynkeus
-publish_to: none
+homepage: https://lynkeus.io
+repository: https://github.com/lynkeushq/lynkeus/tree/main/flutter/lynkeus_agent
+topics:
+  - testing
+  - automation
+  - debugging
+  - flutter-test
+  - ui
 
 environment:
   sdk: ^3.8.0
@@ -20,3 +26,10 @@ dev_dependencies:
   # Only to parse the device_info stand-in's answers as the plugin does.
   device_info_plus: '>=12.0.0 <14.0.0'
   flutter_lints: ^6.0.0
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
