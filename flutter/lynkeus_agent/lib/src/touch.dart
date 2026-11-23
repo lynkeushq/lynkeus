@@ -27,24 +27,40 @@ void _dispatch(PointerEvent event) => GestureBinding.instance.handlePointerEvent
 
 Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 
+/// For tests: how much later than due move `k` of a drag is dispatched, as on a device whose frames run long.
+@visibleForTesting
+Duration Function(int k)? debugLate;
+
+/*
+ * Each event carries the time it is meant for (the gesture's start plus its place in it), not the time it happens to
+ * be dispatched: a timer that fires late on a busy device would otherwise stretch the timestamps under unchanged
+ * positions, the velocity tracker would read a slower finger, and the same swipe would fling to a different offset
+ * from run to run and from a device to a host. Dispatch still waits for the clock, so frames come in between as for
+ * a finger.
+ */
+
 /// Puts a finger down at [at] for [holdMs] and lifts it.
 Future<void> tap(Offset at, int holdMs) async {
   final view = viewId();
   final pointer = _nextPointer++;
-  _dispatch(PointerAddedEvent(timeStamp: _now(), viewId: view, device: _device, position: at));
-  _dispatch(PointerDownEvent(timeStamp: _now(), viewId: view, device: _device, pointer: pointer, position: at));
+  final start = _now();
+  _dispatch(PointerAddedEvent(timeStamp: start, viewId: view, device: _device, position: at));
+  _dispatch(PointerDownEvent(timeStamp: start, viewId: view, device: _device, pointer: pointer, position: at));
   await _sleep(holdMs);
-  _dispatch(PointerUpEvent(timeStamp: _now(), viewId: view, device: _device, pointer: pointer, position: at));
-  _dispatch(PointerRemovedEvent(timeStamp: _now(), viewId: view, device: _device, position: at));
+  final end = start + Duration(milliseconds: holdMs);
+  _dispatch(PointerUpEvent(timeStamp: end, viewId: view, device: _device, pointer: pointer, position: at));
+  _dispatch(PointerRemovedEvent(timeStamp: end, viewId: view, device: _device, position: at));
 }
 
 /// Drags a finger from [from] to [to] over [durationMs], a move per frame, and lifts it at the end: a fling when fast.
 Future<void> drag(Offset from, Offset to, int durationMs) async {
   final view = viewId();
   final pointer = _nextPointer++;
-  _dispatch(PointerAddedEvent(timeStamp: _now(), viewId: view, device: _device, position: from));
-  _dispatch(PointerDownEvent(timeStamp: _now(), viewId: view, device: _device, pointer: pointer, position: from));
+  final start = _now();
+  _dispatch(PointerAddedEvent(timeStamp: start, viewId: view, device: _device, position: from));
+  _dispatch(PointerDownEvent(timeStamp: start, viewId: view, device: _device, pointer: pointer, position: from));
   final steps = (durationMs / 16).ceil().clamp(2, 240);
+  Duration at(int k) => start + Duration(microseconds: durationMs * 1000 * k ~/ steps);
   var last = from;
   final started = _clock.elapsedMilliseconds;
   for (var k = 1; k <= steps; k++) {
@@ -52,10 +68,12 @@ Future<void> drag(Offset from, Offset to, int durationMs) async {
     final due = started + durationMs * k ~/ steps;
     final wait = due - _clock.elapsedMilliseconds;
     if (wait > 0) await _sleep(wait);
+    final late = debugLate?.call(k);
+    if (late != null && late > Duration.zero) await Future<void>.delayed(late);
     final next = Offset.lerp(from, to, k / steps)!;
     _dispatch(
       PointerMoveEvent(
-        timeStamp: _now(),
+        timeStamp: at(k),
         viewId: view,
         device: _device,
         pointer: pointer,
@@ -65,8 +83,8 @@ Future<void> drag(Offset from, Offset to, int durationMs) async {
     );
     last = next;
   }
-  _dispatch(PointerUpEvent(timeStamp: _now(), viewId: view, device: _device, pointer: pointer, position: to));
-  _dispatch(PointerRemovedEvent(timeStamp: _now(), viewId: view, device: _device, position: to));
+  _dispatch(PointerUpEvent(timeStamp: at(steps), viewId: view, device: _device, pointer: pointer, position: to));
+  _dispatch(PointerRemovedEvent(timeStamp: at(steps), viewId: view, device: _device, position: to));
 }
 
 EditableTextState? _focusedField() {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/methods.dart';
+import 'package:lynkeus_agent/src/touch.dart' as touch;
 
 /// Runs a method to its end, letting frames and timers move on as they would on a device.
 Future<Object?> drive(WidgetTester tester, Methods methods, String method, [Object? params]) async {
@@ -157,6 +158,33 @@ void main() {
     expect(asMap(swiped['from'])['y'], greaterThan(asMap(swiped['to'])['y']! as num));
     await tester.pumpAndSettle();
     expect(find.text('Count: 0'), findsNothing, reason: 'the top of the list moved out');
+  });
+
+  // A busy device fires the gesture's timers late: here, every other move 40 ms after it was due.
+  Future<double> flungTo(WidgetTester tester, Duration Function(int k)? late) async {
+    touch.debugLate = late;
+    addTearDown(() => touch.debugLate = null);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(const MaterialApp(home: Sample()));
+    final position = tester
+        .state<ScrollableState>(
+          find.descendant(of: find.byKey(const ValueKey('list')), matching: find.byType(Scrollable)).first,
+        )
+        .position;
+    var done = false;
+    Methods().call('swipe', {'direction': 'up', 'durationMs': 200}).then((_) => done = true);
+    for (var frames = 0; frames < 2000 && !done; frames++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await tester.pumpAndSettle();
+    return position.pixels;
+  }
+
+  testWidgets('a swipe flings to the same offset however late its moves are dispatched', (tester) async {
+    final onTime = await flungTo(tester, null);
+    final late = await flungTo(tester, (k) => Duration(milliseconds: k.isEven ? 40 : 0));
+    expect(onTime, greaterThan(400), reason: 'a fast swipe flings past what the finger moved');
+    expect(late, closeTo(onTime, 1));
   });
 
   testWidgets('waitFor gone and a timeout that says what it waited for', (tester) async {
