@@ -143,10 +143,19 @@ void installPlugins(
     };
   });
 
+  // Under flutter test `Platform.isMacOS` answers for the Mac running the host, so an app that branches on it asks for
+  // macOsInfo from this same call, whichever phone the host plays; these fields keep that parse from failing on nulls.
+  const macOs = <String, Object?>{
+    'computerName': 'Lynkeus host', 'hostName': 'lynkeus', 'arch': 'arm64', 'model': 'Mac', 'modelName': 'Mac', //
+    'kernelVersion': 'Darwin Kernel 25.0.0', 'osRelease': 'Version 26.5', 'majorVersion': 26, 'minorVersion': 5,
+    'patchVersion': 0, 'activeCPUs': 8, 'memorySize': 8 << 30, 'cpuFrequency': 0,
+    'systemGUID': '00000000-0000-0000-0000-000000000000',
+  };
   standIns.add('dev.fluttercommunity.plus/device_info', (method, args) {
     if (method != 'getDeviceInfo') return null;
     if (platform == 'android') {
       return {
+        ...macOs,
         'version': {
           'sdkInt': 35,
           'release': '15',
@@ -178,6 +187,7 @@ void installPlugins(
       };
     }
     return {
+      ...macOs,
       'name': 'iPhone 17', 'systemName': 'iOS', 'systemVersion': '26.5', 'model': 'iPhone', 'modelName': 'iPhone 17', //
       'localizedModel': 'iPhone',
       'identifierForVendor': '00000000-0000-0000-0000-000000000000',
@@ -191,11 +201,6 @@ void installPlugins(
         'version': 'Darwin',
         'machine': 'arm64',
       },
-      // Under flutter test `Platform.isMacOS` answers for the Mac running the host, so an app that branches on it asks
-      // for macOsInfo from this same call; its fields keep that parse from failing on nulls.
-      'computerName': 'Lynkeus host', 'hostName': 'lynkeus', 'arch': 'arm64', 'kernelVersion': 'Darwin Kernel 25.0.0',
-      'osRelease': 'Version 26.5', 'majorVersion': 26, 'minorVersion': 5, 'patchVersion': 0, 'activeCPUs': 8,
-      'memorySize': 8 << 30, 'cpuFrequency': 0, 'systemGUID': '00000000-0000-0000-0000-000000000000',
     };
   });
 

@@ -104,6 +104,17 @@ void main() {
     final mac = MacOsDeviceInfo.fromMap(info!.cast<String, dynamic>());
     expect(mac.majorVersion, 26);
     expect(mac.computerName, isNotEmpty);
+    expect(IosDeviceInfo.fromMap(info.cast<String, dynamic>()).model, 'iPhone');
+
+    final android = StandIns(log: logged.add);
+    installPlugins(android, state, (_, _) {}, (_, _) async {}, 'android');
+    final answer = await android.answer(
+      'dev.fluttercommunity.plus/device_info',
+      const StandardMethodCodec().encodeMethodCall(const MethodCall('getDeviceInfo')),
+    );
+    final map = (const StandardMethodCodec().decodeEnvelope(answer!)! as Map).cast<String, dynamic>();
+    expect(MacOsDeviceInfo.fromMap(map).majorVersion, 26);
+    expect(AndroidDeviceInfo.fromMap(map).model, 'sdk_gphone64_arm64');
   });
 
   testWidgets('notifications are granted and written down, scheduled until cancelled', (tester) async {
