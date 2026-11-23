@@ -6,7 +6,7 @@
 - `lynkeus_plugins/`: optional; lets plugins with no method-channel default (sqflite 2.4, shared_preferences' async API) work on a host.
 - `lynkeus_headless/`: hosts the app inside `flutter test`, with no simulator: `lynkeus case run --host` in a Flutter
   project.
-- `sample/`: a small app (iOS and Android) and the cases in `sample/cases/` that run against it.
+- `sample/`: a small app (iOS and Android) that passes the runtime conformance cases in `../conformance/cases/`.
 - `validation/`: cases for real open-source apps (flutter_deer, mhabit, Rain), and what running them found ([VALIDATION.md](VALIDATION.md)).
 
 ## Supported Flutter versions

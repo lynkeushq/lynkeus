@@ -1,6 +1,6 @@
 ---
-id: flutter-resend-code
-title: "Counter and resend countdown in a Flutter app"
+id: resend-code
+title: "Counter and resend countdown"
 description: >
   Presses the counter twice, types a name and asks for a code. The code can be asked for again after a three second
   countdown, which the case waits for.

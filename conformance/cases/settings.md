@@ -1,9 +1,9 @@
 ---
-id: flutter-settings
-title: "A preference that persists, and a link the app opens, in a Flutter app"
+id: settings
+title: "A preference that persists, and a link the app opens"
 description: >
-  Turns a setting on, leaves the screen and comes back to find it read again from shared_preferences, and checks the
-  help link with url_launcher. On a host the link is also opened, where the host writes it down instead of leaving
+  Turns a setting on, leaves the screen and comes back to find it read again from the app's storage, and checks the
+  help link with the app's link opener. On a host the link is also opened, where the host writes it down instead of leaving
   the app; a device would leave the app for the browser, so it does not open it there.
 ---
 steps:

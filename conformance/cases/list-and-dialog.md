@@ -1,6 +1,6 @@
 ---
-id: flutter-list-and-dialog
-title: "A long list, a second screen and a confirmation dialog in a Flutter app"
+id: list-and-dialog
+title: "A long list, a second screen and a confirmation dialog"
 description: >
   Opens the list, scrolls to a row far below the fold and picks it, goes back from the list with the system back, then
   confirms a dialog. While the dialog is up, the screen under it is not presented.

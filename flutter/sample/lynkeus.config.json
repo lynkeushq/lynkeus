@@ -1,3 +1,5 @@
 {
-  "cases": { "dir": "cases" }
+  "cases": {
+    "dir": "../../conformance/cases"
+  }
 }
