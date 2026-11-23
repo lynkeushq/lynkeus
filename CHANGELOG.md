@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### All projects
+
+- `app.press: 5`, a YAML number, presses the element at index 5, as `app.press: "5"` does. Such a step used to stop the case with `Cannot use 'in' operator`.
+
+### Flutter
+
 - Flutter apps are supported. `lynkeus_agent` (`flutter/lynkeus_agent`) is the in-app agent, started with `LynkeusAgent.start()` in a debug build and given the project's token with `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`; it reads the widget tree, touches through Flutter's gesture system, types through its text input, reports routes (a `Navigator` observer, or `LynkeusRoutes` for go_router and other routers) and records `dart:io` `HttpClient` requests for `requests`, `trace` and `mock`. Cases have the same format; a route name needs the `route:` prefix in `app.wait`, and `app.wait: { text: X }` always waits for the text X (in a React Native project it keeps reading X as `app.wait: X` does). `lynkeus init` sets a Flutter project up (`pubspec.yaml`, `lib/main.dart`, the token; `--runtime react-native|flutter` chooses when a folder is both).
 - `lynkeus headless start` and `lynkeus case run --host` host a Flutter app under `flutter test` through `lynkeus_headless` (a `dev_dependencies` entry), with real layout and software paint, a virtual clock for `lynkeus os clock`, `screenshot`, `appstate`, `deeplink` and `memory`, and `flutterHost` in `lynkeus.config.json` (`platform`, `window`, `networkHosts`). Flutter is found through `FLUTTER_ROOT`, `flutter` on `PATH` or `mise which flutter`. Plugins have in-memory stand-ins (shared_preferences, flutter_secure_storage, path_provider, device_info_plus, package_info_plus, url_launcher, local_auth, permission_handler, connectivity_plus), a project adds its own in `test/lynkeus_host.dart`, and any other channel answers null and logs `[stub] <channel>` (`LYNKEUS_CHANNELS=trace` logs every call). Not yet: `--seed` and `--host-heap` restarts on the Flutter host, and Lynkeus FastSim for Flutter. See the new Flutter page of the docs (English and Spanish).
 - The MCP instructions tell a model how to set up and run a Flutter project.
