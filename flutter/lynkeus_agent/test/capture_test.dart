@@ -2,6 +2,7 @@
 
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -81,6 +82,29 @@ void main() {
   _SpinnersState spinners(WidgetTester tester) => tester.state<_SpinnersState>(find.byType(_Spinners));
 
   setUp(binding.debugRelaunch);
+
+  // First in the file: the binding's first page is built outside a frame, as runApp builds an app's.
+  testWidgets('idle waits out a timer the launch set before the driver first asked, and only the launch', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaterialApp(home: _Splash()));
+    final methods = Methods()..capture = binding;
+    final started = clock.now().millisecondsSinceEpoch;
+    final first = await idleOf(tester, methods, {'quietMs': 100, 'timeoutMs': 300});
+    expect(first['idle'], isTrue);
+    expect(find.text('Guide'), findsOneWidget);
+    expect(clock.now().millisecondsSinceEpoch - started, inInclusiveRange(1500, 1800));
+    // The launch is over: a timer a page sets now (a toast's, a countdown's) is the page's own.
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: _Splash(key: ValueKey('again'), after: Duration(seconds: 2)),
+      ),
+    );
+    final later = clock.now().millisecondsSinceEpoch;
+    expect((await idleOf(tester, methods, {'quietMs': 100, 'timeoutMs': 300}))['idle'], isTrue);
+    expect(clock.now().millisecondsSinceEpoch - later, lessThan(300));
+    await tester.pump(const Duration(seconds: 2));
+  });
 
   testWidgets('spinners are captured at the same angle however much time has passed', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: _Spinners())));
@@ -220,6 +244,16 @@ void main() {
       expect(binding.holding, isFalse);
       await tester.pump();
     });
+
+    testWidgets('a launch timer due past the bound is not waited for', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: _Splash(after: Duration(seconds: 30))));
+      methods = Methods()..capture = binding;
+      final started = clock.now().millisecondsSinceEpoch;
+      expect((await idle(tester, {'quietMs': 100, 'timeoutMs': 300}))['idle'], isTrue);
+      expect(clock.now().millisecondsSinceEpoch - started, lessThan(400));
+      expect(find.text('Guide'), findsNothing);
+      await tester.pump(const Duration(seconds: 30));
+    });
   });
 }
 
@@ -235,4 +269,25 @@ Future<Map<String, Object?>> idleOf(WidgetTester tester, Methods methods, Map<St
 class _Vsync implements TickerProvider {
   @override
   Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
+}
+
+/// A splash that moves on to its guide after a timer, as flutter_deer's does.
+class _Splash extends StatefulWidget {
+  const _Splash({super.key, this.after = const Duration(milliseconds: 1500)});
+  final Duration after;
+  @override
+  State<_Splash> createState() => _SplashState();
+}
+
+class _SplashState extends State<_Splash> {
+  var guide = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Timer(widget.after, () => setState(() => guide = true));
+  }
+
+  @override
+  Widget build(BuildContext context) => Center(child: Text(guide ? 'Guide' : 'Splash'));
 }

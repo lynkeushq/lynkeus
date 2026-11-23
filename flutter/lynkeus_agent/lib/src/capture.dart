@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -20,6 +21,10 @@ import 'package:flutter/widgets.dart';
  * that runs to an end (a fade, a ripple, a fling) is never moved: drawing one at another time would draw a page
  * sliding in at its start, or start its listeners over.
  *
+ * The launch: a device meets its driver after the launch's real time has passed, a host before, so a splash's timer
+ * has fired on one side and not on the other. The one-shot timers the app's frames set before the driver's first
+ * `idle` (and the first page's build, which runApp does outside a frame) are the launch's own, and until `idle` first
+ * finds the app quiet they count as work in flight.
  */
 
 /// The agent's binding: the app's own WidgetsFlutterBinding, with capture frames. [LynkeusAgent.start] makes it
@@ -82,6 +87,12 @@ mixin FrameCapture on WidgetsBinding {
   var _missedFrame = false;
   Timer? _holdLimit;
 
+  var _watching = true;
+  var _launching = true;
+  final _launchTimers = <(Timer, int)>[];
+  Zone? _launchParent;
+  Zone? _launchZone;
+
   /// Whether frames are held on a capture frame.
   bool get holding => _holding;
 
@@ -134,6 +145,10 @@ mixin FrameCapture on WidgetsBinding {
     super.cancelFrameCallbackWithId(id);
   }
 
+  // runApp builds the first page outside a frame, in a timer of its own: a splash's initState runs here.
+  @override
+  void attachRootWidget(Widget rootWidget) => _inLaunchZone(() => super.attachRootWidget(rootWidget));
+
   @override
   void handleBeginFrame(Duration? rawTimeStamp) {
     if (_holding) {
@@ -142,7 +157,7 @@ mixin FrameCapture on WidgetsBinding {
     }
     _pinning = _captureNext;
     _captureNext = false;
-    super.handleBeginFrame(rawTimeStamp);
+    _inLaunchZone(() => super.handleBeginFrame(rawTimeStamp));
   }
 
   @override
@@ -158,7 +173,7 @@ mixin FrameCapture on WidgetsBinding {
           ..cursorColor = color;
       }
     }
-    super.handleDrawFrame();
+    _inLaunchZone(super.handleDrawFrame);
     if (_pinning) {
       _pinning = false;
       _holding = true;
@@ -216,7 +231,53 @@ mixin FrameCapture on WidgetsBinding {
     return out;
   }
 
+  void _inLaunchZone(void Function() frame) {
+    if (!_watching) return frame();
+    final parent = Zone.current;
+    if (_launchParent != parent) {
+      _launchParent = parent;
+      _launchZone = parent.fork(
+        specification: ZoneSpecification(
+          createTimer: (self, delegate, zone, duration, callback) {
+            final timer = delegate.createTimer(zone, duration, callback);
+            if (_watching) {
+              // An app no driver ever waits on keeps this list as short as its timers.
+              if (_launchTimers.length >= 64) _launchTimers.removeWhere((t) => !t.$1.isActive);
+              _launchTimers.add((timer, clock.now().millisecondsSinceEpoch + duration.inMilliseconds));
+            }
+            return timer;
+          },
+        ),
+      );
+    }
+    _launchZone!.run(frame);
+  }
+
+  /// Timers the launch set from here on are not the launch's: called when the driver first waits on the app.
+  void endLaunchWatch() {
+    _watching = false;
+    _launchParent = _launchZone = null;
+  }
+
+  /// The launch is over: called once `idle` has found the app quiet.
+  void endLaunch() {
+    endLaunchWatch();
+    _launching = false;
+    _launchTimers.clear();
+  }
+
+  /// Whether a one-shot timer of the launch is still to fire, before [beforeMs] (app time).
+  bool launchTimerDue(int beforeMs) {
+    if (!_launching) return false;
+    _launchTimers.removeWhere((t) => !t.$1.isActive);
+    return _launchTimers.any((t) => t.$2 <= beforeMs);
+  }
+
   /// For tests: as just launched.
   @visibleForTesting
-  void debugRelaunch() => release();
+  void debugRelaunch() {
+    release();
+    _watching = _launching = true;
+    _launchTimers.clear();
+  }
 }

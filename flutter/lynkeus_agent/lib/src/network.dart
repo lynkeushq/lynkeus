@@ -183,6 +183,12 @@ class Network {
   int get inFlight => math.max(0, _inFlight - _held.length);
   int get held => _held.length;
 
+  /// Of [inFlight], the requests that went out at [ms] (app time) or later.
+  int inFlightSince(int ms) => math.max(
+    0,
+    _records.where((r) => !r.finished && r.startedAt >= ms).length - _held.where((h) => h.since >= ms).length,
+  );
+
   /// The requests out to a real server. A mocked one is answered by the agent's own timer, which runs on a host's
   /// clock, so a host with its own clock fast-forwards through its delay; it keeps the wall's pace only for these.
   int get onWire => math.max(0, inFlight - _answeringHere);

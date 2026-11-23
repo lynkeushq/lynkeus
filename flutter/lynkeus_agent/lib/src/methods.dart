@@ -26,7 +26,7 @@ Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 const _minSettleLooks = 30;
 const _keep = 500;
 const _listEndMs = 3000;
-// How long past its timeout `idle` keeps waiting on the app's requests out and on its launch.
+// How long past its timeout `idle` keeps waiting on work that ends on its own (a request out, a launch's timer).
 const _waitedOutMs = 10000;
 
 // Driver requests that leave a capture frame held: the captures themselves and the reads that go with them.
@@ -158,14 +158,11 @@ class Methods {
   /// Requests from the driver being served right now.
   int serving = 0;
 
-  /// The app time before which `idle` never finds the app quiet: [LynkeusAgent.start] sets it [launchSettleMs] after
-  /// the launch. A device meets its driver after real time has passed since the launch, a host before much app time
-  /// has, so a launch's own timers (a splash for 1.5 s, then a guide) would otherwise fire before one side's first
-  /// frame and after the other's.
-  int launchSettledAt = 0;
-
   /// The binding's capture frames, when the binding is the agent's (capture.dart).
   FrameCapture? capture;
+
+  // When `idle` last answered: a request out since then is the step's own.
+  var _answeredAt = 0;
 
   /// Told when [serving] changes: a host with its own clock runs it ahead while the driver waits.
   void Function()? onServing;
@@ -629,10 +626,12 @@ class Methods {
     }
   }
 
-  // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure. Waits
-  // that end on their own, the app's requests out and its launch, are not held against the timeout (up to
-  // [_waitedOutMs] past it): a device's request can take seconds where a host replays it at once, and a frame taken
-  // while it was out would show what the other side's frame does not.
+  // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure.
+  //
+  // Work that ends on its own is waited out past the timeout, up to [_waitedOutMs] more: a request the app made
+  // since the last answer (a device's can take seconds where a host replays it at once), and the timers its launch
+  // set (a splash's), until idle first finds the app quiet. A request that was already out at the last answer (a
+  // long poll) keeps the app busy, but only until the timeout.
   //
   // The answer comes with the capture frame drawn and held when something loops on screen (capture.dart).
   Future<Map<String, Object?>> _idle(Map<String, Object?> p) async {
@@ -640,6 +639,8 @@ class Methods {
     final after = _int(p['after']);
     var deadline = _ms() + (_int(p['timeoutMs']) ?? 3000);
     final latest = deadline + _waitedOutMs;
+    final since = _answeredAt;
+    capture?.endLaunchWatch();
     var lastCommit = _commitCount();
     var quietSince = _ms();
     var arrived = after == null || lastCommit > after;
@@ -649,11 +650,9 @@ class Methods {
       final now = _ms();
       final commit = _commitCount();
       if (after != null && commit > after) arrived = true;
-      final launching = now < launchSettledAt;
-      if (launching || (network?.inFlight ?? 0) > 0) {
-        deadline = math.min(latest, math.max(deadline, math.max(now, launchSettledAt) + quietMs + 60));
-      }
-      if (commit != lastCommit || launching || await _busy()) {
+      final ending = (network?.inFlightSince(since) ?? 0) > 0 || (capture?.launchTimerDue(latest) ?? false);
+      if (ending) deadline = math.min(latest, math.max(deadline, now + quietMs + 60));
+      if (commit != lastCommit || ending || await _busy()) {
         lastCommit = commit;
         quietSince = now;
       } else if (arrived && now - quietSince >= quietMs) {
@@ -661,6 +660,8 @@ class Methods {
       }
     }
     answer ??= {'commit': _commitCount(), 'idle': false};
+    _answeredAt = _ms();
+    if (answer['idle'] == true) capture?.endLaunch();
     await capture?.capture(stillServing: () => serving > 0);
     return answer;
   }

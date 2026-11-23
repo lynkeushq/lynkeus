@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -22,9 +21,6 @@ const protocolVersion = 2;
 const _token = String.fromEnvironment('LYNKEUS_TOKEN');
 const _host = String.fromEnvironment('LYNKEUS_HOST');
 const _port = int.fromEnvironment('LYNKEUS_PORT', defaultValue: 8123);
-
-/// How long after its launch an app is taken to be still starting (see [Methods.launchSettledAt]).
-const launchSettleMs = 3000;
 
 const _noToken =
     'lynkeus: no token, so the agent stays off. Build the app with --dart-define=LYNKEUS_TOKEN=\$(cat .lynkeus/token) '
@@ -90,14 +86,13 @@ abstract final class LynkeusAgent {
     } else if (fastsim == null && hosted == null && WidgetsBinding.instance is! FrameCapture) {
       debugPrint(
         'lynkeus: the app made its binding before LynkeusAgent.start(), so captured frames catch spinners wherever '
-        'they are. Call LynkeusAgent.start() first in main().',
+        'they are and idle does not wait for the launch\'s timers. Call LynkeusAgent.start() first in main().',
       );
     }
     WidgetsFlutterBinding.ensureInitialized();
     _standingIn = hosted != null || fastsim?.standIns != null;
     final binding = WidgetsBinding.instance;
     final methods = Methods()
-      ..launchSettledAt = clock.now().millisecondsSinceEpoch + launchSettleMs
       ..capture = binding is FrameCapture ? binding : null
       ..commands.addAll(_pending)
       ..routes = routes ?? navigatorObserver.routes;

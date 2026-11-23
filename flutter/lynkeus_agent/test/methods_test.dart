@@ -273,24 +273,12 @@ void main() {
     expect((after['commit']! as num).toInt(), greaterThan(before));
   });
 
-  testWidgets('idle does not find the app quiet before its launch has settled, whatever its timeout', (tester) async {
-    await start(tester);
-    final launched = clock.now().millisecondsSinceEpoch;
-    methods.launchSettledAt = launched + 1500;
-    final result = asMap(await drive(tester, methods, 'idle', {'quietMs': 100, 'timeoutMs': 300}));
-    expect(result['idle'], isTrue);
-    expect(clock.now().millisecondsSinceEpoch - launched, greaterThanOrEqualTo(1600));
-    // Once the launch is behind it, a quiet screen is idle at once.
-    final before = clock.now().millisecondsSinceEpoch;
-    expect(asMap(await drive(tester, methods, 'idle', {'quietMs': 100, 'timeoutMs': 300}))['idle'], isTrue);
-    expect(clock.now().millisecondsSinceEpoch - before, lessThan(300));
-  });
-
-  testWidgets('idle waits out a request in flight past its timeout, up to a bound', (tester) async {
+  testWidgets('idle waits out a request the step made past its timeout, up to a bound', (tester) async {
     await start(tester);
     final network = _Network();
     methods.network = network;
     final started = clock.now().millisecondsSinceEpoch;
+    network.startedAt = started;
     Map<String, Object?>? result;
     unawaited(methods.call('idle', {'quietMs': 100, 'timeoutMs': 300}).then((r) => result = asMap(r)));
     for (var t = 0; t < 2000 ~/ 16; t++) {
@@ -303,12 +291,19 @@ void main() {
     }
     expect(result?['idle'], isTrue);
     expect(clock.now().millisecondsSinceEpoch - started, greaterThanOrEqualTo(2100));
-    // A request that never ends holds it only so long: the timeout and 10 s more.
-    network.out = 1;
+    // One that never ends holds it only so long: the timeout and 10 s more.
+    network
+      ..out = 1
+      ..startedAt = clock.now().millisecondsSinceEpoch;
     final stuck = clock.now().millisecondsSinceEpoch;
     final gaveUp = asMap(await drive(tester, methods, 'idle', {'quietMs': 100, 'timeoutMs': 300}));
     expect(gaveUp['idle'], isFalse);
     expect(clock.now().millisecondsSinceEpoch - stuck, inInclusiveRange(10300, 10500));
+    // Still out at the last answer, it is a long poll, not the step's: busy, but only until the timeout.
+    final polling = clock.now().millisecondsSinceEpoch;
+    final again = asMap(await drive(tester, methods, 'idle', {'quietMs': 100, 'timeoutMs': 300}));
+    expect(again['idle'], isFalse);
+    expect(clock.now().millisecondsSinceEpoch - polling, inInclusiveRange(300, 400));
   });
 
   // The platform's messages are handled in the zone the binding started in, outside a widget test's fake time: these
@@ -542,6 +537,9 @@ class _BouncingState extends State<Bouncing> with SingleTickerProviderStateMixin
 class _Network extends Network {
   _Network() : super(trace: (_) {});
   var out = 1;
+  var startedAt = 0;
   @override
   int get inFlight => out;
+  @override
+  int inFlightSince(int ms) => startedAt >= ms ? out : 0;
 }
