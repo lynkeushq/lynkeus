@@ -95,6 +95,86 @@ void main() {
     expect(info?['systemName'], 'iOS');
   });
 
+  testWidgets('device_info answers the macOS parse too, which an app on the host machine\'s path makes', (
+    tester,
+  ) async {
+    final info = await const MethodChannel(
+      'dev.fluttercommunity.plus/device_info',
+    ).invokeMethod<Map<Object?, Object?>>('getDeviceInfo');
+    final mac = MacOsDeviceInfo.fromMap(info!.cast<String, dynamic>());
+    expect(mac.majorVersion, 26);
+    expect(mac.computerName, isNotEmpty);
+  });
+
+  testWidgets('notifications are granted and written down, scheduled until cancelled', (tester) async {
+    const channel = MethodChannel('dexterous.com/flutter/local_notifications');
+    expect(await channel.invokeMethod<bool>('initialize', {}), isTrue);
+    expect(await channel.invokeMethod<bool>('requestPermissions', {'alert': true}), isTrue);
+    await channel.invokeMethod<void>('zonedSchedule', {
+      'id': 7,
+      'title': 'Read',
+      'body': 'Did you read today?',
+      'payload': '',
+      'timeZoneName': 'UTC',
+      'scheduledDateTime': '2026-11-24T08:00:00',
+      'matchDateTimeComponents': 0,
+    });
+    await channel.invokeMethod<void>('show', {'id': 1, 'title': 'Now', 'body': null, 'payload': ''});
+    expect(await channel.invokeListMethod<Object?>('pendingNotificationRequests'), [
+      {'id': 7, 'title': 'Read', 'body': 'Did you read today?', 'payload': ''},
+    ]);
+    final listed = commands['notifications']!(null)! as Map<String, Object?>;
+    expect((listed['scheduled']! as List).single, containsPair('at', '2026-11-24T08:00:00'));
+    expect((listed['shown']! as List).single, containsPair('title', 'Now'));
+    await channel.invokeMethod<void>('cancel', 7);
+    expect(await channel.invokeListMethod<Object?>('pendingNotificationRequests'), isEmpty);
+  });
+
+  testWidgets('the time zone is TZ\'s when it names one, else the machine\'s', (tester) async {
+    expect(hostTimeZone({'TZ': 'America/Argentina/Buenos_Aires'}), 'America/Argentina/Buenos_Aires');
+    expect(hostTimeZone({'TZ': 'UTC'}), 'UTC');
+    expect(hostTimeZone(const {}), contains(RegExp(r'^(UTC|\w+/[\w/+-]+)$')));
+    expect(await const MethodChannel('flutter_timezone').invokeMethod<String>('getLocalTimezone'), hostTimeZone());
+  });
+
+  testWidgets('share, file pickers, open_file and app_settings answer as a user who goes along would', (tester) async {
+    expect(
+      await const MethodChannel('dev.fluttercommunity.plus/share').invokeMethod<String>('share', {
+        'paths': ['/tmp/backup.json'],
+        'subject': 'Backup',
+      }),
+      'dev.fluttercommunity.plus/share/success',
+    );
+    expect(commands['shared']!(null), {
+      'shared': [
+        {
+          'subject': 'Backup',
+          'paths': ['/tmp/backup.json'],
+        },
+      ],
+    });
+
+    const picker = MethodChannel('plugins.flutter.io/file_selector');
+    expect(await picker.invokeListMethod<String>('openFile', {'multiple': false}), isNull);
+    commands['files']!({'open': '/tmp/backup.json'});
+    expect(await picker.invokeListMethod<String>('openFile', {'multiple': false}), ['/tmp/backup.json']);
+    final saveTo = await picker.invokeMethod<String>('getSavePath', {'suggestedName': 'habits.csv'});
+    expect(saveTo, endsWith('/downloads/habits.csv'));
+    expect((commands['files']!(null)! as Map)['saved'], [saveTo]);
+
+    final file = File('${state.folder.path}/report.csv')..writeAsStringSync('a,b');
+    const open = MethodChannel('open_file');
+    expect(await open.invokeMethod<String>('open_file', {'file_path': file.path}), contains('"type":0'));
+    expect(await open.invokeMethod<String>('open_file', {'file_path': '/nope'}), contains('"type":-2'));
+    await const MethodChannel(
+      'com.spencerccf.app_settings/methods',
+    ).invokeMethod<void>('openSettings', {'type': 'notification'});
+    expect((commands['launched']!(null)! as Map)['urls'], [
+      Uri.file(file.path).toString(),
+      'app-settings:notification',
+    ]);
+  });
+
   test('the engine\'s and the host\'s channels are not a plugin\'s', () {
     expect(StandIns.handles('flutter/platform'), isFalse);
     expect(StandIns.handles('lynkeus/fastsim'), isFalse);

@@ -31,6 +31,18 @@ class PluginState {
   var online = true;
   final _connectivityListeners = <void Function()>[];
 
+  /// flutter_local_notifications: what is scheduled, by id, and what was shown, in order.
+  final notifications = <int, Map<String, Object?>>{};
+  final shown = <Map<String, Object?>>[];
+
+  /// share_plus: what the app handed the share sheet.
+  final shared = <Map<String, Object?>>[];
+
+  /// file_selector: the paths the next pickers return (a picker with none queued is cancelled), and the save paths
+  /// handed out.
+  final toOpen = <List<String>>[];
+  final saved = <String>[];
+
   /// sqflite's open databases by the id the app holds.
   final _databases = <int, ({String path, SqliteDatabase db})>{};
   var _nextDatabase = 0;
@@ -47,6 +59,11 @@ class PluginState {
     secure.clear();
     launched.clear();
     outcomes.clear();
+    notifications.clear();
+    shown.clear();
+    shared.clear();
+    toOpen.clear();
+    saved.clear();
   }
 }
 
@@ -174,6 +191,11 @@ void installPlugins(
         'version': 'Darwin',
         'machine': 'arm64',
       },
+      // Under flutter test `Platform.isMacOS` answers for the Mac running the host, so an app that branches on it asks
+      // for macOsInfo from this same call; its fields keep that parse from failing on nulls.
+      'computerName': 'Lynkeus host', 'hostName': 'lynkeus', 'arch': 'arm64', 'kernelVersion': 'Darwin Kernel 25.0.0',
+      'osRelease': 'Version 26.5', 'majorVersion': 26, 'minorVersion': 5, 'patchVersion': 0, 'activeCPUs': 8,
+      'memorySize': 8 << 30, 'cpuFrequency': 0, 'systemGUID': '00000000-0000-0000-0000-000000000000',
     };
   });
 
@@ -256,6 +278,7 @@ void installPlugins(
     return null;
   });
 
+  _installOthers(standIns, state, register);
   _installSqflite(standIns, state);
 
   register('launched', (params) {
@@ -290,6 +313,163 @@ void installPlugins(
       listener();
     }
     return {'online': state.online};
+  });
+}
+
+/// The IANA name of the zone the host runs in: TZ when it names one (`case run --time-zone`), else the machine's.
+String hostTimeZone([Map<String, String>? environment]) {
+  final tz = (environment ?? Platform.environment)['TZ'];
+  if (tz != null && tz.contains('/')) return tz.startsWith(':') ? tz.substring(1) : tz;
+  if (tz == 'UTC' || tz == 'GMT') return 'UTC';
+  try {
+    final target = Link('/etc/localtime').targetSync();
+    final at = target.indexOf('zoneinfo/');
+    if (at >= 0) return target.substring(at + 'zoneinfo/'.length);
+  } on FileSystemException {
+    // No link (a container): UTC, as the machine's clock is then.
+  }
+  return 'UTC';
+}
+
+void _installOthers(
+  StandIns standIns,
+  PluginState state,
+  void Function(String name, FutureOr<Object?> Function(Object? params) handler) register,
+) {
+  standIns.add('flutter_timezone', (method, args) {
+    final zone = hostTimeZone();
+    return switch (method) {
+      'getLocalTimezone' => zone,
+      'getAvailableTimezones' => {zone, 'UTC'}.toList(),
+      _ => null,
+    };
+  });
+
+  // flutter_local_notifications on iOS and Android (its platform classes speak this channel): every permission is
+  // granted, and nothing is shown; what is scheduled or shown is written down for the notifications command.
+  standIns.add('dexterous.com/flutter/local_notifications', (method, args) {
+    final a = _argMap(args);
+    Map<String, Object?> entry() => {
+      'id': a['id'],
+      'title': a['title'],
+      'body': a['body'],
+      'payload': a['payload'],
+      if (a['scheduledDateTime'] != null) 'at': a['scheduledDateTime'],
+      if (a['timeZoneName'] != null) 'timeZone': a['timeZoneName'],
+      if (a['matchDateTimeComponents'] != null) 'repeats': a['matchDateTimeComponents'],
+      if (a['repeatInterval'] != null) 'repeats': a['repeatInterval'],
+    };
+    switch (method) {
+      case 'initialize' ||
+          'requestPermissions' ||
+          'requestNotificationsPermission' ||
+          'requestExactAlarmsPermission' ||
+          'requestFullScreenIntentPermission' ||
+          'areNotificationsEnabled' ||
+          'canScheduleExactNotifications' ||
+          'hasNotificationPolicyAccess':
+        return true;
+      case 'checkPermissions':
+        return {
+          for (final key in ['isEnabled', 'isAlertEnabled', 'isBadgeEnabled', 'isSoundEnabled']) key: true,
+          'isProvisionalEnabled': false,
+          'isCriticalEnabled': false,
+        };
+      case 'zonedSchedule' || 'periodicallyShow' || 'periodicallyShowWithDuration':
+        state.notifications[a['id']! as int] = entry();
+        return null;
+      case 'show':
+        state.shown.add(entry());
+        return null;
+      case 'cancel':
+        final id = args.isNotEmpty && args.first is int ? args.first : a['id'];
+        state.notifications.remove(id);
+        return null;
+      case 'cancelAll' || 'cancelAllPendingNotifications':
+        state.notifications.clear();
+        return null;
+      case 'pendingNotificationRequests':
+        return [
+          for (final n in state.notifications.values)
+            {'id': n['id'], 'title': n['title'], 'body': n['body'], 'payload': n['payload']},
+        ];
+      case 'getActiveNotifications':
+        return [
+          for (final n in state.shown) {'id': n['id'], 'title': n['title'], 'body': n['body'], 'payload': n['payload']},
+        ];
+    }
+    return null;
+  });
+
+  // share_plus: the sheet is never drawn; it reports the share done, and the driver reads what was shared.
+  standIns.add('dev.fluttercommunity.plus/share', (method, args) {
+    if (method != 'share') return null;
+    final a = _argMap(args);
+    state.shared.add({
+      for (final key in ['text', 'subject', 'title', 'uri', 'paths', 'mimeTypes'])
+        if (a[key] != null) key: a[key],
+    });
+    return 'dev.fluttercommunity.plus/share/success';
+  });
+
+  // file_selector: a picker returns what the files command queued (cancelled when nothing is), and a save dialog
+  // answers a path in the run's downloads folder.
+  standIns.add('plugins.flutter.io/file_selector', (method, args) {
+    final a = _argMap(args);
+    switch (method) {
+      case 'openFile':
+        if (state.toOpen.isEmpty) return null;
+        final paths = state.toOpen.removeAt(0);
+        return a['multiple'] == true ? paths : paths.take(1).toList();
+      case 'getDirectoryPath':
+        return state.toOpen.isEmpty ? null : state.toOpen.removeAt(0).first;
+      case 'getDirectoryPaths':
+        return state.toOpen.isEmpty ? null : state.toOpen.removeAt(0);
+      case 'getSavePath':
+        final path = '${_folder(state, 'downloads')}/${a['suggestedName'] ?? 'file'}';
+        state.saved.add(path);
+        return path;
+    }
+    return null;
+  });
+
+  // open_file and app_settings send the user out of the app: nothing opens, and the target is written down with the
+  // URLs url_launcher opened.
+  standIns.add('open_file', (method, args) {
+    final path = _argMap(args)['file_path'] as String?;
+    if (path == null) return '{"type":-4,"message":"no file_path"}';
+    if (!File(path).existsSync()) return '{"type":-2,"message":"the file does not exist"}';
+    state.launched.add(Uri.file(path).toString());
+    return '{"type":0,"message":"done"}';
+  });
+  standIns.add('com.spencerccf.app_settings/methods', (method, args) {
+    final a = _argMap(args);
+    state.launched.add('app-settings:${a['type'] ?? method}');
+    return null;
+  });
+
+  // dynamic_color: no wallpaper colors, as on iOS and on Android before 12; the app keeps its own palette.
+  standIns.add('io.material.plugins/dynamic_color', (method, args) => null);
+
+  register('notifications', (params) {
+    final answer = {'scheduled': state.notifications.values.toList(), 'shown': List.of(state.shown)};
+    if (params is Map && params['clear'] == true) {
+      state.notifications.clear();
+      state.shown.clear();
+    }
+    return answer;
+  });
+  register('shared', (params) {
+    final answer = {'shared': List.of(state.shared)};
+    if (params is Map && params['clear'] == true) state.shared.clear();
+    return answer;
+  });
+  register('files', (params) {
+    final p = params is Map ? params : const {};
+    final open = p['open'];
+    if (open is String) state.toOpen.add([open]);
+    if (open is List) state.toOpen.add([for (final path in open) '$path']);
+    return {'queued': state.toOpen, 'saved': state.saved};
   });
 }
 

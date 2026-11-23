@@ -3,5 +3,5 @@
 library;
 
 export 'src/fence.dart' show FencedHttpOverrides, blockedMessage, defaultNetworkHosts, networkHostsFrom;
-export 'src/plugins.dart' show PluginState, installPlugins;
+export 'src/plugins.dart' show PluginState, hostTimeZone, installPlugins;
 export 'src/standins.dart' show StandIn, StandInMessenger, StandIns, explainHostError, noPlatformViews;
