@@ -318,3 +318,193 @@ npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle>
 On FastSim `Platform.isIOS` is true, so `main()` runs `FixedIos26FlutterBinding.ensureInitialized()` after the agent
 has made its binding, which a debug build refuses (a binding cannot be replaced); and flutter_local_notifications
 has no registration there (the headless host file does it). Both are expected to need work before the FastSim run.
+
+# Third app: Rain
+
+[Rain](https://github.com/darkmoonight/Rain) (by darkmoonight, MIT) is a weather app: onboarding, a city picked by
+search, by GPS or on a map, an hourly strip and a 12-day forecast, air quality, saved cities that reorder and swipe
+away, a map tab, units, themes and 40 languages. It uses go_router 18 (its router built inside a Riverpod provider),
+flutter_riverpod 3, isar_community (a database over `dart:ffi`), dio, dio_cache_interceptor and flutter_map_cache,
+flutter_map with OpenStreetMap tiles, geolocator, geocoding 5, flutter_timezone, flutter_local_notifications,
+workmanager, home_widget, dynamic_color, connectivity_plus with internet_connection_checker_plus, google_fonts,
+url_launcher, device_info_plus, package_info_plus, restart_app and flutter_displaymode. Its data comes from
+[Open-Meteo](https://open-meteo.com/) (forecast, air quality, city search) and
+[OpenStreetMap](https://www.openstreetmap.org/copyright) (map tiles, Nominatim's reverse geocoding), with no key. The
+app is not committed here; its cases are, in `validation/rain/cases/`.
+
+- App: `darkmoonight/Rain` at `9afa1fd` (2026-11-23), Flutter 3.50.1 (it needs 3.50). It resolved with no change.
+- Headless only so far, on the iOS look and the Android look (`"flutterHost": { "platform": "android", "window":
+  "412x915@2.625" }`), with `"launch": { "locale": "en-US", "timeZone": "Europe/Berlin" }`.
+
+## Wiring it, as the docs say
+
+`lynkeus init`, then `lynkeus init --headless`, then the `dependency_overrides` of the first app's section and
+`lynkeus.config.json` pointing at the cases. `init` put `LynkeusAgent.start(app: {'name': 'rain'})` first in `main()`,
+before `WidgetsFlutterBinding.ensureInitialized()`, and did not add `lynkeus_plugins` (nothing in the lock needs it).
+What the app needed changed, beside the dependencies:
+
+- `ValueKey('add-city')` on the Cities tab's floating action button and `ValueKey('locate')` on the city picker's
+  location button. Both are icons with no label; by index, the add button moved with every card in the list.
+
+Nothing else: no route wiring, no reset command, no `test/lynkeus_host.dart`. Each case starts on a fresh host
+(`--host-command`), so each starts as a fresh install; the cases after the first go through the onboarding in six
+steps.
+
+```sh
+cd <rain>
+NET=$PWD/.lynkeus/net-cache
+# Recording, once, with the network open to the app's hosts
+LYNKEUS_NETWORK_HOSTS=127.0.0.1,localhost,::1,10.0.2.2,api.open-meteo.com,air-quality-api.open-meteo.com,geocoding-api.open-meteo.com,tile.openstreetmap.org,nominatim.openstreetmap.org,fonts.gstatic.com,one.one.one.one,icanhazip.com,ajax.googleapis.com,captive.apple.com \
+  npx lynkeus case run --ports 8191 --host-command "LYNKEUS_PORT={port} npx lynkeus headless start" --net-cache $NET --net-record
+# Every run after it, off the internet
+npx lynkeus case run --ports 8191 --host-command "LYNKEUS_PORT={port} npx lynkeus headless start" --net-cache $NET --once
+```
+
+## Results
+
+Steps passed and seconds per case, headless, from the recording; two full runs per look, all 10/10 both times (the
+seconds are the first run's). A step under `on: ios`, `on: android` or `on: has:...` is skipped where it does not apply.
+
+| Case | What it covers | iOS look | Android look |
+|---|---|---|---|
+| 01-onboarding | the three pages, a city found by search, its forecast | 19/19, 2.6 s | 19/19, 2.5 s |
+| 02-location-permission | the location button denied, then allowed when asked; the device's default place named by Nominatim | 17/17, 2.3 s | 16/16, 2.3 s |
+| 03-add-city | the add sheet, search, the new card | 20/20, 3.4 s | 20/20, 3.3 s |
+| 04-reorder-delete | two cities, a long-press drag to reorder, a swipe and a confirmation to delete | 30/30, 5.1 s | 30/30, 5.0 s |
+| 05-hourly-daily | the current hour from the server's clock, another hour picked, a day's page, the 12-day list | 25/25, 3.7 s | 25/25, 3.7 s |
+| 06-units | Fahrenheit and m/s from Settings, on the forecast and the hourly details | 25/25, 4.0 s | 25/25, 4.0 s |
+| 07-air-quality | the European index, its band, advice and pollutants, then the US index | 26/26, 4.7 s | 26/26, 4.0 s |
+| 08-map | OpenStreetMap tiles, the city's marker, its card and page | 19/19, 3.2 s | 19/19, 3.1 s |
+| 09-theme-language | dark theme, Spanish through the language search (a field with only a hint), English again | 26/26, 7.7 s | 26/26, 8.1 s |
+| 10-network-down | a refresh offline keeps the forecast and says "No Internet", a search finds nothing, online again | 24/24, 4.9 s | 24/24, 4.8 s |
+| All | | 231/231, 70–78 s wall | 230/230, 68–69 s wall |
+
+The wall time includes ten host starts, about 3 s each (the app's kernel is cached between them). With the network
+open, the same cases took 5–13 s each: the real APIs answer in 0.3–1.5 s.
+
+## Deterministic data
+
+- **Network.** The fence keeps the app on loopback; one recording run (above) kept 140 answers (2.1 MB): forecasts,
+  air quality, city searches, Nominatim's reverse lookups, the map tiles both looks fetched, google_fonts' Ubuntu and
+  the HEAD requests of the connectivity check. Every later run is answered from it, and `lynkeus requests` shows no
+  request refused. The recording is in the clone, `<rain>/.lynkeus/net-cache` (2026-11-23, about 08:30 UTC), and is
+  not committed: it holds OpenStreetMap tiles, which the tile policy does not allow to be redistributed.
+- **Now.** Rain corrects the device's clock with the `Date` header of the forecast's answer (`clockSkewSeconds`). The
+  replayed answer keeps the recorded header, so every run sees 2026-11-23, 09:xx in Berlin: the hourly strip selects
+  hour 9 and the dates read "Mon, Nov 23, 2026" whatever day the cases run. Rain reads `DateTime.now()`, not
+  `package:clock`, so `--epoch` would not reach it; the only line that moves is "Updated: …" (the device's own clock),
+  which no case reads.
+- **Time zone and locale** come from `launch` (Europe/Berlin, en-US); flutter_timezone answers the same zone.
+- **Location.** geolocator's stand-in answers the iOS Simulator's or the Android emulator's default position, so the
+  same case names Cupertino on one look and Mountain View on the other, as the devices would.
+
+Not deterministic on its own: the recording itself. Recorded again an hour later, the forecast and the hour differ, and
+the cases' numbers (0.2°C, AQI 27, hour 9) have to be read again from the new recording.
+
+## What it found
+
+Fixed, each with a test:
+
+- **Isar, a database over `dart:ffi`.** Under `flutter test` nothing loads `libisar`, and the app died at
+  `Isar.open` (`Failed to lookup symbol 'isar_version'`) before its first frame. isar_community_flutter_libs ships the
+  library prebuilt for macOS and Linux; the headless host now loads every library a plugin keeps in its `macos/` (or
+  `linux/`) folder before the app starts, and Isar runs for real, its files in the run's temporary folder. No
+  stand-in, no `lynkeus_plugins`, no app change. On FastSim this is not done yet (below).
+- **Routes with go_router built in a provider.** The docs' `LynkeusRoutes` example needed the router in a global.
+  The agent now reads the app's root `Router` with nothing wired: go_router's state (name, else path pattern), else
+  the location's path, and a page pushed without a name over it by its widget (`DailyCardInfo`, `PlaceInfo`).
+  `LynkeusAgent.routes` takes routes where a router is made, for apps that navigate by route name. A popped page also
+  stopped counting as the route at once (it counted while it slid out, so `back` answered with it).
+- **Record and replay.** dio's responses were recorded with empty bodies (dio reads through `response.cast()`, whose
+  handler went around the agent's); HEAD requests were neither recorded nor replayed, so the connectivity check
+  (internet_connection_checker_plus) read offline on every replay and the app fetched nothing; what the app fetched at
+  launch was lost, because recording started when the driver attached. All three fixed: bodies kept through a cast,
+  HEADs recorded beside an empty body and replayed, and a host the run starts records from its launch
+  (`LYNKEUS_NET_RECORD`, also a `--dart-define` for device builds).
+- **Airplane mode.** `os network off` only told connectivity_plus; on a host it now fails every request the app makes,
+  replayed ones included (netmock still answers), and a first version that also cut the agent's own link was caught by
+  this app.
+- **Stand-ins** for geolocator (position, permission states including the person's answer when asked, services, the
+  position stream; `lynkeus call location`), geocoding up to 4.x, home_widget (`widgets`), workmanager (`tasks`; its
+  Pigeon requests needed the stand-ins to read any Pigeon class), flutter_displaymode and restart_app. The host file
+  registers workmanager's platform class.
+- **Press with the keyboard up.** A press closed the keyboard first whenever a field was focused, so an autocomplete's
+  suggestions vanished before the tap. The keyboard is now closed only when it covers the target.
+- **A field with only a hint** (the language search, `Search...`) is found by that hint; before, only by an index that
+  differs between the looks.
+- **Case format.** `app.press: 5` (a YAML number) failed with a TypeScript error; `app.wait: { text: Delete }` waited
+  for a route called Delete (a capitalized word alone is a route in `app.wait`, React Native's convention). The `text`
+  key now always names a text, as in `app.see` and `app.press`. A bare word and `{ target }` keep their meaning: 
+  React Native cases wait for routes with `{ target: Home.Main }` and `{ route: Intro.Main }`, so changing those would
+  change existing cases. For Flutter, quote the word or use `{ text }`.
+
+Seen on a real app, unchanged:
+
+- `lynkeus map build` reads the three GoRoutes (their paths are static constants) and four pages pushed through the
+  app's `pushRouteUp` extension. `PlaceInfo` and `DailyCardInfo`, pushed through a helper that takes the page as a
+  closure, are not in the graph.
+- `lynkeus smoke` on a fresh install: `/` and `/geolocation` land on `/onboarding` (the app's gate), reported as
+  such; after the onboarding, `/` and `/geolocation` open and `/onboarding` lands on `/`.
+- `lynkeus crawl --max 40`: 8 transitions, 3 screens, no problems, two edges learned (a city card to `PlaceInfo`).
+  The four tabs are all route `/`, so the crawl pressed each tab but did not explore what each shows: it knows a
+  screen by its route.
+- Rain's bottom bar keeps its English labels after the language changes to Spanish until it is built again; the case
+  says so. Fahrenheit shows `Feels 24.439999999999998°F` (the app's rounding).
+- geocoding 5 has no channel (its platform classes are Pigeon proxies), so headless it fails as a geocoder finding
+  nothing and Rain falls back to Nominatim, which a phone does only when its geocoder fails. Standing in would need a
+  Dart `GeocodingPlatformFactory` in the host file (the CLI writes it when the lock has geocoding 5) or in
+  `lynkeus_plugins` (which would then depend on geocoding_platform_interface 5).
+- Rain calls workmanager, home_widget's updates and flutter_displaymode only behind `Platform.isAndroid`, which is
+  false under `flutter test` on a Mac whatever the look: headless never runs them. FastSim's Android look will.
+- Index targets during a page transition count the leaving page's elements; a case that must use an index waits
+  (`app.idle`) first. Rain's cases use the two keys instead.
+- A toast (2.5 s) shows across a press and a wait as on a device; the host fast-forwards only while the driver waits.
+
+## Data and its terms
+
+- **Open-Meteo** (forecast, air quality, geocoding): data under CC BY 4.0, which asks for attribution; Rain shows
+  "Data by Open-Meteo (CC-BY 4.0)" in Settings. The free API is for non-commercial use only, under 600 calls a minute,
+  5,000 an hour and 10,000 a day; a commercial team running these cases against it needs a paid plan or the replay. The
+  terms say nothing about keeping responses; CC BY 4.0 allows it with attribution.
+- **OpenStreetMap** (tiles, Nominatim): data under ODbL, attribution "© OpenStreetMap contributors", which Rain's map
+  shows. The [tile policy](https://operations.osmfoundation.org/policies/tiles/) asks for an identifying User-Agent
+  (Rain sends `com.yoshi.rain`), honoring cache headers, no prefetching, no headless bots that pan the map to force
+  tiles, and no offline archives or redistribution of tiles. The
+  [Nominatim policy](https://operations.osmfoundation.org/policies/nominatim/) caps clients at one request a second,
+  asks for an identifying User-Agent, caching, and no systematic or periodic queries. Hence: one recording run (50
+  tiles and two reverse lookups, at a person's pace), every run after it replayed, and the recording kept local.
+  A team that runs map cases in CI should record against a tile server that allows it (its own, or a provider whose
+  terms do) or mock the tiles, and never commit or share a recording of `tile.openstreetmap.org`.
+
+## Still to run
+
+The same ten cases on an iOS Simulator, an Android emulator and Lynkeus FastSim, from the clone. On the devices the
+`on: has:...` steps are skipped (the denied permission in 02, airplane mode in 10), and the location permission has to
+be granted beforehand; the forecasts come from the live APIs, so the cases' numbers hold only within the hour they were
+recorded unless the device run replays too (it cannot: a device has no fence).
+
+```sh
+cd ~/code/lynkeus/flutter-apps/rain
+# iOS Simulator
+flutter build ios --simulator --debug --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) --dart-define=LYNKEUS_PORT=8144
+xcrun simctl install <device> build/ios/iphonesimulator/Runner.app
+xcrun simctl privacy <device> grant location com.example.rain
+xcrun simctl launch <device> com.example.rain
+LYNKEUS_PORT=8144 npx lynkeus case run --device <device>
+# Android emulator (unlocked)
+flutter build apk --debug --flavor gms --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) --dart-define=LYNKEUS_PORT=8144
+adb -s <serial> install -r build/app/outputs/flutter-apk/app-gms-debug.apk
+adb -s <serial> shell pm grant com.yoshi.rain android.permission.ACCESS_FINE_LOCATION
+adb -s <serial> shell am start -n com.yoshi.rain/.MainActivity
+LYNKEUS_PORT=8144 npx lynkeus case run --device <serial>
+# FastSim
+<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle> {port}" --net-cache $PWD/.lynkeus/net-cache
+```
+
+Each case expects a fresh install: on a device, reinstall (or clear the app's data) between cases, or give Rain a
+`reset` command. On FastSim, Isar will fail as it did headless before the fix: the host does not load the plugin's
+desktop library yet, and with `Platform.isIOS` true Isar looks the symbols up in the process
+(`DynamicLibrary.process()`), so the FastSim host has to load `macos/libisar.dylib` (Mac) or `linux/libisar.so` (Linux,
+where the Android look opens it by name) before the app starts. The device runs also need the recording made on a
+device (`--net-record` with `--dart-define=LYNKEUS_NET_RECORD=1`) to compare a host's frames with a device's.
