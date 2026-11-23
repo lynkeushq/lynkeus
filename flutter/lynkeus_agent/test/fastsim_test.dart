@@ -96,6 +96,8 @@ void main() {
     expect(bars.follow(mode('immersiveSticky')), isTrue);
     expect([bars.top, bars.bottom], [false, false]);
     expect(bars.follow(mode('leanBack')), isFalse, reason: 'nothing changed');
+    // Measured on the Pixel 9 emulator: a restore puts back the mode last set, so nothing moves.
+    expect(bars.follow(const MethodCall('SystemChrome.restoreSystemUIOverlays')), isFalse);
     expect(bars.follow(const MethodCall('SystemChrome.setSystemUIOverlayStyle', {})), isFalse);
     expect(FastSimHost.detect({'FASTSIM_HOST': '1', 'FASTSIM_SAFE_AREA_HIDDEN': '62,0,34,0'})!.safeAreaHidden, [
       62,

@@ -233,7 +233,10 @@ class SafeAreaView implements ui.FlutterView {
 }
 
 /// Which system bars the app shows, as it told the platform: the status bar is the top edge's, the navigation bar or
-/// home indicator the bottom's.
+/// home indicator the bottom's. Measured on the Pixel 9 emulator: a hidden navigation bar takes the bottom inset to 0
+/// while the cutout keeps the top; immersive, immersiveSticky and leanBack hide both, edgeToEdge shows both, and a
+/// restore puts back what was last set. On the iPhone 17 Simulator no mode moves the safe area, which the host says
+/// by giving the same insets for hidden bars.
 class SystemBars {
   var top = true;
   var bottom = true;
