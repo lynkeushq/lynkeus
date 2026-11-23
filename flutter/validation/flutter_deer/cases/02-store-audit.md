@@ -15,6 +15,9 @@ steps:
   - app.press: "提交"
   - app.see: { text: "恭喜，店铺资料审核成功" }
   - app.press: "进入"
+  # The shop's order list loads about 2 s after the page opens; without this wait a device, whose capture takes real
+  # time, shows the list while a faster run still shows the spinner.
+  - app.wait: { target: "#order_item_1", timeoutMs: 10000 }
   - app.see: { text: "新订单" }
 expected:
   - The picked scope shows on the form, and submitting it leads into the shop.
