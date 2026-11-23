@@ -35,11 +35,26 @@ const keysOf = (lines: string[] | undefined): string[] => {
     .map((l) => l.trim().split(':')[0]!);
 };
 
+/** The same test `lynkeus init` makes: react-native among the dependencies of the folder's package.json. */
+const hasReactNative = (root: string): boolean => {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    return !!(manifest.dependencies?.['react-native'] ?? manifest.devDependencies?.['react-native']);
+  } catch {
+    return false;
+  }
+};
+
 /**
- * The Flutter app at `root`, if it is one: a pubspec.yaml whose dependencies take `flutter` from the SDK.
+ * The Flutter app at `root`, if it is one: a pubspec.yaml whose dependencies take `flutter` from the SDK, in a folder
+ * that is not also a React Native app (which keeps its behavior, as `lynkeus init` decides).
  * `hosted`: lynkeus_headless is among its dependencies, so `flutter test` can host it.
  */
 export const flutterProject = (root: string): FlutterProject | undefined => {
+  if (hasReactNative(root)) return undefined;
   let text: string;
   try {
     text = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');

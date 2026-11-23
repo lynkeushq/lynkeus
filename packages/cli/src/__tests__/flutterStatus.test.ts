@@ -101,6 +101,12 @@ test('`lynkeus status` reads a Flutter project as Flutter and a React Native one
   assert.doesNotMatch(rn, /pubspec/);
 });
 
+test('`lynkeus status` reads a React Native app with a Flutter pubspec beside it as React Native, as init does', () => {
+  const both = status(project({ 'pubspec.yaml': PUBSPEC(), 'package.json': JSON.stringify({ name: 'demo', dependencies: { 'react-native': '0.80.0' } }) }));
+  assert.match(both, /lynkeus-agent is a dependency/);
+  assert.doesNotMatch(both, /pubspec/);
+});
+
 test('the agent must start before ensureInitialized(): a pass, a fail with the line to move, and no check without a binding call', () => {
   const run = (main: string) =>
     withEnv({ LYNKEUS_TOKEN: undefined, FLUTTER_ROOT: fakeSdk('3.50.1') }, () =>
