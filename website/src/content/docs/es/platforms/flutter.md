@@ -102,7 +102,7 @@ Un host (el headless y el host de Flutter de [Lynkeus FastSim](/es/guides/fastsi
 lynkeus: images.example.com is outside networkHosts (127.0.0.1, localhost, ::1, 10.0.2.2): mock the request (app.mock in the case, or lynkeus mock), or allow the host with "flutterHost": { "networkHosts": [...] } in lynkeus.config.json
 ```
 
-Hay dos salidas: simular la petición, o permitir el host en `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; la lista reemplaza a la de por defecto, así que conserva los hosts locales que uses). Una petición que responde un mock no llega a la valla. En un simulador, un emulador o un teléfono no hay valla.
+Hay dos salidas: simular la petición, o permitir el host en `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; la lista reemplaza a la de por defecto, así que conserva los hosts locales que uses). Una petición bloqueada igual aparece en `lynkeus requests`, y una que responde un mock no llega a la valla. En un simulador, un emulador o un teléfono no hay valla.
 
 ### Reproducir lo que la app pidió a internet
 

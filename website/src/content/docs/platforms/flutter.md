@@ -100,7 +100,7 @@ A host (headless, and the Flutter host of [Lynkeus FastSim](/guides/fastsim/#flu
 lynkeus: images.example.com is outside networkHosts (127.0.0.1, localhost, ::1, 10.0.2.2): mock the request (app.mock in the case, or lynkeus mock), or allow the host with "flutterHost": { "networkHosts": [...] } in lynkeus.config.json
 ```
 
-Mock it, or allow the host in `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; a list replaces the defaults, so keep the local hosts you need). A request a mock answers never reaches the fence. On a Simulator, an emulator or a phone there is no fence.
+Mock it, or allow the host in `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; a list replaces the defaults, so keep the local hosts you need). A blocked request is still listed in `lynkeus requests`, and a request a mock answers never reaches the fence. On a Simulator, an emulator or a phone there is no fence.
 
 ### Replaying remote fetches
 
