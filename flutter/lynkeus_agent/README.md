@@ -46,7 +46,8 @@ not of the wall clock, so two runs on a device and a run on Lynkeus FastSim give
   move on, and a frame is drawn before the request acts), at most 3 s, so a screenshot the OS takes a moment later is the same on every run.
 
 A case run with frames takes a Flutter step's `app.see` steps before its frame's settle: a toast the step shows is
-still there to be seen, and the frame after it is of the screen once the toast is gone.
+still there to be seen, and the frame after it is of the screen once the toast is gone. Those `app.see` steps share the
+step's frame: they have no screenshot of their own.
 
 An app with a binding class of its own (one that overrides `handlePointerEvent`, say) extends `LynkeusBinding`
 instead of `WidgetsFlutterBinding` and makes it before calling `LynkeusAgent.start()`, which then uses it:
@@ -64,8 +65,9 @@ void main() {
 ```
 
 Made after `LynkeusAgent.start()`, a second binding fails Flutter's own check (`Binding is already initialized to
-LynkeusBinding`). An app whose binding is a plain one of its own is still driven, without the frames above, the safe
-area and plugin stand-ins on FastSim, and the console says so and how to fix it.
+LynkeusBinding`). An app whose binding is a plain one of its own is still driven, without the frames above and, on
+FastSim, without the safe area (its plugins are still answered, through the host), and the console says so and how to
+fix it.
 
 ## Routes
 
@@ -118,7 +120,7 @@ or the app's own binding has to extend `LynkeusBinding` (see Captured frames). A
 still runs and is driven; it gets no safe area, and says `binding: app` in its hello.
 
 The app has no native side there either, so the agent's binding answers its plugins' channels with the same
-stand-ins the headless host uses (`package:lynkeus_agent/hosts.dart`; the table is in lynkeus_headless's README),
+stand-ins the headless host uses (`package:lynkeus_agent/hosts.dart`; the table is in the [Flutter page](https://lynkeus.io/platforms/flutter/#plugin-stand-ins)),
 and the same `launched`, `biometrics`, `permissions` and `network` commands drive them. A plugin whose platform
 implementation calls native code through FFI instead of a channel (shared_preferences_foundation 2.6 on iOS) is
 out of their reach.

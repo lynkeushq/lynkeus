@@ -82,8 +82,8 @@ A Flutter app runs on FastSim's Flutter host, which loads the app's own debug ke
   ```
 
   `android` in place of `ios` gives the app a Pixel 9 instead of an iPhone 17. Bundle again after each change to the app's Dart code. On a Mac, an `ios` bundle also takes the iOS Simulator engine's shaders from your Flutter, which the host draws the iOS look with; if your Flutter has never fetched its iOS files, `fastsim-bundle` stops and asks you to run `flutter precache --ios` once.
-- **The app starts the agent before anything initializes Flutter's binding**, and depends on `lynkeus_plugins` when it uses sqflite 2.4 or newer (cached network images included) or shared_preferences' `SharedPreferencesAsync`.
-- **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) are gray placeholders. With the Android look, text the app's fonts lack (Chinese, Arabic, emoji) falls back to Android's own fonts, which the Linux build carries.
+- **The app starts the agent before anything initializes Flutter's binding** (an app with a binding of its own extends `LynkeusBinding`), and depends on `lynkeus_plugins` when it uses sqflite 2.4 or newer (cached network images included) or shared_preferences' `SharedPreferencesAsync`: see [Set up the app](/platforms/flutter/#set-up-the-app).
+- **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) are gray placeholders, and a step inside one fails. With the Android look, text the app's fonts lack (Chinese, Arabic, emoji) falls back to Android's own fonts, which the Linux build carries.
 
 - **The Flutter host fences the app's network** to loopback and `10.0.2.2`, like the headless host (`flutterHost.networkHosts` in `lynkeus.config.json` allows more), and `case run --net-cache <dir>` answers from recorded fetches what the fence blocks; see [the network fence](/platforms/flutter/#the-fence).
 
@@ -91,7 +91,7 @@ The [Flutter page](/platforms/flutter/#lynkeus-fastsim) has the details: what th
 
 ## From an AI agent over MCP
 
-The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android`, with `LYNKEUS_CLOUD_KEY` in the environment the server was started in, or with the sign-in you saved by running `lynkeus login` in a terminal. The server never opens a browser: if there is no key and no saved sign-in, run `lynkeus fastsim install` or `lynkeus login` yourself in a terminal. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side.
+The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android` (or `runtime` set to `flutter` for a Flutter app), with `LYNKEUS_CLOUD_KEY` in the environment the server was started in, or with the sign-in you saved by running `lynkeus login` in a terminal. The server never opens a browser: if there is no key and no saved sign-in, run `lynkeus fastsim install` or `lynkeus login` yourself in a terminal. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side.
 
 ## What it stands in for, and its limits
 

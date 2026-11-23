@@ -4,7 +4,7 @@ The Flutter agent (`lynkeus_agent`) and the headless host (`lynkeus_headless`) w
 [flutter_deer](https://github.com/simplezhli/flutter_deer) (Apache-2.0), a merchant app with about forty screens,
 common plugins (shared_preferences through sp_util, url_launcher, dio, cached_network_image, image_picker, webview,
 fluro routing, provider) and local mock data. The app is not committed here; its cases are, in
-`validation/flutter_deer/cases/`.
+`validation/flutter_deer/cases/`. A ninth case, `09-shop-avatar`, came later with the replay of remote fetches (the avatar loads from a host outside the fence); the tables below are the first eight, and it passes on the Mac host with both looks (see the FastSim host's FLUTTER-HOST.md).
 
 - App: `simplezhli/flutter_deer` at `7b86fd00560c5001378396433d3a95dee3119116` (2026-11-15), Flutter 3.50.1. It
   resolved and analyzed with no change.

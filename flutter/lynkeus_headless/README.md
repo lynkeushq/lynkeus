@@ -7,7 +7,10 @@ command in docs/DRIVE.md work unchanged.
 ```yaml
 # pubspec.yaml of the app
 dev_dependencies:
-  lynkeus_headless: ^0.7.5
+  lynkeus_headless:
+    git:
+      url: https://github.com/lynkeushq/lynkeus.git
+      path: flutter/lynkeus_headless   # until it is on pub.dev
 ```
 
 ```sh
@@ -78,37 +81,11 @@ recorded.
 
 ## Plugins
 
-flutter_test leaves platform channels unanswered: a plugin's method channel throws `MissingPluginException`, a
-Pigeon one fails to connect. The host answers every channel. These plugins have stand-ins that keep their state in
-memory for the run, answering the channels their platform interfaces fall back to under `flutter test`. They
-live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the same way inside Lynkeus FastSim:
+flutter_test leaves platform channels unanswered: a plugin's method channel throws `MissingPluginException`, a Pigeon one fails to connect. The host answers every channel. The plugins with in-memory stand-ins, what each does and the `lynkeus call` command that drives it, are in the [Flutter page](https://lynkeus.io/platforms/flutter/#plugin-stand-ins); the stand-ins live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the same way inside Lynkeus FastSim.
 
-| Plugin | Stand-in | Driven by |
-|---|---|---|
-| shared_preferences | a key-value map | the app |
-| flutter_secure_storage | a key-value map | the app |
-| path_provider | folders under a temporary folder per run | |
-| device_info_plus, package_info_plus | an iPhone 17 on iOS 26.5, or an Android 15 emulator, as the host plays | |
-| url_launcher | answers that it can open a URL, opens nothing, writes it down | `lynkeus call launched` (`{ clear: true }` empties it) |
-| local_auth | a sensor with Face ID enrolled (a fingerprint on Android); prompts succeed | `lynkeus os biometrics --available none\|face\|fingerprint --next success\|fail\|cancel\|<error code>` |
-| permission_handler | every permission granted | `lynkeus call permissions '{"7": 4}'` (permission number to status) |
-| connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
-| flutter_local_notifications | every permission granted; what is scheduled or shown is written down | `lynkeus call notifications` (`{"clear": true}` empties it) |
-| flutter_timezone | the zone of `--time-zone`, else the machine's | |
-| share_plus | the share sheet reports success; what was shared is written down | `lynkeus call shared` |
-| file_selector | pickers return what `files` queued (cancelled when nothing is); saves get a path in a folder of the run | `lynkeus call files '{"open": "/path"}'` |
-| open_file, app_settings | nothing opens; written down with the URLs | `lynkeus call launched` |
-| dynamic_color | no wallpaper colors | |
-| sqflite | the system's SQLite (libsqlite3), databases in a folder of the run | the app |
+Any other channel gets an empty success (null), so the app's await never hangs, and one `[stub] <channel>` line in the host's log. `LYNKEUS_CHANNELS=trace` prints every call and its answer.
 
-Any other channel gets an empty success (null), so the app's await never hangs, and one `[stub] <channel>` line in
-the host's log. `LYNKEUS_CHANNELS=trace` prints every call and its answer.
-
-Two of these plugins never reach their channel unless the app also depends on `lynkeus_plugins` and calls
-`LynkeusPlugins.ensureInitialized()` on the line after `LynkeusAgent.start()`: sqflite 2.4 (and with it
-cached_network_image, whose cache is a sqflite database) and shared_preferences' `SharedPreferencesAsync` and
-`SharedPreferencesWithCache`. Their platform interfaces have no method-channel default, and the registrant that would
-set one does not run on a host. Native views (UiKitView, AndroidView, and so web views) stay blank on any host.
+Some plugins have no method-channel default and never reach their channel unless the app also depends on `lynkeus_plugins` and calls `LynkeusPlugins.ensureInitialized()` on the line after `LynkeusAgent.start()`: sqflite 2.4 (and with it cached_network_image, whose cache is a sqflite database) and shared_preferences' `SharedPreferencesAsync` and `SharedPreferencesWithCache`. Native views (UiKitView, AndroidView, and so web views) stay blank on any host but FastSim, which draws a labeled placeholder.
 
 A project adds its own in `test/lynkeus_host.dart` (not a `_test.dart` file, so its unit tests leave it alone);
 `lynkeus headless start` passes it on when it is there:

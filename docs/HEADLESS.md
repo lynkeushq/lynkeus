@@ -204,10 +204,10 @@ layout and software paint; the agent dials the driver as on a device, so every c
   is `package:clock`; `DateTime.now()` reads the real wall.
 - `flutterHost` in `lynkeus.config.json` sets `platform` (`ios` or `android`), `window` (`412x915@2.625`) and
   `networkHosts` (loopback and 10.0.2.2 by default; any other host fails as a socket error).
-- Plugin channels are answered: stand-ins for shared_preferences, flutter_secure_storage, path_provider,
-  device_info_plus, package_info_plus, url_launcher, local_auth, permission_handler and connectivity_plus; any other
-  channel gets a null success and one `[stub] <channel>` line (`LYNKEUS_CHANNELS=trace` prints every call). A project's
-  own go in `test/lynkeus_host.dart` (`void configureHost(HostConfig host)`).
+- Plugin channels are answered by in-memory stand-ins, listed with the `lynkeus call` command that drives each in the
+  [Flutter page](https://lynkeus.io/platforms/flutter/#plugin-stand-ins); any other channel gets a null success and one
+  `[stub] <channel>` line (`LYNKEUS_CHANNELS=trace` prints every call). A project's own go in `test/lynkeus_host.dart`
+  (`void configureHost(HostConfig host)`).
 - Not applied: `--seed`, and `--host-heap` restarts (the Dart VM gives no heap figures). `headless init` and
   `headless doctor` are for React Native.
 

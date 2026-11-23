@@ -7,7 +7,7 @@ and Lynkeus FastSim. On a simulator, an emulator or a phone it does nothing, and
 
 A federated plugin gets its platform implementation from the app's plugin registrant, which runs on a device and
 not on a host: there is no native side there. Most plugins then fall back to a method channel, which the agent's
-stand-ins answer (see lynkeus_headless's README for the list). A few have no such fallback and throw:
+stand-ins answer (the list is in the [Flutter page](https://lynkeus.io/platforms/flutter/#plugin-stand-ins)). A few have no such fallback and throw:
 
 | Plugin | Without this package, on a host | With it |
 |---|---|---|
