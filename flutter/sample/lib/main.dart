@@ -26,9 +26,11 @@ class SampleApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Lynkeus sample',
     navigatorKey: navigatorKey,
+    navigatorObservers: [LynkeusAgent.navigatorObserver],
     debugShowCheckedModeBanner: false,
     theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo)),
     home: Home(key: homeKey),
+    routes: {'/settings': (_) => const Settings()},
   );
 }
 
@@ -153,7 +155,7 @@ class HomeState extends State<Home> {
         const SizedBox(height: 8),
         OutlinedButton(
           key: const ValueKey('open-settings'),
-          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const Settings())),
+          onPressed: () => Navigator.of(context).pushNamed('/settings'),
           child: const Text('Settings'),
         ),
       ],

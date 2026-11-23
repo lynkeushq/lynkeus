@@ -78,6 +78,42 @@ void main() {
     expect(routes.last['path'], ['/', '/settings']);
   });
 
+  testWidgets('navigate to a route already on the stack goes back to it', (tester) async {
+    await start(tester);
+    await drive(tester, methods, 'navigate', {'name': '/settings'});
+    await tester.pumpAndSettle();
+    expect((await drive(tester, methods, 'navigate', {'name': '/'}))['route'], '/');
+    await tester.pumpAndSettle();
+    final screen = await drive(tester, methods, 'screen');
+    expect(screen['route'], '/');
+    expect(screen['path'], ['/']);
+    expect(find.text('Settings'), findsNothing);
+  });
+
+  testWidgets('a page pushed without a name goes by its widget, and navigate goes back past it', (tester) async {
+    await start(tester);
+    tester
+        .state<NavigatorState>(find.byType(Navigator))
+        .push(MaterialPageRoute<void>(builder: (_) => const _Unnamed()));
+    await tester.pumpAndSettle();
+    var screen = await drive(tester, methods, 'screen');
+    expect(screen['route'], '_Unnamed');
+    expect(screen['path'], ['/', '_Unnamed']);
+    expect(told.last, '_Unnamed');
+    await drive(tester, methods, 'navigate', {'name': '/'});
+    await tester.pumpAndSettle();
+    screen = await drive(tester, methods, 'screen');
+    expect(screen['route'], '/');
+    expect(find.text('Unnamed'), findsNothing);
+    Object? failure;
+    try {
+      await drive(tester, methods, 'navigate', {'name': '_Unnamed'});
+    } catch (error) {
+      failure = error;
+    }
+    expect('$failure', contains('pushed without a name'));
+  });
+
   testWidgets('a dialog has no name: the route stays the page under it', (tester) async {
     await start(tester);
     await tester.tap(find.text('Ask'));
@@ -124,4 +160,11 @@ void main() {
     }
     expect('$failure', contains('navigatorObserver'));
   });
+}
+
+class _Unnamed extends StatelessWidget {
+  const _Unnamed();
+
+  @override
+  Widget build(BuildContext context) => const Scaffold(body: Text('Unnamed'));
 }

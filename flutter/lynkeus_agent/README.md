@@ -34,6 +34,9 @@ routes, give it the agent's observer (on the root navigator):
 MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver], routes: {...});
 ```
 
+A page pushed without a name is reported by the class of the widget it shows (what `lynkeus map` calls it); a dialog
+or sheet is not reported. `navigate` to a route already on the stack pops back to it.
+
 An app on a router describes its routes from the router's own state; the agent depends on no router package. With
 go_router:
 
@@ -43,12 +46,14 @@ final router = GoRouter(routes: [...]);
 void main() {
   LynkeusAgent.start(
     routes: LynkeusRoutes(
-      current: () => router.state.name ?? router.state.matchedLocation,
+      current: () => router.state.name ?? router.state.fullPath,
       changes: router.routerDelegate,
-      navigate: (name, params) => router.goNamed(
-        name,
-        pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'},
-      ),
+      navigate: (route, params) => route.startsWith('/')
+          ? router.go(route)
+          : router.goNamed(
+              route,
+              pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'},
+            ),
     ),
   );
   runApp(MaterialApp.router(routerConfig: router));

@@ -22,15 +22,38 @@ class LynkeusRoutes {
 }
 
 /// Follows the routes of the Navigator it is given to (`navigatorObservers: [LynkeusAgent.navigatorObserver]`, on the
-/// root navigator). Routes without a name (a dialog, a page pushed with no settings) are on screen but not reported:
-/// the route stays the last named one under them.
+/// root navigator). A page pushed with no name (`Navigator.push(MaterialPageRoute(builder: (_) => const Items()))`)
+/// goes by the class of the widget it shows, `Items`, which is also what `lynkeus map` calls it. A route that is not a
+/// page (a dialog, a sheet) is on screen but not reported: the route stays the one under it.
 class LynkeusNavigatorObserver extends NavigatorObserver with ChangeNotifier {
   final _stack = <Route<dynamic>>[];
 
+  /// Widget classes seen as pages pushed without a name: they cannot be opened by name.
+  final _unnamed = <String>{};
+
   List<String> get names => [
     for (final route in _stack)
-      if (route.settings.name case final String name) name,
+      if (nameOf(route) case final String name) name,
   ];
+
+  /// A route's name, or for a page pushed without one the class of the widget its builder made; null until it is built.
+  static String? nameOf(Route<dynamic> route) {
+    if (route.settings.name case final String name) return name;
+    if (route is! PageRoute) return null;
+    var element = route.subtreeContext as Element?;
+    // Under the route's own RepaintBoundary: the Builder that calls buildPage, then (Material, Cupertino) a Semantics.
+    for (var depth = 0; element != null && depth < 4; depth++) {
+      Element? child;
+      element.visitChildElements((c) => child ??= c);
+      final widget = child?.widget;
+      if (widget == null) return null;
+      if (widget is! Builder && widget is! Semantics && widget is! RepaintBoundary) {
+        return '${widget.runtimeType}'.split('<').first;
+      }
+      element = child;
+    }
+    return null;
+  }
 
   String? get current {
     final all = names;
@@ -48,7 +71,21 @@ class LynkeusNavigatorObserver extends NavigatorObserver with ChangeNotifier {
       }
       final navigator = this.navigator;
       if (navigator == null) throw StateError('No navigator: add LynkeusAgent.navigatorObserver to navigatorObservers');
-      unawaited(navigator.pushNamed(name, arguments: params));
+      // A route already on the stack is gone back to, as React Navigation's navigate does: pushing it again would
+      // build a second copy (and break a page that holds a GlobalKey), and a crawl returning to a screen would grow
+      // the stack without end.
+      if (names.contains(name)) {
+        navigator.popUntil((route) => nameOf(route) == name);
+        return;
+      }
+      try {
+        unawaited(navigator.pushNamed(name, arguments: params));
+      } on FlutterError {
+        throw StateError(
+          'The app has no route named $name${_unnamed.contains(name) ? ': it is a page pushed without a name, '
+                    'reached by pressing what opens it' : ''}',
+        );
+      }
     },
   );
 
@@ -56,6 +93,14 @@ class LynkeusNavigatorObserver extends NavigatorObserver with ChangeNotifier {
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     _stack.add(route);
     notifyListeners();
+    // A page with no name is known by its widget only once a frame has built it.
+    if (route.settings.name == null && route is PageRoute) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!_stack.contains(route)) return;
+        if (nameOf(route) case final String name) _unnamed.add(name);
+        notifyListeners();
+      });
+    }
   }
 
   @override
