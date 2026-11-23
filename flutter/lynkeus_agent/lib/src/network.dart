@@ -632,10 +632,11 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
   void _end([Object? error]) {
     if (_ended) return;
     _ended = true;
-    if (body.on) record.response = _exchange(_flat(inner.headers), body.bytes);
+    // The recording first: it must not depend on how the log shows the body.
     if (error == null && recording != null) {
       network.recorder.add(recording!, inner.statusCode, inner.headers, recorded!.takeBytes());
     }
+    if (body.on) record.response = _exchange(_flat(inner.headers), body.bytes);
     network._finish(record, error == null ? inner.statusCode : 0, error);
   }
 
