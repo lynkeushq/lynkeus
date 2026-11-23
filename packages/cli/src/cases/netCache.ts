@@ -8,23 +8,32 @@ import path from 'node:path';
  * 16 bytes of the URL's SHA-256 in hex, holding the body; `<name>.json` beside it keeps the URL, status and headers.
  */
 
-export type NetCacheEntry = { url: string; status: number; headers: Record<string, string>; body: string };
+export type NetCacheEntry = { method?: string; url: string; status: number; headers: Record<string, string>; body: string };
 
 /** The file a URL is kept in. */
 export const netCacheName = (url: string): string => crypto.createHash('sha256').update(url).digest('hex').slice(0, 32);
 
-/** Writes recorded fetches (bodies in base64) into the folder; returns how many and how many bytes of body. */
+/**
+ * Writes recorded fetches (bodies in base64) into the folder; returns how many and how many bytes of body. A HEAD (a
+ * connectivity check) keeps its status and headers beside an empty body, which the React Native host reads as a URL
+ * it does not have; it never replaces what a GET of the same URL recorded.
+ */
 export const writeNetCache = (dir: string, entries: NetCacheEntry[]): { files: number; bytes: number } => {
   fs.mkdirSync(dir, { recursive: true });
   let bytes = 0;
+  let files = 0;
   for (const e of entries) {
     const name = netCacheName(e.url);
-    const body = Buffer.from(e.body, 'base64');
+    const head = e.method === 'HEAD';
+    if (head && fs.existsSync(path.join(dir, `${name}.json`))) continue;
+    const body = head ? Buffer.alloc(0) : Buffer.from(e.body, 'base64');
     fs.writeFileSync(path.join(dir, name), body);
-    fs.writeFileSync(path.join(dir, `${name}.json`), `${JSON.stringify({ url: e.url, status: e.status, headers: e.headers }, null, 2)}\n`);
+    const meta = { url: e.url, status: e.status, headers: e.headers, ...(head ? { method: 'HEAD' } : {}) };
+    fs.writeFileSync(path.join(dir, `${name}.json`), `${JSON.stringify(meta, null, 2)}\n`);
     bytes += body.length;
+    files += 1;
   }
-  return { files: entries.length, bytes };
+  return { files, bytes };
 };
 
 type Commands = { command: (name: string, params?: unknown) => Promise<unknown> };

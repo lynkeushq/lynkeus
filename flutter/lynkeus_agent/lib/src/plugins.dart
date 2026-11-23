@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'fence.dart';
 import 'sqlite.dart';
 import 'standins.dart';
 
@@ -314,6 +315,7 @@ void installPlugins(
     final wanted = params is Map ? params['state'] : null;
     if (wanted != 'on' && wanted != 'off') throw ArgumentError('network needs { state: "on" | "off" }');
     state.online = wanted == 'on';
+    HostNetwork.online = state.online;
     for (final listener in List.of(state._connectivityListeners)) {
       listener();
     }

@@ -41,3 +41,24 @@ test('recorded fetches are taken a piece at a time into the folder, body and wha
 test('an agent without the command says it cannot record', async () => {
   assert.equal(await startNetRecord({ command: async () => Promise.reject(new Error('Unknown method netcache')) }, false), false);
 });
+
+test('a HEAD keeps its status beside an empty body, and never replaces what a GET of the URL recorded', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-net-'));
+  const check = 'https://captive.example/internet-check';
+  const page = 'https://a.example/page';
+  const written = writeNetCache(dir, [
+    { method: 'HEAD', url: check, status: 204, headers: {}, body: '' },
+    { url: page, status: 200, headers: {}, body: Buffer.from('hello').toString('base64') },
+    { method: 'HEAD', url: page, status: 200, headers: {}, body: '' },
+  ]);
+  assert.deepEqual(written, { files: 2, bytes: 5 });
+  assert.equal(fs.readFileSync(path.join(dir, netCacheName(check))).length, 0);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, `${netCacheName(check)}.json`), 'utf8')), {
+    url: check,
+    status: 204,
+    headers: {},
+    method: 'HEAD',
+  });
+  assert.equal(fs.readFileSync(path.join(dir, netCacheName(page)), 'utf8'), 'hello');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, `${netCacheName(page)}.json`), 'utf8')).method, undefined);
+});

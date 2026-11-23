@@ -394,8 +394,15 @@ class _Client implements HttpClient {
       network._answerHere(record);
       return _MockRequest(network, record, rule, method, url, keep: keep);
     }
+    // Airplane mode on a host: past the mocks, nothing gets out, a connection the client kept open included.
+    if (!HostNetwork.online) {
+      network._finish(record, 0, HostNetwork.offline);
+      throw HostNetwork.offline;
+    }
     // After netmock and before the fence: a fetch the host may not make, answered as a reference run recorded it.
-    final replayed = verb == 'GET' && network.fenced(url.host) ? network.replay?.read(url) : null;
+    final replayed = (verb == 'GET' || verb == 'HEAD') && network.fenced(url.host)
+        ? network.replay?.read(url, method: verb)
+        : null;
     if (replayed != null) {
       network._answerHere(record);
       final answer = _Rule(
@@ -643,7 +650,7 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
     _ended = true;
     // The recording first: it must not depend on how the log shows the body.
     if (error == null && recording != null) {
-      network.recorder.add(recording!, inner.statusCode, inner.headers, recorded!.takeBytes());
+      network.recorder.add(recording!, inner.statusCode, inner.headers, recorded!.takeBytes(), method: record.method);
     }
     if (body.on) record.response = _exchange(_flat(inner.headers), body.bytes);
     if (error != null) record.error ??= '$error';

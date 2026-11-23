@@ -266,6 +266,63 @@ void main() {
     );
   });
 
+  test('records a HEAD (a connectivity check) and answers it from the folder with no body', () async {
+    network.local = {};
+    network.commands['netcache']!({'record': true});
+    expect((await fetch('HEAD', '/ping')).$1, 200);
+    final entry = (((network.commands['netcache']!({'take': true})! as Map)['entries']! as List).single as Map);
+    expect(entry['method'], 'HEAD');
+    expect(entry['url'], '${at('/ping')}');
+
+    final folder = Directory.systemTemp.createTempSync('netcache');
+    const check = 'https://captive.example/internet-check';
+    File('${folder.path}/${netCacheName(check)}').writeAsBytesSync([]);
+    File(
+      '${folder.path}/${netCacheName(check)}.json',
+    ).writeAsStringSync(jsonEncode({'url': check, 'status': 204, 'headers': <String, String>{}, 'method': 'HEAD'}));
+    HttpOverrides.global = FencedHttpOverrides({'127.0.0.1'});
+    network = Network(trace: traced.add)..install();
+    network
+      ..replay = NetCache(folder)
+      ..fenced = (host) => host != '127.0.0.1';
+    final client = HttpClient();
+    try {
+      final response = await (await client.openUrl('HEAD', Uri.parse(check))).close();
+      expect(response.statusCode, 204);
+      expect(await response.fold<int>(0, (n, chunk) => n + chunk.length), 0);
+      await expectLater(client.getUrl(Uri.parse(check)).then((r) => r.close()), throwsA(isA<SocketException>()));
+    } finally {
+      client.close();
+      folder.deleteSync(recursive: true);
+    }
+  });
+
+  test('with the network off on a host every request fails, a replayed one too, and a mock still answers', () async {
+    final folder = Directory.systemTemp.createTempSync('netcache');
+    const photo = 'https://images.example/photo.png';
+    File('${folder.path}/${netCacheName(photo)}').writeAsBytesSync([1, 2, 3]);
+    HttpOverrides.global = FencedHttpOverrides({'127.0.0.1'});
+    network = Network(trace: traced.add)..install();
+    network
+      ..replay = NetCache(folder)
+      ..fenced = (host) => host != '127.0.0.1';
+    network.commands['netmock']!({'method': 'GET', 'path': '/mocked', 'status': 200, 'body': 'mock'});
+    HostNetwork.online = false;
+    final client = HttpClient();
+    try {
+      await expectLater(client.getUrl(Uri.parse(photo)).then((r) => r.close()), throwsA(isA<SocketException>()));
+      await expectLater(fetch('GET', '/now'), throwsA(isA<SocketException>()));
+      expect((await (await client.getUrl(at('/mocked'))).close()).statusCode, 200);
+      expect(records().where((r) => r['status'] == 0).map((r) => r['error']), everyElement(contains('network is off')));
+      HostNetwork.online = true;
+      expect((await (await client.getUrl(Uri.parse(photo))).close()).statusCode, 200);
+    } finally {
+      HostNetwork.online = true;
+      client.close();
+      folder.deleteSync(recursive: true);
+    }
+  });
+
   test('a URL is kept under the React Native host\'s name for it', () {
     expect(netCacheName('https://images.example/photo.png'), 'd1f88d0472c300623644b9b7d2a9412a');
   });
