@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import 'item.dart';
 import 'link.dart';
 import 'matching.dart';
+import 'routes.dart';
 import 'snapshot.dart';
 import 'touch.dart' as touch;
 
@@ -68,8 +69,33 @@ class Methods {
   /// Requests the app has in flight; the network layer sets it.
   int Function() inFlight = () => 0;
 
-  /// The focused route's name; a navigator observer sets it.
-  String? Function() currentRoute = () => null;
+  LynkeusRoutes? _routes;
+
+  /// Told the focused route whenever it may have changed: the link sends it to the driver as a `navigation` event.
+  void Function(String? route)? onNavigation;
+
+  LynkeusRoutes? get routes => _routes;
+
+  set routes(LynkeusRoutes? routes) {
+    _routes?.changes.removeListener(_routeChanged);
+    _routes = routes;
+    routes?.changes.addListener(_routeChanged);
+  }
+
+  void _routeChanged() {
+    final route = currentRoute();
+    record({'kind': 'route', 'route': ?route, 'path': path()});
+    onNavigation?.call(route);
+  }
+
+  String? currentRoute() => _routes?.current();
+
+  List<String> path() {
+    final routes = _routes;
+    if (routes == null) return const [];
+    final current = routes.current();
+    return routes.path?.call() ?? [?current];
+  }
 
   int _frames = 0;
   int _commit = 0;
@@ -155,6 +181,17 @@ class Methods {
         return _idle(p);
       case 'back':
         return _back();
+      case 'navigate':
+        final name = p['name'];
+        if (name is! String || name.isEmpty) throw AgentError('navigate needs a route name');
+        final go = _routes?.navigate;
+        if (go == null) {
+          throw AgentError(
+            'navigate needs the app\'s routes: LynkeusAgent.navigatorObserver or LynkeusAgent.start(routes: ...)',
+          );
+        }
+        await go(name, p['params'] is Map ? (p['params']! as Map).cast<String, Object?>() : null);
+        return {'route': name};
       case 'deepLink':
         final url = p['url'];
         if (url is! String || url.isEmpty) throw AgentError('deepLink needs a url');
@@ -196,7 +233,8 @@ class Methods {
     final started = _ms();
     final snapshot = _snapshot();
     return {
-      'path': const <String>[],
+      'route': ?currentRoute(),
+      'path': path(),
       'elements': [for (final e in snapshot.elements) e.toJson()],
       'commit': _commit,
       'busy': await _busy(),
@@ -476,6 +514,13 @@ class Methods {
       if (routeOk && targetOk && anyOk) {
         return {'route': ?current, if (matched != null) 'matched': matched.toJson(), 'waitedMs': _ms() - started};
       }
+      // A screen that closes itself (a success screen) can come and go before the wait looks: reached after the mark
+      // counts.
+      final since = _int(p['since']);
+      if (route != null && since != null && target == null && anyOf == null && !gone) {
+        final reached = _trace.any((e) => (e['seq']! as int) > since && e['kind'] == 'route' && e['route'] == route);
+        if (reached) return {'route': ?current, 'waitedMs': _ms() - started, 'passed': true};
+      }
       if (_ms() > deadline) {
         throw AgentError(
           'Timed out waiting for ${route ?? ''} ${target == null ? '' : _describe(target)}${gone ? ' to disappear' : ''} (on $current)',
@@ -543,7 +588,7 @@ class Methods {
     if (!navigators.any((n) => n.canPop())) throw AgentError('Nothing to go back to');
     await touch.fromPlatform('flutter/navigation', const MethodCall('popRoute'));
     await _drawn();
-    return {};
+    return {'route': ?currentRoute()};
   }
 
   // A route pushed or popped is only in the navigator until a frame builds it: answering before that let the next
