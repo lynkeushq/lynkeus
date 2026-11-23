@@ -87,12 +87,14 @@ engine on the Mac, with the iOS look (an iPhone 17), on a clock the host moves. 
 local combination of draft branches, built and run on one Mac (Apple Silicon, Flutter 3.50.1, engine
 `4d35714800b9266b6693a58e1225ecd7e9e45ed7`).
 
-- lynkeus, branch `local/deer-fastsim` at `55d0e63` (not pushed): this stack (#149–#153, #155, #156) with the fixes
-  #159–#162, the FastSim agent work #166, #168–#172 and the press fix #173. The CLI was built from the same tree.
-- fastsim, `dev/flutter-pixel-compare` at `2abbd79` (#83), which holds the host stack #79 (core), #80 (kit), #81
-  (commands), #82 (lifecycle) and #84 (the plugin registrant skipped). An unlicensed local build (`cmake -S
-  host-flutter -B build -G Ninja`), laid out as the kit: `bin/fastsim-run`, `bin/fastsim-bundle`,
-  `bin/fastsim-flutter-host`, its interpose library and `bin/fastsim-flutter-engine`.
+- lynkeus, branch `local/deer-fastsim` at `883709d` (not pushed): this stack (#149–#153, #155, #156) with the fixes
+  #159–#162, the FastSim agent work #166, #168–#172 and #177, the press and swipe fixes #173 and #178, and the
+  record and replay of remote fetches (`dev/flutter-net-cache`, not turned on here). The CLI was built from the same
+  tree.
+- fastsim, `dev/flutter-check-hooks` at `0da0975`, the top of the host stack: #79 (core), #84 (the plugin registrant
+  skipped), #87 (font fallback on Linux), #80 (kit), #81 (commands), #82 (lifecycle), #83, #85 (frames read only
+  when looked at, and no run-ahead time counted twice) and #86. An unlicensed local build (`cmake -S host-flutter -B
+  host-flutter/build -G Ninja`), laid out as the kit by `hack/flutter/make-kit.sh`.
 - flutter_deer as above, with two lines changed in `lib/main.dart`: `LynkeusAgent.start()` moved before the app's
   `WidgetsFlutterBinding.ensureInitialized()` (the FastSim binding has to be the agent's), and
   `LynkeusPlugins.ensureInitialized()` after it, with `lynkeus_plugins` added to `dependencies` (#171; flutter_deer's
@@ -103,42 +105,40 @@ local combination of draft branches, built and run on one Mac (Apple Silicon, Fl
 npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle> {port}"
 ```
 
-Bundling took 8 s (the sample) and 11 s (flutter_deer). Seconds per case are the median of three full runs, all
-passing; the Simulator and headless columns are the runs above, made before the FastSim work.
+Seconds per case are the median of three full runs, all passing; the Simulator and headless columns are the runs
+above, made before the FastSim work. `03-orders` has one step more than there: the mock described below.
 
 | Case | iOS Simulator | Headless | FastSim (iOS look) |
 |---|---|---|---|
-| 01-login | 12/12, 5.5 s | 12/12, 1.6 s | 12/12, 1.3 s |
-| 02-store-audit | 11/11, 3.3 s | 11/11, 1.1 s | 11/11, 1.3 s |
-| 03-orders | 9/9, 35.2 s | 9/9, 2.6 s | 9/9, 8.8 s |
-| 04-order-search | 9/9, 2.1 s | 9/9, 0.8 s | 9/9, 1.1 s |
-| 05-settings | 23/23, 6.3 s | 23/23, 2.5 s | 23/23, 2.6 s |
-| 06-shop-setting | 15/15, 3.8 s | 15/15, 1.6 s | 15/15, 1.4 s |
-| 07-statistics | 13/13, 3.3 s | 13/13, 1.6 s | 13/13, 1.2 s |
-| 08-goods | 12/12, 6.7 s | 12/12, 1.6 s | 12/12, 3.4 s |
-| All | 104/104, 66 s wall | 104/104, 16–23 s wall | 104/104, 26–29 s wall with eight host starts |
+| 01-login | 12/12, 5.5 s | 12/12, 1.6 s | 12/12, 0.8 s |
+| 02-store-audit | 11/11, 3.3 s | 11/11, 1.1 s | 11/11, 0.8 s |
+| 03-orders | 9/9, 35.2 s | 9/9, 2.6 s | 10/10, 2.8 s |
+| 04-order-search | 9/9, 2.1 s | 9/9, 0.8 s | 9/9, 0.5 s |
+| 05-settings | 23/23, 6.3 s | 23/23, 2.5 s | 23/23, 1.4 s |
+| 06-shop-setting | 15/15, 3.8 s | 15/15, 1.6 s | 15/15, 0.8 s |
+| 07-statistics | 13/13, 3.3 s | 13/13, 1.6 s | 13/13, 0.7 s |
+| 08-goods | 12/12, 6.7 s | 12/12, 1.6 s | 12/12, 0.9 s |
+| All | 104/104, 66 s wall | 104/104, 16–23 s wall | 105/105, 13–15 s wall with eight host starts |
 
-The sample on the same host: 3/3 in all three runs, 5–6 s wall; list-and-dialog 16/16 in 1.9 s, resend-code 10/10 in
-0.7 s (its 3 s countdown passes on the host's clock), settings 15/15 in 1.1 s. On the Simulator the same cases took
-7.3, 4.9 and 3.3 s.
+The sample on the same host: 3/3 in all three runs, 3–6 s wall; list-and-dialog 16/16 in 0.9 s, resend-code 10/10
+in 0.5 s (its 3 s countdown passes on the host's clock), settings 15/15 in 0.5 s. On the Simulator the same cases
+took 7.3, 4.9 and 3.3 s.
 
-FastSim runs one host per case, so its wall time includes eight engine starts; headless keeps one host for the run.
-Where a case waits on the app's timers (the orders list's page loads, the goods list), FastSim lands between the two;
-where it only drives, it matches headless.
+`03-orders` swipes three times and needs the scroll each swipe starts to stop before the next: on the Simulator the
+real time between two commands covers it, on the host's clock it does not. #178 makes `swipe` answer once its scroll
+has stopped; before it, with #85 on the host, the case failed every run (0/4), after it 6/6.
 
-The Android look (a Pixel 9) runs on the Linux host, in the Lima VM. Those figures are the host owner's: before
-#172 the sample passed 3/3 and flutter_deer 6/8. Settings and shop-setting failed on a `device_info_plus` answer
-that the Android model could not parse; with #172, on the Mac's engine with the Android look, flutter_deer passed 8/8.
-The rerun on Linux waits for the host's font fallback, which still draws Chinese text as boxes there (the cases pass;
-the pixels would not).
+The Android look (a Pixel 9) runs on the Linux host, in the Lima VM. Those figures are the host owner's: before #172
+the sample passed 3/3 and flutter_deer 6/8; settings and shop-setting failed on a `device_info_plus` answer the
+Android model could not parse. With #172, on the Mac's engine with the Android look, flutter_deer passed 8/8. The
+Linux rerun with #87, which draws Chinese text there, is the host owner's to report.
 
 FastSim fences the app's network as headless does (#177): requests go only to `flutterHost.networkHosts`
 (loopback by default), and anything else fails at once and is listed in `requests`. Without a fence the host had
 called the real GitHub API, whose rate-limit toast showed in the frames. `03-orders` now mocks the one request the home
 page makes (`GET /users/simplezhli`, from the shop tab it builds), so no run depends on the internet. The goods list's
 pictures come from image hosts outside the fence and draw as the app's placeholders on the hosts, while a device
-loads them. With the fence and the mock, three more full runs on FastSim: 8/8 each, 24–26 s wall, `03-orders` 10/10
-in 8.7 s, `08-goods` 1.6 s (it had waited on the real image hosts).
+loads them, unless the run replays a recording of them (`dev/flutter-net-cache`).
 
 `04-order-search` failed once in a full Simulator run before #173: the home page under it opens a loading dialog,
 which can land on the search page between `see` and `press`. With #173, on the Simulator: 15/15 alone and two full
