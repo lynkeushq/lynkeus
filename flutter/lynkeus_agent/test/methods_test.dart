@@ -175,6 +175,40 @@ void main() {
     expect(FocusManager.instance.primaryFocus?.context?.widget, isNot(isA<EditableText>()));
   });
 
+  testWidgets('a suggestion under a focused field is pressed with the keyboard up, which keeps it there', (
+    tester,
+  ) async {
+    String? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Autocomplete<String>(
+                optionsBuilder: (value) =>
+                    value.text.isEmpty ? const [] : ['Berlin', 'Bern'].where((c) => c.startsWith(value.text)),
+                onSelected: (city) => picked = city,
+                fieldViewBuilder: (context, controller, focusNode, _) => TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(hintText: 'Search...'),
+                ),
+              ),
+              TextButton(onPressed: () {}, child: const Text('Done')),
+            ],
+          ),
+        ),
+      ),
+    );
+    methods = Methods();
+    await drive(tester, methods, 'type', {
+      'target': {'text': 'Search...'},
+      'text': 'Ber',
+    });
+    await drive(tester, methods, 'press', {'text': 'Berlin'});
+    expect(picked, 'Berlin');
+  });
+
   testWidgets('waitFor with scroll swipes the list until the row is in the window', (tester) async {
     await start(tester);
     expect(find.text('Row 30'), findsNothing);

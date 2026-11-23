@@ -373,15 +373,23 @@ class Methods {
 
   Future<_Point> _pressNative(Target target, int holdMs) async {
     var point = await _settled(target);
-    // With the keyboard up, a tap outside the field may only dismiss it: close it first and measure again once the
-    // layout moves back.
-    if (point.element?.kind != 'input' && _elements().any((e) => e.focused)) {
+    // A target the keyboard covers is out of a finger's reach: close the keyboard first and measure again once the
+    // layout moves back. One above it is tapped with the keyboard up, as a person taps a suggestion under a search
+    // field, which closing the keyboard would take away.
+    if (point.element?.kind != 'input' && point.y > _aboveKeyboard() && _elements().any((e) => e.focused)) {
       touch.dismissKeyboard();
       await _sleep(300);
       point = await _settled(target);
     }
     await _tap(Offset(point.x, point.y), holdMs);
     return point;
+  }
+
+  /// Where the keyboard starts, in points from the top: the window's height less the inset the keyboard takes.
+  double _aboveKeyboard() {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    final view = dispatcher.implicitView ?? dispatcher.views.first;
+    return windowSize().height - view.viewInsets.bottom / view.devicePixelRatio;
   }
 
   Future<Map<String, Object?>> _press(Map<String, Object?> p) async {
