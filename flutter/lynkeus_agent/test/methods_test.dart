@@ -385,6 +385,32 @@ void main() {
     expect(await failureOf(tester, methods, 'nope'), 'Unknown method nope');
   });
 
+  testWidgets('waitFor with scroll brings a row cut by the window\'s edge all the way in', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            children: [
+              const SizedBox(height: 560),
+              const SizedBox(height: 60, child: Text('Language')),
+              for (var i = 0; i < 20; i++) SizedBox(height: 60, child: Text('Row $i')),
+            ],
+          ),
+        ),
+      ),
+    );
+    final window = tester.view.physicalSize / tester.view.devicePixelRatio;
+    expect(tester.getRect(find.text('Language')).bottom, greaterThan(window.height));
+    expect(tester.getCenter(find.text('Language')).dy, lessThan(window.height));
+    methods = Methods();
+    await drive(tester, methods, 'waitFor', {
+      'target': {'text': 'Language'},
+      'scroll': true,
+      'timeoutMs': 10000,
+    });
+    expect(tester.getRect(find.text('Language')).bottom, lessThanOrEqualTo(window.height));
+  });
+
   testWidgets('a drag held still before the finger lifts leaves the list where the finger left it', (tester) async {
     final controller = ScrollController();
     await tester.pumpWidget(

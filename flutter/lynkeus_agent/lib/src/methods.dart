@@ -292,6 +292,14 @@ class Methods {
     return _Point(element.cx, element.cy, element);
   }
 
+  // What a scroll brings in is all there, not cut by the window's edge, where a press may find it half under a tab
+  // bar and push it on. One taller than the window has its center in.
+  bool _whollyInWindow(Item e) {
+    final w = windowSize();
+    if (!_inWindow(e)) return false;
+    return e.frame.height > w.height || (e.frame.top >= 0 && e.frame.bottom <= w.height);
+  }
+
   bool _inWindow(Item e) {
     final w = windowSize();
     return !e.offscreen && e.cx >= 0 && e.cy >= 0 && e.cx <= w.width && e.cy <= w.height;
@@ -573,7 +581,7 @@ class Methods {
       // Enabled means it takes a touch now: a control under something that blocks touches reads as enabled but inert.
       bool stateOk(Item? e) =>
           e != null && (enabled == null || (e.enabled == enabled && (!enabled || e.hidden != 'inert')));
-      final present = target == null ? true : stateOk(found) && !(scroll && !_inWindow(found!));
+      final present = target == null ? true : stateOk(found) && !(scroll && !_whollyInWindow(found!));
       final targetOk = gone ? !present : present;
       final matched = anyOf?.where((t) => stateOk(pick(all, t))).firstOrNull;
       final anyOk = anyOf == null || matched != null;
