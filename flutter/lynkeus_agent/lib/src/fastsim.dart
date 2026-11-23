@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'capture.dart';
 import 'fence.dart';
 import 'standins.dart';
 
@@ -143,8 +144,8 @@ class FastSimHost {
 }
 
 /// The binding the agent creates inside FastSim, before `runApp` would create the plain one: its root view carries
-/// the device's safe area, which the engine's embedder cannot set.
-class FastSimBinding extends WidgetsFlutterBinding {
+/// the device's safe area, which the engine's embedder cannot set. Its capture frames are the agent's on any side.
+class FastSimBinding extends LynkeusBinding {
   FastSimBinding(this._sides, this.standIns, {this.hidden});
 
   final List<double> _sides;

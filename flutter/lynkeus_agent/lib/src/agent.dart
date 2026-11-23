@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'capture.dart';
 import 'fastsim.dart';
 import 'fence.dart';
 import 'netcache.dart';
@@ -84,10 +85,20 @@ abstract final class LynkeusAgent {
       return;
     }
     fastsim?.installBinding();
+    if (BindingBase.debugBindingType() == null) {
+      LynkeusBinding();
+    } else if (fastsim == null && hosted == null && WidgetsBinding.instance is! FrameCapture) {
+      debugPrint(
+        'lynkeus: the app made its binding before LynkeusAgent.start(), so captured frames catch spinners wherever '
+        'they are. Call LynkeusAgent.start() first in main().',
+      );
+    }
     WidgetsFlutterBinding.ensureInitialized();
     _standingIn = hosted != null || fastsim?.standIns != null;
+    final binding = WidgetsBinding.instance;
     final methods = Methods()
       ..launchSettledAt = clock.now().millisecondsSinceEpoch + launchSettleMs
+      ..capture = binding is FrameCapture ? binding : null
       ..commands.addAll(_pending)
       ..routes = routes ?? navigatorObserver.routes;
     _pending.clear();

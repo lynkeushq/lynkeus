@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'capture.dart';
 import 'item.dart';
 import 'link.dart';
 import 'matching.dart';
@@ -27,6 +28,9 @@ const _keep = 500;
 const _listEndMs = 3000;
 // How long past its timeout `idle` keeps waiting on the app's requests out and on its launch.
 const _waitedOutMs = 10000;
+
+// Driver requests that leave a capture frame held: the captures themselves and the reads that go with them.
+const _keepCapture = {'screenshot', 'still', 'screen', 'find', 'ping', 'requests', 'trace', 'debug'};
 
 // Reads would drown the timeline; only actions are worth a line.
 const _untraced = {'screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy'};
@@ -160,11 +164,15 @@ class Methods {
   /// frame and after the other's.
   int launchSettledAt = 0;
 
+  /// The binding's capture frames, when the binding is the agent's (capture.dart).
+  FrameCapture? capture;
+
   /// Told when [serving] changes: a host with its own clock runs it ahead while the driver waits.
   void Function()? onServing;
 
   Future<Object?> call(String method, Object? params) async {
     final started = _ms();
+    if (!_keepCapture.contains(method)) capture?.release();
     serving++;
     onServing?.call();
     try {
@@ -625,6 +633,8 @@ class Methods {
   // that end on their own, the app's requests out and its launch, are not held against the timeout (up to
   // [_waitedOutMs] past it): a device's request can take seconds where a host replays it at once, and a frame taken
   // while it was out would show what the other side's frame does not.
+  //
+  // The answer comes with the capture frame drawn and held when something loops on screen (capture.dart).
   Future<Map<String, Object?>> _idle(Map<String, Object?> p) async {
     final quietMs = _int(p['quietMs']) ?? 150;
     final after = _int(p['after']);
@@ -633,7 +643,8 @@ class Methods {
     var lastCommit = _commitCount();
     var quietSince = _ms();
     var arrived = after == null || lastCommit > after;
-    while (_ms() < deadline) {
+    Map<String, Object?>? answer;
+    while (answer == null && _ms() < deadline) {
       await _sleep(30);
       final now = _ms();
       final commit = _commitCount();
@@ -646,10 +657,12 @@ class Methods {
         lastCommit = commit;
         quietSince = now;
       } else if (arrived && now - quietSince >= quietMs) {
-        return {'commit': commit, 'idle': true};
+        answer = {'commit': commit, 'idle': true};
       }
     }
-    return {'commit': _commitCount(), 'idle': false};
+    answer ??= {'commit': _commitCount(), 'idle': false};
+    await capture?.capture(stillServing: () => serving > 0);
+    return answer;
   }
 
   // The system back: what the engine sends for Android's back button, which pops the top route, a dialog first.
