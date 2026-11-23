@@ -326,7 +326,9 @@ test('init adds the companion only when the lock shows a plugin that needs it, a
   const main = fs.readFileSync(path.join(root, 'lib/main.dart'), 'utf8');
   assert.ok(main.includes("LynkeusAgent.start(app: {'name': 'demo'});\n  LynkeusPlugins.ensureInitialized();\n  runApp"));
   const before = [fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), main];
-  setupApp(root, { install: true });
+  const again = setupApp(root, { install: true }).join('\n');
+  assert.match(again, /already depends on lynkeus_plugins/);
+  assert.doesNotMatch(again, /why:/);
   assert.deepEqual([fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), fs.readFileSync(path.join(root, 'lib/main.dart'), 'utf8')], before);
   const manual = tmp({ ...files, 'pubspec.lock': LOCK({ sqflite_platform_interface: '2.4.1' }) });
   const hand = setupApp(manual, { install: false }).join('\n');

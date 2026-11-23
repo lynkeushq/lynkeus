@@ -270,10 +270,13 @@ export const initFlutter = (root: string, opts: { install: boolean; headless?: b
       const latest = fs.readFileSync(pubspecFile, 'utf8');
       const dep = addPluginsToPubspec(latest);
       if (dep.text !== latest) fs.writeFileSync(pubspecFile, dep.text);
-      const call = addPluginsToMain(fs.readFileSync(mainFile, 'utf8'));
-      fs.writeFileSync(mainFile, call.text);
-      pluginsAdded = dep.done && call.done;
-      notes.push(`${dep.note}; ${call.note}`, `  why: ${why}`);
+      const mainNow = fs.readFileSync(mainFile, 'utf8');
+      const call = addPluginsToMain(mainNow);
+      if (call.text !== mainNow) fs.writeFileSync(mainFile, call.text);
+      pluginsAdded = dep.text !== latest || call.text !== mainNow;
+      // The reason is told when something was added; a second run says only that it is already there.
+      notes.push(`${dep.note}; ${call.note}`);
+      if (pluginsAdded) notes.push(`  why: ${why}`);
     }
   }
   if (ensureToken(root).made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
