@@ -266,6 +266,25 @@ void main() {
     );
   });
 
+  test(
+    'records the body read through a cast stream, as dio reads it, which sets its handler after listening',
+    () async {
+      network.local = {};
+      network.commands['netcache']!({'record': true});
+      final client = HttpClient();
+      try {
+        final response = await (await client.getUrl(at('/data.json'))).close();
+        // dio's adapter hands its response on as `response.cast()`, which listens with no handler and sets one after.
+        final text = await response.cast<List<int>>().transform(utf8.decoder).join();
+        expect(jsonDecode(text), containsPair('echo', ''));
+      } finally {
+        client.close();
+      }
+      final entry = (((network.commands['netcache']!({'take': true})! as Map)['entries']! as List).single as Map);
+      expect(jsonDecode(utf8.decode(base64.decode(entry['body']! as String))), containsPair('echo', ''));
+    },
+  );
+
   test('records a HEAD (a connectivity check) and answers it from the folder with no body', () async {
     network.local = {};
     network.commands['netcache']!({'record': true});

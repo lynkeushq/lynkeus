@@ -664,11 +664,7 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
     bool? cancelOnError,
   }) {
     final subscription = inner.listen(
-      (data) {
-        body.add(data);
-        recorded?.add(data);
-        onData?.call(data);
-      },
+      _keeping(onData),
       onError: (Object error, StackTrace stack) {
         _end(error);
         if (onError is void Function(Object, StackTrace)) {
@@ -683,8 +679,15 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
       },
       cancelOnError: cancelOnError,
     );
-    return _Ending(subscription, _end);
+    return _Ending(subscription, _end, _keeping);
   }
+
+  /// [onData], after the body is kept for the log and the recording.
+  void Function(List<int>) _keeping(void Function(List<int> event)? onData) => (data) {
+    body.add(data);
+    recorded?.add(data);
+    onData?.call(data);
+  };
 
   @override
   X509Certificate? get certificate => inner.certificate;
@@ -717,9 +720,13 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
 
 /// A subscription that counts the request as over when the app stops reading it before the end.
 class _Ending implements StreamSubscription<List<int>> {
-  _Ending(this.inner, this.end);
+  _Ending(this.inner, this.end, this.keeping);
   final StreamSubscription<List<int>> inner;
   final void Function() end;
+
+  /// Wraps a data handler so the body is still kept: a stream transformer (dio's, `transform`, `cast`) listens with
+  /// none and sets its own here.
+  final void Function(List<int>) Function(void Function(List<int>)?) keeping;
 
   @override
   Future<void> cancel() {
@@ -733,7 +740,7 @@ class _Ending implements StreamSubscription<List<int>> {
   @override
   bool get isPaused => inner.isPaused;
   @override
-  void onData(void Function(List<int> data)? handleData) => inner.onData(handleData);
+  void onData(void Function(List<int> data)? handleData) => inner.onData(keeping(handleData));
   @override
   void onDone(void Function()? handleDone) => inner.onDone(() {
     end();
