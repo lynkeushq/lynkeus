@@ -1,0 +1,1469 @@
+{
+  "corpus/backend-steps.md": [
+    {
+      "id": "backend-steps",
+      "title": "Fixtures, asserts and shell steps",
+      "exclusive": true,
+      "meta": {
+        "id": "backend-steps",
+        "title": "Fixtures, asserts and shell steps",
+        "exclusive": true,
+        "tags": [
+          "backend",
+          "money"
+        ]
+      },
+      "setup": [
+        {
+          "verb": "create_user",
+          "value": {
+            "as": "u",
+            "name": "Ana",
+            "balance": 25
+          }
+        },
+        {
+          "verb": "create_user",
+          "value": {
+            "as": "v",
+            "name": "{{random.letters}}",
+            "phone": "+1555{{random.digits}}"
+          }
+        },
+        {
+          "verb": "give_points",
+          "value": {
+            "user": "u",
+            "points": 25
+          }
+        },
+        {
+          "verb": "exec",
+          "value": {
+            "run": "echo '{\"id\": 4}'",
+            "as": "shell"
+          }
+        },
+        {
+          "verb": "exec",
+          "value": "true"
+        }
+      ],
+      "steps": [
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "{{u.name}}"
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "user": "u",
+            "path": "points",
+            "equals": 25
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "name",
+            "includes": "An"
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "balance",
+            "gte": 10
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "balance",
+            "lte": 100
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "rate",
+            "near": 0.5
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "email",
+            "matches": "^a@"
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "phone",
+            "present": true
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "deleted_at",
+            "absent": true
+          }
+        },
+        {
+          "verb": "assert",
+          "value": {
+            "path": "accounts.*.id",
+            "includes": "acc_1"
+          }
+        },
+        {
+          "verb": "send_push",
+          "value": {
+            "user": "v",
+            "title": "Hi {{v.name}}"
+          }
+        }
+      ],
+      "teardown": [
+        {
+          "verb": "delete_user",
+          "value": {
+            "user": "u"
+          }
+        },
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        }
+      ],
+      "sections": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "expected": "The backend holds what the case gave it.",
+      "argv": []
+    }
+  ],
+  "corpus/blocks-and-sections.md": [
+    {
+      "id": "blocks-and-sections",
+      "title": "Blocks for one host, macros, sections",
+      "meta": {
+        "id": "blocks-and-sections",
+        "title": "Blocks for one host, macros, sections",
+        "description": "Steps kept to one host, the project's own steps and numbered sections, as a person writes them.\n"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.login",
+          "value": {
+            "as": "u",
+            "wait": "Home.Main"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "364,84",
+          "on": "device"
+        },
+        {
+          "verb": "app.press",
+          "value": "#skip",
+          "on": "headless"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Allow"
+          },
+          "on": "ios"
+        },
+        {
+          "verb": "app.press",
+          "value": "Allow",
+          "on": "ios"
+        },
+        {
+          "verb": "app.wait",
+          "value": 300,
+          "on": "!android"
+        },
+        {
+          "verb": "app.clock",
+          "value": {
+            "advance": 5000
+          },
+          "on": "has:clock"
+        },
+        {
+          "verb": "app.refresh",
+          "value": null
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Done"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        "1 Sign in",
+        "1 Sign in",
+        "1 Sign in",
+        "2 Platform specifics",
+        "2 Platform specifics",
+        "2 Platform specifics",
+        "2 Platform specifics",
+        "3b The rest",
+        "3b The rest"
+      ],
+      "argv": [
+        "app.login → ✗ login has no as",
+        "app.press → [\"press\",\"364,84\"]",
+        "app.press → [\"press\",\"#skip\"]",
+        "app.press → [\"press\",\"Allow\"]",
+        "app.wait → [\"wait\",\"300\"]",
+        "app.clock → [\"os\",\"clock\",\"--advance\",\"5000\"]"
+      ]
+    }
+  ],
+  "corpus/drive-steps.md": [
+    {
+      "id": "drive-steps",
+      "title": "Every way a step drives the app",
+      "meta": {
+        "id": "drive-steps",
+        "title": "Every way a step drives the app",
+        "description": "Each app step with each form of value the case format documents."
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.press",
+          "value": "#submit"
+        },
+        {
+          "verb": "app.press",
+          "value": "Next"
+        },
+        {
+          "verb": "app.press",
+          "value": "\"Next\""
+        },
+        {
+          "verb": "app.press",
+          "value": "'12'"
+        },
+        {
+          "verb": "app.press",
+          "value": "12"
+        },
+        {
+          "verb": "app.press",
+          "value": 12
+        },
+        {
+          "verb": "app.press",
+          "value": "100,200"
+        },
+        {
+          "verb": "app.press",
+          "value": "#row[2]"
+        },
+        {
+          "verb": "app.press",
+          "value": "Delete[1]"
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "target": "#submit"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "testId": "submit"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "text": "Save"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "text": "Save",
+            "within": "#sheet",
+            "nth": 1
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "target": "Save",
+            "within": "Card"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "target": "#promo-close",
+            "optional": true
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "target": "#record",
+            "hold": 800
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": {
+            "target": "#pay",
+            "timeoutMs": 9000
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "text": "Ana"
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#name",
+            "text": "Ana"
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "testId": "email",
+            "text": "a@b.co",
+            "submit": true
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#code",
+            "text": "123456",
+            "clear": true,
+            "timeoutMs": 8000
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "Name",
+            "text": "Ana",
+            "paste": true
+          }
+        },
+        {
+          "verb": "app.swipe",
+          "value": "up"
+        },
+        {
+          "verb": "app.swipe",
+          "value": {
+            "direction": "left"
+          }
+        },
+        {
+          "verb": "app.swipe",
+          "value": {
+            "direction": "up",
+            "target": "#carousel"
+          }
+        },
+        {
+          "verb": "app.swipe",
+          "value": {
+            "direction": "down",
+            "target": "#sheet",
+            "distance": 300
+          }
+        },
+        {
+          "verb": "app.swipe",
+          "value": {
+            "from": "200,700",
+            "to": "200,100"
+          }
+        },
+        {
+          "verb": "app.swipe",
+          "value": {
+            "from": "10,400",
+            "to": "380,400",
+            "duration": 400
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": "Home.Main"
+        },
+        {
+          "verb": "app.wait",
+          "value": "route:index"
+        },
+        {
+          "verb": "app.wait",
+          "value": "route:(tabs)/settings"
+        },
+        {
+          "verb": "app.wait",
+          "value": 800
+        },
+        {
+          "verb": "app.wait",
+          "value": "1500"
+        },
+        {
+          "verb": "app.wait",
+          "value": "#ready"
+        },
+        {
+          "verb": "app.wait",
+          "value": "Welcome back"
+        },
+        {
+          "verb": "app.wait",
+          "value": "\"Next\""
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "#list-end",
+            "scroll": true
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "#pay",
+            "enabled": true
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "#spinner",
+            "gone": true,
+            "timeoutMs": 20000
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "what": "Home.Main",
+            "timeoutMs": 5000
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "text": "Saved"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "text": "Next"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "testId": "done"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "anyOf": [
+              "Welcome",
+              {
+                "testId": "home"
+              },
+              {
+                "text": "Hi",
+                "nth": 1
+              }
+            ]
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "request": "POST /v3/transfers"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "request": "GET /v3/accounts/",
+            "status": 200,
+            "timeoutMs": 4000
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": "#balance"
+        },
+        {
+          "verb": "app.see",
+          "value": "Balance"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "testId": "balance",
+            "text": "$25"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "25 points",
+            "request": "GET /api/points",
+            "event": "points_viewed",
+            "props": {
+              "points": 25
+            }
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "route": "Profile.Main"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "layer": true
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "layer": false
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "layer": "confirm-delete"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Error",
+            "absent": true
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "target": "#toast",
+            "timeoutMs": 6000
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "request": "POST /api/code",
+            "status": 201
+          }
+        },
+        {
+          "verb": "app.nav",
+          "value": "Settings.Main"
+        },
+        {
+          "verb": "app.nav",
+          "value": {
+            "route": "Profile.Edit",
+            "params": {
+              "id": 7
+            }
+          }
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.requests",
+          "value": "mark"
+        },
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        },
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "login",
+            "params": {
+              "user": "u_1"
+            },
+            "expect": {
+              "user.id": "u_1",
+              "token": null
+            },
+            "as": "session",
+            "timeoutMs": 5000
+          }
+        },
+        {
+          "verb": "app.run",
+          "value": "signup.flow.json"
+        },
+        {
+          "verb": "app.run",
+          "value": {
+            "flow": "checkout.json",
+            "vars": {
+              "amount": 10,
+              "currency": "USD"
+            }
+          }
+        },
+        {
+          "verb": "app.events",
+          "value": "clear"
+        },
+        {
+          "verb": "app.event",
+          "value": "points_viewed"
+        },
+        {
+          "verb": "app.event",
+          "value": {
+            "name": "points_viewed",
+            "props": {
+              "points": 25
+            }
+          }
+        },
+        {
+          "verb": "app.event",
+          "value": {
+            "name": "points_viewed",
+            "absent": true
+          }
+        },
+        {
+          "verb": "app.mock",
+          "value": {
+            "route": "POST /v3/transfers",
+            "lost": true,
+            "times": 1
+          }
+        },
+        {
+          "verb": "app.mock",
+          "value": {
+            "route": "GET /v3/accounts",
+            "status": 500
+          }
+        },
+        {
+          "verb": "app.mock",
+          "value": {
+            "route": "GET /v3/feed",
+            "hold": true
+          }
+        },
+        {
+          "verb": "app.mock",
+          "value": {
+            "release": true
+          }
+        },
+        {
+          "verb": "app.network",
+          "value": "off"
+        },
+        {
+          "verb": "app.network",
+          "value": {
+            "state": "on"
+          }
+        },
+        {
+          "verb": "app.appstate",
+          "value": "background"
+        },
+        {
+          "verb": "app.appstate",
+          "value": {
+            "state": "active"
+          }
+        },
+        {
+          "verb": "app.deeplink",
+          "value": "myapp://home?tab=2"
+        },
+        {
+          "verb": "app.clock",
+          "value": {
+            "advance": 1000
+          }
+        },
+        {
+          "verb": "app.screenshot",
+          "value": "shot.png"
+        },
+        {
+          "verb": "app.unlock",
+          "value": null
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "1 Presses",
+        "2 Typing",
+        "2 Typing",
+        "2 Typing",
+        "2 Typing",
+        "2 Typing",
+        "3 Swipes",
+        "3 Swipes",
+        "3 Swipes",
+        "3 Swipes",
+        "3 Swipes",
+        "3 Swipes",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "4 Waits",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "5 Looking",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "6 Moving around",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands",
+        "7 Other commands"
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#submit\"]",
+        "app.press → [\"press\",\"Next\"]",
+        "app.press → [\"press\",\"\\\"Next\\\"\"]",
+        "app.press → [\"press\",\"'12'\"]",
+        "app.press → [\"press\",\"12\"]",
+        "app.press → [\"press\",\"12\"]",
+        "app.press → [\"press\",\"100,200\"]",
+        "app.press → [\"press\",\"#row[2]\"]",
+        "app.press → [\"press\",\"Delete[1]\"]",
+        "app.press → [\"press\",\"#submit\"]",
+        "app.press → [\"press\",\"#submit\"]",
+        "app.press → [\"press\",\"Save\"]",
+        "app.press → [\"press\",\"Save\",\"--in\",\"#sheet\",\"--nth\",\"1\"]",
+        "app.press → [\"press\",\"Save\",\"--in\",\"Card\"]",
+        "app.press → ✗ press has no optional",
+        "app.press → [\"press\",\"#record\",\"--hold\",\"800\"]",
+        "app.press → ✗ press has no timeoutMs",
+        "app.type → [\"type\",\"Ana\"]",
+        "app.type → [\"type\",\"Ana\",\"#name\"]",
+        "app.type → [\"type\",\"a@b.co\",\"#email\",\"--submit\"]",
+        "app.type → ✗ type has no timeoutMs",
+        "app.type → [\"type\",\"Ana\",\"Name\",\"--paste\"]",
+        "app.swipe → [\"swipe\",\"up\"]",
+        "app.swipe → [\"swipe\",\"left\"]",
+        "app.swipe → [\"swipe\",\"up\",\"#carousel\"]",
+        "app.swipe → [\"swipe\",\"down\",\"#sheet\",\"--distance\",\"300\"]",
+        "app.swipe → [\"swipe\",\"--from\",\"200,700\",\"--to\",\"200,100\"]",
+        "app.swipe → [\"swipe\",\"--from\",\"10,400\",\"--to\",\"380,400\",\"--duration\",\"400\"]",
+        "app.wait → [\"wait\",\"Home.Main\"]",
+        "app.wait → [\"wait\",\"route:index\"]",
+        "app.wait → [\"wait\",\"route:(tabs)/settings\"]",
+        "app.wait → [\"wait\",\"800\"]",
+        "app.wait → [\"wait\",\"1500\"]",
+        "app.wait → [\"wait\",\"#ready\"]",
+        "app.wait → [\"wait\",\"Welcome back\"]",
+        "app.wait → [\"wait\",\"\\\"Next\\\"\"]",
+        "app.wait → [\"wait\",\"#list-end\",\"--scroll\"]",
+        "app.wait → [\"wait\",\"#pay\",\"--enabled\"]",
+        "app.wait → [\"wait\",\"#spinner\",\"--gone\",\"--timeout\",\"20000\"]",
+        "app.wait → [\"wait\",\"Home.Main\",\"--timeout\",\"5000\"]",
+        "app.wait → [\"wait\",\"Saved\"]",
+        "app.wait → [\"wait\",\"Next\"]",
+        "app.wait → [\"wait\",\"#done\"]",
+        "app.wait → [\"wait\",\"--anyOf\",\"Welcome\",\"--anyOf\",\"#home\",\"--anyOf\",\"\\\"Hi\\\"[1]\"]",
+        "app.wait → [\"wait\",\"POST /v3/transfers\"]",
+        "app.wait → ✗ wait has no status",
+        "app.nav → [\"nav\",\"Settings.Main\"]",
+        "app.nav → [\"nav\",\"Profile.Edit\",\"{\\\"id\\\":7}\"]",
+        "app.back → [\"back\"]",
+        "app.mock → [\"mock\",\"POST /v3/transfers\",\"--lost\",\"--times\",\"1\"]",
+        "app.mock → [\"mock\",\"GET /v3/accounts\",\"--status\",\"500\"]",
+        "app.mock → [\"mock\",\"GET /v3/feed\",\"--hold\"]",
+        "app.mock → [\"mock\",\"--release\"]",
+        "app.network → [\"os\",\"network\",\"off\"]",
+        "app.network → [\"os\",\"network\",\"on\"]",
+        "app.appstate → [\"os\",\"appstate\",\"background\"]",
+        "app.appstate → [\"os\",\"appstate\",\"active\"]",
+        "app.deeplink → [\"os\",\"deeplink\",\"myapp://home?tab=2\"]",
+        "app.clock → [\"os\",\"clock\",\"--advance\",\"1000\"]",
+        "app.screenshot → [\"screenshot\",\"shot.png\"]"
+      ]
+    }
+  ],
+  "corpus/list-and-dialog.md": [
+    {
+      "id": "list-and-dialog",
+      "title": "A long list, a second screen and a confirmation dialog",
+      "meta": {
+        "id": "list-and-dialog",
+        "title": "A long list, a second screen and a confirmation dialog",
+        "description": "Opens the list, scrolls to a row far below the fold and picks it, goes back from the list with the system back, then confirms a dialog. While the dialog is up, the screen under it is not presented.\n"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#open-list"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Items"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "Item 40",
+            "scroll": true
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "Item 40"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Picked Item 40"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#open-list"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Item 1"
+          }
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 0"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#delete"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "layer": "confirm-delete"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "testId": "increment",
+            "absent": true
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#confirm"
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "Delete everything?",
+            "gone": true
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Everything was deleted"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#open-list\"]",
+        "app.wait → [\"wait\",\"Item 40\",\"--scroll\"]",
+        "app.press → [\"press\",\"Item 40\"]",
+        "app.press → [\"press\",\"#open-list\"]",
+        "app.back → [\"back\"]",
+        "app.press → [\"press\",\"#delete\"]",
+        "app.press → [\"press\",\"#confirm\"]",
+        "app.wait → [\"wait\",\"Delete everything?\",\"--gone\"]"
+      ]
+    }
+  ],
+  "corpus/malformed-do-without-on.md": {
+    "error": "<root>/malformed-do-without-on.md: steps[0] has `do` without `on`"
+  },
+  "corpus/malformed-two-keys.md": {
+    "error": "<root>/malformed-two-keys.md: steps[0] must be one step, as `verb: value`, not {\"app.press\":\"#a\",\"app.see\":\"B\"}"
+  },
+  "corpus/matrix.md": [
+    {
+      "id": "signup[locale=en,login=phone]",
+      "title": "Sign up in en with phone",
+      "meta": {
+        "id": "signup",
+        "title": "Sign up in en with phone",
+        "matrix": {
+          "locale": [
+            "en",
+            "fr"
+          ],
+          "login": [
+            "phone",
+            "email"
+          ]
+        }
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.press",
+          "value": "#phone"
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#phone-input",
+            "text": "en"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "en"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#phone\"]",
+        "app.type → [\"type\",\"en\",\"#phone-input\"]"
+      ]
+    },
+    {
+      "id": "signup[locale=en,login=email]",
+      "title": "Sign up in en with email",
+      "meta": {
+        "id": "signup",
+        "title": "Sign up in en with email",
+        "matrix": {
+          "locale": [
+            "en",
+            "fr"
+          ],
+          "login": [
+            "phone",
+            "email"
+          ]
+        }
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.press",
+          "value": "#email"
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#email-input",
+            "text": "en"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "en"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#email\"]",
+        "app.type → [\"type\",\"en\",\"#email-input\"]"
+      ]
+    },
+    {
+      "id": "signup[locale=fr,login=phone]",
+      "title": "Sign up in fr with phone",
+      "meta": {
+        "id": "signup",
+        "title": "Sign up in fr with phone",
+        "matrix": {
+          "locale": [
+            "en",
+            "fr"
+          ],
+          "login": [
+            "phone",
+            "email"
+          ]
+        }
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.press",
+          "value": "#phone"
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#phone-input",
+            "text": "fr"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "fr"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#phone\"]",
+        "app.type → [\"type\",\"fr\",\"#phone-input\"]"
+      ]
+    },
+    {
+      "id": "signup[locale=fr,login=email]",
+      "title": "Sign up in fr with email",
+      "meta": {
+        "id": "signup",
+        "title": "Sign up in fr with email",
+        "matrix": {
+          "locale": [
+            "en",
+            "fr"
+          ],
+          "login": [
+            "phone",
+            "email"
+          ]
+        }
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.press",
+          "value": "#email"
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#email-input",
+            "text": "fr"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "fr"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#email\"]",
+        "app.type → [\"type\",\"fr\",\"#email-input\"]"
+      ]
+    }
+  ],
+  "corpus/minimal.md": [
+    {
+      "id": "minimal",
+      "title": "An id from the file name",
+      "meta": {
+        "title": "An id from the file name"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.back",
+          "value": null
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null
+      ],
+      "argv": [
+        "app.back → [\"back\"]"
+      ]
+    }
+  ],
+  "corpus/no-frontmatter.md": {
+    "error": "<root>/no-frontmatter.md: no frontmatter (a case starts with --- and its id)"
+  },
+  "corpus/resend-code.md": [
+    {
+      "id": "resend-code",
+      "title": "Counter and resend countdown",
+      "meta": {
+        "id": "resend-code",
+        "title": "Counter and resend countdown",
+        "description": "Presses the counter twice, types a name and asks for a code. The code can be asked for again after a three second countdown, which the case waits for.\n"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 0"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#increment"
+        },
+        {
+          "verb": "app.press",
+          "value": "#increment"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 2"
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#name",
+            "text": "Ana"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#send"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Code sent to Ana"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Resend in 3"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "Resend now",
+            "timeoutMs": 6000
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#increment\"]",
+        "app.press → [\"press\",\"#increment\"]",
+        "app.type → [\"type\",\"Ana\",\"#name\"]",
+        "app.press → [\"press\",\"#send\"]",
+        "app.wait → [\"wait\",\"Resend now\",\"--timeout\",\"6000\"]"
+      ]
+    }
+  ],
+  "corpus/settings.md": [
+    {
+      "id": "settings",
+      "title": "A preference that persists, and a link the app opens",
+      "meta": {
+        "id": "settings",
+        "title": "A preference that persists, and a link the app opens",
+        "description": "Turns a setting on, leaves the screen and comes back to find it read again from the app's storage, and checks the help link with the app's link opener. On a host the link is also opened, where the host writes it down instead of leaving the app; a device would leave the app for the browser, so it does not open it there.\n"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#open-settings"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Remember me: off"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#remember"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Remember me: on"
+          }
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.press",
+          "value": "#open-settings"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Remember me: on"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#check-link"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Help link: available"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#open-help",
+          "on": "headless"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Opened help"
+          },
+          "on": "headless"
+        },
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "launched",
+            "expect": {
+              "urls.0": "https://lynkeus.io/help"
+            }
+          },
+          "on": "headless"
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 0"
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#open-settings\"]",
+        "app.press → [\"press\",\"#remember\"]",
+        "app.back → [\"back\"]",
+        "app.press → [\"press\",\"#open-settings\"]",
+        "app.press → [\"press\",\"#check-link\"]",
+        "app.press → [\"press\",\"#open-help\"]",
+        "app.back → [\"back\"]"
+      ]
+    }
+  ]
+}
