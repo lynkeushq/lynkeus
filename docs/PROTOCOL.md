@@ -226,12 +226,16 @@ it.
   condition holds; `idle` resolves after `quietMs` without commits or
   requests, or reports `idle: false` at `timeoutMs` (a ticking screen never
   settles, and that is information).
-  The Flutter agent's `idle` waits, up to 10 s past `timeoutMs`, for requests the
-  app made since its previous answer and, until it first finds the app quiet, for
-  the one-shot timers the launch set. It answers with a capture frame drawn and
+  The Flutter agent's `idle` is not quiet while work that ends on its own is under
+  way: a one-shot timer the app set for no longer than `timeoutMs` (or set while
+  launching, before the driver's first action), an animation that waited-out work set off,
+  an image still loading, a request made since its previous answer. Timers and requests, and what they set
+  off, stretch the wait by up to 10 s past `timeoutMs`; periodic timers, a timer
+  set again from where one just fired and longer ones never count. It answers with
+  a capture frame drawn and
   held when something loops on screen (spinners at the moment they started, a
-  blinking caret on), until the next request other than `screenshot`, `still` or
-  a read, at most 3 s.
+  blinking caret on), until the next request other than `screenshot` or `still`
+  (a read too, so a wait that polls `screen` gets its frames), at most 3 s.
 - `requests` includes headers and bodies only after `networkBodies` turns them
   on (a case run that keeps evidence does), with secrets replaced. A value is
   replaced by `…` when its name, split into words, reads as a secret (`password`,

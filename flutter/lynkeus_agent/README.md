@@ -28,13 +28,44 @@ What it reads, and from where:
 ## Captured frames
 
 Start the agent before anything calls `WidgetsFlutterBinding.ensureInitialized()`: it then makes the app's binding, a
-`WidgetsFlutterBinding` that also makes a step's frame repeatable. When `idle` answers with something on screen that
-animates forever (an `AnimationController.repeat`, such as a progress indicator, or a text field's blinking caret), the
-agent draws one more frame with each of those at the moment it started and the caret on, and draws nothing else until
-the driver's next action, so a screenshot the OS takes a moment later is the same on every run, on a device or on
-Lynkeus FastSim. Animations that run to an end are drawn where they are. On its first wait after a launch, `idle` also
-waits for the one-shot timers the app set while launching (a splash screen's). An app that makes its binding first is
-still driven, without either, and the console says so.
+`WidgetsFlutterBinding` that also makes a step's frame a function of the app's code, the case's steps and the data,
+not of the wall clock, so two runs on a device and a run on Lynkeus FastSim give the same picture.
+
+- `idle` is not quiet while work that ends on its own is under way, and the frame is of the state it ends in: a
+  one-shot timer the app set for no longer than the idle's `timeoutMs` (a page that loads after 2 s, a toast that
+  hides after 2 s, a search's debounce), or one its launch set before the driver's first action (a splash screen's);
+  an animation such work sets off when it ends (a toast fading out, a pull-to-refresh indicator leaving; one the
+  step itself starts, a page sliding in, ends within the settle's quiet); an image still loading or
+  decoding (an asset's icon); a request the app made since the last answer. Which timers count is decided by how long the app set them for, the same on every side, not
+  by how much is left of them. A periodic timer, a timer set again from where one just fired (a polling loop) and a
+  timer set for longer than the wait never count.
+- When `idle` answers with something on screen that animates forever (an `AnimationController.repeat`, such as a
+  progress indicator, a controller its own status listener starts again, or a text field's blinking caret), the agent
+  draws one more frame with each of those at the moment it started and the caret on, and draws nothing else until
+  the driver's next request other than a screenshot (a `screen` read included, so a wait that polls it sees the app
+  move on, and a frame is drawn before the request acts), at most 3 s, so a screenshot the OS takes a moment later is the same on every run.
+
+A case run with frames takes a Flutter step's `app.see` steps before its frame's settle: a toast the step shows is
+still there to be seen, and the frame after it is of the screen once the toast is gone.
+
+An app with a binding class of its own (one that overrides `handlePointerEvent`, say) extends `LynkeusBinding`
+instead of `WidgetsFlutterBinding` and makes it before calling `LynkeusAgent.start()`, which then uses it:
+
+```dart
+class MyBinding extends LynkeusBinding {
+  // the app's own overrides
+}
+
+void main() {
+  MyBinding();
+  LynkeusAgent.start();
+  runApp(const MyApp());
+}
+```
+
+Made after `LynkeusAgent.start()`, a second binding fails Flutter's own check (`Binding is already initialized to
+LynkeusBinding`). An app whose binding is a plain one of its own is still driven, without the frames above, the safe
+area and plugin stand-ins on FastSim, and the console says so and how to fix it.
 
 ## Routes
 
@@ -82,9 +113,9 @@ its clock: it runs ahead while the driver waits and nothing is on the wire, and 
 request `netmock` answers is not on the wire, so its `delayMs` passes on the host's clock. Images come through
 the same `HttpClient`, so `Image.network` fetches count too; the host keeps no cache of its own.
 
-For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`.
-An app that makes its binding first still runs and is driven; it gets no safe area, and says `binding: app` in its
-hello.
+For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`,
+or the app's own binding has to extend `LynkeusBinding` (see Captured frames). An app that makes a plain binding first
+still runs and is driven; it gets no safe area, and says `binding: app` in its hello.
 
 The app has no native side there either, so the agent's binding answers its plugins' channels with the same
 stand-ins the headless host uses (`package:lynkeus_agent/hosts.dart`; the table is in lynkeus_headless's README),
