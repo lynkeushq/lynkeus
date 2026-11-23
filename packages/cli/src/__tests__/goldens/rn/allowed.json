@@ -1,0 +1,44 @@
+{
+  "wire/press-by-number": {
+    "why": "app.press: 2 (a YAML number) presses the element at index 2, as \"2\" does; on main it failed with a TypeError",
+    "now": "b7699214b9059bd1"
+  },
+  "surface/usage": { "why": "the first line names Flutter beside React Native", "now": "b921371938d9f4f8" },
+  "surface/help/case run": {
+    "why": "--net-cache, --net-record and --net-record-credentials: a folder of recorded fetches a host answers from; nothing changes for a run that does not pass them",
+    "now": "cc94e870744c59f9"
+  },
+  "surface/help/fastsim grant": {
+    "why": "--runtime picks the Flutter host's build; without it a React Native folder gets the same variant as on main",
+    "now": "5ebe46dd0aac9230"
+  },
+  "surface/help/fastsim install": {
+    "why": "--runtime and a paragraph on the Flutter host; without --runtime a React Native folder installs the same variant as on main",
+    "now": "e005d750f1874750"
+  },
+  "surface/help/headless start": { "why": "the summary and details name flutter test beside jest", "now": "b489a9885df714c8" },
+  "surface/help/init": {
+    "why": "--runtime and --headless (Flutter only), and the details name Flutter; init in a React Native folder writes what it did on main",
+    "now": "913d3f42517c0b28"
+  },
+  "surface/help/map build": { "why": "details added: how a Flutter app's routes are read beside React Navigation's", "now": "9a5cfb717780f955" },
+  "surface/help/smoke": { "why": "--params says Flutter reads route params with its routes", "now": "1bae95520845db16" },
+  "surface/mcp/instructions": { "why": "the MCP instructions name Flutter and add a paragraph on setting up and testing a Flutter app", "now": "08124031158c08f8" },
+  "surface/mcp/tool/case_run": { "why": "the net_cache, net_record and net_record_credentials arguments of case run", "now": "763984a8a5c500ee" },
+  "surface/mcp/tool/fastsim_install": { "why": "the runtime argument and the Flutter paragraph of fastsim install", "now": "8ae1151a59ce3b6a" },
+  "surface/mcp/tool/init": { "why": "the runtime and headless arguments of init and its details naming Flutter", "now": "e0c6a1e61dd06e4f" },
+  "detect/flutter app/runtime": { "why": "a pubspec that takes flutter from the SDK, with no react-native dependency, is a Flutter app", "now": "98404808c1d845df" },
+  "detect/flutter app beside a package.json without react-native/runtime": {
+    "why": "a package.json that does not depend on react-native leaves a Flutter pubspec beside it a Flutter app",
+    "now": "98404808c1d845df"
+  },
+  "detect/flutter app beside a broken package.json/runtime": {
+    "why": "a package.json that cannot be read names no react-native, so the Flutter pubspec decides",
+    "now": "98404808c1d845df"
+  },
+  "detect/flutter app with a tsconfig/runtime": { "why": "a tsconfig without react-native in package.json does not make a Flutter folder React Native", "now": "98404808c1d845df" },
+  "detect/flutter app, inline sdk/init": {
+    "why": "init reads `flutter: { sdk: flutter }` as Flutter while status, map and headless do not: three detections disagree on this branch",
+    "now": "2b46ab9dee2e22f3"
+  }
+}
