@@ -346,6 +346,12 @@ void main() {
     }
   });
 
+  test('the recording replayed comes from the environment, else from the build\'s define', () {
+    expect(replayFolder({'LYNKEUS_NET_CACHE': '/run/net'}, '/data/user/0/app/files/net'), '/run/net');
+    expect(replayFolder({}, '/data/user/0/app/files/net'), '/data/user/0/app/files/net');
+    expect(replayFolder({'LYNKEUS_NET_CACHE': ''}, ''), '');
+  });
+
   test('a URL is kept under the React Native host\'s name for it', () {
     expect(netCacheName('https://images.example/photo.png'), 'd1f88d0472c300623644b9b7d2a9412a');
   });

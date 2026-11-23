@@ -20,6 +20,14 @@ const keptHeaders = ['content-type', 'cache-control', 'expires', 'etag', 'last-m
 String netCacheName(String url) =>
     sha256.convert(utf8.encode(url)).bytes.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
+/// The recording a run replays from: `LYNKEUS_NET_CACHE` in the app's environment (what a host the CLI starts is
+/// given), else the build's `--dart-define` of that name, which is how a simulator's or an emulator's app gets one (Dart
+/// reads no environment on iOS, and an Android app has none of its own); empty when neither names one.
+String replayFolder(Map<String, String> env, String defined) {
+  final given = env['LYNKEUS_NET_CACHE'] ?? '';
+  return given.isNotEmpty ? given : defined;
+}
+
 /// A recorded answer. A HEAD request (a connectivity check's) is answered with what was recorded for its URL, by
 /// either method, and no body.
 typedef CachedAnswer = ({int status, Map<String, String> headers, Uint8List body});

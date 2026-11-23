@@ -155,16 +155,17 @@ abstract final class LynkeusAgent {
       serve: methods.call,
     );
     methods.onNavigation = (route) => _link?.emit({'event': 'navigation', 'route': ?route});
+    // Fetches a run recorded (LYNKEUS_NET_CACHE, the folder `case run --net-cache` names) answer what the fence
+    // blocks, so a network image shows the picture the device showed. A simulator or an emulator replays too when its
+    // build names a recording: it is then fenced as a host is, and draws the same data as a host does.
+    final cache = replayFolder(Platform.environment, const String.fromEnvironment('LYNKEUS_NET_CACHE'));
+    final allowed = fastsim?.networkHosts ?? networkHostsFrom(Platform.environment);
     // The host is not a phone on someone's network: its requests reach as far as the project allows, as headless.
     // Installed under the network log, so netmock answers first and a blocked request is still listed.
-    if (fastsim != null) HttpOverrides.global = FencedHttpOverrides(fastsim.networkHosts);
+    if (fastsim != null || (hosted == null && cache.isNotEmpty)) HttpOverrides.global = FencedHttpOverrides(allowed);
     // After the link has its own HttpClient, so the agent's socket is not among the app's requests.
     final network = Network(trace: methods.record)..install();
-    // On a host, fetches a reference run recorded (LYNKEUS_NET_CACHE, the folder `case run --net-cache` names) answer
-    // what the fence would block, so a network image shows the picture the device showed.
-    final cache = Platform.environment['LYNKEUS_NET_CACHE'] ?? '';
-    if ((fastsim != null || hosted != null) && cache.isNotEmpty) {
-      final allowed = fastsim?.networkHosts ?? networkHostsFrom(Platform.environment);
+    if (cache.isNotEmpty) {
       network
         ..replay = NetCache(Directory(cache))
         ..fenced = (host) => !allowed.contains(host) && !allowed.contains(host.toLowerCase());
