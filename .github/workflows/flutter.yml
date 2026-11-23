@@ -1,0 +1,144 @@
+name: Flutter
+
+# Runs for any base branch, so stacked pull requests are checked too (ci.yml only sees pull requests into main).
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'flutter/**'
+      - 'packages/cli/src/commands/flutterHost.ts'
+      - 'packages/cli/src/commands/headless.ts'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'flutter/**'
+      - 'packages/cli/src/commands/flutterHost.ts'
+      - 'packages/cli/src/commands/headless.ts'
+      - '.github/workflows/flutter.yml'
+  merge_group:
+    types:
+      - checks_requested
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dart:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: previous stable
+            channel: stable
+            version: 3.47.9
+            experimental: false
+            format: false
+          - name: current stable
+            channel: stable
+            version: 3.50.1
+            experimental: false
+            format: true
+          # The beta floats: a break there warns and does not block.
+          - name: beta
+            channel: beta
+            version: ''
+            experimental: true
+            format: false
+    name: dart (${{ matrix.name }})
+    continue-on-error: ${{ matrix.experimental }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ matrix.channel }}
+          flutter-version: ${{ matrix.version }}
+          cache: true
+
+      - name: Check each package
+        env:
+          # The formatter's style changes between Dart versions: only the current stable decides it.
+          CHECK_FORMAT: ${{ matrix.format }}
+        run: |
+          set -e
+          # lynkeus_plugins joins when its folder exists, so this file works before and after it lands.
+          for package in lynkeus_agent lynkeus_headless lynkeus_plugins sample; do
+            [ -d "flutter/$package" ] || continue
+            echo "::group::$package"
+            (
+              cd "flutter/$package"
+              flutter pub get
+              if [ "$CHECK_FORMAT" = true ]; then dart format --set-exit-if-changed .; fi
+              flutter analyze
+              if [ -d test ]; then flutter test; fi
+            )
+            echo "::endgroup::"
+          done
+
+      - name: Warn about a failure on the beta
+        if: failure() && matrix.experimental
+        run: echo "::warning title=Flutter ${{ matrix.name }}::${{ github.job }} failed on the beta channel; it does not block the pull request."
+
+  headless-e2e:
+    needs: dart
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: previous stable
+            channel: stable
+            version: 3.47.9
+            experimental: false
+          - name: current stable
+            channel: stable
+            version: 3.50.1
+            experimental: false
+          # The beta floats: a break there warns and does not block.
+          - name: beta
+            channel: beta
+            version: ''
+            experimental: true
+    name: headless-e2e (${{ matrix.name }})
+    continue-on-error: ${{ matrix.experimental }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: ${{ matrix.channel }}
+          flutter-version: ${{ matrix.version }}
+          cache: true
+
+      - name: Build the CLI
+        run: pnpm build
+
+      - name: Run the sample's cases on the headless host
+        working-directory: flutter/sample
+        env:
+          # The host and the CLI share this secret; the sample has no .lynkeus/token of its own.
+          LYNKEUS_TOKEN: ci-flutter-headless-token
+        run: |
+          flutter pub get
+          node ../../packages/cli/lib/cli.js case run --host
+
+      - name: Warn about a failure on the beta
+        if: failure() && matrix.experimental
+        run: echo "::warning title=Flutter ${{ matrix.name }}::${{ github.job }} failed on the beta channel; it does not block the pull request."
