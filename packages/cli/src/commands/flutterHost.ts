@@ -118,6 +118,10 @@ export const writeFlutterHost = (root: string, project: FlutterProject, entry: s
 };
 
 /** The environment `flutter test` hands the host: the driver, the screen and the fonts that make text legible. */
+/** The hosts a Flutter host's app may reach (`flutterHost.networkHosts`); nothing when the config names none. */
+export const flutterNetworkEnv = (options: { networkHosts?: string[] } = {}): Record<string, string> =>
+  options.networkHosts?.length ? { LYNKEUS_NETWORK_HOSTS: options.networkHosts.join(',') } : {};
+
 export const flutterHostEnv = (
   sdk: FlutterSdk,
   token: string,
@@ -127,7 +131,7 @@ export const flutterHostEnv = (
   LYNKEUS_TOKEN: token,
   LYNKEUS_PORT: String(port ?? 8123),
   LYNKEUS_FONTS: path.join(sdk.root, 'bin', 'cache', 'artifacts', 'material_fonts'),
-  ...(options.networkHosts?.length ? { LYNKEUS_NETWORK_HOSTS: options.networkHosts.join(',') } : {}),
+  ...flutterNetworkEnv(options),
   ...(options.platform ? { LYNKEUS_PLATFORM: options.platform } : {}),
   ...(options.window ? { LYNKEUS_WINDOW: options.window } : {}),
 });
