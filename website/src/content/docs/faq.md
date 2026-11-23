@@ -35,7 +35,7 @@ React Native 0.76 or newer, with the New Architecture. On iOS the New Architectu
 
 ### Does it work with Flutter?
 
-Yes, with a Dart agent (`lynkeus_agent`) in a debug build, and a headless host that runs the app under `flutter test`. Cases have the same format. `map`, `case impact`, `smoke` and `crawl` do not work for Flutter yet, and Lynkeus FastSim is not available for it. See [Flutter](/platforms/flutter/).
+Yes, with a Dart agent (`lynkeus_agent`) in a debug build, and a headless host that runs the app under `flutter test`. Cases have the same format. `map`, `case impact`, `smoke` and `crawl` do not work for Flutter yet. Lynkeus FastSim also runs Flutter apps, through a separate host installed with `lynkeus fastsim install --runtime flutter`. See [Flutter](/platforms/flutter/).
 
 ### Does it work with Expo?
 
