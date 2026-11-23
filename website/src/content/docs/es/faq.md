@@ -154,6 +154,10 @@ Márcalo con `exclusive: true` en su encabezado. Con `--jobs`, corre solo: esper
 
 De dos maneras, que se pueden combinar. Con el host sin pantalla no necesitas simuladores y puedes repartir la suite entre núcleos. Con un simulador o un emulador pruebas además la capa nativa. Las dos están en [CI](/es/guides/ci/).
 
+### ¿Funciona con Flutter?
+
+Sí. El agente `lynkeus_agent` se monta en `main()`, lee el árbol de widgets en un build de depuración y los casos tienen el mismo formato que en React Native. También hay host sin pantalla, con `lynkeus_headless`. Algunos comandos (`map`, `case impact`, `smoke`, `crawl`) todavía no funcionan con Flutter. Lynkeus FastSim sí corre apps de Flutter, con un host aparte que se instala con `lynkeus fastsim install --runtime flutter`. Más en [Flutter](/es/platforms/flutter/).
+
 ### ¿Puede usarlo un agente de IA?
 
 Sí. `lynkeus mcp` sirve los comandos como herramientas MCP. El modelo recibe elementos estructurados en lugar de píxeles, así que decide el paso siguiente a partir de hechos. Más en [Agentes de IA](/es/guides/ai-agents/).

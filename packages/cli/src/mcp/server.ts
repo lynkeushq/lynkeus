@@ -82,11 +82,13 @@ const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
 
 // What a model is told once, when it connects: the order things are done in, so "set Lynkeus up" and "write me
 // a test for this" need nothing more from the person asking.
-const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
+const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) or a Flutter app by what is on its screen, and runs cases written as readable steps.
 
 In a project you do not know, call status first: it lists what is set up and, for what is not, the one thing that fixes it.
 
 To set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
+
+A Flutter project has a pubspec.yaml whose dependencies include flutter (sdk: flutter). There init adds lynkeus_agent to pubspec.yaml and starts it in lib/main.dart, and the app is built and run with flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) on a simulator or emulator (no Metro). status checks a Flutter project's setup too (the agent in pubspec.yaml and its start in lib/main.dart, the token, lynkeus_plugins when the lockfile needs it). To test without a simulator, add lynkeus_headless to dev_dependencies and use case_run with host (headless_init and headless_doctor are for React Native); it needs FLUTTER_ROOT or flutter on PATH. Not for Flutter yet: map, case impact, smoke and crawl. Lynkeus FastSim does run Flutter apps, through a separate host installed with lynkeus fastsim install --runtime flutter.
 
 To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there (press with settle: true answers with the screen once the app has settled; a screen read right after a press can still be the one it left); prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
 

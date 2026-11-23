@@ -9,7 +9,7 @@ El orden no es casual. Un caso es la misma secuencia de comandos que escribiría
 
 ## Antes de empezar
 
-- Lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/) o [Expo](/es/getting-started/installation-expo/).
+- Lynkeus instalado en tu app: [React Native](/es/getting-started/installation-react-native/), [Expo](/es/getting-started/installation-expo/) o [Flutter](/es/platforms/flutter/).
 - La app abierta en un simulador o un emulador, en build de depuración.
 - `npx lynkeus screen` funcionando: imprime la pantalla actual.
 - El token del proyecto, que `lynkeus init` guardó en `.lynkeus/token` y el CLI lee solo. Si en cambio lo defines con la variable `LYNKEUS_TOKEN`, tiene que tener en tu terminal el mismo valor que recibió la app.

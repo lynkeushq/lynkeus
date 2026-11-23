@@ -3,7 +3,7 @@ title: Correr casos en Lynkeus FastSim
 description: Corre tus casos en Lynkeus FastSim, un simulador que dibuja la app en un Mac o en Linux sin el simulador de Xcode ni un emulador, e instálalo para la plataforma que pruebas.
 ---
 
-Lynkeus FastSim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. Lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
+Lynkeus FastSim ejecuta tu app de React Native sin el simulador de Xcode y sin emulador de Android. Carga el JavaScript de la app, calcula el layout con el propio renderer de React Native y la dibuja, mucho más rápido que un simulador. También corre apps de Flutter, con un host propio: lo cuenta [Apps de Flutter](#apps-de-flutter). Lynkeus lo maneja igual que a un simulador, así que los mismos casos corren en ambos.
 
 ## Cuándo usarlo
 
@@ -66,6 +66,26 @@ npx lynkeus case run <casos> --host-command "<carpeta instalada>/bin/fastsim-run
 Lynkeus levanta un host en un puerto libre para cada caso, espera a que la app se conecte y lo detiene cuando el caso termina. Con `--jobs <n>` corren `n` casos a la vez, cada uno en su propio host. `case run` también le da a cada host los [datos de arranque](/es/reference/cli/#datos-de-arranque) de la ejecución: `--seed`, `--locale`, `--time-zone` y `--epoch` le llegan como variables de entorno, y FastSim arranca con ese idioma, esa zona y ese reloj.
 
 La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.err`; los errores de JavaScript y las líneas de la consola están en el `.err`.
+
+## Apps de Flutter
+
+Una app de Flutter corre en el host de Flutter de FastSim, que carga el kernel de depuración de la app en el propio motor de Flutter. Las keys, el inicio de sesión, los grants y los lugares son los de arriba; cambian el build, el bundle y lo que la app necesita.
+
+- **Un build por máquina, para las dos plataformas**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` lo elige solo en una carpeta cuyo `pubspec.yaml` toma `flutter` del SDK, o con `--runtime flutter`; `--platform` no cuenta. Para probar el grant, `lynkeus fastsim grant --runtime flutter`. El motor de la versión de Flutter de la app se baja del almacenamiento de Flutter la primera vez que corre esa versión.
+- **El bundle es el kernel de depuración de la app**, armado con tu Flutter. Lo que va después de `--` llega a `flutter build bundle`, así que pásale los mismos `--dart-define` que usan tus builds de depuración:
+
+  ```bash
+  FLUTTER=flutter <carpeta instalada>/bin/fastsim-bundle <carpeta de la app> <carpeta del bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+  npx lynkeus case run <casos> --ports 8232 --host-command "<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}"
+  ```
+
+  Con `android` en vez de `ios`, la app ve un Pixel 9 en lugar de un iPhone 17. Vuelve a empaquetar cada vez que cambie el código Dart.
+- **La app arranca el agente antes de que nada inicialice el binding de Flutter**, y depende de `lynkeus_plugins` si usa sqflite 2.4 o más nuevo (también a través de las imágenes de red en caché) o `SharedPreferencesAsync` de shared_preferences.
+- **Las pantallas de Android se comparan en Linux** y las de iOS en un Mac. Las vistas nativas (web views, mapas, barras de pestañas nativas) quedan vacías, y en Linux, por ahora, el texto en escrituras que faltan en las fuentes de la app (chino, emoji) sale como cuadrados.
+
+- **El host de Flutter pone una valla a la red de la app**, solo loopback y `10.0.2.2`, como el headless (`flutterHost.networkHosts` en `lynkeus.config.json` permite más), y `case run --net-cache <carpeta>` responde con lo grabado lo que la valla bloquea; mira [la valla de red](/es/platforms/flutter/#la-valla-de-red).
+
+Los detalles están en la [página de Flutter](/es/platforms/flutter/#lynkeus-fastsim): qué le da el host a la app, las reglas y los límites.
 
 ## Desde un agente de IA por MCP
 

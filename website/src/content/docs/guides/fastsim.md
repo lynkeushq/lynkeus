@@ -3,7 +3,7 @@ title: Run cases on Lynkeus FastSim
 description: Run your cases on Lynkeus FastSim, a simulator that draws the app on a Mac or Linux without Xcode's simulator or an emulator, and install it for the platform you test.
 ---
 
-Lynkeus FastSim runs your React Native app without Xcode's simulator or an Android emulator. It loads the app's JavaScript, lays it out with React Native's own renderer and draws it, much faster than a simulator does. Lynkeus drives it exactly as it drives a simulator, so the same cases run on both.
+Lynkeus FastSim runs your React Native app without Xcode's simulator or an Android emulator. It loads the app's JavaScript, lays it out with React Native's own renderer and draws it, much faster than a simulator does. It runs Flutter apps too, on a host of its own: see [Flutter apps](#flutter-apps). Lynkeus drives it exactly as it drives a simulator, so the same cases run on both.
 
 ## When to use it
 
@@ -68,6 +68,26 @@ npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <b
 Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. `case run` also gives each host the run's [launch facts](/reference/cli/#launch-facts): `--seed`, `--locale`, `--time-zone` and `--epoch` reach it as environment variables, and FastSim starts with that language, zone and clock.
 
 A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
+
+## Flutter apps
+
+A Flutter app runs on FastSim's Flutter host, which loads the app's own debug kernel into Flutter's own engine. Keys, sign-in, grants and seats are the ones above; what differs is the build, the bundle and what the app needs.
+
+- **One build per machine draws both platforms**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` picks it in a folder whose `pubspec.yaml` takes `flutter` from the SDK, or with `--runtime flutter`; `--platform` does not apply. `lynkeus fastsim grant --runtime flutter` checks the grant. The engine for the app's Flutter version is downloaded from Flutter's own storage on the first run of that version.
+- **The bundle is the app's debug kernel**, made with your Flutter. Flags after `--` go to `flutter build bundle`, so pass the same `--dart-define` values your debug builds use:
+
+  ```bash
+  FLUTTER=flutter <install folder>/bin/fastsim-bundle <app folder> <bundle folder> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+  npx lynkeus case run <cases> --ports 8232 --host-command "<install folder>/bin/fastsim-run <bundle folder> {port}"
+  ```
+
+  `android` in place of `ios` gives the app a Pixel 9 instead of an iPhone 17. Bundle again after each change to the app's Dart code.
+- **The app starts the agent before anything initializes Flutter's binding**, and depends on `lynkeus_plugins` when it uses sqflite 2.4 or newer (cached network images included) or shared_preferences' `SharedPreferencesAsync`.
+- **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) draw nothing, and on Linux text in scripts the app's fonts lack (Chinese, emoji) draws as boxes for now.
+
+- **The Flutter host fences the app's network** to loopback and `10.0.2.2`, like the headless host (`flutterHost.networkHosts` in `lynkeus.config.json` allows more), and `case run --net-cache <dir>` answers from recorded fetches what the fence blocks; see [the network fence](/platforms/flutter/#the-fence).
+
+The [Flutter page](/platforms/flutter/#lynkeus-fastsim) has the details: what the host gives the app, the rules, and the limits.
 
 ## From an AI agent over MCP
 
