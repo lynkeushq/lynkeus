@@ -20,8 +20,7 @@ const _systemFamilies = [
 /// The names a manifest family is loaded under. A package's font (`packages/cupertino_icons/CupertinoIcons`) is asked
 /// for by that whole name, which `TextStyle(package:)` and `IconData(fontPackage:)` make; its bare name is kept too.
 @visibleForTesting
-List<String> familyNames(String family) =>
-    family.startsWith('packages/') ? [family, family.split('/').last] : [family];
+List<String> familyNames(String family) => family.startsWith('packages/') ? [family, family.split('/').last] : [family];
 
 /// Loads the app's own fonts (its FontManifest), Roboto under the system family names, and MaterialIcons. Returns
 /// the families loaded. Runs outside fake time: the engine answers font loads on the real event loop.

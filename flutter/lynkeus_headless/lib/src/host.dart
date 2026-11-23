@@ -306,7 +306,13 @@ void hostApp(
     // the host's own zone logs it and goes on serving, as the app goes on running on a device.
     final done = Completer<void>();
     runZonedGuarded(
-      () => _Host(tester, given, name, configure, registerPlugins).run(appMain).then(done.complete, onError: done.completeError),
+      () => _Host(
+        tester,
+        given,
+        name,
+        configure,
+        registerPlugins,
+      ).run(appMain).then(done.complete, onError: done.completeError),
       (error, stack) {
         _log('app error: ${'$error'.split('\n').first}');
         final why = explainHostError(error);
