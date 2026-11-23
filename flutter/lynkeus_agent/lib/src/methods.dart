@@ -439,6 +439,21 @@ class Methods {
     return out;
   }
 
+  // Until the vertical scrollers have held still for 120 ms (at most 3 s): a carousel turning on its own does not count.
+  Future<void> _listsSettled() async {
+    final started = _ms();
+    var last = _verticalScrolls();
+    var stillSince = _ms();
+    while (_ms() - started < 3000 && _ms() - stillSince < 120) {
+      await _sleep(40);
+      final now = _verticalScrolls();
+      if (!listEquals(now, last)) {
+        last = now;
+        stillSince = _ms();
+      }
+    }
+  }
+
   // Where every scroller is, and whether one is still moving on its own.
   List<double> _scrollState() {
     final out = <double>[];
@@ -508,7 +523,11 @@ class Methods {
     }
     final up = at == null ? back : at.dy < top;
     final x = at == null ? cx : at.dx.clamp(left + 1, right - 1);
-    await touch.drag(Offset(x, cy + (up ? -dy : dy)), Offset(x, cy + (up ? dy : -dy)), 250);
+    // Held still before the finger lifts, so the list stops where the finger left it: a fling would carry it more
+    // than a window past a row that was being built, or swing it back and forth over one that is known. Towards a
+    // known row, about the distance that centers it.
+    final half = at == null ? dy : math.min((at.dy - cy).abs(), dy * 2) / 2;
+    await touch.drag(Offset(x, cy + (up ? -half : half)), Offset(x, cy + (up ? half : -half)), 250, holdMs: 120);
   }
 
   Future<Map<String, Object?>> _waitFor(Map<String, Object?> p) async {
@@ -521,6 +540,7 @@ class Methods {
     if (anyOf != null && gone) throw AgentError('waitFor: gone takes one target, not anyOf');
     var swipes = 0;
     var lastSwipe = 0;
+    var settledAt = -1;
     // A target that is not built yet gives no direction: go down until the list stops moving, then back up, and give
     // up when that stops moving too.
     var back = false;
@@ -544,6 +564,13 @@ class Methods {
       final targetOk = gone ? !present : present;
       final matched = anyOf?.where((t) => stateOk(pick(all, t))).firstOrNull;
       final anyOk = anyOf == null || matched != null;
+      // A list a swipe set coasting can carry the target in and out again: found while it moves, it counts once the
+      // lists have stopped and it is still there, so the next step does not reach for a row that has gone by.
+      if (routeOk && targetOk && anyOk && scroll && swipes > 0 && lastSwipe > settledAt) {
+        await _listsSettled();
+        settledAt = _ms();
+        continue;
+      }
       if (routeOk && targetOk && anyOk) {
         return {'route': ?current, if (matched != null) 'matched': matched.toJson(), 'waitedMs': _ms() - started};
       }

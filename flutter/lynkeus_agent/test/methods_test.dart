@@ -185,6 +185,8 @@ void main() {
     );
     expect(result['waitedMs'], isA<int>());
     expect(tester.getCenter(find.text('Row 30')).dy, inInclusiveRange(0, 600));
+    final list = tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+    expect(list.isScrollingNotifier.value, isFalse, reason: 'it answered while the list still coasted');
   });
 
   testWidgets('a swipe drags the list; a press brings a row in first', (tester) async {
@@ -346,6 +348,34 @@ void main() {
     expect(asMap(await drive(tester, methods, 'ping'))['commands'], ['reset']);
     expect(await drive(tester, methods, 'reset'), {'done': true});
     expect(await failureOf(tester, methods, 'nope'), 'Unknown method nope');
+  });
+
+  testWidgets('a drag held still before the finger lifts leaves the list where the finger left it', (tester) async {
+    final controller = ScrollController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            controller: controller,
+            children: [for (var i = 0; i < 80; i++) SizedBox(height: 60, child: Text('Row $i'))],
+          ),
+        ),
+      ),
+    );
+    Future<double> dragged(int holdMs) async {
+      controller.jumpTo(0);
+      var done = false;
+      touch.drag(const Offset(200, 500), const Offset(200, 200), 100, holdMs: holdMs).then((_) => done = true);
+      while (!done) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final lifted = controller.offset;
+      await tester.pumpAndSettle();
+      return controller.offset - lifted;
+    }
+
+    expect(await dragged(0), greaterThan(100), reason: 'a quick drag flings on');
+    expect(await dragged(120), 0);
   });
 
   testWidgets('waitFor with scroll turns back at the end of a list that something keeps animating', (tester) async {

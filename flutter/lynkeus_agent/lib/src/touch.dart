@@ -53,7 +53,9 @@ Future<void> tap(Offset at, int holdMs) async {
 }
 
 /// Drags a finger from [from] to [to] over [durationMs], a move per frame, and lifts it at the end: a fling when fast.
-Future<void> drag(Offset from, Offset to, int durationMs) async {
+/// [holdMs] keeps the finger still at [to] before it lifts: the gesture's velocity is then zero, and a list stops
+/// where the finger left it instead of coasting on.
+Future<void> drag(Offset from, Offset to, int durationMs, {int holdMs = 0}) async {
   final view = viewId();
   final pointer = _nextPointer++;
   final start = _now();
@@ -83,8 +85,13 @@ Future<void> drag(Offset from, Offset to, int durationMs) async {
     );
     last = next;
   }
-  _dispatch(PointerUpEvent(timeStamp: at(steps), viewId: view, device: _device, pointer: pointer, position: to));
-  _dispatch(PointerRemovedEvent(timeStamp: at(steps), viewId: view, device: _device, position: to));
+  var end = at(steps);
+  if (holdMs > 0) {
+    await _sleep(holdMs);
+    end += Duration(milliseconds: holdMs);
+  }
+  _dispatch(PointerUpEvent(timeStamp: end, viewId: view, device: _device, pointer: pointer, position: to));
+  _dispatch(PointerRemovedEvent(timeStamp: end, viewId: view, device: _device, position: to));
 }
 
 EditableTextState? _focusedField() {
