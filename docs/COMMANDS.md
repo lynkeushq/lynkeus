@@ -956,9 +956,9 @@ the app hosted in Node under jest, no simulator.
 
 ### `lynkeus headless start [--entry <file>]`
 
-Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator
+Host the app headless and wait for a driver; same protocol, no simulator (React Native: Node with jest + RNTL; Flutter: flutter test)
 
-Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.
+Needs the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest (React Native) or `flutter test` (Flutter). When the host crashes, the last lines say what the error usually means.
 
 | Flag | |
 |---|---|

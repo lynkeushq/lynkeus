@@ -29,7 +29,7 @@ report carries the screen, the requests and the reason.
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
+| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered (`qa.register` in React Native, `LynkeusAgent.register` in Flutter). |
 | `app.run` | `{ flow, vars? }` | A Lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other Lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |

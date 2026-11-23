@@ -290,7 +290,7 @@ Vuelve a la pantalla anterior. No lleva valor.
 
 ### `app.call`
 
-Ejecuta un comando que la app registró con `qa.register`. La [API del agente](/es/reference/agent-api/) explica cómo registrarlos.
+Ejecuta un comando que la app registró (con `qa.register` en React Native, con `LynkeusAgent.register` en Flutter). La [API del agente](/es/reference/agent-api/) explica cómo registrarlos.
 
 ```yaml
 - app.call: { command: reset }

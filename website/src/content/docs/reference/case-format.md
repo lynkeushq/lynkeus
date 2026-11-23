@@ -330,7 +330,7 @@ A `request` condition normally counts only what the app asked for after the prev
 
 ### `app.call`
 
-Runs a command the app registered with `qa.register`. See the [Agent API](/reference/agent-api/).
+Runs a command the app registered (`qa.register` in React Native, `LynkeusAgent.register` in Flutter). See the [Agent API](/reference/agent-api/).
 
 ```yaml
 - app.call: { command: reset }
