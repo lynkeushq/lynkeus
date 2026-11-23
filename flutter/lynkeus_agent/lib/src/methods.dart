@@ -25,6 +25,8 @@ Future<void> _sleep(int ms) => Future<void>.delayed(Duration(milliseconds: ms));
 const _minSettleLooks = 30;
 const _keep = 500;
 const _listEndMs = 3000;
+// How long past its timeout `idle` keeps waiting on the app's requests out and on its launch.
+const _waitedOutMs = 10000;
 
 // Reads would drown the timeline; only actions are worth a line.
 const _untraced = {'screen', 'find', 'trace', 'requests', 'ping', 'debug', 'idle', 'waitFor', 'busy'};
@@ -151,6 +153,12 @@ class Methods {
 
   /// Requests from the driver being served right now.
   int serving = 0;
+
+  /// The app time before which `idle` never finds the app quiet: [LynkeusAgent.start] sets it [launchSettleMs] after
+  /// the launch. A device meets its driver after real time has passed since the launch, a host before much app time
+  /// has, so a launch's own timers (a splash for 1.5 s, then a guide) would otherwise fire before one side's first
+  /// frame and after the other's.
+  int launchSettledAt = 0;
 
   /// Told when [serving] changes: a host with its own clock runs it ahead while the driver waits.
   void Function()? onServing;
@@ -613,22 +621,31 @@ class Methods {
     }
   }
 
-  // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure.
+  // Gives up quietly: a screen with a ticking clock never settles, and that is information, not a failure. Waits
+  // that end on their own, the app's requests out and its launch, are not held against the timeout (up to
+  // [_waitedOutMs] past it): a device's request can take seconds where a host replays it at once, and a frame taken
+  // while it was out would show what the other side's frame does not.
   Future<Map<String, Object?>> _idle(Map<String, Object?> p) async {
     final quietMs = _int(p['quietMs']) ?? 150;
     final after = _int(p['after']);
-    final deadline = _ms() + (_int(p['timeoutMs']) ?? 3000);
+    var deadline = _ms() + (_int(p['timeoutMs']) ?? 3000);
+    final latest = deadline + _waitedOutMs;
     var lastCommit = _commitCount();
     var quietSince = _ms();
     var arrived = after == null || lastCommit > after;
     while (_ms() < deadline) {
       await _sleep(30);
+      final now = _ms();
       final commit = _commitCount();
       if (after != null && commit > after) arrived = true;
-      if (commit != lastCommit || await _busy()) {
+      final launching = now < launchSettledAt;
+      if (launching || (network?.inFlight ?? 0) > 0) {
+        deadline = math.min(latest, math.max(deadline, math.max(now, launchSettledAt) + quietMs + 60));
+      }
+      if (commit != lastCommit || launching || await _busy()) {
         lastCommit = commit;
-        quietSince = _ms();
-      } else if (arrived && _ms() - quietSince >= quietMs) {
+        quietSince = now;
+      } else if (arrived && now - quietSince >= quietMs) {
         return {'commit': commit, 'idle': true};
       }
     }

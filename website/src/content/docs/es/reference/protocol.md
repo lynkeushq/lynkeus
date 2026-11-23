@@ -258,6 +258,8 @@ Espera a que la app se aquiete: que pase un tiempo sin commits de React y sin pe
 
 `after` resuelve una ambigüedad: una pantalla que todavía no empezó a cargar está tan quieta como una que ya terminó. Guarda el `commit` de una lectura anterior a tu acción y pásalo aquí.
 
+En Flutter el agente espera además dos cosas. Durante los 3 primeros segundos de vida de la app nunca contesta `idle: true`: así el temporizador de una pantalla de bienvenida ya corrió antes del primer frame, en un dispositivo o en un host. Y mientras la app tiene una petición en curso, el plazo se estira hasta 10 segundos más, para que una red lenta en el emulador y una respuesta grabada en el host lleguen a la misma pantalla.
+
 :::note
 Estos son los valores por defecto del protocolo. El CLI envía los suyos: `lynkeus wait` espera 10 segundos, y `lynkeus idle` usa 300 ms de quietud y 5 segundos de espera.
 :::

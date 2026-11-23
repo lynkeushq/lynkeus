@@ -295,6 +295,8 @@ It answers `{ commit, idle }`. On timeout it does not fail: it answers `idle: fa
 
 A screen that has not started looks exactly like one that has finished. Read `commit` from `screen` before the action, then pass it as `after`.
 
+The Flutter agent adds two waits. In the app's first 3 seconds after launch it never answers `idle: true`, so a splash screen's timer has fired before the first frame on any device or host. While one of the app's requests is out, the timeout is extended, by up to 10 seconds: a slow network on a device and a replayed response on a host then reach the same screen.
+
 ### `deepLink`
 
 Takes `{ url }` and opens it in the app as the OS would hand it over. It answers `{ opened: url }`.

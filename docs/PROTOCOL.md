@@ -226,6 +226,8 @@ it.
   condition holds; `idle` resolves after `quietMs` without commits or
   requests, or reports `idle: false` at `timeoutMs` (a ticking screen never
   settles, and that is information).
+  The Flutter agent's `idle` is never quiet in the app's first 3 s after launch,
+  and time with a request out does not count against `timeoutMs` (up to 10 s past it).
 - `requests` includes headers and bodies only after `networkBodies` turns them
   on (a case run that keeps evidence does), with secrets replaced. A value is
   replaced by `…` when its name, split into words, reads as a secret (`password`,
