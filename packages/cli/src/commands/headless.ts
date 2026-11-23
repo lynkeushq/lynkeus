@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,8 +8,10 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { installedFastsim } from './fastsim.js';
-import { headlessMissing, init, installAgent, installHeadless, jestPreset, mountAgent, setupChecks } from './init.js';
+import { runHost } from './hostProcess.js';
+import { headlessMissing, init, installHeadless, jestPreset } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -145,9 +146,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const lines = [...(ctx.flags['no-install'] ? [] : [installAgent(ctx.root)]), ...mountAgent(ctx.root)];
-      lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
-      lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
+      const runtime = await runtimeAt(ctx.root);
+      const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
       return { text: lines.join('\n'), json: lines };
     },
   }),
@@ -160,7 +160,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const checks = setupChecks(ctx.root);
+      const runtime = await runtimeAt(ctx.root);
+      const checks = runtime.setupChecks(ctx.root);
       const ready = checks.every((c) => c.ok);
       if (ready && !ctx.flags.offline) {
         try {
@@ -170,16 +171,11 @@ export const headlessCommands = [
           checks.push({
             what: 'an app is attached',
             ok: false,
-            fix: 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
+            fix: runtime.attachFix,
           });
         }
       }
-      const unloadable = headlessMissing(ctx.root);
-      checks.push({
-        what: unloadable.length ? 'the app can run headless, in Node with no simulator' : 'the app can run headless (jest, Testing Library, lynkeus-headless)',
-        ok: !unloadable.length && fs.existsSync(path.join(ctx.root, entryOf(ctx))),
-        fix: '`lynkeus headless init` installs what it needs and writes its entry; optional',
-      });
+      checks.push(runtime.headlessCheck(ctx.root, entryOf(ctx)));
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
       const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
       checks.push({
@@ -219,6 +215,8 @@ export const headlessCommands = [
           text: 'lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it.',
           code: 1,
         };
+      const runtime = await runtimeAt(ctx.root);
+      if (runtime.startHeadless) return runtime.startHeadless(ctx, token);
       const missing = headlessMissing(ctx.root);
       if (missing.length)
         return { text: `lynkeus headless runs the app under jest and needs ${missing.join(', ')}; \`lynkeus headless init\` installs them.`, code: 1 };
@@ -251,42 +249,9 @@ export const headlessCommands = [
         ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
       };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, ctx.config.apiEnv)}`;
-      const child = spawn('npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], {
-        cwd: ctx.root,
-        stdio: ['inherit', 'inherit', 'pipe'],
-        env,
-        // Its own process group: npx, jest and the host it runs end together. Stopping only npx left the
-        // host dialing the port, where a later run's driver took it for the app it meant to drive.
-        detached: true,
-      });
-      const stop = (signal: NodeJS.Signals) => {
-        try {
-          if (child.pid) process.kill(-child.pid, signal);
-        } catch {
-          // already gone
-        }
+      return {
+        code: await runHost(ctx, 'npx', ['jest', testFile, '--runInBand', '--watchAll=false', ...jestDefaults(ctx.root), cache, ...ctx.passthrough], env),
       };
-      const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-      const forward = signals.map((signal) => {
-        const handler = () => stop(signal);
-        process.on(signal, handler);
-        return () => process.off(signal, handler);
-      });
-      const onExit = () => stop('SIGTERM');
-      process.on('exit', onExit);
-      let tail = '';
-      child.stderr?.on('data', (chunk: Buffer) => {
-        process.stderr.write(chunk);
-        tail = (tail + chunk.toString()).slice(-20000);
-      });
-      const code = await new Promise<number>((resolve) => child.on('exit', (c) => resolve(c ?? 0)));
-      for (const off of forward) off();
-      process.off('exit', onExit);
-      if (code) {
-        const found = explainError(tail);
-        if (found.length) ctx.err(describeExplanations(found));
-      }
-      return { code };
     },
   }),
   define({

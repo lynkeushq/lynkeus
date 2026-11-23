@@ -8,6 +8,7 @@ import { screensAffectedBy } from '../knowledge/query.js';
 import { portFromEnv } from '../config.js';
 import { define } from '../registry.js';
 import { caseFiles } from './cases.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { changedSources } from './map.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -86,7 +87,7 @@ export const ciCommands = [
         const cases = all.flatMap(readCases);
         const graph = ctx.graph();
         const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')));
-        const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err);
+        const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, (await runtimeAt(ctx.root)).sources);
         const impact = impactOf(screensAffectedBy(graph, changed), coverage);
         files = [...new Set(impact.cases.map((c) => c.file))];
         picked = `${files.length} of ${all.length} case files: the ones the ${changed.length} changed source file(s) against ${ctx.flags.base} reach.`;
