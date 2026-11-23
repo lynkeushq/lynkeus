@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { lynkeusDir } from '../config.js';
+import { lockedVersions } from './flutterPlugins.js';
 import { hasReactNative } from './initFlutter.js';
 
 /** A Flutter app: its pubspec names the package and depends on the Flutter SDK. */
@@ -96,21 +97,51 @@ export const flutterHostFile = (root: string, port: number | undefined): string 
 /** Where a project keeps stand-ins of its own: `void configureHost(HostConfig host)`, which the host file passes on. */
 export const PROJECT_HOST = path.join('test', 'lynkeus_host.dart');
 
-export const flutterHostTest = (project: FlutterProject, entry: string, ownStandIns = false): string => {
+/**
+ * Plugins with no method-channel default whose iOS and Android classes speak a channel the agent stands in for. Their
+ * registrant does not run under flutter test, so the host file sets the class for the platform the host plays.
+ */
+export const HOST_REGISTRATIONS: { package: string; library: string; ios: string; android: string }[] = [
+  {
+    package: 'flutter_local_notifications',
+    library: 'package:flutter_local_notifications/flutter_local_notifications.dart',
+    ios: 'IOSFlutterLocalNotificationsPlugin',
+    android: 'AndroidFlutterLocalNotificationsPlugin',
+  },
+];
+
+/** The registrations the app's `pubspec.lock` calls for. */
+export const hostRegistrations = (root: string): typeof HOST_REGISTRATIONS => {
+  let lock: string;
+  try {
+    lock = fs.readFileSync(path.join(root, 'pubspec.lock'), 'utf8');
+  } catch {
+    return [];
+  }
+  const locked = lockedVersions(lock);
+  return HOST_REGISTRATIONS.filter((r) => locked.has(r.package));
+};
+
+export const flutterHostTest = (project: FlutterProject, entry: string, ownStandIns = false, registrations: typeof HOST_REGISTRATIONS = []): string => {
   const main = entry.replace(/^lib\//, '');
+  const imports = registrations.map((r) => `import '${r.library}' as ${r.package};\n`).join('');
+  const calls = registrations.map(
+    (r) => `  if (platform == 'android') {\n    ${r.package}.${r.android}.registerWith();\n  } else {\n    ${r.package}.${r.ios}.registerWith();\n  }\n`,
+  );
+  const args = [...(ownStandIns ? ['configure: project.configureHost'] : []), ...(registrations.length ? ['registerPlugins: _registerPlugins'] : [])];
   return `// Written by \`lynkeus headless start\`; runs the app inside flutter test as a host for the agent.
-import 'package:lynkeus_headless/lynkeus_headless.dart';
+${imports}import 'package:lynkeus_headless/lynkeus_headless.dart';
 import 'package:${project.name}/${main}' as app;
 ${ownStandIns ? "import '../../test/lynkeus_host.dart' as project;\n" : ''}
-void main() => hostApp(app.main, name: ${JSON.stringify(project.name)}${ownStandIns ? ', configure: project.configureHost' : ''});
-`;
+void main() => hostApp(app.main, name: ${JSON.stringify(project.name)}${args.map((a) => `, ${a}`).join('')});
+${registrations.length ? `\n// Plugins with no method-channel default, set as their registrant would for the platform the host plays.\nvoid _registerPlugins(String platform) {\n${calls.join('')}}\n` : ''}`;
 };
 
 /** Writes the host file, and keeps the folder that holds it out of git. */
 export const writeFlutterHost = (root: string, project: FlutterProject, entry: string, port: number | undefined): string => {
   const file = flutterHostFile(root, port);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, flutterHostTest(project, entry, fs.existsSync(path.join(root, PROJECT_HOST))));
+  fs.writeFileSync(file, flutterHostTest(project, entry, fs.existsSync(path.join(root, PROJECT_HOST)), hostRegistrations(root)));
   const ignore = path.join(lynkeusDir(root), '.gitignore');
   const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
   if (!ignored.split('\n').includes('host/')) fs.writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}host/\n`);

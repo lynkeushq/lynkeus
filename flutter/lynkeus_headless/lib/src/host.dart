@@ -40,12 +40,13 @@ class _Real {
 }
 
 class _Host {
-  _Host(this.tester, this.settings, this.name, this.configure);
+  _Host(this.tester, this.settings, this.name, this.configure, this.registerPlugins);
 
   final WidgetTester tester;
   final HostSettings settings;
   final String name;
   final void Function(HostConfig host)? configure;
+  final void Function(String platform)? registerPlugins;
 
   final _real = <_Real>[];
   final _advances = <(Duration, Completer<void>)>[];
@@ -97,6 +98,7 @@ class _Host {
       (channel, message) => messenger.handlePlatformMessage(channel, message, null),
       settings.platformName,
     );
+    registerPlugins?.call(settings.platformName);
     configure?.call(HostConfig(standIns, plugins));
     final fonts = await tester.runAsync(() => loadFonts(settings.fontsDir)) ?? const [];
     _log('fonts: ${fonts.isEmpty ? 'none loaded (text draws as boxes)' : fonts.join(', ')}');
@@ -288,11 +290,14 @@ void _log(String line) => stdout.writeln('lynkeus host: $line');
 /// `flutter test`, with no simulator, and serves a driver until the exit command or a signal.
 /// [settings] replaces what the environment says (a test of the host itself).
 /// [configure] adds the project's own stand-ins (`test/lynkeus_host.dart`'s `configureHost`, which the CLI imports).
+/// [registerPlugins] sets, for the platform the host plays (`ios`, `android`), the implementation of a plugin that has
+/// no method-channel default but whose platform class speaks one (the CLI writes it for the plugins it knows).
 void hostApp(
   FutureOr<void> Function() appMain, {
   required String name,
   HostSettings Function()? settings,
   void Function(HostConfig host)? configure,
+  void Function(String platform)? registerPlugins,
 }) {
   testWidgets('hosts the app for Lynkeus', (tester) async {
     final given = settings?.call() ?? HostSettings.fromEnvironment();
@@ -301,7 +306,7 @@ void hostApp(
     // the host's own zone logs it and goes on serving, as the app goes on running on a device.
     final done = Completer<void>();
     runZonedGuarded(
-      () => _Host(tester, given, name, configure).run(appMain).then(done.complete, onError: done.completeError),
+      () => _Host(tester, given, name, configure, registerPlugins).run(appMain).then(done.complete, onError: done.completeError),
       (error, stack) {
         _log('app error: ${'$error'.split('\n').first}');
         final why = explainHostError(error);

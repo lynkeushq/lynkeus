@@ -77,6 +77,18 @@ test("a project's own stand-ins in test/lynkeus_host.dart are passed to the host
   assert.match(text, /configure: project\.configureHost/);
 });
 
+test('a plugin with no channel default that the lock shows is registered for the platform the host plays', () => {
+  const lock = 'packages:\n  flutter_local_notifications:\n    dependency: "direct main"\n    version: "23.0.2"\n';
+  const root = project(APP, { 'lib/main.dart': 'void main() {}\n', 'pubspec.lock': lock });
+  const text = fs.readFileSync(writeFlutterHost(root, { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined), 'utf8');
+  assert.match(text, /^import 'package:flutter_local_notifications\/flutter_local_notifications\.dart' as flutter_local_notifications;$/m);
+  assert.match(text, /registerPlugins: _registerPlugins\);/);
+  assert.match(text, /flutter_local_notifications\.AndroidFlutterLocalNotificationsPlugin\.registerWith\(\);/);
+  assert.match(text, /flutter_local_notifications\.IOSFlutterLocalNotificationsPlugin\.registerWith\(\);/);
+  const plain = project(APP, { 'lib/main.dart': 'void main() {}\n', 'pubspec.lock': 'packages:\n  http:\n    version: "1.2.0"\n' });
+  assert.doesNotMatch(fs.readFileSync(writeFlutterHost(plain, { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined), 'utf8'), /registerPlugins/);
+});
+
 test('finds the SDK from FLUTTER_ROOT, and hands the host its fonts and port', () => {
   const sdk = project(undefined, { 'bin/flutter': '#!/bin/sh\n' });
   fs.chmodSync(path.join(sdk, 'bin', 'flutter'), 0o755);
