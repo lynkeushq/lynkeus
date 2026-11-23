@@ -281,6 +281,9 @@ const targetArg = (item: unknown): string => {
   throw new Error(`a target in a list is a string, { testId } or { text }: ${JSON.stringify(item)}`);
 };
 
+/** A text as a target that can only be that text: in quotes of a kind it does not hold. */
+export const quotedText = (text: string): string => (text.includes('"') ? `'${text}'` : `"${text}"`);
+
 export const argvFor = (command: Command, value: StepValue): string[] => {
   const argv = command.name.split(' ');
   if (value === null || value === undefined) return argv;
@@ -933,7 +936,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
-          const what = typeof value === 'string' ? value : String(params?.what ?? '');
+          // `{ text: Delete }` names a text, never a route, whatever its case, as it does in app.see.
+          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined) {
+            const { text, ...rest } = params;
+            value = { ...rest, what: quotedText(text) } as StepValue;
+          }
+          const what = typeof value === 'string' ? value : String((value as Record<string, unknown>)?.what ?? '');
           const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
             const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };

@@ -143,6 +143,24 @@ test('a wait can ask for its target to be enabled', async () => {
   assert.equal((waited.params as { enabled?: boolean }).enabled, true);
 });
 
+test('a wait for { text } waits for that text even when it is one capitalized word, which alone names a route', async () => {
+  const c = parseCase(
+    '---\nid: words\n---\nsteps:\n  - app.wait: { text: Delete }\n  - app.wait: { text: \'Say "Hi"\', gone: true }\n  - app.wait: Delete\n',
+    'words.md',
+  );
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return { waitedMs: 0 };
+  };
+  await runCase(c, { base, config, fixtures });
+  const waits = calls.filter((x) => x.method === 'waitFor').map((x) => x.params as { target?: unknown; route?: string; gone?: boolean });
+  assert.deepEqual(waits[0]?.target, { text: 'Delete' });
+  assert.deepEqual([waits[1]?.target, waits[1]?.gone], [{ text: 'Say "Hi"' }, true]);
+  assert.equal(waits[2]?.route, 'Delete');
+});
+
 test('a wait takes object targets in anyOf, and refuses gone with anyOf', async () => {
   const wait = find('wait')!;
   assert.deepEqual(argvFor(wait, { anyOf: [{ testId: 'a' }, { text: 'b', nth: 1 }, '#c'] }), ['wait', '--anyOf', '#a', '--anyOf', '"b"[1]', '--anyOf', '#c']);
