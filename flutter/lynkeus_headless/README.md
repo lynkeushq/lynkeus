@@ -93,6 +93,12 @@ live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the sa
 | local_auth | a sensor with Face ID enrolled (a fingerprint on Android); prompts succeed | `lynkeus os biometrics --available none\|face\|fingerprint --next success\|fail\|cancel\|<error code>` |
 | permission_handler | every permission granted | `lynkeus call permissions '{"7": 4}'` (permission number to status) |
 | connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+| flutter_local_notifications | every permission granted; what is scheduled or shown is written down | `lynkeus call notifications` (`{"clear": true}` empties it) |
+| flutter_timezone | the zone of `--time-zone`, else the machine's | |
+| share_plus | the share sheet reports success; what was shared is written down | `lynkeus call shared` |
+| file_selector | pickers return what `files` queued (cancelled when nothing is); saves get a path in a folder of the run | `lynkeus call files '{"open": "/path"}'` |
+| open_file, app_settings | nothing opens; written down with the URLs | `lynkeus call launched` |
+| dynamic_color | no wallpaper colors | |
 | sqflite | the system's SQLite (libsqlite3), databases in a folder of the run | the app |
 
 Any other channel gets an empty success (null), so the app's await never hangs, and one `[stub] <channel>` line in

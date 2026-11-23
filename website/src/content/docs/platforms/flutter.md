@@ -145,6 +145,8 @@ npx lynkeus case run --host        # starts the host for the run and stops it af
 npx lynkeus headless start         # or keep one running
 ```
 
+`npx lynkeus init --headless` adds the dependency for you.
+
 - **Flutter is found** through `FLUTTER_ROOT`, then `flutter` on `PATH`, then `mise which flutter`. The host file is written to `.lynkeus/host/`, not `test/`, so the app's own `flutter test` never runs it. `--entry` names a `main` other than `lib/main.dart`.
 - **Time is virtual**, on flutter_test's fake clock. While the driver waits and no request of the app is out, a three second countdown passes in a few hundred milliseconds. `lynkeus os clock` drives it (`--advance`, `--settle`, `--now`, `--reset`). The app's clock is `package:clock`.
 - **The screen** is an iPhone-sized iOS device unless `lynkeus.config.json` says otherwise; `networkHosts` fences the real network (loopback and `10.0.2.2` by default):
@@ -166,6 +168,14 @@ npx lynkeus headless start         # or keep one running
 | `local_auth` | Face ID on iOS, a fingerprint on Android; prompts succeed | `lynkeus os biometrics` |
 | `permission_handler` | every permission granted | `lynkeus call permissions '{"7": 4}'` |
 | `connectivity_plus` | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+| `flutter_local_notifications` | every permission granted; what the app schedules or shows is written down, nothing is shown | `lynkeus call notifications` (`{"clear": true}` empties it) |
+| `flutter_timezone` | the zone of `--time-zone`, else the machine's | |
+| `share_plus` | the share sheet reports success and writes down what was shared | `lynkeus call shared` |
+| `file_selector` | a picker returns what `files` queued, or is cancelled; a save dialog answers a path in a folder of the run | `lynkeus call files '{"open": "/path/backup.json"}'` |
+| `open_file`, `app_settings` | open nothing; written down with the URLs | `lynkeus call launched` |
+| `dynamic_color` | no wallpaper colors | |
+
+`flutter_local_notifications` has no method-channel default either: the host file that `headless start` writes sets its iOS or Android class, for the platform the host plays, when `pubspec.lock` lists it. A case that reads these commands runs those steps only where they exist, with `on: has:notifications` (or `has:shared`, `has:files`, `has:launched`); on a simulator the system's share sheet and file picker are out of the agent's reach.
 
 Any other channel answers null, so an `await` never hangs, and logs one `[stub] <channel>` line; `LYNKEUS_CHANNELS=trace` logs every call. A few plugins have no method-channel default to stand in for, so they throw on a host: sqflite 2.4 or later (including through `cached_network_image`) and shared_preferences' async API. The optional `lynkeus_plugins` package fixes them. Add it next to `lynkeus_agent`, as a regular dependency, and call it on the line after the agent starts:
 
@@ -244,7 +254,7 @@ A step's frame is the same on both sides even with something animating forever. 
 ## Limits today
 
 - **Debug builds only.** A release build carries no agent. See [Security](/security/).
-- **Headless sees the machine.** `Platform` answers for it and `DateTime.now()` reads the real clock; only `package:clock` is virtual.
+- **Headless sees the machine.** `Platform` answers for it and `DateTime.now()` reads the real clock; only `package:clock` is virtual. An app that branches on `Platform.isMacOS` takes its desktop path on a Mac, though `defaultTargetPlatform` and the screen are the phone's; `device_info_plus` answers that path's fields too, and a desktop-only channel answers null.
 - **`--seed` has no effect** on the headless host: Dart's `Random()` cannot be seeded from outside.
 - **`--host-heap` restarts are skipped.** The Dart VM gives a running program no heap figures.
 - **The route graph reads syntax, not types.** A route table built at runtime, a builder passed through more than a few helpers, or a widget wrapped in a router-specific page class may not resolve; `map build` says so with a warning. A page pushed without a name is reached by pressing what opens it, so a crawl cannot jump back into it.

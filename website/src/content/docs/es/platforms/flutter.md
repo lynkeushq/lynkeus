@@ -149,6 +149,8 @@ npx lynkeus headless start    # escribe .lynkeus/host/lynkeus_host_test.dart y l
 npx lynkeus case run --host   # levanta ese host durante la ejecución y lo detiene al terminar
 ```
 
+`npx lynkeus init --headless` agrega la dependencia por ti.
+
 El archivo del host vive en `.lynkeus/host/` y no en `test/`: un host nunca termina, y el `flutter test` de la app lo recogería junto con sus pruebas y se quedaría colgado. El CLI busca Flutter en `FLUTTER_ROOT`, después en `flutter` del `PATH` y por último con `mise which flutter`. Si el punto de entrada no es `lib/main.dart`, indícalo con `--entry` o con `entry` en `lynkeus.config.json`.
 
 ### Tiempo
@@ -180,6 +182,14 @@ flutter_test no responde los canales de plataforma: un plugin lanzaría `Missing
 | local_auth | Face ID en iOS, una huella en Android; los avisos tienen éxito | `lynkeus os biometrics --available none\|face --next success\|fail\|cancel\|<código>` |
 | permission_handler | todos los permisos concedidos | `lynkeus call permissions '{"7": 4}'` (número de permiso a estado) |
 | connectivity_plus | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+| flutter_local_notifications | todos los permisos concedidos; anota lo que la app programa o muestra, sin mostrar nada | `lynkeus call notifications` (`{ clear: true }` lo vacía) |
+| flutter_timezone | la zona de `--time-zone` o, si no hay, la de la máquina | |
+| share_plus | la hoja de compartir responde que se compartió y anota qué | `lynkeus call shared` |
+| file_selector | un selector devuelve lo que se puso en cola con `files`, o se cancela si no hay nada; guardar responde una ruta en una carpeta de la ejecución | `lynkeus call files '{"open": "/ruta/backup.json"}'` |
+| open_file, app_settings | no abren nada; quedan anotados junto a las URL | `lynkeus call launched` |
+| dynamic_color | sin colores del fondo de pantalla | |
+
+flutter_local_notifications tampoco tiene canal por defecto. Cuando `pubspec.lock` lo incluye, el archivo que escribe `headless start` registra su clase de iOS o de Android, según la plataforma que simula el host. Los pasos de un caso que usan estos comandos van dentro de `on: has:notifications` (o `has:shared`, `has:files`, `has:launched`), así solo corren donde existen: en un simulador, la hoja de compartir y el selector de archivos son del sistema y el agente no llega a ellos.
 
 Cualquier otro canal recibe un éxito vacío (null), para que el `await` de la app no se cuelgue, y deja una línea `[stub] <canal>` en el registro del host. Con `LYNKEUS_CHANNELS=trace` se imprime cada llamada y su respuesta.
 
@@ -262,7 +272,7 @@ Una animación que no termina nunca tampoco cambia el frame de un paso. Si al co
 ## Límites actuales
 
 - Un build de release no lleva el agente: solo funciona en builds de depuración.
-- El host sin pantalla ve el `Platform` de la máquina y el `DateTime.now()` real. El reloj de la app es `package:clock`, que el host falsea.
+- El host sin pantalla ve el `Platform` de la máquina y el `DateTime.now()` real. El reloj de la app es `package:clock`, que el host falsea. En una Mac, la app que pregunta por `Platform.isMacOS` sigue su camino de escritorio aunque `defaultTargetPlatform` y la pantalla sean las del teléfono: `device_info_plus` también responde los datos de ese camino, y los canales que solo existen en escritorio reciben null.
 - `--seed` no se aplica: el `Random()` de Dart no se puede sembrar desde afuera.
 - Los reinicios de `--host-heap` se omiten en este host: no hay cifras de heap.
 - El grafo de rutas se arma leyendo la sintaxis, sin tipos. Una tabla de rutas que se arma en tiempo de ejecución, un builder que pasa por muchas funciones auxiliares o un widget envuelto en una clase de página propia del router pueden quedar sin resolver, y `map build` lo avisa. A una página sin nombre solo se llega tocando lo que la abre, así que `crawl` no puede volver a ella directamente.

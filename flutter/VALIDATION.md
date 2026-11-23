@@ -1,4 +1,4 @@
-# Flutter: validation against a real app
+# Flutter: validation against real apps
 
 The Flutter agent (`lynkeus_agent`) and the headless host (`lynkeus_headless`) were run against
 [flutter_deer](https://github.com/simplezhli/flutter_deer) (Apache-2.0), a merchant app with about forty screens,
@@ -189,3 +189,132 @@ Open:
   - a project whose `dev_dependencies` carry comments needs the host added by hand.
 - Not exercised: focus traversal with the keyboard's next action, the webview and the image picker, and a phone over
   USB.
+
+# Second app: mhabit
+
+[mhabit](https://github.com/FriesI23/mhabit) (Table Habit, by FriesI23, Apache-2.0) is a habit tracker: a habits
+table with check-in cells, detail pages with fl_chart charts and a heatmap, groups and sorting, reminders, theme,
+date format and 24 languages, JSON export and import, and a WebDAV sync editor. It is fully offline and uses go_router,
+provider, sqflite, shared_preferences, flutter_secure_storage, flutter_local_notifications, flutter_timezone,
+home_widget, share_plus, file_selector, open_file, app_settings, path_provider, url_launcher, device_info_plus,
+package_info_plus, connectivity_plus and dynamic_color. The app is not committed here; its cases are, in
+`validation/mhabit/cases/`.
+
+- App: `FriesI23/mhabit` at `44df07b9d318165a2129eab59062bf20888312e4` (2026-11-23), Flutter 3.47.9 (its pinned
+  version; the clone's `.flutter` submodule was not used). It resolved with no change.
+- Headless only so far: the iOS look (the host's default) and the Android look (`"flutterHost": { "platform":
+  "android", "window": "412x915@2.625" }`). The Simulator, emulator and FastSim runs are still to do (below).
+
+## Wiring it, as the docs say
+
+`lynkeus init --headless` in the clone, then the `dependency_overrides` of the first app's section (the git
+dependencies do not resolve until the packages are on main or pub.dev), and `lynkeus.config.json` pointing at the
+cases. `lynkeus init` found sqflite 2.4 and shared_preferences' async API in the lock and added `lynkeus_plugins`.
+
+What the app needed changed, beside the dependencies:
+
+- `lib/main.dart`: the two lines `init` writes, `LynkeusAgent.start(app: {'name': 'mhabit'})` and
+  `LynkeusPlugins.ensureInitialized()`, at the top of `main()`. Before the fix below, `init` put them in
+  `habitWidgetBackgroundMain()`, a background entry point above `main()`.
+- `lib/pages/common/_widgets/habit_summary_list_tile.dart`: `key: ValueKey('habit-record-$index')` on each check-in
+  cell. The cell is an icon with no label, and its state is only the icon, so a case finds today's cell as
+  `#habit-record-0` nearest the habit's name and reads the effect on the habit's page (records, grade).
+
+Nothing else: no reset command, no route wiring. The app builds its `GoRouter` inside a widget's state, where the
+docs' `LynkeusRoutes` example (a router in a global, given to `start()`) does not reach, so routes read `?` and the
+cases go by what a person presses. Deep links were tried and left out: `/settings` then `/habits` left the home page
+without its bottom bar.
+
+## Results
+
+Steps passed and seconds per case, headless, the last of two full runs on iOS and three on Android, all 10/10
+(`case run --host --once`). The Android look skips different steps: where the two looks differ (the settings
+button, an unlabeled control's index, a menu where iOS has buttons), a case has an `on: ios` and an `on: android`
+branch, and the steps that read a stand-in's command run under `on: has:...`.
+
+| Case | What it covers | iOS look | Android look |
+|---|---|---|---|
+| 01-create-habit | the form, a goal and a unit, the habit's page | 11/11, 3.7 s | 11/11, 3.3 s |
+| 02-check-in-undo | a check-in cell through its four states, the record count and grade | 19/19, 4.3 s | 19/19, 3.9 s |
+| 03-habit-detail | heatmap, score chart by week, frequency chart by year | 19/19, 4.0 s | 19/19, 4.5 s |
+| 04-edit-archive | rename, archive with a dialog, the archived filter, unarchive | 31/31, 8.0 s | 31/31, 7.4 s |
+| 05-groups-sorting | a group in a sheet, a habit in it, grouped and sorted table, a delete undone | 54/54, 16.2 s | 53/53, 13.5 s |
+| 06-reminder | the time picker, the notification flutter_local_notifications schedules and cancels | 24/24, 4.9 s | 24/24, 4.6 s |
+| 07-settings | theme, a custom date format, Spanish and back | 42/42, 7.9 s | 46/46, 8.2 s |
+| 08-export-import | export through share_plus, import the file through file_selector | 29/29, 7.0 s | 28/28, 5.2 s |
+| 09-sync-server | the WebDAV editor, its password in secure storage, read back | 35/35, 5.4 s | 33/33, 4.3 s |
+| 10-about-changelog | About, a link through url_launcher, the changelog, the license | 24/24, 3.6 s | 23/23, 3.1 s |
+| All | | 288/288, 66–70 s wall | 283/283, 62–63 s wall |
+
+The wall time includes the host's start (compiling the app under `flutter test`, about 15 s). The app logged one
+error of its own on the Android look, `Looking up a deactivated widget's ancestor is unsafe`, with no effect on a
+case.
+
+## What it found
+
+Fixed, each with a test:
+
+- `lynkeus init` took the first `ensureInitialized()` in `lib/main.dart`, in a background entry point; and in
+  `main()` the binding is picked in an `if` (a custom `FixedIos26FlutterBinding` on iOS). It now starts the agent in
+  `main()`, before the whole `if`.
+- Stand-ins for flutter_local_notifications (`lynkeus call notifications`, with the scheduled time of day),
+  flutter_timezone, share_plus (`shared`), file_selector (`files`), open_file and app_settings (written down with
+  `launched`) and dynamic_color. flutter_local_notifications has no method-channel default: before runApp the app
+  died on a `LateInitializationError`; the headless host file now registers its iOS or Android class.
+- `Platform.isMacOS` is true under `flutter test` on a Mac, so mhabit took its desktop path (`macOsInfo`, a desktop
+  window chrome over Pigeon) with an iPhone or a Pixel on screen. device_info's answers carry the macOS fields, which
+  the app parsed as nulls before (`type 'Null' is not a subtype of type 'String'`, a blank screen).
+- Package icon fonts (CupertinoIcons) were loaded under their bare name and drew as boxes in screenshots.
+- The agent read a Cupertino-style menu (an `OverlayPortal` built inside its button) as the button's text; it lists
+  the items apart now. A tap handler around a disabled `IconButton` (the check-in cell) was listed as a disabled
+  button though a tap works.
+- Scroll-to-find (`wait --scroll`) flung the settings list more than a window per swipe, past rows being built; never
+  turned back at the list's end while the support card's stars animated; and stopped with a row cut by the bottom
+  edge, which a case's next press then scrolled away. Swipes now hold still before lifting, the end is read from the
+  scroll offsets, and the row has to be wholly in.
+- The changelog is markdown_widget, whose lists are `Text.rich` of widget spans: the agent listed empty texts.
+
+Friction left in the cases, each said where it happens:
+
+- Inputs with only a hint (the goal, the unit, Android's habit and group name) are reached by index or by typing into
+  the focused field, as in flutter_deer. Indexes differ between the looks, so those steps branch.
+- A capitalized word alone (`Delete`, `About`, `Week`) is read as a route in `wait` and `see`, the React Native
+  convention; the cases quote it (`'"About"'`).
+- mhabit's undo snackbars never close by themselves (since Flutter 3.47 an action makes a SnackBar persist): the
+  deleted habit stays in the list, struck through, and on the Android look the snackbar covers the New Habit button.
+  The cases swipe it away after each delete.
+- After a submenu choice the Cupertino menu closes itself, and a press on its button while it fades does not open it
+  again; the cases wait for it to go.
+- Typed key by key into the Android look's time picker, 45 became 40; pasted, it is 45.
+
+Stubs left answering empty: `foldable/methods` and `global.app.animation/scale_stream` (the app's own channels) and
+`home_widget setAppGroupId` (home_widget's only call at start). None needs a stand-in for these cases.
+
+Docs: the Flutter page's go_router example assumes a router in a global; `init --headless` and the new stand-ins
+were not on the Flutter page (added); `lynkeus headless start --help` and the CLI's banner still describe React
+Native (jest, RNTL); the case reference says `qa.register` where a Flutter app uses `LynkeusAgent.register`.
+
+## Still to run
+
+The same ten cases on an iOS Simulator, an Android emulator and Lynkeus FastSim, from the clone, with the cases'
+`on: has:...` steps skipped on the devices:
+
+```sh
+cd ~/code/lynkeus/flutter-apps/mhabit
+# iOS Simulator
+flutter build ios --simulator --debug --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) --dart-define=LYNKEUS_PORT=8143
+xcrun simctl install <device> build/ios/iphonesimulator/Runner.app && xcrun simctl launch <device> io.github.friesi23.mhabit
+LYNKEUS_PORT=8143 npx lynkeus case run --device <device>
+# Android emulator (unlocked)
+flutter build apk --debug --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) --dart-define=LYNKEUS_PORT=8143
+adb -s <serial> install -r build/app/outputs/flutter-apk/app-debug.apk   # the default flavor, f_generic
+adb -s <serial> shell am start -n io.github.friesi23.mhabit/.MainActivity
+LYNKEUS_PORT=8143 npx lynkeus case run --device <serial>
+# FastSim
+<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
+npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle> {port}"
+```
+
+On FastSim `Platform.isIOS` is true, so `main()` runs `FixedIos26FlutterBinding.ensureInitialized()` after the agent
+has made its binding, which a debug build refuses (a binding cannot be replaced); and flutter_local_notifications
+has no registration there (the headless host file does it). Both are expected to need work before the FastSim run.
