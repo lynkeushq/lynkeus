@@ -1,0 +1,4057 @@
+{
+  "answer": {
+    "code": 1,
+    "text": "✅ count\n✅ list\n❌ missing\n❌ FAILED  ✅ 1  ❌ 1  ⏭️ 1  — 2.1s\n— screen at the failure:\n    Home\n    text \"Welcome\"\n    text \"Count: 2\"\n    button #increment \"Increment\"\n    input #name value=\"\"\n    button #send \"Send code\"\n    text \"Picked Item 40\"\n    button #open-list \"Open list\"\n    button #open-settings \"Settings\"\n    button #delete \"Delete everything\"\n    button #later \"Later\"\n    button #late \"Late\"\n    button #footer \"Footer\"\n— why:\n      (nothing in the evidence explains it: the screen, requests and trace look ordinary)\n2/3 passed\nrun kept in <run>",
+    "json": [
+      {
+        "id": "count",
+        "title": "Counts to two",
+        "file": "<root>/cases/count.md",
+        "result": "passed",
+        "ms": 1527,
+        "steps": [
+          {
+            "step": "app.call command: reset",
+            "status": "passed",
+            "ms": 6,
+            "screenshot": "<run>/count/01-app-call-command-reset.png"
+          },
+          {
+            "step": "app.press #increment",
+            "status": "passed",
+            "ms": 112,
+            "screenshot": "<run>/count/02-app-press-increment.png"
+          },
+          {
+            "step": "app.press #increment",
+            "status": "passed",
+            "ms": 112,
+            "screenshot": "<run>/count/03-app-press-increment.png"
+          },
+          {
+            "step": "app.see text: Count: 2",
+            "status": "passed",
+            "ms": 3,
+            "screenshot": "<run>/count/04-app-see-text-count-2.png"
+          },
+          {
+            "step": "app.type target: #name, text: Ana",
+            "status": "passed",
+            "ms": 107,
+            "screenshot": "<run>/count/05-app-type-target-name-text-ana.png"
+          },
+          {
+            "step": "app.press #send",
+            "status": "passed",
+            "ms": 112,
+            "screenshot": "<run>/count/06-app-press-send.png"
+          },
+          {
+            "step": "app.wait request: POST /api/code",
+            "status": "passed",
+            "ms": 3,
+            "screenshot": "<run>/count/07-app-wait-request-post-api-code.png"
+          }
+        ],
+        "events": [
+          {
+            "name": "code_sent",
+            "props": {
+              "to": "Ana"
+            },
+            "step": 6,
+            "route": "Home"
+          }
+        ]
+      },
+      {
+        "id": "list",
+        "file": "<root>/cases/list.md",
+        "result": "passed",
+        "ms": 1105,
+        "steps": [
+          {
+            "step": "app.call command: reset",
+            "status": "passed",
+            "ms": 6,
+            "screenshot": "<run>/list/01-app-call-command-reset.png"
+          },
+          {
+            "step": "app.press #open-list",
+            "status": "passed",
+            "ms": 112,
+            "screenshot": "<run>/list/02-app-press-open-list.png"
+          },
+          {
+            "step": "app.see text: Items",
+            "status": "passed",
+            "ms": 3,
+            "screenshot": "<run>/list/03-app-see-text-items.png"
+          },
+          {
+            "step": "app.wait target: Item 40, scroll: true",
+            "status": "passed",
+            "ms": 3,
+            "screenshot": "<run>/list/04-app-wait-target-item-40-scroll-true.png"
+          },
+          {
+            "step": "app.press Item 40",
+            "status": "passed",
+            "ms": 59,
+            "screenshot": "<run>/list/05-app-press-item-40.png"
+          },
+          {
+            "step": "app.see text: Picked Item 40",
+            "status": "passed",
+            "ms": 3,
+            "screenshot": "<run>/list/06-app-see-text-picked-item-40.png"
+          }
+        ],
+        "events": []
+      },
+      {
+        "id": "missing",
+        "file": "<root>/cases/missing.md",
+        "result": "failed",
+        "ms": 2123,
+        "steps": [
+          {
+            "step": "app.press #increment",
+            "status": "passed",
+            "ms": 113,
+            "screenshot": "<run>/missing.2/01-app-press-increment.png"
+          },
+          {
+            "step": "app.press target: #missing, timeoutMs: 400",
+            "status": "failed",
+            "ms": 1703,
+            "error": "No element matches {\"testId\":\"missing\"}",
+            "screenshot": "<run>/missing.2/02-app-press-target-missing-timeoutms-400.png"
+          },
+          {
+            "step": "app.see text: Welcome",
+            "status": "skipped",
+            "ms": 0
+          }
+        ],
+        "events": [],
+        "evidence": {
+          "screen": "Home\ntext \"Welcome\"\ntext \"Count: 2\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\ntext \"Picked Item 40\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+          "requests": [],
+          "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+        },
+        "diagnosis": [
+          "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+        ],
+        "retried": true
+      }
+    ]
+  },
+  "file/cases.jsonl": [
+    {
+      "id": "count",
+      "title": "Counts to two",
+      "file": "cases/count.md",
+      "attempt": 1,
+      "result": "passed",
+      "startedAt": "<iso>",
+      "ms": 1527,
+      "steps": [
+        {
+          "step": "app.call command: reset",
+          "status": "passed",
+          "ms": 6,
+          "section": "steps",
+          "screenshot": "count/01-app-call-command-reset.png"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "ms": 112,
+          "section": "steps",
+          "screenshot": "count/02-app-press-increment.png"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "ms": 112,
+          "section": "steps",
+          "screenshot": "count/03-app-press-increment.png"
+        },
+        {
+          "step": "app.see text: Count: 2",
+          "status": "passed",
+          "ms": 3,
+          "section": "steps",
+          "screenshot": "count/04-app-see-text-count-2.png"
+        },
+        {
+          "step": "app.type target: #name, text: Ana",
+          "status": "passed",
+          "ms": 107,
+          "section": "steps",
+          "screenshot": "count/05-app-type-target-name-text-ana.png"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed",
+          "ms": 112,
+          "section": "steps",
+          "events": [
+            {
+              "origin": "app",
+              "name": "code_sent",
+              "props": {
+                "to": "Ana"
+              },
+              "route": "Home"
+            }
+          ],
+          "screenshot": "count/06-app-press-send.png"
+        },
+        {
+          "step": "app.wait request: POST /api/code",
+          "status": "passed",
+          "ms": 3,
+          "section": "steps",
+          "screenshot": "count/07-app-wait-request-post-api-code.png"
+        }
+      ]
+    },
+    {
+      "id": "list",
+      "file": "cases/list.md",
+      "attempt": 1,
+      "result": "passed",
+      "startedAt": "<iso>",
+      "ms": 1105,
+      "steps": [
+        {
+          "step": "app.call command: reset",
+          "status": "passed",
+          "ms": 6,
+          "section": "setup",
+          "screenshot": "list/01-app-call-command-reset.png"
+        },
+        {
+          "step": "app.press #open-list",
+          "status": "passed",
+          "ms": 112,
+          "section": "steps",
+          "heading": "1 Open the list",
+          "screenshot": "list/02-app-press-open-list.png"
+        },
+        {
+          "step": "app.see text: Items",
+          "status": "passed",
+          "ms": 3,
+          "section": "steps",
+          "heading": "1 Open the list",
+          "screenshot": "list/03-app-see-text-items.png"
+        },
+        {
+          "step": "app.wait target: Item 40, scroll: true",
+          "status": "passed",
+          "ms": 3,
+          "section": "steps",
+          "heading": "2 Pick a row",
+          "screenshot": "list/04-app-wait-target-item-40-scroll-true.png"
+        },
+        {
+          "step": "app.press Item 40",
+          "status": "passed",
+          "ms": 59,
+          "section": "steps",
+          "heading": "2 Pick a row",
+          "screenshot": "list/05-app-press-item-40.png"
+        },
+        {
+          "step": "app.see text: Picked Item 40",
+          "status": "passed",
+          "ms": 3,
+          "section": "steps",
+          "heading": "2 Pick a row",
+          "screenshot": "list/06-app-see-text-picked-item-40.png"
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "file": "cases/missing.md",
+      "attempt": 1,
+      "result": "failed",
+      "startedAt": "<iso>",
+      "ms": 2123,
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "ms": 113,
+          "section": "steps",
+          "screenshot": "missing/01-app-press-increment.png"
+        },
+        {
+          "step": "app.press target: #missing, timeoutMs: 400",
+          "status": "failed",
+          "ms": 1703,
+          "error": "No element matches {\"testId\":\"missing\"}",
+          "section": "steps",
+          "screenshot": "missing/02-app-press-target-missing-timeoutms-400.png"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "skipped",
+          "ms": 0,
+          "section": "steps"
+        }
+      ],
+      "diagnosis": [
+        "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      ],
+      "evidence": {
+        "screen": "Home\ntext \"Welcome\"\ntext \"Count: 1\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\ntext \"Picked Item 40\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+        "requests": [],
+        "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      }
+    },
+    {
+      "id": "missing",
+      "file": "cases/missing.md",
+      "attempt": 2,
+      "result": "failed",
+      "startedAt": "<iso>",
+      "ms": 2123,
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "ms": 113,
+          "section": "steps",
+          "screenshot": "missing.2/01-app-press-increment.png"
+        },
+        {
+          "step": "app.press target: #missing, timeoutMs: 400",
+          "status": "failed",
+          "ms": 1703,
+          "error": "No element matches {\"testId\":\"missing\"}",
+          "section": "steps",
+          "screenshot": "missing.2/02-app-press-target-missing-timeoutms-400.png"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "skipped",
+          "ms": 0,
+          "section": "steps"
+        }
+      ],
+      "diagnosis": [
+        "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      ],
+      "evidence": {
+        "screen": "Home\ntext \"Welcome\"\ntext \"Count: 2\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\ntext \"Picked Item 40\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+        "requests": [],
+        "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      }
+    }
+  ],
+  "file/count/01-app-call-command-reset.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 2,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 0",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/02-app-press-increment.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 3,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 1",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/03-app-press-increment.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 4,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/04-app-see-text-count-2.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 4,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/05-app-type-target-name-text-ana.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 5,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "Ana",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/06-app-press-send.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 7,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "Ana",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Code sent to Ana",
+        "frame": {
+          "x": 16,
+          "y": 320,
+          "w": 300,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Resend in 3",
+        "frame": {
+          "x": 16,
+          "y": 350,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 12,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/count/07-app-wait-request-post-api-code.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 7,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "Ana",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Code sent to Ana",
+        "frame": {
+          "x": 16,
+          "y": 320,
+          "w": 300,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Resend in 3",
+        "frame": {
+          "x": 16,
+          "y": 350,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 12,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/01-app-call-command-reset.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 2,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 0",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/02-app-press-open-list.json": {
+    "route": "List",
+    "path": [
+      "Home",
+      "List"
+    ],
+    "commit": 4,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Items",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 1",
+        "frame": {
+          "x": 0,
+          "y": 100,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 2",
+        "frame": {
+          "x": 0,
+          "y": 160,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 3",
+        "frame": {
+          "x": 0,
+          "y": 220,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 4",
+        "frame": {
+          "x": 0,
+          "y": 280,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 5",
+        "frame": {
+          "x": 0,
+          "y": 340,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 6",
+        "frame": {
+          "x": 0,
+          "y": 400,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 7",
+        "frame": {
+          "x": 0,
+          "y": 460,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 8",
+        "frame": {
+          "x": 0,
+          "y": 520,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 9",
+        "frame": {
+          "x": 0,
+          "y": 580,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 10",
+        "frame": {
+          "x": 0,
+          "y": 640,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 11",
+        "frame": {
+          "x": 0,
+          "y": 700,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 12,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 12",
+        "frame": {
+          "x": 0,
+          "y": 760,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 13,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 13",
+        "frame": {
+          "x": 0,
+          "y": 820,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 14,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 14",
+        "frame": {
+          "x": 0,
+          "y": 880,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 15,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 15",
+        "frame": {
+          "x": 0,
+          "y": 940,
+          "w": 390,
+          "h": 56
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/03-app-see-text-items.json": {
+    "route": "List",
+    "path": [
+      "Home",
+      "List"
+    ],
+    "commit": 4,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Items",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 1",
+        "frame": {
+          "x": 0,
+          "y": 100,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 2",
+        "frame": {
+          "x": 0,
+          "y": 160,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 3",
+        "frame": {
+          "x": 0,
+          "y": 220,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 4",
+        "frame": {
+          "x": 0,
+          "y": 280,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 5",
+        "frame": {
+          "x": 0,
+          "y": 340,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 6",
+        "frame": {
+          "x": 0,
+          "y": 400,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 7",
+        "frame": {
+          "x": 0,
+          "y": 460,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 8",
+        "frame": {
+          "x": 0,
+          "y": 520,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 9",
+        "frame": {
+          "x": 0,
+          "y": 580,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 10",
+        "frame": {
+          "x": 0,
+          "y": 640,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 11",
+        "frame": {
+          "x": 0,
+          "y": 700,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 12,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 12",
+        "frame": {
+          "x": 0,
+          "y": 760,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 13,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 13",
+        "frame": {
+          "x": 0,
+          "y": 820,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 14,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 14",
+        "frame": {
+          "x": 0,
+          "y": 880,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 15,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 15",
+        "frame": {
+          "x": 0,
+          "y": 940,
+          "w": 390,
+          "h": 56
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/04-app-wait-target-item-40-scroll-true.json": {
+    "route": "List",
+    "path": [
+      "Home",
+      "List"
+    ],
+    "commit": 4,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Items",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 36",
+        "frame": {
+          "x": 0,
+          "y": -20,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 37",
+        "frame": {
+          "x": 0,
+          "y": 40,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 38",
+        "frame": {
+          "x": 0,
+          "y": 100,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 39",
+        "frame": {
+          "x": 0,
+          "y": 160,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 40",
+        "frame": {
+          "x": 0,
+          "y": 220,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 41",
+        "frame": {
+          "x": 0,
+          "y": 280,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 42",
+        "frame": {
+          "x": 0,
+          "y": 340,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 43",
+        "frame": {
+          "x": 0,
+          "y": 400,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 44",
+        "frame": {
+          "x": 0,
+          "y": 460,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 45",
+        "frame": {
+          "x": 0,
+          "y": 520,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 46",
+        "frame": {
+          "x": 0,
+          "y": 580,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 12,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 47",
+        "frame": {
+          "x": 0,
+          "y": 640,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 13,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 48",
+        "frame": {
+          "x": 0,
+          "y": 700,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 14,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 49",
+        "frame": {
+          "x": 0,
+          "y": 760,
+          "w": 390,
+          "h": 56
+        }
+      },
+      {
+        "i": 15,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "text": "Item 50",
+        "frame": {
+          "x": 0,
+          "y": 820,
+          "w": 390,
+          "h": 56
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/05-app-press-item-40.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 6,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 0",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/list/06-app-see-text-picked-item-40.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 6,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 0",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/missing.2/01-app-press-increment.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 13,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/missing.2/02-app-press-target-missing-timeoutms-400.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 18,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 2",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/missing/01-app-press-increment.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 7,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 1",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/missing/02-app-press-target-missing-timeoutms-400.json": {
+    "route": "Home",
+    "path": [
+      "Home"
+    ],
+    "commit": 12,
+    "busy": false,
+    "window": {
+      "w": 390,
+      "h": 844
+    },
+    "costMs": 1,
+    "elements": [
+      {
+        "i": 0,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Welcome",
+        "frame": {
+          "x": 16,
+          "y": 60,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 1,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Count: 1",
+        "frame": {
+          "x": 16,
+          "y": 100,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 2,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "increment",
+        "text": "Increment",
+        "frame": {
+          "x": 16,
+          "y": 140,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 3,
+        "depth": 0,
+        "enabled": true,
+        "kind": "input",
+        "testId": "name",
+        "value": "",
+        "frame": {
+          "x": 16,
+          "y": 200,
+          "w": 300,
+          "h": 44
+        }
+      },
+      {
+        "i": 4,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "send",
+        "text": "Send code",
+        "frame": {
+          "x": 16,
+          "y": 260,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 5,
+        "depth": 0,
+        "enabled": true,
+        "kind": "text",
+        "text": "Picked Item 40",
+        "frame": {
+          "x": 16,
+          "y": 400,
+          "w": 200,
+          "h": 24
+        }
+      },
+      {
+        "i": 6,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-list",
+        "text": "Open list",
+        "frame": {
+          "x": 16,
+          "y": 470,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 7,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "open-settings",
+        "text": "Settings",
+        "frame": {
+          "x": 16,
+          "y": 530,
+          "w": 160,
+          "h": 44
+        }
+      },
+      {
+        "i": 8,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "delete",
+        "text": "Delete everything",
+        "frame": {
+          "x": 16,
+          "y": 590,
+          "w": 200,
+          "h": 44
+        }
+      },
+      {
+        "i": 9,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "later",
+        "text": "Later",
+        "frame": {
+          "x": 16,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 10,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "late",
+        "text": "Late",
+        "frame": {
+          "x": 200,
+          "y": 650,
+          "w": 120,
+          "h": 44
+        }
+      },
+      {
+        "i": 11,
+        "depth": 0,
+        "enabled": true,
+        "kind": "button",
+        "testId": "footer",
+        "text": "Footer",
+        "frame": {
+          "x": 16,
+          "y": 900,
+          "w": 200,
+          "h": 44
+        }
+      }
+    ],
+    "settled": true
+  },
+  "file/progress.ndjson": [
+    {
+      "type": "run-start",
+      "at": "<iso>",
+      "pid": "<pid>",
+      "total": 3,
+      "jobs": 1,
+      "cases": [
+        {
+          "id": "count",
+          "title": "Counts to two"
+        },
+        {
+          "id": "list"
+        },
+        {
+          "id": "missing"
+        }
+      ],
+      "out": "<run>"
+    },
+    {
+      "type": "case-start",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "attempt": 1,
+      "steps": 7
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 0,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.call command: reset"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 0,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.call command: reset",
+      "status": "passed",
+      "ms": 6
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 1,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #increment"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 1,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #increment",
+      "status": "passed",
+      "ms": 112
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 2,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #increment"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 2,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #increment",
+      "status": "passed",
+      "ms": 112
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 3,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.see text: Count: 2"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 3,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.see text: Count: 2",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 4,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.type target: #name, text: Ana"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 4,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.type target: #name, text: Ana",
+      "status": "passed",
+      "ms": 107
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 5,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #send"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 5,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.press #send",
+      "status": "passed",
+      "ms": 112
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 6,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.wait request: POST /api/code"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "index": 6,
+      "steps": 7,
+      "section": "steps",
+      "step": "app.wait request: POST /api/code",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "type": "case-end",
+      "at": "<iso>",
+      "id": "count",
+      "job": 0,
+      "attempt": 1,
+      "result": "passed",
+      "ms": 1527
+    },
+    {
+      "type": "case-start",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "attempt": 1,
+      "steps": 6
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 0,
+      "steps": 6,
+      "section": "setup",
+      "step": "app.call command: reset"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 0,
+      "steps": 6,
+      "section": "setup",
+      "step": "app.call command: reset",
+      "status": "passed",
+      "ms": 6
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 1,
+      "steps": 6,
+      "section": "steps",
+      "heading": "1 Open the list",
+      "step": "app.press #open-list"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 1,
+      "steps": 6,
+      "section": "steps",
+      "heading": "1 Open the list",
+      "step": "app.press #open-list",
+      "status": "passed",
+      "ms": 112
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 2,
+      "steps": 6,
+      "section": "steps",
+      "heading": "1 Open the list",
+      "step": "app.see text: Items"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 2,
+      "steps": 6,
+      "section": "steps",
+      "heading": "1 Open the list",
+      "step": "app.see text: Items",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 3,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.wait target: Item 40, scroll: true"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 3,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.wait target: Item 40, scroll: true",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 4,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.press Item 40"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 4,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.press Item 40",
+      "status": "passed",
+      "ms": 59
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 5,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.see text: Picked Item 40"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "index": 5,
+      "steps": 6,
+      "section": "steps",
+      "heading": "2 Pick a row",
+      "step": "app.see text: Picked Item 40",
+      "status": "passed",
+      "ms": 3
+    },
+    {
+      "type": "case-end",
+      "at": "<iso>",
+      "id": "list",
+      "job": 0,
+      "attempt": 1,
+      "result": "passed",
+      "ms": 1105
+    },
+    {
+      "type": "case-start",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "attempt": 1,
+      "steps": 3
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 0,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press #increment"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 0,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press #increment",
+      "status": "passed",
+      "ms": 113
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 1,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press target: #missing, timeoutMs: 400"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 1,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press target: #missing, timeoutMs: 400",
+      "status": "failed",
+      "ms": 1703
+    },
+    {
+      "type": "case-end",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "attempt": 1,
+      "result": "failed",
+      "ms": 2123,
+      "retrying": true
+    },
+    {
+      "type": "case-start",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "attempt": 2,
+      "steps": 3
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 0,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press #increment"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 0,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press #increment",
+      "status": "passed",
+      "ms": 113
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 1,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press target: #missing, timeoutMs: 400"
+    },
+    {
+      "type": "step",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "index": 1,
+      "steps": 3,
+      "section": "steps",
+      "step": "app.press target: #missing, timeoutMs: 400",
+      "status": "failed",
+      "ms": 1703
+    },
+    {
+      "type": "case-end",
+      "at": "<iso>",
+      "id": "missing",
+      "job": 0,
+      "attempt": 2,
+      "result": "failed",
+      "ms": 2123
+    },
+    {
+      "type": "run-end",
+      "at": "<iso>",
+      "passed": 2,
+      "failed": 1,
+      "unsupported": 0,
+      "ms": "<ms>"
+    }
+  ],
+  "file/run.json": {
+    "schema": 1,
+    "startedAt": "<iso>",
+    "launch": {
+      "seed": "goldens"
+    },
+    "finishedAt": "<iso>",
+    "platform": "ios",
+    "native": true,
+    "totals": {
+      "cases": 3,
+      "passed": 2,
+      "failed": 1,
+      "unsupported": 0,
+      "retried": 1
+    }
+  },
+  "files": [
+    "cases.jsonl",
+    "count",
+    "count/01-app-call-command-reset.json",
+    "count/01-app-call-command-reset.png",
+    "count/02-app-press-increment.json",
+    "count/02-app-press-increment.png",
+    "count/03-app-press-increment.json",
+    "count/03-app-press-increment.png",
+    "count/04-app-see-text-count-2.json",
+    "count/04-app-see-text-count-2.png",
+    "count/05-app-type-target-name-text-ana.json",
+    "count/05-app-type-target-name-text-ana.png",
+    "count/06-app-press-send.json",
+    "count/06-app-press-send.png",
+    "count/07-app-wait-request-post-api-code.json",
+    "count/07-app-wait-request-post-api-code.png",
+    "list",
+    "list/01-app-call-command-reset.json",
+    "list/01-app-call-command-reset.png",
+    "list/02-app-press-open-list.json",
+    "list/02-app-press-open-list.png",
+    "list/03-app-see-text-items.json",
+    "list/03-app-see-text-items.png",
+    "list/04-app-wait-target-item-40-scroll-true.json",
+    "list/04-app-wait-target-item-40-scroll-true.png",
+    "list/05-app-press-item-40.json",
+    "list/05-app-press-item-40.png",
+    "list/06-app-see-text-picked-item-40.json",
+    "list/06-app-see-text-picked-item-40.png",
+    "missing",
+    "missing.2",
+    "missing.2/01-app-press-increment.json",
+    "missing.2/01-app-press-increment.png",
+    "missing.2/02-app-press-target-missing-timeoutms-400.json",
+    "missing.2/02-app-press-target-missing-timeoutms-400.png",
+    "missing/01-app-press-increment.json",
+    "missing/01-app-press-increment.png",
+    "missing/02-app-press-target-missing-timeoutms-400.json",
+    "missing/02-app-press-target-missing-timeoutms-400.png",
+    "progress.ndjson",
+    "run.json"
+  ]
+}

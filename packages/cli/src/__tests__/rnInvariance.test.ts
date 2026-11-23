@@ -1,6 +1,7 @@
 /**
  * React Native behaves as on main: case parsing and step resolution, the messages the runner sends a React Native
- * app, the CLI's help, errors and MCP tools, and which runtime each kind of folder is. The goldens are made by
+ * app, the CLI's help, errors and MCP tools, which runtime each kind of folder is, the device a run picks and the OS
+ * commands it sends, the run folder a report reads, and how lynkeus.config.json resolves. The goldens are made by
  * running main's CLI (`pnpm --filter lynkeus goldens:rn`); a difference passes only when goldens/rn/allowed.json
  * names it, says why, and pins what it is now.
  */
@@ -9,6 +10,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { type Allowed, differences, readJson, sectionFile } from './goldens/compare.js';
+import { probeConfig, probeDevices, probeReport } from './goldens/contracts.js';
 import { CORPUS, GOLDENS, cheapestStepOverhead, type StepCost, probeDetect, probeParse, probeSurface, probeWire } from './goldens/probe.js';
 
 const allowed = readJson<Allowed>(path.join(GOLDENS, 'allowed.json'));
@@ -32,8 +34,14 @@ test('help, errors and MCP tools read as on main', async () => check('surface', 
 
 test('each kind of folder is the runtime it was on main, and the commands that branch on it agree', async () => check('detect', await probeDetect()));
 
+test('a run picks the simulator, emulator or phone it did on main, and sends them the same OS commands', async () => check('devices', await probeDevices()));
+
+test('a scripted run writes the run folder a report reads as on main', async () => check('report', await probeReport()));
+
+test('lynkeus.config.json resolves as on main', async () => check('config', await probeConfig()));
+
 test('every allowed difference names a key the goldens have', () => {
-  const sections = ['parse', 'wire', 'surface', 'detect'];
+  const sections = ['parse', 'wire', 'surface', 'detect', 'devices', 'report', 'config'];
   const keys = new Set(sections.flatMap((s) => Object.keys(readJson<Record<string, unknown>>(sectionFile(GOLDENS, s))).map((k) => `${s}/${k}`)));
   for (const [key, leave] of Object.entries(allowed)) {
     assert.ok(keys.has(key) || sections.some((s) => key.startsWith(`${s}/`)), `allowed.json: ${key} is in no section`);

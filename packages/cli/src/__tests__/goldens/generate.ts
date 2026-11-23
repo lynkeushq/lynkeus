@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { probeConfig, probeDevices, probeReport } from './contracts.js';
 import { CORPUS, GOLDENS, cheapestStepOverhead, probeDetect, probeParse, probeSurface, probeWire } from './probe.js';
 
 const flag = (name: string) => {
@@ -24,6 +25,9 @@ save('parse', sorted(await probeParse([CORPUS])));
 save('wire', sorted(await probeWire()));
 save('surface', sorted(await probeSurface()));
 save('detect', sorted(await probeDetect()));
+save('devices', sorted(await probeDevices()));
+save('report', sorted(await probeReport()));
+save('config', sorted(await probeConfig()));
 const budget = cheapestStepOverhead(3);
 save('perf', { ref, ...budget });
 console.error(`goldens from ${ref} in ${out}; ${budget.msPerStep.toFixed(3)} ms per step (${budget.units.toFixed(3)} calibration units)`);
