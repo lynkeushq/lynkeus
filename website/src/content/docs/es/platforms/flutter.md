@@ -144,6 +144,15 @@ flutter_test no responde los canales de plataforma: un plugin lanzaría `Missing
 
 Cualquier otro canal recibe un éxito vacío (null), para que el `await` de la app no se cuelgue, y deja una línea `[stub] <canal>` en el registro del host. Con `LYNKEUS_CHANNELS=trace` se imprime cada llamada y su respuesta.
 
+Hay plugins que no tienen un canal de método por defecto al que sustituir, y por eso fallan en un host: sqflite 2.4 o posterior (también cuando llega a través de `cached_network_image`) y la API asíncrona de shared_preferences. El paquete opcional `lynkeus_plugins` los resuelve. Agrégalo junto a `lynkeus_agent`, como dependencia normal, y llámalo en la línea siguiente al arranque del agente:
+
+```dart
+LynkeusAgent.start();
+LynkeusPlugins.ensureInitialized();
+```
+
+En un simulador, un emulador o un teléfono no hace nada. `lynkeus init` solo lo agrega cuando tu `pubspec.lock` muestra uno de esos plugins, y `lynkeus status` lo comprueba. Las vistas nativas (un WebView, un mapa, un video) quedan en blanco en cualquier host, porque no hay nada que las dibuje.
+
 Un proyecto agrega los suyos en `test/lynkeus_host.dart` (no termina en `_test.dart`, para que sus pruebas unitarias lo ignoren). `lynkeus headless start` lo usa si existe:
 
 ```dart

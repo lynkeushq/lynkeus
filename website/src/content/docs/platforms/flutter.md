@@ -130,7 +130,16 @@ npx lynkeus headless start         # or keep one running
 | `permission_handler` | every permission granted | `lynkeus call permissions '{"7": 4}'` |
 | `connectivity_plus` | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
 
-Any other channel answers null, so an `await` never hangs, and logs one `[stub] <channel>` line; `LYNKEUS_CHANNELS=trace` logs every call. A project adds its own stand-ins in `test/lynkeus_host.dart`, which `lynkeus headless start` passes on:
+Any other channel answers null, so an `await` never hangs, and logs one `[stub] <channel>` line; `LYNKEUS_CHANNELS=trace` logs every call. A few plugins have no method-channel default to stand in for, so they throw on a host: sqflite 2.4 or later (including through `cached_network_image`) and shared_preferences' async API. The optional `lynkeus_plugins` package fixes them. Add it next to `lynkeus_agent`, as a regular dependency, and call it on the line after the agent starts:
+
+```dart
+LynkeusAgent.start();
+LynkeusPlugins.ensureInitialized();
+```
+
+It does nothing on a Simulator, an emulator or a phone. `lynkeus init` adds it only when your `pubspec.lock` shows one of those plugins, and `lynkeus status` checks it. Native views (a WebView, a map, a video) stay blank on any host, because nothing draws them.
+
+A project adds its own stand-ins in `test/lynkeus_host.dart`, which `lynkeus headless start` passes on:
 
 ```dart title="test/lynkeus_host.dart"
 import 'package:lynkeus_headless/lynkeus_headless.dart';
