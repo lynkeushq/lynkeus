@@ -52,3 +52,15 @@ export const pluginsNeeded = (root: string): PluginNeed[] => {
     });
   return needs;
 };
+
+/** Plugins whose screen is a native view: blank on any host, with nothing to fix. A hint, not a check. */
+const NATIVE_VIEWS = ['webview_flutter', 'google_maps_flutter', 'adaptive_platform_ui', 'video_player'];
+
+export const nativeViewPlugins = (root: string): string[] => {
+  try {
+    const locked = lockedVersions(fs.readFileSync(path.join(root, 'pubspec.lock'), 'utf8'));
+    return NATIVE_VIEWS.filter((name) => locked.has(name));
+  } catch {
+    return [];
+  }
+};
