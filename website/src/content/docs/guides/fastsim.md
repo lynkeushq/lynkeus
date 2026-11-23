@@ -73,7 +73,7 @@ A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScrip
 
 A Flutter app runs on FastSim's Flutter host, which loads the app's own debug kernel into Flutter's own engine. Keys, sign-in, grants and seats are the ones above; what differs is the build, the bundle and what the app needs.
 
-- **One build per machine draws both platforms**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` picks it in a folder whose `pubspec.yaml` takes `flutter` from the SDK, or with `--runtime flutter`; `--platform` does not apply. `lynkeus fastsim grant --runtime flutter` checks the grant. The engine for the app's Flutter version is downloaded from Flutter's own storage on the first run of that version.
+- **One build per machine draws both platforms**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` picks it in a folder whose `pubspec.yaml` takes `flutter` from the SDK, or with `--runtime flutter`; `--platform` does not apply. `lynkeus fastsim grant --runtime flutter` checks the grant. The build is about 57 MB on a Mac and 64 MB on Linux, most of it Android's own fonts; on Linux it also needs the system's zlib and OpenSSL 3 (`libssl3` on Debian and Ubuntu). The engine for the app's Flutter version is downloaded from Flutter's own storage on the first run of that version.
 - **The bundle is the app's debug kernel**, made with your Flutter. Flags after `--` go to `flutter build bundle`, so pass the same `--dart-define` values your debug builds use:
 
   ```bash
@@ -81,9 +81,9 @@ A Flutter app runs on FastSim's Flutter host, which loads the app's own debug ke
   npx lynkeus case run <cases> --ports 8232 --host-command "<install folder>/bin/fastsim-run <bundle folder> {port}"
   ```
 
-  `android` in place of `ios` gives the app a Pixel 9 instead of an iPhone 17. Bundle again after each change to the app's Dart code.
+  `android` in place of `ios` gives the app a Pixel 9 instead of an iPhone 17. Bundle again after each change to the app's Dart code. On a Mac, an `ios` bundle also takes the iOS Simulator engine's shaders from your Flutter, which the host draws the iOS look with; if your Flutter has never fetched its iOS files, `fastsim-bundle` stops and asks you to run `flutter precache --ios` once.
 - **The app starts the agent before anything initializes Flutter's binding**, and depends on `lynkeus_plugins` when it uses sqflite 2.4 or newer (cached network images included) or shared_preferences' `SharedPreferencesAsync`.
-- **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) draw nothing, and on Linux text in scripts the app's fonts lack (Chinese, emoji) draws as boxes for now.
+- **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) are gray placeholders. With the Android look, text the app's fonts lack (Chinese, Arabic, emoji) falls back to Android's own fonts, which the Linux build carries.
 
 - **The Flutter host fences the app's network** to loopback and `10.0.2.2`, like the headless host (`flutterHost.networkHosts` in `lynkeus.config.json` allows more), and `case run --net-cache <dir>` answers from recorded fetches what the fence blocks; see [the network fence](/platforms/flutter/#the-fence).
 

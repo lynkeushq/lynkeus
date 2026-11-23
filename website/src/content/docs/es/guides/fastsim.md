@@ -71,7 +71,7 @@ La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.er
 
 Una app de Flutter corre en el host de Flutter de FastSim, que carga el kernel de depuración de la app en el propio motor de Flutter. Las keys, el inicio de sesión, los grants y los lugares son los de arriba; cambian el build, el bundle y lo que la app necesita.
 
-- **Un build por máquina, para las dos plataformas**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` lo elige solo en una carpeta cuyo `pubspec.yaml` toma `flutter` del SDK, o con `--runtime flutter`; `--platform` no cuenta. Para probar el grant, `lynkeus fastsim grant --runtime flutter`. El motor de la versión de Flutter de la app se baja del almacenamiento de Flutter la primera vez que corre esa versión.
+- **Un build por máquina, para las dos plataformas**: `darwin-arm64-flutter`, `linux-arm64-flutter`, `linux-x64-flutter`. `lynkeus fastsim install` lo elige solo en una carpeta cuyo `pubspec.yaml` toma `flutter` del SDK, o con `--runtime flutter`; `--platform` no cuenta. Para probar el grant, `lynkeus fastsim grant --runtime flutter`. El build ocupa unos 57 MB en Mac y 64 MB en Linux, sobre todo por las fuentes de Android, y en Linux necesita zlib y OpenSSL 3 instalados en el sistema (`libssl3` en Debian y Ubuntu). El motor de la versión de Flutter de la app se baja del almacenamiento de Flutter la primera vez que corre esa versión.
 - **El bundle es el kernel de depuración de la app**, armado con tu Flutter. Lo que va después de `--` llega a `flutter build bundle`, así que pásale los mismos `--dart-define` que usan tus builds de depuración:
 
   ```bash
@@ -79,9 +79,9 @@ Una app de Flutter corre en el host de Flutter de FastSim, que carga el kernel d
   npx lynkeus case run <casos> --ports 8232 --host-command "<carpeta instalada>/bin/fastsim-run <carpeta del bundle> {port}"
   ```
 
-  Con `android` en vez de `ios`, la app ve un Pixel 9 en lugar de un iPhone 17. Vuelve a empaquetar cada vez que cambie el código Dart.
+  Con `android` en vez de `ios`, la app ve un Pixel 9 en lugar de un iPhone 17. Vuelve a empaquetar cada vez que cambie el código Dart. En un Mac, un bundle de `ios` se lleva de tu Flutter los shaders del motor del Simulador de iOS, porque el host dibuja con ellos; si tu Flutter todavía no bajó los archivos de iOS, `fastsim-bundle` se detiene y te pide correr una vez `flutter precache --ios`.
 - **La app arranca el agente antes de que nada inicialice el binding de Flutter**, y depende de `lynkeus_plugins` si usa sqflite 2.4 o más nuevo (también a través de las imágenes de red en caché) o `SharedPreferencesAsync` de shared_preferences.
-- **Las pantallas de Android se comparan en Linux** y las de iOS en un Mac. Las vistas nativas (web views, mapas, barras de pestañas nativas) quedan vacías, y en Linux, por ahora, el texto en escrituras que faltan en las fuentes de la app (chino, emoji) sale como cuadrados.
+- **Las pantallas de Android se comparan en Linux** y las de iOS en un Mac. Las vistas nativas (web views, mapas, barras de pestañas nativas) se ven como un recuadro gris. Con el aspecto de Android, si a las fuentes de la app les falta un carácter (chino, árabe, emoji), se dibuja con las fuentes de Android que trae el build de Linux.
 
 - **El host de Flutter pone una valla a la red de la app**, solo loopback y `10.0.2.2`, como el headless (`flutterHost.networkHosts` en `lynkeus.config.json` permite más), y `case run --net-cache <carpeta>` responde con lo grabado lo que la valla bloquea; mira [la valla de red](/es/platforms/flutter/#la-valla-de-red).
 

@@ -215,7 +215,7 @@ A case can branch on where it runs with `on: headless`.
 npx lynkeus fastsim install
 ```
 
-In a folder whose `pubspec.yaml` takes `flutter` from the SDK, this installs the Flutter build; elsewhere, add `--runtime flutter`. One build draws both platforms, because Flutter's engine draws iOS and Android with the same code: `darwin-arm64-flutter` on an Apple Silicon Mac, `linux-arm64-flutter` or `linux-x64-flutter` on Linux. The first run of each Flutter version downloads that version's engine from Flutter's own storage (about 30 MB on a Mac, 15 MB on Linux) into `~/.cache/lynkeus/fastsim/flutter-engine/`.
+In a folder whose `pubspec.yaml` takes `flutter` from the SDK, this installs the Flutter build; elsewhere, add `--runtime flutter`. One build draws both platforms, because Flutter's engine draws iOS and Android with the same code: `darwin-arm64-flutter` on an Apple Silicon Mac, `linux-arm64-flutter` or `linux-x64-flutter` on Linux. The build is about 57 MB on a Mac and 64 MB on Linux; most of that is Android's own fonts, for the Android look. On Linux it also uses the system's zlib and OpenSSL 3 (`libssl3` on Debian and Ubuntu). The first run of each Flutter version downloads that version's engine from Flutter's own storage (about 30 MB on a Mac, 15 MB on Linux) into `~/.cache/lynkeus/fastsim/flutter-engine/`.
 
 Bundle the app, again after each change to its Dart code:
 
@@ -223,7 +223,7 @@ Bundle the app, again after each change to its Dart code:
 FLUTTER=flutter <install folder>/bin/fastsim-bundle . <bundle folder> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
 ```
 
-The bundle is the app's debug kernel, built with `flutter build bundle --debug --no-track-widget-creation`; flags after `--` (`--dart-define`, `--flavor`, `-t lib/main_dev.dart`) go to that command. `android` in place of `ios` makes the app see an Android phone. `FLUTTER` names the Flutter command when it is not `flutter` on the `PATH` (`fvm flutter`, `mise exec flutter@3.50.1 -- flutter`).
+The bundle is the app's debug kernel, built with `flutter build bundle --debug --no-track-widget-creation`; flags after `--` (`--dart-define`, `--flavor`, `-t lib/main_dev.dart`) go to that command. `android` in place of `ios` makes the app see an Android phone. `FLUTTER` names the Flutter command when it is not `flutter` on the `PATH` (`fvm flutter`, `mise exec flutter@3.50.1 -- flutter`). On a Mac, an `ios` bundle also carries the iOS Simulator engine's shaders, copied from that Flutter, which the host draws the iOS look with. A Flutter that has never fetched its iOS files has none: `fastsim-bundle` then stops with exit code 3 and asks for `flutter precache --ios`, which you run once.
 
 Then run the cases, one host per case:
 
@@ -255,7 +255,7 @@ Something that animates forever has no end to wait for. When `idle` answers with
 
 - **Native views are placeholders.** A `UiKitView`, an `AndroidView` or a `PlatformViewLink` (a web view, a map, a native tab bar) keeps its place and size, and FastSim draws a gray box there labeled with the view's type and "native view, not drawn". Flutter content drawn over the view, such as a button on a map, shows and takes taps as on a phone. Any other step whose point falls inside the view (`press`, `type`, the start of a `swipe`) fails with `this point is inside native view <type>, which only exists on a device` instead of touching nothing. `screen` reports each view's rectangle under `platformViews` on every side, and the pixel comparison masks those rectangles on both, so the placeholder is never a difference. Cover what the view shows on a simulator, an emulator or a phone, where steps inside it work.
 - **The Android look is for Linux.** There the engine draws with OpenGL ES on ANGLE and SwiftShader, as the emulator does. A Mac's engine has only Metal, which some of Flutter's Android drawing (the stretch overscroll) lacks, so compare Android screens on Linux. The iOS look matches the simulator on a Mac, with the simulator's own system font when Xcode's iOS runtime is installed; Linux has no stand-in for it yet.
-- **Text in other scripts on Linux.** The Linux engine finds no font for a character missing from the app's fonts, so Chinese, Japanese, emoji and the like draw as boxes there. Cases still pass, since they read the widget tree; the pixels do not match.
+- **Text in other scripts with the iOS look on Linux.** With the Android look, the Linux build carries Android's own fonts and a character missing from the app's fonts falls back as on Android, in `fonts.xml` order (Chinese, Japanese, Arabic, Devanagari, Thai, emoji). The iOS look on Linux has no such fonts, so those characters draw as boxes there. Cases still pass, since they read the widget tree; the pixels do not match.
 - **Flutter's prebuilt debug engine only.** No profile or release builds, and no custom engine. Flutter 3.50.1 is the version run so far; on Linux arm64 Flutter publishes engines from 3.38 on.
 - **A plugin with only native code or FFI behind it**, and no channel to fall back to, that `lynkeus_plugins` does not cover, has nothing to answer it. The headless host's loading of a plugin's desktop library does not happen here yet.
 
