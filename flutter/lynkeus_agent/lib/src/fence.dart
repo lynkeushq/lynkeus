@@ -13,7 +13,8 @@ Set<String> networkHostsFrom(Map<String, String> env) {
 }
 
 /// Airplane mode on a host (`lynkeus os network off`): every request the app makes fails as a phone's would, a replayed
-/// one included, until it is on again. A request `netmock` answers still gets its answer.
+/// one included, until it is on again. A request `netmock` answers still gets its answer, and the agent's own link to
+/// the driver stays up (it is not the app's: its client is made before the network log wraps the app's).
 abstract final class HostNetwork {
   static var online = true;
 
@@ -35,7 +36,6 @@ class FencedHttpOverrides extends HttpOverrides {
     final client = super.createHttpClient(context);
     client.connectionFactory = (url, proxyHost, proxyPort) {
       final host = proxyHost ?? url.host;
-      if (!HostNetwork.online) return Future.error(HostNetwork.offline);
       if (!allows(host)) return Future.error(SocketException(blockedMessage(host, hosts)));
       final port = proxyPort ?? url.port;
       if (proxyHost == null && (url.scheme == 'https' || url.scheme == 'wss')) {

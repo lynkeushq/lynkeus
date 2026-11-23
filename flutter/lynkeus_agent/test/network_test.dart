@@ -321,6 +321,8 @@ void main() {
     const photo = 'https://images.example/photo.png';
     File('${folder.path}/${netCacheName(photo)}').writeAsBytesSync([1, 2, 3]);
     HttpOverrides.global = FencedHttpOverrides({'127.0.0.1'});
+    // The agent's link to the driver: made before the network log wraps the app's clients.
+    final link = HttpClient();
     network = Network(trace: traced.add)..install();
     network
       ..replay = NetCache(folder)
@@ -332,12 +334,14 @@ void main() {
       await expectLater(client.getUrl(Uri.parse(photo)).then((r) => r.close()), throwsA(isA<SocketException>()));
       await expectLater(fetch('GET', '/now'), throwsA(isA<SocketException>()));
       expect((await (await client.getUrl(at('/mocked'))).close()).statusCode, 200);
+      expect((await (await link.getUrl(at('/now'))).close()).statusCode, 200, reason: 'the driver stays reachable');
       expect(records().where((r) => r['status'] == 0).map((r) => r['error']), everyElement(contains('network is off')));
       HostNetwork.online = true;
       expect((await (await client.getUrl(Uri.parse(photo))).close()).statusCode, 200);
     } finally {
       HostNetwork.online = true;
       client.close();
+      link.close();
       folder.deleteSync(recursive: true);
     }
   });
