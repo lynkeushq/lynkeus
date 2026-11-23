@@ -654,7 +654,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
    * stops changing; then back up in short pulls (at the top of a sheet a short
    * pull springs back, where a long one would drag the sheet shut).
    */
-  const scrollTo = async (there: () => Promise<boolean>, upward = false): Promise<boolean> => {
+  const scrollTo = async (there: () => Promise<boolean>, toward?: 'above' | 'below'): Promise<boolean> => {
     const d = await device();
     if (!d.server.hello?.native) return false;
     const { w, h } = (await d.screen()).window;
@@ -688,8 +688,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       }
       return there();
     };
-    if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     const middle = Math.round(h * 0.5);
+    // In a Flutter app, a control known to be just below the window is reached in short pulls: a screenful would carry
+    // it out of the window, and out of a list that only builds what is near the window. React Native keeps its pulls.
+    if (toward === 'below' && isFlutter()) return pull(middle, middle - 110, 30, 'down');
+    if (toward !== 'above' && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     return pull(middle, middle + 110, 30, 'up');
   };
 
@@ -791,7 +794,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       return undefined;
     };
     const side = await outside();
-    if (side) await scrollTo(async () => (await outside()) === undefined, side === 'above');
+    if (side) await scrollTo(async () => (await outside()) === undefined, side);
     // The control may still be disabled while what it depends on loads. The waits go through the app,
     // so a host with its own clock moves it on instead of standing still while this one sleeps.
     const deadline = Date.now() + (typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000);

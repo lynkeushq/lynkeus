@@ -585,6 +585,62 @@ steps:
   assert.equal(swipes, 2);
 });
 
+// A control listed just below the window: a Flutter app is pulled toward it 110 pt at a time; React Native keeps the
+// screenful it has always pulled first.
+const pullsToJustBelow = async (at: string): Promise<number[]> => {
+  const c = parseCase(
+    `---
+id: just-below
+---
+steps:
+  - app.press: "#refresh"
+`,
+    'just-below.md',
+  );
+  const { base, calls } = fakeApp(at);
+  const device = await base.device();
+  const fake = device as unknown as {
+    server: {
+      hello?: { native: boolean };
+      call: (method: string, params: { testId?: string; from?: { y: number }; to?: { y: number } }) => Promise<unknown>;
+    };
+    screen: () => Promise<unknown>;
+  };
+  const listed = fake.screen;
+  const call = fake.server.call;
+  fake.server.hello = { native: true };
+  const pulls: number[] = [];
+  let y = 870;
+  const screenNow = async () => {
+    const screen = (await listed()) as { elements: { frame: { y: number } }[] };
+    screen.elements[0]!.frame.y = y;
+    return screen;
+  };
+  fake.server.call = async (method, params) => {
+    if (method === 'swipe') {
+      const pull = params.to!.y - params.from!.y;
+      pulls.push(pull);
+      y += pull;
+      return {};
+    }
+    if (method === 'find') return params.testId === 'refresh' ? { ...(await screenNow()).elements[0] } : null;
+    return call(method, params);
+  };
+  fake.screen = screenNow;
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(calls.filter((x) => x.method === 'press').length, 1);
+  return pulls;
+};
+
+test('a control listed just below the window is reached in short pulls in a Flutter app', async () => {
+  assert.deepEqual(await pullsToJustBelow(flutterRoot), [-110]);
+});
+
+test('React Native keeps its screenful pull toward a control just below the window', async () => {
+  for (const at of [reactNativeRoot, bothRoot]) assert.deepEqual(await pullsToJustBelow(at), [-380], at);
+});
+
 test('a step kept to a host whose app has a command runs only there', async () => {
   const c = parseCase(
     `---
