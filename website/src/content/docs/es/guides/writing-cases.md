@@ -150,7 +150,7 @@ Una petición que contestó un mock queda marcada `(mocked)` en la evidencia del
 Un objetivo se escribe como en la terminal: `#testId`, un texto, un índice o `x,y`. Dos detalles son propios de los casos:
 
 - **Donde un paso recibe `target`, también recibe `testId`**, sin el `#`: `app.press: { testId: pay-button }` equivale a `app.press: "#pay-button"`.
-- **Un texto con comillas propias es siempre un texto.** Para `app.wait` y `app.see`, una palabra con mayúscula inicial como `Next` es una ruta. `app.wait: '"Next"'` espera el botón. Las comillas simples son las del YAML; las dobles, las que lee Lynkeus.
+- **Un texto con comillas propias es siempre un texto.** En `app.wait`, una palabra sola con mayúscula inicial como `Next` es una ruta. `app.wait: '"Next"'` espera el botón, igual que `app.wait: { text: Next }`: la clave `text` nombra siempre un texto, como en `app.see` y `app.press`. Las comillas simples son las del YAML; las dobles, las que lee Lynkeus.
 
 :::note[Desde 0.3.0]
 `testId` en cualquier paso con `target`, `{ text }` en `app.press`, `timeoutMs` en `app.type` y las comillas propias llegan con la versión 0.3.0. Antes, esos pasos se rechazaban con `press has no testId`, `app.press needs a target` o `type has no timeoutMs`.

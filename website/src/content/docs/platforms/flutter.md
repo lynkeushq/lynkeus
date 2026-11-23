@@ -14,7 +14,7 @@ Two Dart packages in the `flutter/` folder of the Lynkeus repository make the di
 | Setup | `npx lynkeus init`, or by hand (below). |
 | Token in the app | `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`. No Babel plugin. |
 | Test id | A `ValueKey<String>` or `Semantics(identifier:)`, targeted as `#id`. |
-| Routes | A `Navigator` observer, or `LynkeusRoutes` for go_router and other routers. In `wait`, written `route:/settings`. |
+| Routes | Read from the app's `Router` (go_router and the like) with nothing to wire, or a `Navigator` observer. In `wait`, written `route:/settings`. |
 | Network log and mocks | Requests through dart:io's `HttpClient` only. |
 | Headless host | `lynkeus case run --host`, on `flutter test`. Needs Flutter on the machine. |
 | Release builds | No agent. |
@@ -56,7 +56,7 @@ flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
 
 ## How elements are identified
 
-A **test id** is a `ValueKey<String>` (`Key('increment')`) or a `Semantics(identifier: 'increment')`; target it as `#increment`. When the key sits on a wrapper, it names the first listed element below it. **Text** and **labels** (`Semantics(label:)`, a tooltip, an icon's `semanticLabel`) match as in any case, and a fragment of a paragraph is never a target. Kinds come from what controls tell assistive technology, so Material, Cupertino and the `material_ui` and `cupertino_ui` packages read alike.
+A **test id** is a `ValueKey<String>` (`Key('increment')`) or a `Semantics(identifier: 'increment')`; target it as `#increment`. When the key sits on a wrapper, it names the first listed element below it. **Text** and **labels** (`Semantics(label:)`, a tooltip, an icon's `semanticLabel`) match as in any case, and a fragment of a paragraph is never a target. A field with no label is found by its whole hint (`app.type: { target: "Search...", text: "Paris" }`), below a label or a text with the same words. Kinds come from what controls tell assistive technology, so Material, Cupertino and the `material_ui` and `cupertino_ui` packages read alike.
 
 The screen is the onstage element tree: routes under an opaque one, `Offstage` subtrees and lazy-list rows built past the viewport are left out. `~covered` is Flutter's own hit test at the element's center, and `inert` is under an `IgnorePointer` or `AbsorbPointer`.
 
@@ -66,29 +66,27 @@ An app command for `app.call` is registered with `LynkeusAgent.register('reset',
 
 Route names usually start with a slash, and a lowercase word alone is read as text, so say that it is a route: `app.wait: "route:/settings"`.
 
-With a `Navigator` and named routes, give the observer to the root navigator: `MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver], …)`. A page pushed with no name (`Navigator.push(MaterialPageRoute(builder: (_) => const Items()))`) is reported by the class of the widget it shows, `Items`, which is also the name `lynkeus map` gives it; it cannot be opened by name. A route that is not a page (a dialog, a sheet) is not reported; the route stays the one under it. `navigate` to a route already on the stack goes back to it instead of pushing a second copy. An app on a router describes its routes from the router's own state, since the agent depends on no router package. With go_router:
+An app on Flutter's router (`MaterialApp.router`, which go_router, auto_route and a delegate of the app's own all use) needs nothing: the agent reads the app's root `Router`. The route is go_router's state, its `name`, or its `fullPath` (`/habits/:id`, not `/habits/42`) when it has none, which are the names the route graph gives it; with another router it is the location's path. `navigate` sends a path as the engine sends a deep link, so the router's redirects run as they would for a link. A route known only by its name needs the router's own `goNamed`: give the agent its routes where the router is made, which also works for a router built in a State or a provider:
 
 ```dart
-final router = GoRouter(routes: [...]);
-
-void main() {
-  LynkeusAgent.start(
-    routes: LynkeusRoutes(
-      current: () => router.state.name ?? router.state.fullPath,
-      changes: router.routerDelegate,
-      navigate: (route, params) => route.startsWith('/')
-          ? router.go(route)
-          : router.goNamed(
-              route,
-              pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'},
-            ),
-    ),
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final router = GoRouter(routes: [...]);
+  LynkeusAgent.routes = LynkeusRoutes(
+    current: () => router.state.name ?? router.state.fullPath,
+    changes: router.routerDelegate,
+    navigate: (route, params) => route.startsWith('/')
+        ? router.go(route)
+        : router.goNamed(route, pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'}),
   );
-  runApp(MaterialApp.router(routerConfig: router));
-}
+  return router;
+});
 ```
 
-`current` is the focused route, `changes` fires when it may have changed, and `navigate` is what `lynkeus nav` calls. Report a route by its `name`, or by its `fullPath` (`/habits/:id`, not `/habits/42`) when it has none: those are the names the route graph uses.
+`current` is the focused route, `changes` fires when it may have changed, and `navigate` is what `lynkeus nav` calls. `LynkeusAgent.start(routes: ...)` takes the same, for a router that exists before `runApp`.
+
+With a `Navigator` and named routes, give the observer to the root navigator: `MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver], …)`.
+
+Either way, a page pushed with no name (`Navigator.push(MaterialPageRoute(builder: (_) => const Items()))`) is reported by the class of the widget it shows, `Items`, which is also the name `lynkeus map` gives it; it cannot be opened by name, and from the moment it is popped it is no longer the route. A route that is not a page (a dialog, a sheet) is not reported; the route stays the one under it. `navigate` to a route already on the stack goes back to it instead of pushing a second copy.
 
 ## The route graph
 
@@ -99,7 +97,7 @@ void main() {
 - **A router of the app's own** (fluro and the like): a call that registers a path with a builder, `router.define('/goods', handler: Handler(handlerFunc: (_, __) => const GoodsPage()))`.
 - **Edges:** `context.go`, `push`, `goNamed`, `pushNamed`, `Navigator.pushNamed` and the like, with a location matched to its route (`/habits/42` to `/habits/:id`), and `Navigator.push(MaterialPageRoute(builder: (_) => X()))`, an edge to the screen named `X`. The control that leads there is the widget whose `on…:` callback holds the call, by its `key: ValueKey('…')`, directly or through the handler it names.
 
-Each screen points at the file of the widget its builder makes; `case impact` follows imports from there (a barrel's names to the files that declare them), as it does in React Native. Whatever cannot be read is printed with its file and line by `map build` and kept in the graph's `warnings`; a route is never dropped without one. `smoke` opens the routes that need nothing: not one with a path parameter, one whose builder casts `state.extra` or the route's `arguments` to a type that is not nullable, or a page pushed without a name. Both `smoke` and `crawl` open routes through the agent's `navigate`, so the app needs the observer or `LynkeusRoutes` above.
+Each screen points at the file of the widget its builder makes; `case impact` follows imports from there (a barrel's names to the files that declare them), as it does in React Native. Whatever cannot be read is printed with its file and line by `map build` and kept in the graph's `warnings`; a route is never dropped without one. `smoke` opens the routes that need nothing: not one with a path parameter, one whose builder casts `state.extra` or the route's `arguments` to a type that is not nullable, or a page pushed without a name. Both `smoke` and `crawl` open routes through the agent's `navigate`, so the app needs a `Router`, the observer or `LynkeusRoutes` (above). A route that redirects (an onboarding gate) is reported where it landed.
 
 ## The network log
 
@@ -126,7 +124,7 @@ npx lynkeus case run --host --net-cache qa/net
 
 The folder is the one the React Native host's `--net_cache` uses: a file per URL holding the body as the app read it, and a `.json` beside it with the URL, the status and a few headers. With `--host-command` (FastSim) the folder is replayed the same way. A replayed answer shows as `replayed` in `lynkeus requests`, and a mock still answers first.
 
-What is recorded: successful (2xx) GETs to hosts outside the local ones, and none that sent an `Authorization` header or cookies unless you add `--net-record-credentials`. What is not: other methods, WebSockets, streamed bodies, and anything a client with its own networking fetched. The agent holds at most about 64 MB of recordings at a time, dropping the oldest, and the CLI takes them after every case. `--net-record` needs `--net-cache`, and only the Flutter agent can record; a React Native app has `--net_record`.
+What is recorded: successful (2xx) GETs and HEADs (a connectivity check's) to hosts outside the local ones, and none that sent an `Authorization` header or cookies unless you add `--net-record-credentials`. What is not: other methods, WebSockets, streamed bodies, and anything a client with its own networking fetched. A host the run starts records from its launch, so what the app fetches as it starts is kept too; a device build records from its launch with `--dart-define=LYNKEUS_NET_RECORD=1`, and otherwise from the moment the driver attaches. A replayed answer carries the recorded `Date` header, which an app that corrects its clock with the server's (as Rain does) then reads as the time it was recorded. The agent holds at most about 64 MB of recordings at a time, dropping the oldest, and the CLI takes them after every case. `--net-record` needs `--net-cache`, and only the Flutter agent can record; a React Native app has `--net_record`.
 
 ## Headless
 
@@ -167,15 +165,21 @@ npx lynkeus headless start         # or keep one running
 | `url_launcher` | says it can open a URL, opens nothing, writes it down | `lynkeus call launched` |
 | `local_auth` | Face ID on iOS, a fingerprint on Android; prompts succeed | `lynkeus os biometrics` |
 | `permission_handler` | every permission granted | `lynkeus call permissions '{"7": 4}'` |
-| `connectivity_plus` | Wi-Fi | `lynkeus call network '{"state": "off"}'` |
+| `connectivity_plus` | Wi-Fi; off is airplane mode: every request the app makes fails, a replayed one too, and only `netmock` still answers | `lynkeus os network off` (`lynkeus call network '{"state": "off"}'`) |
 | `flutter_local_notifications` | every permission granted; what the app schedules or shows is written down, nothing is shown | `lynkeus call notifications` (`{"clear": true}` empties it) |
 | `flutter_timezone` | the zone of `--time-zone`, else the machine's | |
 | `share_plus` | the share sheet reports success and writes down what was shared | `lynkeus call shared` |
 | `file_selector` | a picker returns what `files` queued, or is cancelled; a save dialog answers a path in a folder of the run | `lynkeus call files '{"open": "/path/backup.json"}'` |
 | `open_file`, `app_settings` | open nothing; written down with the URLs | `lynkeus call launched` |
 | `dynamic_color` | no wallpaper colors | |
+| `geolocator` | the position the iOS Simulator or the Android emulator starts at (Apple Park, the Googleplex), permission granted, services on | `lynkeus call location '{"permission": "denied", "request": "whileInUse", "latitude": 52.52, "longitude": 13.4, "service": false}'` |
+| `geocoding` (to 4.x) | the nearest known place: the two default positions, and those a case adds with `location`'s `place` | `lynkeus call location` |
+| `home_widget` | keeps the widgets' data and the updates asked for | `lynkeus call widgets` |
+| `workmanager` | tasks stay scheduled and never run | `lynkeus call tasks` |
+| `flutter_displaymode` | one 120 Hz mode | |
+| `restart_app` | counts the restart and reports it done; the app goes on | `lynkeus call tasks` (`restarts`) |
 
-`flutter_local_notifications` has no method-channel default either: the host file that `headless start` writes sets its iOS or Android class, for the platform the host plays, when `pubspec.lock` lists it. A case that reads these commands runs those steps only where they exist, with `on: has:notifications` (or `has:shared`, `has:files`, `has:launched`); on a simulator the system's share sheet and file picker are out of the agent's reach.
+`flutter_local_notifications` and `workmanager` have no method-channel default either: the host file that `headless start` writes sets their iOS or Android class, for the platform the host plays, when `pubspec.lock` lists them. geocoding 5 has none and its platform classes are Pigeon proxies, so under a host it fails as a geocoder that finds nothing does, and an app's own fallback takes over. A case that reads these commands runs those steps only where they exist, with `on: has:notifications` (or `has:shared`, `has:files`, `has:launched`); on a simulator the system's share sheet and file picker are out of the agent's reach.
 
 Any other channel answers null, so an `await` never hangs, and logs one `[stub] <channel>` line; `LYNKEUS_CHANNELS=trace` logs every call. A few plugins have no method-channel default to stand in for, so they throw on a host: sqflite 2.4 or later (including through `cached_network_image`) and shared_preferences' async API. The optional `lynkeus_plugins` package fixes them. Add it next to `lynkeus_agent`, as a regular dependency, and call it on the line after the agent starts:
 
@@ -185,6 +189,8 @@ LynkeusPlugins.ensureInitialized();
 ```
 
 It does nothing on a Simulator, an emulator or a phone. `lynkeus init` adds it only when your `pubspec.lock` shows one of those plugins, and `lynkeus status` checks it. Native views (a WebView, a map, a video) stay blank under headless, because nothing draws them, and a step aimed inside one fails with an error that names it. Lynkeus FastSim draws a placeholder there instead; see [its limits](#lynkeus-fastsim).
+
+A plugin that calls its native library through `dart:ffi` (an Isar database through `isar_community_flutter_libs`) has no channel to stand in for. Many ship that library prebuilt for the desktop too, `macos/libisar.dylib` and `linux/libisar.so`, and the host runs on a desktop: before the app starts, it loads every library a plugin keeps in its `macos/` (or `linux/`) folder, as `.flutter-plugins-dependencies` lists the plugins, and says so (`native libraries: libisar.dylib`). The plugin's own lookup then finds it, and the database runs for real, its files in the run's temporary folder. An FFI plugin that ships no desktop build fails on a host as it would on a desktop the plugin does not support.
 
 A project adds its own stand-ins in `test/lynkeus_host.dart`, which `lynkeus headless start` passes on:
 
@@ -249,15 +255,16 @@ A step's frame is the same on both sides even with something animating forever. 
 - **The Android look is for Linux.** There the engine draws with OpenGL ES on ANGLE and SwiftShader, as the emulator does. A Mac's engine has only Metal, which some of Flutter's Android drawing (the stretch overscroll) lacks, so compare Android screens on Linux. The iOS look matches the simulator on a Mac, with the simulator's own system font when Xcode's iOS runtime is installed; Linux has no stand-in for it yet.
 - **Text in other scripts on Linux.** The Linux engine finds no font for a character missing from the app's fonts, so Chinese, Japanese, emoji and the like draw as boxes there. Cases still pass, since they read the widget tree; the pixels do not match.
 - **Flutter's prebuilt debug engine only.** No profile or release builds, and no custom engine. Flutter 3.50.1 is the version run so far; on Linux arm64 Flutter publishes engines from 3.38 on.
-- **A plugin with only native code or FFI behind it**, and no channel to fall back to, that `lynkeus_plugins` does not cover, has nothing to answer it.
+- **A plugin with only native code or FFI behind it**, and no channel to fall back to, that `lynkeus_plugins` does not cover, has nothing to answer it. The headless host's loading of a plugin's desktop library does not happen here yet.
 
 ## Limits today
 
 - **Debug builds only.** A release build carries no agent. See [Security](/security/).
-- **Headless sees the machine.** `Platform` answers for it and `DateTime.now()` reads the real clock; only `package:clock` is virtual. An app that branches on `Platform.isMacOS` takes its desktop path on a Mac, though `defaultTargetPlatform` and the screen are the phone's; `device_info_plus` answers that path's fields too, and a desktop-only channel answers null.
+- **Headless sees the machine.** `Platform` answers for it and `DateTime.now()` reads the real clock; only `package:clock` is virtual. An app that branches on `Platform.isMacOS` takes its desktop path on a Mac, though `defaultTargetPlatform` and the screen are the phone's; `device_info_plus` answers that path's fields too, and a desktop-only channel answers null. Code behind `Platform.isAndroid` or `Platform.isIOS` never runs headless, whichever look the host plays: Rain schedules its widgets' work and picks a display mode only there.
 - **`--seed` has no effect** on the headless host: Dart's `Random()` cannot be seeded from outside.
 - **`--host-heap` restarts are skipped.** The Dart VM gives a running program no heap figures.
-- **The route graph reads syntax, not types.** A route table built at runtime, a builder passed through more than a few helpers, or a widget wrapped in a router-specific page class may not resolve; `map build` says so with a warning. A page pushed without a name is reached by pressing what opens it, so a crawl cannot jump back into it.
+- **The route graph reads syntax, not types.** A route table built at runtime, a builder passed through more than a few helpers, or a widget wrapped in a router-specific page class may not resolve; `map build` says so with a warning. A page pushed without a name is reached by pressing what opens it, so a crawl cannot jump back into it, and a helper that takes the page as a closure (`NavigationHelper.open(context, () => PlaceInfo())`) is not followed.
+- **`crawl` knows a screen by its route.** Tabs that change nothing but the body (a `NavigationBar` over a `TabBarView`) are one route, `/`, so their controls are pressed once from wherever the crawl stands, not explored as screens.
 - **Lynkeus FastSim** has limits of its own; see [its section](#lynkeus-fastsim).
 - **Two apps cannot dial the same port.** Close the other one, or give one its own with `LYNKEUS_PORT`.
 
