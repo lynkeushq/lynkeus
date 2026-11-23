@@ -4,7 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { findFlutter, flutterHostEnv, flutterHostTest, flutterNetworkEnv, flutterProject, writeFlutterHost } from '../commands/flutterHost.js';
+import {
+  findFlutter,
+  flutterHostEnv,
+  flutterHostTest,
+  flutterNetworkEnv,
+  flutterProject,
+  HOST_REGISTRATIONS,
+  writeFlutterHost,
+} from '../commands/flutterHost.js';
 import { headlessCommands } from '../commands/headless.js';
 import { hostedHeadless } from '../device/agentVersion.js';
 import type { ScreenGraph } from '../knowledge/types.js';
@@ -121,6 +129,11 @@ test('a plugin with no channel default that the lock shows is registered for the
   assert.match(scheduled, /workmanager_apple\.WorkmanagerApple\.registerWith\(\);/);
   const plain = project(APP, { 'lib/main.dart': 'void main() {}\n', 'pubspec.lock': 'packages:\n  http:\n    version: "1.2.0"\n' });
   assert.doesNotMatch(fs.readFileSync(writeFlutterHost(plain, { name: 'shop_app', hosted: true }, 'lib/main.dart', undefined), 'utf8'), /registerPlugins/);
+});
+
+test("the host file's registrations are the list lynkeus_agent ships for FastSim's generated entry", () => {
+  const shipped = path.join(import.meta.dirname, '..', '..', '..', '..', 'flutter', 'lynkeus_agent', 'lib', 'src', 'host_registrations.json');
+  assert.deepEqual(JSON.parse(fs.readFileSync(shipped, 'utf8')).registrations, HOST_REGISTRATIONS);
 });
 
 test('finds the SDK from FLUTTER_ROOT, and hands the host its fonts and port', () => {

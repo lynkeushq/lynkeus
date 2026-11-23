@@ -1,0 +1,15 @@
+{
+  "about": "Plugins with no method-channel default whose iOS and Android classes speak a channel lynkeus_agent stands in for. A host does not run the app's generated plugin registrant, so it sets the class for the platform it plays: lynkeus_headless through the host file the CLI writes (packages/cli/src/commands/flutterHost.ts, HOST_REGISTRATIONS, kept equal to this list by its test), Lynkeus FastSim through the entry fastsim-bundle generates. A registration applies when the plugin and both platform packages are in the app's pubspec.lock.",
+  "registrations": [
+    {
+      "package": "flutter_local_notifications",
+      "ios": { "library": "package:flutter_local_notifications/flutter_local_notifications.dart", "name": "IOSFlutterLocalNotificationsPlugin" },
+      "android": { "library": "package:flutter_local_notifications/flutter_local_notifications.dart", "name": "AndroidFlutterLocalNotificationsPlugin" }
+    },
+    {
+      "package": "workmanager",
+      "ios": { "library": "package:workmanager_apple/workmanager_apple.dart", "name": "WorkmanagerApple" },
+      "android": { "library": "package:workmanager_android/workmanager_android.dart", "name": "WorkmanagerAndroid" }
+    }
+  ]
+}
