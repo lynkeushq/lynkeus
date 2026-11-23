@@ -103,7 +103,7 @@ export type FastsimRuntime = 'react-native' | 'flutter';
 export const projectRuntime = (root: string): FastsimRuntime => {
   try {
     const pubspec = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
-    return /^dependencies:[^]*?^\s+flutter:\s*\n\s+sdk:\s*flutter\s*$/m.test(pubspec) ? 'flutter' : 'react-native';
+    return /^dependencies:[\s\S]*?^\s+flutter:\s*\n\s+sdk:\s*flutter\s*$/m.test(pubspec) ? 'flutter' : 'react-native';
   } catch {
     return 'react-native';
   }
