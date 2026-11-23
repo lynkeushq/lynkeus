@@ -912,6 +912,41 @@ test('with frames on change and a still wait, the looks after a step run before 
   }
 });
 
+test("on a Flutter app, the looks after a step run before its frame's settle, which waits out a toast", async () => {
+  const c = parseCase('---\nid: toast\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n', 'toast.md');
+  for (const runtime of ['flutter', 'react-native']) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot'], app: { runtime } };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      if (name === 'screenshot') {
+        order.push('screenshot');
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-toast-'));
+    const report = await runCase(c, {
+      base,
+      config,
+      fixtures,
+      onStep: (p) => {
+        if (p.status) order.push(`${p.step}:${p.status}`);
+      },
+      evidence: { dir, screenshots: true, settleMs: 700, frames: 'png' },
+    });
+    assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+    const shot = order.indexOf('screenshot');
+    const see = order.findIndex((o) => /see/.test(o));
+    if (runtime === 'flutter') {
+      assert.ok(shot > see, order.join(' | '));
+      assert.equal(report.steps[1]?.screenshot, report.steps[0]?.screenshot);
+    } else assert.ok(shot < see, order.join(' | '));
+  }
+});
+
 test('a film made on another machine comes over a piece at a time, and a short one is left out', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
   const film = Buffer.from('a film the host kept where the driver cannot read it');

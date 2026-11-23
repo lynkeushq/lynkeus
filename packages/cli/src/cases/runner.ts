@@ -1418,6 +1418,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   const looksFirst = !!evidence?.onChange && !!evidence.stillMs;
+  // A Flutter agent's idle, the settle before a frame, waits out what ends on its own, a toast's timer among it, so
+  // the frame is of the state it ends in on any device or host: the `app.see` steps after a step look first.
+  const settlesFirst = async () =>
+    !!evidence?.screenshots &&
+    String(
+      (await device().then(
+        (d) => d.server.hello?.app?.runtime,
+        () => undefined,
+      )) ?? '',
+    ).startsWith('flutter');
   let held: { report: StepReport; n: number; at: number | undefined; t0: number; looks: StepReport[] } | undefined;
   const flush = async () => {
     if (!held) return;
@@ -1479,7 +1489,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
-        else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [] };
+        else if (todo[index + 1]?.verb === 'app.see' && (looksFirst || (await settlesFirst()))) held = { report: done, n: steps.length, at, t0, looks: [] };
         else await record(done, steps.length, at, t0);
       }
     } catch (error) {
