@@ -1,0 +1,512 @@
+// fixtures.ts
+export declare const FIXTURES_PROTOCOL = 1;
+export type FixtureRequest = {
+    command: string;
+    params: Record<string, unknown>;
+    env: Record<string, string>;
+};
+export type FixtureAnswer = {
+    ok?: boolean;
+    error?: string;
+} & Record<string, unknown>;
+export type FixtureParam = {
+    type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    summary?: string;
+    values?: (string | number | boolean)[];
+    default?: unknown;
+    required?: boolean;
+};
+export type FixtureCommand = {
+    name: string;
+    summary?: string;
+    params?: Record<string, FixtureParam>;
+    example?: Record<string, unknown>;
+    answers?: string[];
+    changes?: boolean;
+};
+export type FixturesDescription = {
+    protocol?: number;
+    commands: (string | FixtureCommand)[];
+    down?: string;
+};
+
+// index.ts
+export declare const PROTOCOL_VERSION = 2;
+export type Frame = {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+};
+export type ElementKind = 'button' | 'input' | 'text' | 'scroll' | 'switch' | 'image' | 'view';
+export type HiddenReason = 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
+export type Element = {
+    i: number;
+    kind: ElementKind;
+    frame: Frame;
+    enabled: boolean;
+    depth: number;
+    testId?: string;
+    text?: string;
+    accessibilityLabel?: string;
+    value?: string;
+    placeholder?: string;
+    font?: {
+        size: number;
+        bold?: boolean;
+    };
+    focused?: boolean;
+    parent?: number;
+    tag?: number;
+    covered?: boolean;
+    hidden?: HiddenReason;
+    offscreen?: boolean;
+};
+export type Screen = {
+    route?: string;
+    params?: unknown;
+    path: string[];
+    elements: Element[];
+    commit: number;
+    busy: boolean;
+    window: {
+        w: number;
+        h: number;
+    };
+    presenting?: {
+        i: number;
+        modal: boolean;
+        testId?: string;
+    };
+    costMs: number;
+};
+export type Scope = {
+    testId: string;
+} | {
+    text: string;
+};
+export type Target = {
+    testId: string;
+    nth?: number;
+    within?: Scope;
+} | {
+    text: string;
+    nth?: number;
+    within?: Scope;
+} | {
+    i: number;
+} | {
+    x: number;
+    y: number;
+};
+export type PressOptions = {
+    holdMs?: number;
+    mode?: 'native' | 'js';
+};
+export type SwipeParams = {
+    direction?: 'up' | 'down' | 'left' | 'right';
+    target?: Target;
+    distance?: number;
+    from?: {
+        x: number;
+        y: number;
+    };
+    to?: {
+        x: number;
+        y: number;
+    };
+    durationMs?: number;
+};
+export type WaitForParams = {
+    route?: string;
+    target?: Target;
+    anyOf?: Target[];
+    gone?: boolean;
+    enabled?: boolean;
+    scroll?: boolean;
+    timeoutMs?: number;
+    since?: number;
+};
+export type TraceEvent = {
+    seq: number;
+    t: number;
+} & ({
+    kind: 'route';
+    route?: string;
+    path: string[];
+} | {
+    kind: 'request';
+    method: string;
+    url: string;
+    status?: number;
+    ms?: number;
+    error?: string;
+    mocked?: boolean;
+} | {
+    kind: 'store';
+    store: string;
+    changed: Record<string, {
+        from: unknown;
+        to: unknown;
+    }>;
+} | {
+    kind: 'event';
+    name: string;
+    props?: Record<string, unknown>;
+    route?: string;
+} | {
+    kind: 'command';
+    method: string;
+    ms: number;
+    error?: string;
+} | {
+    kind: 'stall';
+    renders: number;
+    windowMs: number;
+    component?: string;
+} | {
+    kind: 'touch';
+    x: number;
+    y: number;
+    testId?: string;
+    text?: string;
+    route?: string;
+} | {
+    kind: 'crash';
+    message: string;
+    stack?: string;
+    route?: string;
+});
+export type Exchange = {
+    headers?: Record<string, string>;
+    body?: string;
+    truncated?: boolean;
+};
+export type RequestRecord = {
+    id: number;
+    method: string;
+    url: string;
+    status?: number;
+    startedAt: number;
+    ms?: number;
+    error?: string;
+    mocked?: boolean;
+    request?: Exchange;
+    response?: Exchange;
+};
+export type CoreMethods = {
+    ping: {
+        params: undefined;
+        result: {
+            pong: true;
+            native: boolean;
+            commands: string[];
+        };
+    };
+    screen: {
+        params: undefined;
+        result: Screen;
+    };
+    find: {
+        params: Target;
+        result: Element | null;
+    };
+    press: {
+        params: Target & PressOptions;
+        result: {
+            x: number;
+            y: number;
+            element?: Element;
+            mode: 'native' | 'js';
+        };
+    };
+    type: {
+        params: {
+            text: string;
+            target?: Target;
+            clear?: boolean;
+            paste?: boolean;
+            submit?: boolean;
+        };
+        result: {
+            typed: string;
+            element?: Element;
+        };
+    };
+    swipe: {
+        params: SwipeParams;
+        result: {
+            from: {
+                x: number;
+                y: number;
+            };
+            to: {
+                x: number;
+                y: number;
+            };
+        };
+    };
+    navigate: {
+        params: {
+            name: string;
+            params?: object;
+        };
+        result: {
+            route: string;
+        };
+    };
+    back: {
+        params: undefined;
+        result: {
+            route?: string;
+        };
+    };
+    waitFor: {
+        params: WaitForParams;
+        result: {
+            route?: string;
+            matched?: Target;
+            waitedMs: number;
+            passed?: boolean;
+        };
+    };
+    idle: {
+        params: {
+            quietMs?: number;
+            timeoutMs?: number;
+            after?: number;
+        } | undefined;
+        result: {
+            commit: number;
+            idle: boolean;
+        };
+    };
+    deepLink: {
+        params: {
+            url: string;
+        };
+        result: {
+            opened: string;
+        };
+    };
+    requests: {
+        params: {
+            since?: number;
+        } | undefined;
+        result: {
+            inFlight: number;
+            held?: number;
+            requests: RequestRecord[];
+        };
+    };
+    trace: {
+        params: {
+            since?: number;
+        } | undefined;
+        result: {
+            last: number;
+            events: TraceEvent[];
+        };
+    };
+    dismissKeyboard: {
+        params: undefined;
+        result: boolean;
+    };
+    batch: {
+        params: {
+            calls: {
+                method: string;
+                params?: unknown;
+            }[];
+        };
+        result: {
+            results: unknown[];
+        };
+    };
+};
+export type Request = {
+    id: number;
+    method: string;
+    params?: unknown;
+};
+export type Response = {
+    id: number;
+    result: unknown;
+} | {
+    id: number;
+    error: {
+        message: string;
+        code?: string;
+    };
+};
+export type HelloEvent = {
+    event: 'hello';
+    protocolVersion: number;
+    agentVersion?: string;
+    platform: 'ios' | 'android' | string;
+    native: boolean;
+    commands: string[];
+    route?: string;
+    app?: Record<string, unknown>;
+    nonce?: string;
+    proof?: string;
+};
+export type NavigationEvent = {
+    event: 'navigation';
+    route?: string;
+};
+export type AuthEvent = {
+    event: 'auth';
+    session: string;
+    nonce?: string;
+};
+export type VerifiedEvent = {
+    event: 'verified';
+    proof?: string;
+};
+export type AgentEvent = HelloEvent | NavigationEvent;
+export * from './run.js';
+export * from './fixtures.js';
+
+// run.ts
+import type { RequestRecord } from './index.js';
+export declare const RUN_SCHEMA = 1;
+export type RunEventOrigin = 'app' | 'server';
+export type RunEvent = {
+    origin: RunEventOrigin;
+    name: string;
+    props?: Record<string, unknown>;
+    provider?: string;
+    route?: string;
+    at?: string;
+    requestId?: string;
+};
+export type RunStepStatus = 'passed' | 'failed' | 'skipped' | 'unsupported';
+export type RunBackendSpan = {
+    name: string;
+    kind: string;
+    at: number;
+    ms: number;
+    depth: number;
+    service?: string;
+    error?: string;
+    attributes?: Record<string, string | number | boolean>;
+};
+export type RunStep = {
+    step: string;
+    status: RunStepStatus;
+    ms: number;
+    error?: string;
+    section?: 'setup' | 'steps';
+    heading?: string;
+    events?: RunEvent[];
+    screenshot?: string;
+    videoS?: number;
+    backend?: RunBackendSpan[];
+    requests?: RequestRecord[];
+    logs?: RunLogLine[];
+    looked?: RunLooked;
+};
+export type RunLooked = {
+    listing: string;
+    scrolls: RunScroll[];
+    scrollsTotal: number;
+    target?: {
+        found: boolean;
+        last?: string;
+        seen: RunSighting[];
+    };
+};
+export type RunScroll = {
+    atMs: number;
+    direction: 'down' | 'up';
+    moved: boolean;
+    before: RunEdges;
+    after: RunEdges;
+};
+export type RunEdges = {
+    count: number;
+    first?: string;
+    last?: string;
+};
+export type RunSighting = {
+    atMs: number;
+    scrolls: number;
+    state: string;
+};
+export type RunLogLine = {
+    at: number;
+    level: 'debug' | 'info' | 'warn' | 'error';
+    source: string;
+    text: string;
+    stack?: string;
+};
+export type RunCase = {
+    id: string;
+    title?: string;
+    description?: string;
+    about?: {
+        description?: string;
+        why?: string;
+        given?: string;
+        ticket?: string;
+        expected?: string;
+    };
+    file: string;
+    attempt: number;
+    result: 'passed' | 'failed' | 'unsupported';
+    startedAt: string;
+    ms: number;
+    steps: RunStep[];
+    diagnosis?: string[];
+    evidence?: {
+        screen?: string;
+        requests?: string[];
+        why?: string;
+    };
+    video?: string;
+};
+export type RunLaunchFact = 'seed' | 'locale' | 'timeZone' | 'epoch';
+export type RunLaunch = {
+    seed?: string;
+    locale?: string;
+    timeZone?: string;
+    epoch?: string;
+    unsupported?: RunLaunchFact[];
+};
+export type RunNativeValue = {
+    module: string;
+    property?: string;
+    platform: 'ios' | 'android';
+    host: 'fastsim' | 'headless';
+    readAs: 'function' | 'undefined';
+    called?: boolean;
+};
+export type RunManifest = {
+    schema: typeof RUN_SCHEMA;
+    startedAt: string;
+    finishedAt?: string;
+    platform?: string;
+    native?: boolean;
+    git?: {
+        branch?: string;
+        localBranch?: string;
+        commit?: string;
+        remote?: string;
+        changed?: string[];
+        changedCount?: number;
+        pushed?: {
+            branch: boolean;
+            commit: boolean;
+        };
+    };
+    launch?: RunLaunch;
+    nativeValues?: RunNativeValue[];
+    totals?: {
+        cases: number;
+        passed: number;
+        failed: number;
+        unsupported: number;
+        retried: number;
+    };
+};
