@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/fastsim.dart';
@@ -26,6 +29,32 @@ void main() {
       '10.0.2.2',
       '192.168.1.5',
     });
+  });
+
+  test('a plugin message the host forwards, for an app with its own binding, is answered by the stand-ins', () async {
+    final standIns = StandIns(log: (_) {})
+      ..add('fastsim.test/prefs', (method, args) => method == 'get' ? 'kept' : null);
+    ByteData forwarded(String channel, ByteData message) {
+      final name = utf8.encode(channel);
+      final bytes = BytesBuilder()
+        ..add((ByteData(4)..setUint32(0, name.length, Endian.little)).buffer.asUint8List())
+        ..add(name)
+        ..add(message.buffer.asUint8List(message.offsetInBytes, message.lengthInBytes));
+      return ByteData.sublistView(bytes.toBytes());
+    }
+
+    const codec = StandardMethodCodec();
+    final answer = await answerForwarded(
+      standIns,
+      forwarded('fastsim.test/prefs', codec.encodeMethodCall(const MethodCall('get'))),
+    );
+    expect(codec.decodeEnvelope(answer!), 'kept');
+    // The host's own channels never reach the agent this way, and a short message is not one.
+    expect(
+      await answerForwarded(standIns, forwarded('flutter/platform', codec.encodeMethodCall(const MethodCall('x')))),
+      isNull,
+    );
+    expect(await answerForwarded(standIns, ByteData(2)), isNull);
   });
 
   testWidgets('the safe area is the padding, less what the keyboard covers', (tester) async {

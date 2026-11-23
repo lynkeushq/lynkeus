@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -28,6 +29,11 @@ import 'standins.dart';
 
 const channelName = 'lynkeus/fastsim';
 
+/// Where the host hands the agent a plugin's message it does not answer itself, when the app's binding is not the
+/// agent's: the channel's name (its UTF-8 length in 4 bytes, little-endian, then the bytes) and the message. The
+/// agent's reply is the plugin's answer; empty is "not implemented".
+const pluginChannelName = 'lynkeus/fastsim/plugin';
+
 /// What the FastSim host tells the agent through the environment.
 class FastSimHost {
   FastSimHost._(this.env);
@@ -43,6 +49,9 @@ class FastSimHost {
 
   /// Whether the binding is the agent's (with the device's safe area), or the app made one first.
   bool ownsBinding = false;
+
+  /// With the app's own binding: the host hands the plugins' messages to the stand-ins over [pluginChannelName].
+  bool pluginsForwarded = false;
 
   /// What answers the plugins' channels, when the binding is the agent's; the host answers them otherwise.
   StandIns? standIns;
@@ -82,9 +91,17 @@ class FastSimHost {
     if (BindingBase.debugBindingType() == null) LynkeusBinding();
     if (WidgetsBinding.instance is! FastSimHooks) {
       debugPrint(
-        'lynkeus: the app made its own binding before LynkeusAgent.start(), so on FastSim the safe area and the '
-        'plugin stand-ins are off. $bindingRemedy',
+        'lynkeus: the app made its own binding before LynkeusAgent.start(), so on FastSim the safe area is off; '
+        'the plugin stand-ins answer through the host. $bindingRemedy',
       );
+      final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace', hostSaysViews: true);
+      ServicesBinding.instance.defaultBinaryMessenger.setMessageHandler(
+        pluginChannelName,
+        (message) async => answerForwarded(standIns, message),
+      );
+      this.standIns = standIns;
+      pluginsForwarded = true;
+      _explainErrors();
       return;
     }
     standIns = FastSimRoot.current?.standIns;
@@ -119,6 +136,7 @@ class FastSimHost {
             'agentVersion': agentVersion,
             'binding': ownsBinding ? 'lynkeus' : 'app',
             'safeArea': ownsBinding && safeArea != null,
+            if (pluginsForwarded) 'plugins': 'forward',
           })
           .timeout(const Duration(seconds: 5));
       if (answer is Map) reply = answer;
@@ -147,6 +165,20 @@ class FastSimHost {
       channel.invokeMethod<void>('activity', {'serving': serving, 'inFlight': inFlight}).catchError((Object _) {}),
     );
   }
+}
+
+/// A plugin's message the host forwarded (see [pluginChannelName]), answered by [standIns]; null when no stand-in
+/// takes it, which the host turns into "not implemented".
+@visibleForTesting
+Future<ByteData?> answerForwarded(StandIns standIns, ByteData? forwarded) async {
+  if (forwarded == null || forwarded.lengthInBytes < 4) return null;
+  final length = forwarded.getUint32(0, Endian.little);
+  if (forwarded.lengthInBytes < 4 + length) return null;
+  final bytes = forwarded.buffer.asUint8List(forwarded.offsetInBytes, forwarded.lengthInBytes);
+  final channel = utf8.decode(bytes.sublist(4, 4 + length));
+  if (!StandIns.handles(channel, hostViews: true)) return null;
+  final message = ByteData.sublistView(Uint8List.fromList(bytes.sublist(4 + length)));
+  return standIns.answer(channel, message.lengthInBytes == 0 ? null : message);
 }
 
 /// What the agent's binding does inside FastSim, from its constructor on: its root view carries the device's safe
