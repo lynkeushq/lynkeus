@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
@@ -9,11 +8,10 @@ import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../confi
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
-import { findFlutter, flutterHostEnv, flutterProject, writeFlutterHost } from './flutterHost.js';
-import { flutterChecks, flutterHeadlessCheck } from './flutterStatus.js';
+import { chooseRuntime, loadRuntime, runtimeAt } from '../runtimes/index.js';
 import { installedFastsim } from './fastsim.js';
-import { headlessMissing, init, installHeadless, jestPreset, setupChecks } from './init.js';
-import { setupApp } from './initFlutter.js';
+import { runHost } from './hostProcess.js';
+import { headlessMissing, init, installHeadless, jestPreset } from './init.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -137,66 +135,6 @@ const jestDefaults = (root: string): string[] => {
   return flags;
 };
 
-/** Runs a host in a process group of its own, passes signals on, and explains its crash when it ends in one. */
-const runHost = async (ctx: Ctx, command: string, args: string[], env: NodeJS.ProcessEnv): Promise<number> => {
-  const child = spawn(command, args, {
-    cwd: ctx.root,
-    stdio: ['inherit', 'inherit', 'pipe'],
-    env,
-    // Its own process group: the runner (npx and jest, or flutter and flutter_tester) and the host end together.
-    // Stopping only npx left the host dialing the port, where a later run's driver took it for the app it meant to drive.
-    detached: true,
-  });
-  const stop = (signal: NodeJS.Signals) => {
-    try {
-      if (child.pid) process.kill(-child.pid, signal);
-    } catch {
-      // already gone
-    }
-  };
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
-  const forward = signals.map((signal) => {
-    const handler = () => stop(signal);
-    process.on(signal, handler);
-    return () => process.off(signal, handler);
-  });
-  const onExit = () => stop('SIGTERM');
-  process.on('exit', onExit);
-  let tail = '';
-  child.stderr?.on('data', (chunk: Buffer) => {
-    process.stderr.write(chunk);
-    tail = (tail + chunk.toString()).slice(-20000);
-  });
-  const code = await new Promise<number>((resolve) => child.on('exit', (c) => resolve(c ?? 0)));
-  for (const off of forward) off();
-  process.off('exit', onExit);
-  if (code) {
-    const found = explainError(tail);
-    if (found.length) ctx.err(describeExplanations(found));
-  }
-  return code;
-};
-
-/** `headless start` for a Flutter app: its own main() inside `flutter test`, through lynkeus_headless. */
-const startFlutter = async (ctx: Ctx, token: string): Promise<{ text?: string; code: number }> => {
-  const project = flutterProject(ctx.root)!;
-  if (!project.hosted)
-    return {
-      text: 'lynkeus headless hosts a Flutter app through the lynkeus_headless package: add it to dev_dependencies in pubspec.yaml (`flutter pub add --dev lynkeus_headless`, or a path to flutter/lynkeus_headless).',
-      code: 1,
-    };
-  const sdk = findFlutter(ctx.root);
-  if (!sdk)
-    return { text: 'lynkeus headless runs a Flutter app under `flutter test` and found no Flutter SDK: put flutter on PATH or set FLUTTER_ROOT.', code: 1 };
-  const entry = (ctx.flags.entry as string | undefined) ?? (ctx.config.entry?.endsWith('.dart') ? ctx.config.entry : 'lib/main.dart');
-  if (!fs.existsSync(path.join(ctx.root, entry)))
-    return { text: `No ${entry} in ${ctx.root}: the host runs the app's main() from it (--entry to name another).`, code: 1 };
-  const port = portFromEnv(ctx.config);
-  const file = writeFlutterHost(ctx.root, project, entry, port);
-  const env = { ...process.env, ...flutterHostEnv(sdk, token, port, ctx.config.flutterHost), LYNKEUS_HEADLESS: '1' };
-  return { code: await runHost(ctx, sdk.bin, ['test', path.relative(ctx.root, file), ...ctx.passthrough], env) };
-};
-
 export const headlessCommands = [
   define({
     name: 'init',
@@ -212,7 +150,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const lines = setupApp(ctx.root, { runtime: ctx.flags.runtime as string | undefined, install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
+      const runtime = await loadRuntime(chooseRuntime(ctx.root, ctx.flags.runtime as string | undefined));
+      const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
       return { text: lines.join('\n'), json: lines };
     },
   }),
@@ -225,8 +164,8 @@ export const headlessCommands = [
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const flutter = !!flutterProject(ctx.root);
-      const checks = flutter ? flutterChecks(ctx.root) : setupChecks(ctx.root);
+      const runtime = await runtimeAt(ctx.root);
+      const checks = runtime.setupChecks(ctx.root);
       const ready = checks.every((c) => c.ok);
       if (ready && !ctx.flags.offline) {
         try {
@@ -236,23 +175,11 @@ export const headlessCommands = [
           checks.push({
             what: 'an app is attached',
             ok: false,
-            fix: flutter
-              ? 'run the app in debug with `flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`; or `lynkeus headless start` for no simulator'
-              : 'open a development build made after `lynkeus init`, with Metro restarted (`--reset-cache`); or `lynkeus headless start` for no simulator',
+            fix: runtime.attachFix,
           });
         }
       }
-      if (flutter) checks.push(flutterHeadlessCheck(ctx.root));
-      else {
-        const unloadable = headlessMissing(ctx.root);
-        checks.push({
-          what: unloadable.length
-            ? 'the app can run headless, in Node with no simulator'
-            : 'the app can run headless (jest, Testing Library, lynkeus-headless)',
-          ok: !unloadable.length && fs.existsSync(path.join(ctx.root, entryOf(ctx))),
-          fix: '`lynkeus headless init` installs what it needs and writes its entry; optional',
-        });
-      }
+      checks.push(runtime.headlessCheck(ctx.root, entryOf(ctx)));
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
       const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
       checks.push({
@@ -292,7 +219,8 @@ export const headlessCommands = [
           text: 'lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it.',
           code: 1,
         };
-      if (flutterProject(ctx.root)) return startFlutter(ctx, token);
+      const runtime = await runtimeAt(ctx.root);
+      if (runtime.startHeadless) return runtime.startHeadless(ctx, token);
       const missing = headlessMissing(ctx.root);
       if (missing.length)
         return { text: `lynkeus headless runs the app under jest and needs ${missing.join(', ')}; \`lynkeus headless init\` installs them.`, code: 1 };

@@ -4,19 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import {
-  findFlutter,
-  flutterHostEnv,
-  flutterHostTest,
-  flutterNetworkEnv,
-  flutterProject,
-  HOST_REGISTRATIONS,
-  writeFlutterHost,
-} from '../commands/flutterHost.js';
-import { headlessCommands } from '../commands/headless.js';
-import { hostedHeadless } from '../device/agentVersion.js';
-import type { ScreenGraph } from '../knowledge/types.js';
-import type { Base } from '../registry.js';
+import { findFlutter, flutterHostEnv, flutterHostTest, flutterNetworkEnv, flutterProject, HOST_REGISTRATIONS, writeFlutterHost } from '../host.js';
+import { headlessCommands } from '../../../commands/headless.js';
+import { hostedHeadless } from '../../../device/agentVersion.js';
+import type { ScreenGraph } from '../../../knowledge/types.js';
+import type { Base } from '../../../registry.js';
 
 const project = (pubspec: string | undefined, extra: Record<string, string> = {}): string => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flutter-'));
@@ -132,7 +124,7 @@ test('a plugin with no channel default that the lock shows is registered for the
 });
 
 test("the host file's registrations are the list lynkeus_agent ships for FastSim's generated entry", () => {
-  const shipped = path.join(import.meta.dirname, '..', '..', '..', '..', 'flutter', 'lynkeus_agent', 'lib', 'src', 'host_registrations.json');
+  const shipped = path.join(import.meta.dirname, '..', '..', '..', '..', '..', '..', 'flutter', 'lynkeus_agent', 'lib', 'src', 'host_registrations.json');
   assert.deepEqual(JSON.parse(fs.readFileSync(shipped, 'utf8')).registrations, HOST_REGISTRATIONS);
 });
 

@@ -566,7 +566,6 @@ const calibrate = (): number => {
   return performance.now() - t0;
 };
 
-
 /** The runner's own cost per step on a React Native project, against an app that answers at once. */
 export const measureStepOverhead = async (): Promise<{ msPerStep: number; calibrationMs: number; units: number }> => {
   await loadCli();

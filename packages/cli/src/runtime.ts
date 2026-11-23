@@ -4,14 +4,13 @@
  * MCP server all come through here.
  */
 import fs from 'node:fs';
-import path from 'node:path';
 
 import { UsageError } from './args.js';
-import { flutterProject } from './commands/flutterHost.js';
 import { graphFile } from './config.js';
 import { writeJson } from './files.js';
 import { describeWhy, explain } from './knowledge/why.js';
 import { type Base, helpFor, parseFor, resolve } from './registry.js';
+import { runtimeAt } from './runtimes/index.js';
 import { type Expected, expectedOf } from './targets.js';
 
 export type Outcome = { text?: string; json?: unknown; code: number; error?: string; why?: string };
@@ -55,18 +54,13 @@ const TARGET_ARG: Record<string, number> = { press: 0, see: 0, wait: 0, swipe: 1
 
 /**
  * A command that reads the route graph builds it the first time instead of failing: the first run of `case new` or
- * `smoke` in a new project needs no `map build` before it. A React Native project (a tsconfig) or a Flutter one gets one.
+ * `smoke` in a new project needs no `map build` before it. Any runtime whose routes can be read here gets one.
  */
 const graphFirst = async (root: string): Promise<void> => {
   if (fs.existsSync(graphFile(root))) return;
-  if (flutterProject(root)) {
-    const { extractFlutterGraph } = await import('./knowledge/extractFlutter.js');
-    writeJson(graphFile(root), extractFlutterGraph({ root }));
-    return;
-  }
-  if (!fs.existsSync(path.join(root, 'tsconfig.json'))) return;
-  const { extractScreenGraph } = await import('./knowledge/extract.js');
-  writeJson(graphFile(root), extractScreenGraph({ root }));
+  const runtime = await runtimeAt(root);
+  if (runtime.graphMissing(root)) return;
+  writeJson(graphFile(root), await runtime.buildGraph(root));
 };
 
 export const execute = async (argv: string[], base: Base): Promise<Outcome> => {

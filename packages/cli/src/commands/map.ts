@@ -11,8 +11,9 @@ import { type Affected, pathsTo, screensAffectedBy, vocabularyOf } from '../know
 import * as screens from '../knowledge/screens.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
+import type { RuntimeAdapter } from '../runtimes/index.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { describeGraphDiff, diffGraphs } from './check.js';
-import { flutterProject } from './flutterHost.js';
 
 const baseGraphFile = (root: string) => path.join(lynkeusDir(root), 'graph.base.json');
 
@@ -32,12 +33,10 @@ const describeAffected = (affected: Affected[], chain: boolean): string[] => {
 };
 
 /** Source files a branch changed against `base`, committed or not. */
-export const changedSources = (root: string, base: string, err: (line: string) => void): string[] => {
+export const changedSources = (root: string, base: string, err: (line: string) => void, sources: RuntimeAdapter['sources']): string[] => {
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
-  // A Flutter app's graph names files from the app's folder, which is often not the repository's root.
-  const flutter = !!flutterProject(root);
-  const diff = flutter ? ['diff', '--name-only', '--relative'] : ['diff', '--name-only'];
-  const source = flutter ? /\.dart$/ : /\.[cm]?[jt]sx?$/;
+  const diff = sources.relative ? ['diff', '--name-only', '--relative'] : ['diff', '--name-only'];
+  const source = sources.pattern;
   try {
     const names = `${git(...diff, `${base}...HEAD`)}\n${git(...diff, 'HEAD')}`;
     return [
@@ -64,20 +63,11 @@ export const mapCommands = [
     flags: { 'as-base': { type: 'boolean', help: 'also keep it as graph.base.json, for `map check` to diff against' } },
     needs: 'nothing',
     run: async (ctx) => {
-      const flutter = !!flutterProject(ctx.root);
-      if (!flutter && !fs.existsSync(path.join(ctx.root, 'tsconfig.json')))
-        return { text: `No tsconfig.json under ${ctx.root}: run this inside a React Native app (or pass --root).`, code: 1 };
+      const runtime = await runtimeAt(ctx.root);
+      const missing = runtime.graphMissing(ctx.root);
+      if (missing) return { text: missing, code: 1 };
       const started = Date.now();
-      let graph: ScreenGraph;
-      if (flutter) {
-        const { extractFlutterGraph } = await import('../knowledge/extractFlutter.js');
-        graph = extractFlutterGraph({ root: ctx.root });
-        for (const warning of graph.warnings) ctx.err(`  warning  ${warning}`);
-      } else {
-        // The extractor brings a compiler with it; only this command pays for loading it.
-        const { extractScreenGraph } = await import('../knowledge/extract.js');
-        graph = extractScreenGraph({ root: ctx.root });
-      }
+      const graph = await runtime.buildGraph(ctx.root, ctx.err);
       writeJson(graphFile(ctx.root), graph);
       if (ctx.flags['as-base']) writeJson(baseGraphFile(ctx.root), graph);
       const routes = new Set(Object.keys(graph.screens));
@@ -249,7 +239,7 @@ export const mapCommands = [
     run: async (ctx) => {
       const graph = ctx.graph();
       const base = ctx.flags.base as string;
-      const changed = changedSources(ctx.root, base, ctx.err);
+      const changed = changedSources(ctx.root, base, ctx.err, (await runtimeAt(ctx.root)).sources);
       const affected = screensAffectedBy(graph, changed, ctx.flags.depth as number);
       const lines = [`changed against ${base}: ${changed.length} source file(s)`, ...describeAffected(affected, true)];
       if (!affected.length && changed.length) lines.push('  (no screen imports these files within the depth)');

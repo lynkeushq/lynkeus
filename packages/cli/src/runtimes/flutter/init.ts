@@ -1,11 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ensureToken } from '../config.js';
-import { pluginsNeeded } from './flutterPlugins.js';
-import { installAgent, mountAgent } from './init.js';
-
-export type Runtime = 'react-native' | 'flutter';
+import { ensureToken, pubspecName } from '../api.js';
+import { pluginsNeeded } from './plugins.js';
 
 /** Where `lynkeus_agent` comes from. One place to change when the package is published on pub.dev (`['lynkeus_agent: ^x.y.z']`). */
 const gitDependency = (name: string): string[] => [`${name}:`, '  git:', '    url: https://github.com/lynkeushq/lynkeus.git', `    path: flutter/${name}`];
@@ -23,32 +20,7 @@ export type Edit = { text: string; note: string; done: boolean };
 
 const eolOf = (text: string): string => (text.includes('\r\n') ? '\r\n' : '\n');
 
-/** The top-level `dependencies:` block of a pubspec: its header line and the index where the next top-level key starts. */
-const dependenciesBlock = (lines: string[]): { header: number; end: number } | undefined => {
-  const header = lines.findIndex((line) => /^dependencies:\s*(#.*)?$/.test(line));
-  if (header < 0) return undefined;
-  let end = lines.length;
-  for (let i = header + 1; i < lines.length; i++) {
-    if (/^\S/.test(lines[i]!) && !lines[i]!.startsWith('#')) {
-      end = i;
-      break;
-    }
-  }
-  return { header, end };
-};
-
-export const isFlutterPubspec = (text: string): boolean => {
-  const lines = text.split(/\r?\n/);
-  const block = dependenciesBlock(lines);
-  if (!block) return false;
-  const body = lines.slice(block.header + 1, block.end).join('\n');
-  return /^[ \t]+flutter:\s*(\n[ \t]+sdk:\s*flutter\b|\{\s*sdk:\s*flutter\s*\})/m.test(body);
-};
-
 const byHand = (section: string, lines: string[]): string => `add this under ${section} in pubspec.yaml:\n    ${lines.join('\n    ')}`;
-
-/** The package's name, as `pubspec.yaml` gives it. */
-export const pubspecName = (text: string): string | undefined => /^name:\s*['"]?([A-Za-z_]\w*)['"]?\s*(#.*)?$/m.exec(text)?.[1];
 
 /**
  * Adds a dependency right under its section's header, so comments and the rest of the file stay as they are. A
@@ -315,39 +287,6 @@ export const addPluginsToMain = (text: string): Edit => {
 
 const readIfExists = (file: string): string | undefined => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined);
 
-/**
- * React Native code: react-native among the dependencies, dev or peer dependencies of the folder's package.json. Such
- * a folder keeps its React Native behavior even with a Flutter pubspec beside it; a peer dependency is a React Native
- * library or a monorepo package, whose Flutter example module is not the project.
- */
-export const hasReactNative = (root: string): boolean => {
-  try {
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Partial<
-      Record<'dependencies' | 'devDependencies' | 'peerDependencies', Record<string, string>>
-    >;
-    return !!(manifest.dependencies?.['react-native'] ?? manifest.devDependencies?.['react-native'] ?? manifest.peerDependencies?.['react-native']);
-  } catch {
-    return false;
-  }
-};
-
-/** The flag wins; otherwise a Flutter pubspec, unless the folder is also a React Native app, which keeps its behavior. */
-export const detectRuntime = (root: string, requested?: string): Runtime => {
-  if (requested !== undefined && requested !== 'react-native' && requested !== 'flutter')
-    throw new Error(`--runtime is react-native or flutter, not ${requested}`);
-  if (requested === 'react-native') return 'react-native';
-  const pubspec = readIfExists(path.join(root, 'pubspec.yaml'));
-  const flutter = pubspec !== undefined && isFlutterPubspec(pubspec);
-  if (requested === 'flutter') {
-    if (!flutter)
-      throw new Error(
-        '--runtime flutter needs a pubspec.yaml here whose dependencies include flutter (sdk: flutter); run from the app’s folder or pass --root',
-      );
-    return 'flutter';
-  }
-  return flutter && !hasReactNative(root) ? 'flutter' : 'react-native';
-};
-
 const GIT_NOTE = [
   'lynkeus_agent (and lynkeus_headless) are git dependencies on github.com/lynkeushq/lynkeus until they are on pub.dev, so `flutter pub get` needs that',
   '      repository to have them. From a checkout of Lynkeus, point at it instead in pubspec.yaml:',
@@ -418,14 +357,4 @@ export const initFlutter = (root: string, opts: { install: boolean; headless?: b
     if (pluginsAdded) notes.push('          lynkeus_plugins:', '            path: /path/to/lynkeus/flutter/lynkeus_plugins');
   }
   return notes;
-};
-
-/** `lynkeus init`: Flutter or React Native, by `--runtime` or by what the folder is. */
-export const setupApp = (root: string, opts: { runtime?: string; install: boolean; headless?: boolean }): string[] => {
-  if (detectRuntime(root, opts.runtime) === 'flutter') return initFlutter(root, opts);
-  const lines = [...(opts.install ? [installAgent(root)] : []), ...mountAgent(root)];
-  if (opts.headless) lines.push('--headless is for Flutter; a React Native app runs headless with `lynkeus headless init`');
-  lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
-  lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
-  return lines;
 };

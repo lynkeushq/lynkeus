@@ -21,8 +21,8 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { hostGrantEnv } from './fastsim.js';
-import { flutterNetworkEnv } from './flutterHost.js';
 import { netCacheEnv, startNetRecord, takeNetRecord } from '../cases/netCache.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
@@ -611,8 +611,8 @@ export const caseCommands = [
         // The config's native constants reach the host's environment: it reads them when it starts, before the app does.
         const nativeValues = nativeValuesEnv(config.nativeMocks);
         if (nativeValues) hostEnv = { ...hostEnv, LYNKEUS_NATIVE_VALUES: nativeValues };
-        // A Flutter FastSim host fences its app's network as headless does, to the same flutterHost.networkHosts.
-        if (hostCommand) hostEnv = { ...hostEnv, ...flutterNetworkEnv(ctx.config.flutterHost), ...netEnv };
+        // What the app's runtime has its host read from the environment (a Flutter host's network fence), and the recordings.
+        if (hostCommand) hostEnv = { ...hostEnv, ...(await runtimeAt(ctx.root)).hostCommandEnv(ctx.config), ...netEnv };
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {

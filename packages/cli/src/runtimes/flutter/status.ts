@@ -2,10 +2,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { readToken, tokenFile } from '../config.js';
-import { findFlutter, flutterProject } from './flutterHost.js';
-import { nativeViewPlugins, pluginsNeeded } from './flutterPlugins.js';
-import type { SetupCheck } from './init.js';
+import { readToken, type SetupCheck, tokenFile } from '../api.js';
+import { findFlutter, flutterProject } from './host.js';
+import { nativeViewPlugins, pluginsNeeded } from './plugins.js';
 
 const read = (file: string): string | undefined => {
   try {

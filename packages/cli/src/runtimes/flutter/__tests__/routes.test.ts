@@ -5,12 +5,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { flutterProject } from '../commands/flutterHost.js';
-import { changedSources, mapCommands } from '../commands/map.js';
-import { smoke } from '../commands/smoke.js';
-import type { Device } from '../device/driver.js';
-import type { ScreenGraph } from '../knowledge/types.js';
-import type { Base } from '../registry.js';
+import { flutterProject } from '../host.js';
+import { changedSources, mapCommands } from '../../../commands/map.js';
+import { runtimeAt } from '../../index.js';
+import { flutterRouteParams } from '../routes.js';
+import { smoke } from '../../../commands/smoke.js';
+import type { Device } from '../../../device/driver.js';
+import type { ScreenGraph } from '../../../knowledge/types.js';
+import type { Base } from '../../../registry.js';
 
 const PUBSPEC = 'name: both\ndependencies:\n  flutter:\n    sdk: flutter\n';
 
@@ -68,14 +70,18 @@ test('a React Native library with a Flutter example module, react-native only am
   assert.deepEqual(Object.keys(base(root).graph().screens), ['Main']);
 });
 
-test('a React Native diff lists TypeScript sources from the repository root, never Dart ones', () => {
+test('a React Native diff lists TypeScript sources from the repository root, never Dart ones', async () => {
   const root = reactNativeAndFlutter();
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
   git('init', '-q', '-b', 'main');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'base');
   git('add', '.');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'change');
-  assert.deepEqual(changedSources(root, 'HEAD~1', () => {}).sort(), ['app/navigation/Root.tsx', 'app/navigation/types.d.ts', 'app/screens/Main.tsx']);
+  assert.deepEqual(changedSources(root, 'HEAD~1', () => {}, (await runtimeAt(root)).sources).sort(), [
+    'app/navigation/Root.tsx',
+    'app/navigation/types.d.ts',
+    'app/screens/Main.tsx',
+  ]);
 });
 
 test('a Flutter project builds its graph from Dart, and lists its Dart sources relative to the app', async () => {
@@ -92,7 +98,7 @@ test('a Flutter project builds its graph from Dart, and lists its Dart sources r
   git('add', 'app/lib', 'app/pubspec.yaml');
   git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'change');
   assert.deepEqual(
-    changedSources(root, 'HEAD~1', () => {}),
+    changedSources(root, 'HEAD~1', () => {}, (await runtimeAt(root)).sources),
     ['lib/main.dart'],
   );
 });
@@ -126,12 +132,13 @@ test('smoke on React Native reads the ParamList and ignores the fields only a Fl
 test('smoke on Flutter opens the routes that need nothing, from the graph', async () => {
   const opened: string[] = [];
   const screen = (route: string) => ({ route, component: route, file: null, declaredIn: 'x' });
+  const graph = graphOf({ '/': screen('/'), '/item/:id': { ...screen('/item/:id'), params: ['id'] }, Items: { ...screen('Items'), unnamed: true } });
   await smoke({
     device: fakeDevice(opened),
-    graph: graphOf({ '/': screen('/'), '/item/:id': { ...screen('/item/:id'), params: ['id'] }, Items: { ...screen('Items'), unnamed: true } }),
+    graph,
     appRoot: tmp({}),
     outDir: fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-smoke-')),
-    runtime: 'flutter',
+    routeParams: flutterRouteParams(graph),
   });
   assert.deepEqual(opened, ['/']);
 });

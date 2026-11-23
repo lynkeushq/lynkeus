@@ -3,9 +3,9 @@ import { test } from 'node:test';
 
 import { DartProject } from '../dart/project.js';
 import { literalOf, tokenize } from '../dart/lexer.js';
-import { readFlutterProject } from '../extractFlutter.js';
-import { screensAffectedBy } from '../query.js';
-import { flutterRouteParams } from '../route-params.js';
+import { readFlutterProject } from '../routes.js';
+import { screensAffectedBy } from '../../../knowledge/query.js';
+import { flutterRouteParams } from '../routes.js';
 
 const read = (sources: Record<string, string>) =>
   readFlutterProject(

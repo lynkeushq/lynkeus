@@ -2,9 +2,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { lynkeusDir } from '../config.js';
-import { lockedVersions } from './flutterPlugins.js';
-import { hasReactNative } from './initFlutter.js';
+import { lynkeusDir, pubspecName, runtimeOf } from '../api.js';
+import { lockedVersions } from './plugins.js';
 
 /** A Flutter app: its pubspec names the package and depends on the Flutter SDK. */
 export type FlutterProject = { name: string; hosted: boolean };
@@ -38,25 +37,15 @@ const keysOf = (lines: string[] | undefined): string[] => {
 };
 
 /**
- * The Flutter app at `root`, if it is one: a pubspec.yaml whose dependencies take `flutter` from the SDK, in a folder
- * that is not also a React Native app (which keeps its behavior, as `lynkeus init` decides).
+ * The Flutter app at `root`, if it is one (`runtimeOf` says which runtime a folder is).
  * `hosted`: lynkeus_headless is among its dependencies, so `flutter test` can host it.
  */
 export const flutterProject = (root: string): FlutterProject | undefined => {
-  if (hasReactNative(root)) return undefined;
-  let text: string;
-  try {
-    text = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
-  } catch {
-    return undefined;
-  }
+  if (runtimeOf(root) !== 'flutter') return undefined;
+  const text = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
   const parts = sections(text);
-  const name = parts.get('name')?.[0]?.replace(/^['"]|['"]$/g, '');
-  const dependencies = parts.get('dependencies');
-  const flutterAt = dependencies?.findIndex((l) => /^\s+flutter:\s*$/.test(l)) ?? -1;
-  if (!name || !dependencies || flutterAt < 0 || !/^\s+sdk:\s*flutter\s*$/.test(dependencies[flutterAt + 1] ?? '')) return undefined;
-  const hosted = [...keysOf(dependencies), ...keysOf(parts.get('dev_dependencies'))].includes('lynkeus_headless');
-  return { name, hosted };
+  const hosted = [...keysOf(parts.get('dependencies')), ...keysOf(parts.get('dev_dependencies'))].includes('lynkeus_headless');
+  return { name: pubspecName(text)!, hosted };
 };
 
 export type FlutterSdk = { bin: string; root: string };

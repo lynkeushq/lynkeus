@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { define, type Ctx, type Result } from '../registry.js';
-import { hasReactNative } from './initFlutter.js';
+import { loadRuntime, runtimeFlag } from '../runtimes/index.js';
 import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
 import { serviceBase } from './report.js';
 
@@ -98,47 +98,15 @@ export const installedFastsim = (dir: string = fastsimCacheDir()): { version: st
   }
 };
 
-export type FastsimRuntime = 'react-native' | 'flutter';
-
-/**
- * The runtime a project's app is built with: Flutter when its pubspec takes flutter from the SDK and the folder is not
- * also a React Native app (which keeps its behavior, as `lynkeus init` decides), React Native otherwise.
- */
-export const projectRuntime = (root: string): FastsimRuntime => {
-  if (hasReactNative(root)) return 'react-native';
-  try {
-    const pubspec = fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8');
-    return /^dependencies:[\s\S]*?^\s+flutter:\s*\n\s+sdk:\s*flutter\s*$/m.test(pubspec) ? 'flutter' : 'react-native';
-  } catch {
-    return 'react-native';
-  }
-};
-
-/** `--runtime` when given, else the project's. */
-export const fastsimRuntime = (flag: unknown, root: string): FastsimRuntime => {
-  if (flag === undefined) return projectRuntime(root);
-  if (flag !== 'react-native' && flag !== 'flutter') throw new Error(`the runtime is react-native or flutter, not ${String(flag)}`);
-  return flag;
-};
-
 // iOS matches the simulator only on a Mac; Linux draws it with the Inter stand-in. Windows runs the Linux build in WSL2.
-// A Flutter app runs on a host of its own (Flutter's embedder), one package per machine for both platforms: the engine
-// draws iOS and Android with the same code, and the platform is chosen when the app runs.
-export const fastsimVariant = (
-  platform: string,
-  os: NodeJS.Platform = process.platform,
-  arch: string = process.arch,
-  runtime: FastsimRuntime = 'react-native',
-): string => {
-  const flutter = runtime === 'flutter';
-  const target = flutter ? 'flutter' : platform;
-  if (!flutter && platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);
+// `build` is what the app's runtime calls its FastSim build for the platform asked for (ios, android, or one for both).
+export const fastsimVariant = (build: string, os: NodeJS.Platform = process.platform, arch: string = process.arch): string => {
   if (os === 'win32') throw new Error('Lynkeus FastSim runs on Windows inside WSL2: run lynkeus there, where it installs the Linux build');
   if (os === 'darwin') {
     if (arch !== 'arm64') throw new Error('Lynkeus FastSim runs on Apple Silicon Macs only');
-    return `darwin-arm64-${target}`;
+    return `darwin-arm64-${build}`;
   }
-  if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${target}`;
+  if (os === 'linux' && (arch === 'x64' || arch === 'arm64')) return `linux-${arch}-${build}`;
   throw new Error(`Lynkeus FastSim has no build for ${os} on ${arch}`);
 };
 
@@ -426,7 +394,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         const variant =
           typeof ctx.flags.variant === 'string'
             ? ctx.flags.variant
-            : fastsimVariant(String(ctx.flags.platform), process.platform, process.arch, fastsimRuntime(ctx.flags.runtime, ctx.root));
+            : fastsimVariant((await loadRuntime(runtimeFlag(ctx.flags.runtime, ctx.root))).fastsimBuild(String(ctx.flags.platform)));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const { release, dir, installed } = await installFastsim({
             cloud,
@@ -483,7 +451,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         const variant =
           typeof ctx.flags.variant === 'string'
             ? ctx.flags.variant
-            : fastsimVariant(String(ctx.flags.platform), process.platform, process.arch, fastsimRuntime(ctx.flags.runtime, ctx.root));
+            : fastsimVariant((await loadRuntime(runtimeFlag(ctx.flags.runtime, ctx.root))).fastsimBuild(String(ctx.flags.platform)));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const got = await fetchGrant({ cloud, key, variant, signedIn });
           const json = { grant: got.grant, expiresAt: got.expiresAt, variant };

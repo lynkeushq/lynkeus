@@ -15,8 +15,8 @@ import { type Device, describeScreen } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
-import { flutterProject } from '../commands/flutterHost.js';
 import { execute } from '../runtime.js';
+import { type RuntimeAdapter, runtimeAt } from '../runtimes/index.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -689,9 +689,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       return there();
     };
     const middle = Math.round(h * 0.5);
-    // In a Flutter app, a control known to be just below the window is reached in short pulls: a screenful would carry
-    // it out of the window, and out of a list that only builds what is near the window. React Native keeps its pulls.
-    if (toward === 'below' && isFlutter()) return pull(middle, middle - 110, 30, 'down');
+    if (toward === 'below' && (await policy()).shortPullsBelow) return pull(middle, middle - 110, 30, 'down');
     if (toward !== 'above' && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
     return pull(middle, middle + 110, 30, 'up');
   };
@@ -855,9 +853,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return !!hello?.native && !hello.commands?.includes('clock');
   };
 
-  // React Native wins in a folder that is both, as everywhere else.
-  let flutter: boolean | undefined;
-  const isFlutter = () => (flutter ??= !!flutterProject(base.root));
+  // How the app's runtime wants targets reached, read once per case.
+  let reaching: RuntimeAdapter['runner'] | undefined;
+  const policy = async () => (reaching ??= (await runtimeAt(base.root)).runner);
 
   let handling = false;
   const interrupted = async (value: StepValue): Promise<void> => {
@@ -944,11 +942,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
-          // In a Flutter project `{ text: Delete }` names a text, never a route, whatever its case, as it does in
-          // app.see. A React Native project keeps the CLI's reading of it: a route, milliseconds, a #testId or a text.
+          // Where the runtime says so, `{ text: Delete }` names a text, never a route, whatever its case, as it does in
+          // app.see. Otherwise it keeps the CLI's reading of it: a route, milliseconds, a #testId or a text.
           let named = params;
           let asking: StepValue = value;
-          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined && isFlutter()) {
+          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined && (await policy()).waitTextIsText) {
             const { text, ...rest } = params;
             named = { ...rest, what: quotedText(text) };
             asking = named as StepValue;

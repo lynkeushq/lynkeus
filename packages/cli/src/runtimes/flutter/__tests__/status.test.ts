@@ -6,7 +6,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { flutterChecks, flutterHeadlessCheck, startOrder } from '../commands/flutterStatus.js';
+import { flutterChecks, flutterHeadlessCheck, startOrder } from '../status.js';
 
 const PUBSPEC = (extra = '') => `name: shop_app\ndependencies:\n  flutter:\n    sdk: flutter\n${extra}`;
 
@@ -87,7 +87,7 @@ test('headless is hosted when lynkeus_headless is a dependency', () => {
   assert.equal(flutterHeadlessCheck(project({ 'pubspec.yaml': PUBSPEC('  lynkeus_headless:\n    path: ../h\n') })).ok, true);
 });
 
-const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'lib', 'cli.js');
+const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'lib', 'cli.js');
 const status = (root: string) =>
   spawnSync('node', [cli, 'status', '--offline', '--root', root], { encoding: 'utf8', env: { ...process.env, LYNKEUS_TOKEN: '' } }).stdout;
 

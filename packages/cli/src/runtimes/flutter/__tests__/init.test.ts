@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { lockedVersions, pluginsNeeded } from '../commands/flutterPlugins.js';
+import { lockedVersions, pluginsNeeded } from '../plugins.js';
 import {
   addAgentToMain,
   addAgentToPubspec,
@@ -12,13 +12,12 @@ import {
   addPluginsToMain,
   addPluginsToPubspec,
   AGENT_DEPENDENCY,
-  detectRuntime,
-  hasReactNative,
-  isFlutterPubspec,
+  initFlutter,
   pluginsDependencyLike,
-  pubspecName,
-  setupApp,
-} from '../commands/initFlutter.js';
+} from '../init.js';
+import { chooseRuntime, hasReactNative, isFlutterPubspec, pubspecName } from '../../detect.js';
+
+const setupApp = (root: string, options: { install: boolean; headless?: boolean }) => initFlutter(root, options);
 
 const PUBSPEC = `name: demo
 description: A demo.
@@ -281,21 +280,21 @@ test('runtime detection: Flutter by pubspec, React Native wins a mixed folder un
   const flutter = tmp({ 'pubspec.yaml': PUBSPEC });
   const mixed = tmp({ 'pubspec.yaml': PUBSPEC, 'package.json': JSON.stringify({ dependencies: { 'react-native': '0.80.0' } }) });
   const rn = tmp({ 'package.json': JSON.stringify({ dependencies: { 'react-native': '0.80.0' } }) });
-  assert.equal(detectRuntime(flutter), 'flutter');
-  assert.equal(detectRuntime(mixed), 'react-native');
-  assert.equal(detectRuntime(mixed, 'flutter'), 'flutter');
-  assert.equal(detectRuntime(flutter, 'react-native'), 'react-native');
-  assert.equal(detectRuntime(rn), 'react-native');
-  assert.throws(() => detectRuntime(rn, 'flutter'), /needs a pubspec/);
-  assert.throws(() => detectRuntime(rn, 'dart'), /react-native or flutter/);
+  assert.equal(chooseRuntime(flutter), 'flutter');
+  assert.equal(chooseRuntime(mixed), 'react-native');
+  assert.equal(chooseRuntime(mixed, 'flutter'), 'flutter');
+  assert.equal(chooseRuntime(flutter, 'react-native'), 'react-native');
+  assert.equal(chooseRuntime(rn), 'react-native');
+  assert.throws(() => chooseRuntime(rn, 'flutter'), /needs a pubspec/);
+  assert.throws(() => chooseRuntime(rn, 'dart'), /react-native or flutter/);
 });
 
 test('runtime detection: react-native as a peer dependency is React Native too; a package.json without it leaves Flutter', () => {
   const library = tmp({ 'pubspec.yaml': PUBSPEC, 'package.json': JSON.stringify({ peerDependencies: { react: '*', 'react-native': '*' } }) });
-  assert.equal(detectRuntime(library), 'react-native');
+  assert.equal(chooseRuntime(library), 'react-native');
   assert.equal(hasReactNative(library), true);
   const tools = tmp({ 'pubspec.yaml': PUBSPEC, 'package.json': JSON.stringify({ peerDependencies: { react: '*' }, devDependencies: { prettier: '3' } }) });
-  assert.equal(detectRuntime(tools), 'flutter');
+  assert.equal(chooseRuntime(tools), 'flutter');
   assert.equal(hasReactNative(tools), false);
 });
 
