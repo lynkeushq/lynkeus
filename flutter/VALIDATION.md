@@ -433,8 +433,8 @@ Fixed, each with a test:
 - **A field with only a hint** (the language search, `Search...`) is found by that hint; before, only by an index that
   differs between the looks.
 - **Case format.** `app.press: 5` (a YAML number) failed with a TypeScript error; `app.wait: { text: Delete }` waited
-  for a route called Delete (a capitalized word alone is a route in `app.wait`, React Native's convention). The `text`
-  key now always names a text, as in `app.see` and `app.press`. A bare word and `{ target }` keep their meaning: 
+  for a route called Delete (a capitalized word alone is a route in `app.wait`, React Native's convention). In a Flutter
+  project the `text` key now always names a text, as in `app.see` and `app.press`; a React Native project keeps its old reading. A bare word and `{ target }` keep their meaning: 
   React Native cases wait for routes with `{ target: Home.Main }` and `{ route: Intro.Main }`, so changing those would
   change existing cases. For Flutter, quote the word or use `{ text }`.
 

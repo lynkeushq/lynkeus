@@ -15,6 +15,7 @@ import { type Device, describeScreen } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
+import { flutterProject } from '../commands/flutterHost.js';
 import { execute } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
@@ -851,6 +852,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return !!hello?.native && !hello.commands?.includes('clock');
   };
 
+  // React Native wins in a folder that is both, as everywhere else.
+  let flutter: boolean | undefined;
+  const isFlutter = () => (flutter ??= !!flutterProject(base.root));
+
   let handling = false;
   const interrupted = async (value: StepValue): Promise<void> => {
     if (handling || !config.interruptions?.length) return;
@@ -936,15 +941,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
         else if (params?.request) await waitForRequest(params);
         else {
-          // `{ text: Delete }` names a text, never a route, whatever its case, as it does in app.see.
-          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined) {
+          // In a Flutter project `{ text: Delete }` names a text, never a route, whatever its case, as it does in
+          // app.see. A React Native project keeps the CLI's reading of it: a route, milliseconds, a #testId or a text.
+          let named = params;
+          let asking: StepValue = value;
+          if (params && typeof params.text === 'string' && params.what === undefined && params.target === undefined && isFlutter()) {
             const { text, ...rest } = params;
-            value = { ...rest, what: quotedText(text) } as StepValue;
+            named = { ...rest, what: quotedText(text) };
+            asking = named as StepValue;
           }
-          const what = typeof value === 'string' ? value : String((value as Record<string, unknown>)?.what ?? '');
+          const what = typeof asking === 'string' ? asking : String(named?.what ?? '');
           const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
           if (config.interruptions?.length) {
-            const asked: Record<string, unknown> = { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since };
+            const asked: Record<string, unknown> = { ...(typeof asking === 'string' ? { what: asking } : (named ?? {})), ...since };
             const deadline = Date.now() + (typeof asked.timeoutMs === 'number' ? asked.timeoutMs : 10_000);
             for (;;) {
               await interrupted(value);
@@ -956,7 +965,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
                 throw new Error(outcome.error ?? outcome.text ?? 'wait failed');
               }
             }
-          } else await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value));
+          } else
+            await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof asking === 'string' ? { what: asking } : (named ?? {})), ...since } : asking));
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
           if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
         }

@@ -232,6 +232,8 @@ Con una ruta o un objetivo:
 | `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |
 | `timeoutMs` | número (ms) | `10000` | Cuánto esperar antes de fallar. |
 
+En un proyecto Flutter, `{ text: Siguiente }` espera siempre ese texto, aunque parezca una ruta o un número. En React Native, el valor de `text` se interpreta como si fuera el valor suelto del paso: una palabra con mayúscula es una ruta, `"5"` son milisegundos y `"#id"` un testID.
+
 Con una petición:
 
 | Parámetro | Tipo | Por defecto | Qué hace |

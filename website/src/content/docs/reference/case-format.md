@@ -260,6 +260,8 @@ A `request` counts only the requests the app started after the previous acting s
 A one-word label that starts with a capital letter, such as `Continue`, is read as a route by `app.wait`. Wait for such a control by its `testID`, or put the text in quotes of its own so that it is always a text: `app.wait: '"Continue"'`. See [Quoted targets](#quoted-targets).
 :::
 
+In a Flutter project, `app.wait: { text: Continue }` always waits for the text, whatever it looks like. In a React Native project, `text` is read like a plain value: `Continue` is a route, `"5"` is milliseconds and `"#id"` is a testID.
+
 ### `app.see`
 
 Asserts what the app shows or did. Everything the step names must hold at once.

@@ -43,7 +43,7 @@ A request a mock answered (or whose answer it lost) is marked `mocked`: a failed
 case's evidence says `(mocked)` after it, and its reasons never blame the
 backend for the 500 the case asked for.
 
-A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`; so is `app.wait: { text: Next }`.
+A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`. In a Flutter project `app.wait: { text: Next }` is always a text too; in a React Native one it reads its value as `app.wait: Next` does (a route, milliseconds, `#testId` or a text).
 
 One case runs on a host and on a device. What only one of them needs — closing a
 native screen the host never shows — is kept to it; everywhere else it is

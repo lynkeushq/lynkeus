@@ -128,7 +128,7 @@ steps:
   - app.wait: Next        # waits for a route called Next
   - app.wait: '"Next"'    # waits for the element that says Next
   - app.press: '"12"'     # the control labeled 12, not the element at index 12
-  - app.wait: { text: Next }   # the element that says Next, as in app.see and app.press
+  - app.wait: { text: Next }   # Flutter: the element that says Next; React Native: as app.wait: Next
 ```
 
 The outer quotes are YAML's and the inner ones reach Lynkeus, so use one kind inside the other.
