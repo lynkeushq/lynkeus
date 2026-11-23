@@ -385,6 +385,20 @@ class Methods {
     return point;
   }
 
+  /// A drag by points (a driver scrolling the window) moved up above the keyboard, when it would touch it: on a phone a
+  /// finger there types, and the app's content under it never sees the drag. Shorter only when it does not fit.
+  (Offset, Offset) _offKeyboard(Offset from, Offset to) {
+    const margin = 8.0;
+    final top = _aboveKeyboard() - margin;
+    final lowest = math.max(from.dy, to.dy);
+    if (lowest <= top) return (from, to);
+    final length = (from.dy - to.dy).abs();
+    final room = math.max(top - margin, 0.0);
+    final scale = length > room && length > 0 ? room / length : 1.0;
+    double place(double y) => top - (lowest - y) * scale;
+    return (Offset(from.dx, place(from.dy)), Offset(to.dx, place(to.dy)));
+  }
+
   /// Where the keyboard starts, in points from the top: the window's height less the inset the keyboard takes.
   double _aboveKeyboard() {
     final dispatcher = WidgetsBinding.instance.platformDispatcher;
@@ -413,6 +427,10 @@ class Methods {
       if (found?.kind == 'input' && found?.hidden == 'inert') {
         element = found;
       } else {
+        // As press does: a field its list clips (a form under the keyboard) is scrolled in before the finger lands.
+        if (found != null && found.hidden == null && !_inWindow(found)) {
+          await _waitFor({'target': target.toJson(), 'scroll': true, 'timeoutMs': 5000});
+        }
         element = (await _pressNative(target, 50)).element;
         // The field needs a frame to take focus and attach to the keyboard before it accepts input.
         await _sleep(80);
@@ -470,9 +488,9 @@ class Methods {
       'right': (Offset(width * 0.2, height / 2), Offset(width * 0.8, height / 2)),
     };
     final preset = direction == null ? null : presets[direction];
-    final from = _offset(p['from']) ?? preset?.$1;
-    final to = _offset(p['to']) ?? preset?.$2;
-    if (from == null || to == null) throw AgentError('swipe needs a direction, a target, or from/to points');
+    final asked = (_offset(p['from']) ?? preset?.$1, _offset(p['to']) ?? preset?.$2);
+    if (asked.$1 == null || asked.$2 == null) throw AgentError('swipe needs a direction, a target, or from/to points');
+    final (from, to) = _offKeyboard(asked.$1!, asked.$2!);
     await _drag(from, to, durationMs);
     return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
   }
@@ -563,7 +581,8 @@ class Methods {
     final left = math.max(box.left, 0.0);
     final top = math.max(box.top, 0.0);
     final right = math.min(box.right, win.width);
-    final bottom = math.min(box.bottom, win.height);
+    // A finger on the keyboard types; the drag has to start and end above it.
+    final bottom = math.min(box.bottom, _aboveKeyboard());
     final cx = (left + right) / 2;
     final cy = (top + bottom) / 2;
     final dx = (right - left) * 0.3;

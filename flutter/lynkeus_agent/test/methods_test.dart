@@ -209,6 +209,65 @@ void main() {
     expect(picked, 'Berlin');
   });
 
+  testWidgets('type scrolls in a field its list clips before the finger lands, as press does', (tester) async {
+    final password = TextEditingController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              // A form in a short scroller, as above a keyboard: the last field shows only its top.
+              SizedBox(
+                height: 200,
+                child: ListView(
+                  children: [
+                    for (var i = 0; i < 3; i++) const SizedBox(height: 60, child: TextField()),
+                    TextField(
+                      controller: password,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 56, child: Text('Actions')),
+            ],
+          ),
+        ),
+      ),
+    );
+    methods = Methods();
+    await drive(tester, methods, 'type', {
+      'target': {'text': 'Password'},
+      'text': 's3cret',
+    });
+    expect(password.text, 's3cret');
+  });
+
+  testWidgets('a swipe by points that would touch the keyboard is made above it', (tester) async {
+    tester.view.viewInsets = FakeViewPadding(bottom: 300 * tester.view.devicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    final list = ScrollController();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ListView(
+            controller: list,
+            children: [for (var i = 0; i < 40; i++) ListTile(title: Text('Row $i'))],
+          ),
+        ),
+      ),
+    );
+    methods = Methods();
+    final result = asMap(
+      await drive(tester, methods, 'swipe', {
+        'from': {'x': 400, 'y': 450},
+        'to': {'x': 400, 'y': 150},
+      }),
+    );
+    expect((result['from']! as Map)['y'], lessThanOrEqualTo(292));
+    expect(list.offset, greaterThan(100));
+  });
+
   testWidgets('waitFor with scroll swipes the list until the row is in the window', (tester) async {
     await start(tester);
     expect(find.text('Row 30'), findsNothing);
