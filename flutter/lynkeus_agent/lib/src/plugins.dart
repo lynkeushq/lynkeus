@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'device_plugins.dart';
 import 'fence.dart';
 import 'sqlite.dart';
 import 'standins.dart';
@@ -44,6 +45,12 @@ class PluginState {
   final toOpen = <List<String>>[];
   final saved = <String>[];
 
+  /// Where the phone is, its geocoder's places, its home-screen widgets and the work scheduled with the OS.
+  late DeviceState device = DeviceState(platform);
+
+  /// The platform the host plays (`ios`, `android`), which sets the phone's default position.
+  var platform = 'ios';
+
   /// sqflite's open databases by the id the app holds.
   final _databases = <int, ({String path, SqliteDatabase db})>{};
   var _nextDatabase = 0;
@@ -65,6 +72,7 @@ class PluginState {
     shared.clear();
     toOpen.clear();
     saved.clear();
+    device = DeviceState(platform);
   }
 }
 
@@ -84,6 +92,9 @@ void installPlugins(
   Future<void> Function(String channel, ByteData? message) fromPlatform,
   String platform,
 ) {
+  state
+    ..platform = platform
+    ..device = DeviceState(platform);
   // A Pixel enrolls a fingerprint where an iPhone has Face ID, unless the biometrics command said otherwise.
   if (platform == 'android' && state.biometrics.length == 1 && state.biometrics.first == 'face') {
     state.biometrics = ['fingerprint'];
@@ -285,6 +296,7 @@ void installPlugins(
   });
 
   _installOthers(standIns, state, register);
+  installDevicePlugins(standIns, state.device, state.launched, register, fromPlatform);
   _installSqflite(standIns, state);
 
   register('launched', (params) {

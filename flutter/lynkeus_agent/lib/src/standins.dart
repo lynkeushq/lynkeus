@@ -6,7 +6,19 @@ import 'package:flutter/services.dart';
 /// What a stand-in answers a call with: a value, or a [PlatformException] it throws.
 typedef StandIn = FutureOr<Object?> Function(String method, List<Object?> args);
 
-const _codec = StandardMessageCodec();
+const _codec = _PigeonValues();
+
+/// Reads a Pigeon message whatever classes its API defines: Pigeon writes an object as a type code from 128 up
+/// followed by the list of its fields, and an enum as such a code followed by its index. Read without the API's own
+/// codec, the object is that list and the enum that index.
+class _PigeonValues extends StandardMessageCodec {
+  const _PigeonValues();
+
+  @override
+  Object? readValueOfType(int type, ReadBuffer buffer) =>
+      type >= 128 ? readValue(buffer) : super.readValueOfType(type, buffer);
+}
+
 const _methods = StandardMethodCodec();
 
 /*

@@ -97,20 +97,30 @@ export const flutterHostFile = (root: string, port: number | undefined): string 
 /** Where a project keeps stand-ins of its own: `void configureHost(HostConfig host)`, which the host file passes on. */
 export const PROJECT_HOST = path.join('test', 'lynkeus_host.dart');
 
+/** A plugin's class for one platform: the library that declares it and its name. */
+type PlatformClass = { library: string; name: string };
+
 /**
  * Plugins with no method-channel default whose iOS and Android classes speak a channel the agent stands in for. Their
  * registrant does not run under flutter test, so the host file sets the class for the platform the host plays.
  */
-export const HOST_REGISTRATIONS: { package: string; library: string; ios: string; android: string }[] = [
+export const HOST_REGISTRATIONS: { package: string; ios: PlatformClass; android: PlatformClass }[] = [
   {
     package: 'flutter_local_notifications',
-    library: 'package:flutter_local_notifications/flutter_local_notifications.dart',
-    ios: 'IOSFlutterLocalNotificationsPlugin',
-    android: 'AndroidFlutterLocalNotificationsPlugin',
+    ios: { library: 'package:flutter_local_notifications/flutter_local_notifications.dart', name: 'IOSFlutterLocalNotificationsPlugin' },
+    android: { library: 'package:flutter_local_notifications/flutter_local_notifications.dart', name: 'AndroidFlutterLocalNotificationsPlugin' },
+  },
+  {
+    package: 'workmanager',
+    ios: { library: 'package:workmanager_apple/workmanager_apple.dart', name: 'WorkmanagerApple' },
+    android: { library: 'package:workmanager_android/workmanager_android.dart', name: 'WorkmanagerAndroid' },
   },
 ];
 
-/** The registrations the app's `pubspec.lock` calls for. */
+/** The package a `package:` library belongs to, which the host file also imports it as. */
+const packageOf = (library: string) => /^package:([\w]+)\//.exec(library)![1]!;
+
+/** The registrations the app's `pubspec.lock` calls for: the plugin and both its platform packages are locked. */
 export const hostRegistrations = (root: string): typeof HOST_REGISTRATIONS => {
   let lock: string;
   try {
@@ -119,14 +129,16 @@ export const hostRegistrations = (root: string): typeof HOST_REGISTRATIONS => {
     return [];
   }
   const locked = lockedVersions(lock);
-  return HOST_REGISTRATIONS.filter((r) => locked.has(r.package));
+  return HOST_REGISTRATIONS.filter((r) => [r.package, packageOf(r.ios.library), packageOf(r.android.library)].every((p) => locked.has(p)));
 };
 
 export const flutterHostTest = (project: FlutterProject, entry: string, ownStandIns = false, registrations: typeof HOST_REGISTRATIONS = []): string => {
   const main = entry.replace(/^lib\//, '');
-  const imports = registrations.map((r) => `import '${r.library}' as ${r.package};\n`).join('');
+  const libraries = [...new Set(registrations.flatMap((r) => [r.ios.library, r.android.library]))];
+  const imports = libraries.map((library) => `import '${library}' as ${packageOf(library)};\n`).join('');
   const calls = registrations.map(
-    (r) => `  if (platform == 'android') {\n    ${r.package}.${r.android}.registerWith();\n  } else {\n    ${r.package}.${r.ios}.registerWith();\n  }\n`,
+    (r) =>
+      `  if (platform == 'android') {\n    ${packageOf(r.android.library)}.${r.android.name}.registerWith();\n  } else {\n    ${packageOf(r.ios.library)}.${r.ios.name}.registerWith();\n  }\n`,
   );
   const args = [...(ownStandIns ? ['configure: project.configureHost'] : []), ...(registrations.length ? ['registerPlugins: _registerPlugins'] : [])];
   return `// Written by \`lynkeus headless start\`; runs the app inside flutter test as a host for the agent.
