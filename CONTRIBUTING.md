@@ -25,5 +25,10 @@ The example app picks up JavaScript changes through Metro. Native changes in `pa
 
 `docs/COMMANDS.md` is generated from the CLI: run `pnpm --filter lynkeus docs` after changing a command.
 
+`pnpm test` includes the gate that keeps React Native's behavior as it is on main: goldens made by running main's
+CLI, a per-step cost budget and the runtime boundary check. A difference fails until it is named in
+`packages/cli/src/__tests__/goldens/rn/allowed.json`; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) ("Runtimes") says
+when that is legitimate and how to regenerate the goldens.
+
 A release has to be a week old before an install takes it (`minimumReleaseAge` in `pnpm-workspace.yaml`); Dependabot proposes
 updates weekly with the same cooldown.
