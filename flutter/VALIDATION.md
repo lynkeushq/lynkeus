@@ -202,8 +202,9 @@ package_info_plus, connectivity_plus and dynamic_color. The app is not committed
 
 - App: `FriesI23/mhabit` at `44df07b9d318165a2129eab59062bf20888312e4` (2026-11-23), Flutter 3.47.9 (its pinned
   version; the clone's `.flutter` submodule was not used). It resolved with no change.
-- Headless only so far: the iOS look (the host's default) and the Android look (`"flutterHost": { "platform":
-  "android", "window": "412x915@2.625" }`). The Simulator, emulator and FastSim runs are still to do (below).
+- Headless: the iOS look (the host's default) and the Android look (`"flutterHost": { "platform": "android",
+  "window": "412x915@2.625" }`). Lynkeus FastSim on a Mac: the Android look, and the iOS look blocked on the app's own
+  binding ([below](#mhabit-on-lynkeus-fastsim)). The Simulator and emulator runs are still to do.
 
 ## Wiring it, as the docs say
 
@@ -294,9 +295,62 @@ Docs: the Flutter page's go_router example assumes a router in a global; `init -
 were not on the Flutter page (added); `lynkeus headless start --help` and the CLI's banner still describe React
 Native (jest, RNTL); the case reference says `qa.register` where a Flutter app uses `LynkeusAgent.register`.
 
+## mhabit on Lynkeus FastSim
+
+On the FastSim Flutter host on a Mac (Apple Silicon), 2026-11-23, with the app wired as above (no change for FastSim):
+
+```sh
+<kit>/bin/fastsim-bundle . <bundle> android -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)   # or ios
+npx lynkeus case run --ports 8421 --host-command "<kit>/bin/fastsim-run <bundle> {port}" --once
+```
+
+- **iOS look: does not start (0/10).** With `Platform.isIOS` true, `main()` runs
+  `FixedIos26FlutterBinding.ensureInitialized()` after `LynkeusAgent.start()` has made the agent's binding, and the
+  debug build stops at `'_debugInitializedType == null': Binding is already initialized to FastSimBinding`. A Simulator
+  run will stop the same way (the agent makes its binding there too). The fix is the agent's: let an app that makes its
+  own binding run, or say how to add the agent's to it (fastsim `docs/FLUTTER-HOST.md`, "Apps that make their own
+  binding", says what the host needs: the safe area cannot come from the host).
+- **iOS look with that one line guarded** (a local probe, not the app's code: the binding made only when none is),
+  9 of 10: every case but 05 below, after the fixes listed here.
+- **Android look:** two full runs, 10/10 (71 s wall) and 8/10 (68 s wall):
+
+| Case | Run 1 | Run 2 |
+|---|---|---|
+| 01-create-habit | 11/11, 3.7 s | 11/11, 2.6 s |
+| 02-check-in-undo | 19/19, 4.6 s | 19/19, 3.5 s |
+| 03-habit-detail | 19/19, 4.7 s | 19/19, 4.2 s |
+| 04-edit-archive | 31/31, 6.5 s | failed at step 28: the menu a press opened right after `back` did not open |
+| 05-groups-sorting | 53/53, 13.8 s | failed at step 52: the snackbar UNDO hides stayed |
+| 06-reminder | 24/24, 5.1 s | 24/24, 4.0 s |
+| 07-settings | 46/46, 7.4 s | 46/46, 6.8 s |
+| 08-export-import | 28/28, 4.6 s | 28/28, 5.1 s |
+| 09-sync-server | 33/33, 2.7 s | 33/33, 6.4 s |
+| 10-about-changelog | 23/23, 2.5 s | 23/23, 2.9 s |
+
+What it found and fixed (lynkeus `dev/flutter`, fastsim `dev/flutter-host-all`), each with a test:
+
+- **SQLite by platform.** The sqflite stand-in picked `libsqlite3.so` because the app said Android, on a Mac: every
+  case crashed at the first query. It now goes by the engine's ABI.
+- **The keyboard.** Under an open keyboard the new-habit form's Reminder row and the sync editor's Password field are
+  below the fold: `type` now scrolls a field its list clips into view before pressing it, as `press` did, and a swipe
+  by points (the driver's scroll-to-find) that would touch the keyboard is made above it. Before, scroll-to-find's
+  drags started on the keyboard's area and moved nothing.
+- **Just below the window.** After an export, Import sat under the snackbar at the bottom edge; the driver pulled a
+  screenful toward it, past it and out of the list. A Flutter app is now pulled 110 pt at a time (React Native keeps
+  its pull, pinned by a test).
+- **Clearing a field.** `type` with `clear` deleted backward from the cursor, and the tap that focused the time
+  picker's hour left the cursor inside "10": it became "70". It now empties the field.
+- **flutter_local_notifications** has no method-channel default: `fastsim-bundle` builds the kernel from an entry
+  that registers its class (as headless's host file does), so `NotificationService().init()` and case 06's scheduled
+  notification work with no app change.
+
+Still failing, both the agent's capture work (reported 2026-11-23): when `idle` answers while a looping animation runs,
+the agent draws a capture frame and holds the next frames until a request that is not a read; a `see` or `wait` only
+reads, so a snackbar's exit (05) or the frame after a route change that lets taps through again (04) never comes.
+
 ## Still to run
 
-The same ten cases on an iOS Simulator, an Android emulator and Lynkeus FastSim, from the clone, with the cases'
+The same ten cases on an iOS Simulator and an Android emulator, from the clone, with the cases'
 `on: has:...` steps skipped on the devices:
 
 ```sh
@@ -310,14 +364,7 @@ flutter build apk --debug --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token) --da
 adb -s <serial> install -r build/app/outputs/flutter-apk/app-debug.apk   # the default flavor, f_generic
 adb -s <serial> shell am start -n io.github.friesi23.mhabit/.MainActivity
 LYNKEUS_PORT=8143 npx lynkeus case run --device <serial>
-# FastSim
-<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
-npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle> {port}"
 ```
-
-On FastSim `Platform.isIOS` is true, so `main()` runs `FixedIos26FlutterBinding.ensureInitialized()` after the agent
-has made its binding, which a debug build refuses (a binding cannot be replaced); and flutter_local_notifications
-has no registration there (the headless host file does it). Both are expected to need work before the FastSim run.
 
 # Third app: Rain
 
@@ -333,8 +380,10 @@ url_launcher, device_info_plus, package_info_plus, restart_app and flutter_displ
 app is not committed here; its cases are, in `validation/rain/cases/`.
 
 - App: `darkmoonight/Rain` at `9afa1fd` (2026-11-23), Flutter 3.50.1 (it needs 3.50). It resolved with no change.
-- Headless only so far, on the iOS look and the Android look (`"flutterHost": { "platform": "android", "window":
-  "412x915@2.625" }`), with `"launch": { "locale": "en-US", "timeZone": "Europe/Berlin" }`.
+- Headless, on the iOS look and the Android look (`"flutterHost": { "platform": "android", "window":
+  "412x915@2.625" }`), with `"launch": { "locale": "en-US", "timeZone": "Europe/Berlin" }`, and Lynkeus FastSim on a
+  Mac with both looks ([below](#rain-on-lynkeus-fastsim)). The Simulator, the emulator and FastSim on Linux are still
+  to run.
 
 ## Wiring it, as the docs say
 
@@ -460,6 +509,53 @@ Seen on a real app, unchanged:
   (`app.idle`) first. Rain's cases use the two keys instead.
 - A toast (2.5 s) shows across a press and a wait as on a device; the host fast-forwards only while the driver waits.
 
+## Rain on Lynkeus FastSim
+
+The same ten cases on the FastSim Flutter host on a Mac (Apple Silicon), from the recording, with the iOS look (an
+iPhone 17, Impeller Metal) and the Android look (a Pixel 9; on a Mac this says whether the cases pass, the Android
+look's pixels are the Linux host's), two full runs each, all 10/10:
+
+```sh
+<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)   # or android
+npx lynkeus case run --ports 8421 --host-command "<kit>/bin/fastsim-run <bundle> {port}" --net-cache $PWD/.lynkeus/net-cache --once
+```
+
+| Case | iOS look | Android look |
+|---|---|---|
+| 01-onboarding | 19/19, 2.3–3.9 s | 19/19, 1.5–1.8 s |
+| 02-location-permission | 17/17, 1.6–2.3 s | 16/16, 1.1–1.4 s |
+| 03-add-city | 20/20, 2.9 s | 20/20, 1.9–2.2 s |
+| 04-reorder-delete | 30/30, 4.3–5.1 s | 30/30, 2.8–3.0 s |
+| 05-hourly-daily | 25/25, 3.2–3.8 s | 25/25, 2.1–2.6 s |
+| 06-units | 25/25, 4.1–4.4 s | 25/25, 2.7–2.8 s |
+| 07-air-quality | 26/26, 3.9–4.6 s | 26/26, 2.4–2.5 s |
+| 08-map | 19/19, 2.7–3.4 s | 19/19, 2.1–2.9 s |
+| 09-theme-language | 26/26, 8.2–9.2 s | 26/26, 5.6–6.8 s |
+| 10-network-down | 25/25, 4.3–5.7 s | 25/25, 3.3–3.7 s |
+| All | 232/232, 53–57 s wall | 231/231, 38–42 s wall |
+
+The wall time includes ten host starts. The Mac was shared with other runs; a quieter first run of the iOS look took
+1.5–7.4 s per case and 39 s in all.
+
+What it took (lynkeus `dev/flutter` and fastsim `dev/flutter-host-all`, 2026-11-23):
+
+- **Isar.** `fastsim-bundle` copies the desktop libraries the app's plugins ship (`macos/libisar.dylib`,
+  `linux/libisar.so`) into the bundle, by the rule headless uses, and the host loads them before the app starts:
+  Isar finds `isar_version` in the process, as on an iPhone, and by `libisar.dylib` on the Android look. Before, the
+  app died at `Isar.open`. isar ships no Linux arm64 library, so on an arm64 Linux host Isar cannot open.
+- **flutter_local_notifications and workmanager** have no method-channel default. FastSim skips the app's plugin
+  registrant, so `fastsim-bundle` builds the kernel from a generated entry that sets their iOS or Android class (the
+  list is lynkeus_agent's `host_registrations.json`, the same as the headless host file's) and calls the app's
+  `main()`. No app change.
+- **10-network-down** pulled to refresh while the forecast page was still sliding in over the city picker: the pull
+  landed on the route's barrier, and the refresh never started (2 of 5 runs). The case now waits for the page to
+  settle (`app.idle`), as a person would.
+- On the Android look Rain runs what headless never ran, behind `Platform.isAndroid`: workmanager, home_widget's
+  updates and flutter_displaymode, all answered by the stand-ins. `stretch_effect.frag` has no Metal stage, so the Mac's
+  Android look logs it once and draws overscroll without the stretch.
+- On the iOS look Rain still logs `Error initializing device info`: it asks for `androidInfo` on every platform and
+  parses the iOS answer as Android's, as it would on an iPhone.
+
 ## Data and its terms
 
 - **Open-Meteo** (forecast, air quality, geocoding): data under CC BY 4.0, which asks for attribution; Rain shows
@@ -478,7 +574,7 @@ Seen on a real app, unchanged:
 
 ## Still to run
 
-The same ten cases on an iOS Simulator, an Android emulator and Lynkeus FastSim, from the clone. On the devices the
+The same ten cases on an iOS Simulator and an Android emulator, from the clone. On the devices the
 `on: has:...` steps are skipped (the denied permission in 02, airplane mode in 10), and the location permission has to
 be granted beforehand; the forecasts come from the live APIs, so the cases' numbers hold only within the hour they were
 recorded unless the device run replays too (it cannot: a device has no fence).
@@ -497,14 +593,8 @@ adb -s <serial> install -r build/app/outputs/flutter-apk/app-gms-debug.apk
 adb -s <serial> shell pm grant com.yoshi.rain android.permission.ACCESS_FINE_LOCATION
 adb -s <serial> shell am start -n com.yoshi.rain/.MainActivity
 LYNKEUS_PORT=8144 npx lynkeus case run --device <serial>
-# FastSim
-<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
-npx lynkeus case run --ports 8232 --host-command "<kit>/bin/fastsim-run <bundle> {port}" --net-cache $PWD/.lynkeus/net-cache
 ```
 
 Each case expects a fresh install: on a device, reinstall (or clear the app's data) between cases, or give Rain a
-`reset` command. On FastSim, Isar will fail as it did headless before the fix: the host does not load the plugin's
-desktop library yet, and with `Platform.isIOS` true Isar looks the symbols up in the process
-(`DynamicLibrary.process()`), so the FastSim host has to load `macos/libisar.dylib` (Mac) or `linux/libisar.so` (Linux,
-where the Android look opens it by name) before the app starts. The device runs also need the recording made on a
+`reset` command. FastSim on Linux (the Android look's pixels) is still to run: `linux/libisar.so` is x86-64 only. The device runs also need the recording made on a
 device (`--net-record` with `--dart-define=LYNKEUS_NET_RECORD=1`) to compare a host's frames with a device's.
