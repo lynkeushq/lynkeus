@@ -94,6 +94,29 @@ void main() {
 
 Las peticiones que pasan por el `HttpClient` de `dart:io` se registran, se simulan y se retienen con los mismos comandos que en React Native ([Fixtures](/es/guides/fixtures/), `lynkeus requests`, `lynkeus mock`). Lo usan `package:http` (con `IOClient`) y dio con su adaptador por defecto; un cliente con red propia (un canal de plataforma, un webview) no se ve.
 
+### La valla de red
+
+Un host (el headless y el host de Flutter de [Lynkeus FastSim](/es/guides/fastsim/#apps-de-flutter)) mantiene a la app fuera de internet: solo llega a loopback y a `10.0.2.2`. Una petición a cualquier otro host falla como error de socket, y el mensaje dice qué hacer:
+
+```text
+lynkeus: images.example.com is outside networkHosts (127.0.0.1, localhost, ::1, 10.0.2.2): mock the request (app.mock in the case, or lynkeus mock), or allow the host with "flutterHost": { "networkHosts": [...] } in lynkeus.config.json
+```
+
+Hay dos salidas: simular la petición, o permitir el host en `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; la lista reemplaza a la de por defecto, así que conserva los hosts locales que uses). Una petición que responde un mock no llega a la valla. En un simulador, un emulador o un teléfono no hay valla.
+
+### Reproducir lo que la app pidió a internet
+
+Una imagen de red que viene de un host bloqueado se ve como su marcador de posición, mientras que en un dispositivo se ve la imagen. Graba una vez lo que pide la app, en una corrida con red real, y los hosts responden desde la grabación:
+
+```bash
+npx lynkeus case run --device <simulador> --net-cache qa/net --net-record
+npx lynkeus case run --host --net-cache qa/net
+```
+
+La carpeta tiene el formato de `--net_cache` del host de React Native: un archivo por URL con el cuerpo tal como lo leyó la app, y al lado un `.json` con la URL, el estado y algunas cabeceras. Con `--host-command` (FastSim) se reproduce igual. En `lynkeus requests` una respuesta reproducida aparece como `replayed`, y un mock sigue respondiendo primero.
+
+Se graban los GET exitosos (2xx) a hosts que no son locales, y ninguno que haya enviado una cabecera `Authorization` o cookies, salvo que agregues `--net-record-credentials`. No se graban otros métodos, WebSockets, cuerpos en streaming ni lo que pida un cliente con red propia. El agente retiene como mucho unos 64 MB de grabaciones a la vez, descartando las más antiguas, y el CLI las retira después de cada caso. `--net-record` exige `--net-cache`, y solo el agente de Flutter sabe grabar; la app de React Native tiene `--net_record`.
+
 ## Sin pantalla (headless)
 
 `lynkeus_headless` ejecuta el `main()` de tu app dentro de `flutter test`, con diseño real y pintado por software, sin simulador. El agente se conecta como en un dispositivo, así que todos los comandos funcionan igual; qué es un host está en [Headless](/es/platforms/headless/), y aquí solo lo que cambia.

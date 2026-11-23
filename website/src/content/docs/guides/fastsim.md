@@ -85,6 +85,8 @@ A Flutter app runs on FastSim's Flutter host, which loads the app's own debug ke
 - **The app starts the agent before anything initializes Flutter's binding**, and depends on `lynkeus_plugins` when it uses sqflite 2.4 or newer (cached network images included) or shared_preferences' `SharedPreferencesAsync`.
 - **Compare Android screens on Linux** and iOS screens on a Mac. Native views (web views, maps, native tab bars) draw nothing, and on Linux text in scripts the app's fonts lack (Chinese, emoji) draws as boxes for now.
 
+- **The Flutter host fences the app's network** to loopback and `10.0.2.2`, like the headless host (`flutterHost.networkHosts` in `lynkeus.config.json` allows more), and `case run --net-cache <dir>` answers from recorded fetches what the fence blocks; see [the network fence](/platforms/flutter/#the-fence).
+
 The [Flutter page](/platforms/flutter/#lynkeus-fastsim) has the details: what the host gives the app, the rules, and the limits.
 
 ## From an AI agent over MCP

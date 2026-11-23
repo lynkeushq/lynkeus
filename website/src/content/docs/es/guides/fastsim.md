@@ -83,6 +83,8 @@ Una app de Flutter corre en el host de Flutter de FastSim, que carga el kernel d
 - **La app arranca el agente antes de que nada inicialice el binding de Flutter**, y depende de `lynkeus_plugins` si usa sqflite 2.4 o más nuevo (también a través de las imágenes de red en caché) o `SharedPreferencesAsync` de shared_preferences.
 - **Las pantallas de Android se comparan en Linux** y las de iOS en un Mac. Las vistas nativas (web views, mapas, barras de pestañas nativas) quedan vacías, y en Linux, por ahora, el texto en escrituras que faltan en las fuentes de la app (chino, emoji) sale como cuadrados.
 
+- **El host de Flutter pone una valla a la red de la app**, solo loopback y `10.0.2.2`, como el headless (`flutterHost.networkHosts` en `lynkeus.config.json` permite más), y `case run --net-cache <carpeta>` responde con lo grabado lo que la valla bloquea; mira [la valla de red](/es/platforms/flutter/#la-valla-de-red).
+
 Los detalles están en la [página de Flutter](/es/platforms/flutter/#lynkeus-fastsim): qué le da el host a la app, las reglas y los límites.
 
 ## Desde un agente de IA por MCP

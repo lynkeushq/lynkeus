@@ -92,6 +92,29 @@ void main() {
 
 Requests through dart:io's `HttpClient` are recorded, mocked and held by the same commands as in React Native ([Fixtures](/guides/fixtures/), `lynkeus requests`, `lynkeus mock`). `package:http`'s `IOClient` and dio's default adapter use it; a client with its own networking (a platform channel, a webview) is not seen.
 
+### The fence
+
+A host (headless, and the Flutter host of [Lynkeus FastSim](/guides/fastsim/#flutter-apps)) keeps the app off the internet: it may reach loopback and `10.0.2.2` only. A request to any other host fails as a socket error that says why:
+
+```text
+lynkeus: images.example.com is outside networkHosts (127.0.0.1, localhost, ::1, 10.0.2.2): mock the request (app.mock in the case, or lynkeus mock), or allow the host with "flutterHost": { "networkHosts": [...] } in lynkeus.config.json
+```
+
+Mock it, or allow the host in `lynkeus.config.json` (`"flutterHost": { "networkHosts": ["127.0.0.1", "api.local"] }`; a list replaces the defaults, so keep the local hosts you need). A request a mock answers never reaches the fence. On a Simulator, an emulator or a phone there is no fence.
+
+### Replaying remote fetches
+
+A network image drawn from a host the fence blocks shows its placeholder, where a device shows the picture. Record what the app fetches once, on a run where the network is real, and the hosts answer from the recording:
+
+```bash
+npx lynkeus case run --device <simulator> --net-cache qa/net --net-record
+npx lynkeus case run --host --net-cache qa/net
+```
+
+The folder is the one the React Native host's `--net_cache` uses: a file per URL holding the body as the app read it, and a `.json` beside it with the URL, the status and a few headers. With `--host-command` (FastSim) the folder is replayed the same way. A replayed answer shows as `replayed` in `lynkeus requests`, and a mock still answers first.
+
+What is recorded: successful (2xx) GETs to hosts outside the local ones, and none that sent an `Authorization` header or cookies unless you add `--net-record-credentials`. What is not: other methods, WebSockets, streamed bodies, and anything a client with its own networking fetched. The agent holds at most about 64 MB of recordings at a time, dropping the oldest, and the CLI takes them after every case. `--net-record` needs `--net-cache`, and only the Flutter agent can record; a React Native app has `--net_record`.
+
 ## Headless
 
 The headless host runs the app's own `main()` inside `flutter test`, with real layout and software paint and no simulator. Every command works unchanged. See [Headless](/platforms/headless/) for what a host is; this is what differs.
