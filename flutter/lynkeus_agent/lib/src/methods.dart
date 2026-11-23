@@ -124,9 +124,12 @@ class Methods {
       'busy': await _busy(),
       'window': {'w': snapshot.window.width, 'h': snapshot.window.height},
       'presenting': ?snapshot.presenting,
+      'platformViews': ?_nonEmpty(platformViews()),
       'costMs': _ms() - started,
     };
   }
 
   Item? find(Target target) => pick(_elements(), target);
+
+  static List<Map<String, Object?>>? _nonEmpty(List<Map<String, Object?>> list) => list.isEmpty ? null : list;
 }

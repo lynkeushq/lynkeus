@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 // Most apps still import the SDK's Material and Cupertino, deprecated since 3.47 in favor of material_ui and
 // cupertino_ui; the walker reads neither, so testing against these covers what the packages build too.
 // ignore_for_file: deprecated_member_use
@@ -244,4 +245,37 @@ void main() {
     );
     expect(only(items, (e) => e.testId == 'banner').kind, 'view');
   });
+
+  for (final made in [true, false]) {
+    testWidgets('a native view is reported with its type and rectangle, ${made ? 'made' : 'refused, as on a host'}', (
+      tester,
+    ) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views, (call) async {
+        if (call.method == 'create' && !made) throw PlatformException(code: 'unsupported');
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views, null),
+      );
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Column(
+            children: [
+              SizedBox(height: 100),
+              SizedBox(width: 300, height: 80, child: UiKitView(viewType: 'tab_bar')),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      if (!made) tester.takeException();
+      expect(platformViews(), [
+        {
+          'viewType': 'tab_bar',
+          'frame': {'x': 250.0, 'y': 100.0, 'w': 300.0, 'h': 80.0},
+        },
+      ]);
+    });
+  }
 }

@@ -591,6 +591,38 @@ Snapshot takeSnapshot() {
   return Snapshot(walker.items, walker.presenting(), walker.window);
 }
 
+/// The native views on screen (a web view, a map, a native tab bar): their type and their rectangle in window points.
+/// The rectangle is the widget's whether or not the platform made the view, so a device and a host, which draws none,
+/// report the same place; a pixel comparison masks it on both sides.
+List<Map<String, Object?>> platformViews() {
+  final out = <Map<String, Object?>>[];
+  void visit(Element e) {
+    final w = e.widget;
+    final type = switch (w) {
+      UiKitView() => w.viewType,
+      AppKitView() => w.viewType,
+      AndroidView() => w.viewType,
+      PlatformViewLink() => w.viewType,
+      _ => null,
+    };
+    if (type != null) {
+      final frame = _frameOf(e.findRenderObject());
+      if (frame != null && !frame.isEmpty) {
+        out.add({
+          'viewType': type,
+          'frame': {'x': frame.left, 'y': frame.top, 'w': frame.width, 'h': frame.height},
+        });
+      }
+      return;
+    }
+    _onstage(e).forEach(visit);
+  }
+
+  final root = WidgetsBinding.instance.rootElement;
+  if (root != null) visit(root);
+  return out;
+}
+
 /// What the walker can see, for when a screen comes back empty or wrong.
 Map<String, Object?> debugTree() {
   final watch = Stopwatch()..start();
