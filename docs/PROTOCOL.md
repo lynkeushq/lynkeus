@@ -159,6 +159,7 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   busy: boolean             // requests in flight, or the app's `busy` command said so
   window: { w, h }          // points
   presenting?: { i, modal, testId? }   // the layer on top, when the app presents one
+  platformViews?: { viewType, frame }[]   // native views on screen (Flutter agent), drawn by the platform, not the app
   costMs: number            // time spent building the snapshot
 }
 ```

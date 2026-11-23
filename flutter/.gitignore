@@ -1,0 +1,2 @@
+# Dart keeps its sources in lib/, which the repository root ignores as build output.
+!lib/
