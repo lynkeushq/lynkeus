@@ -212,7 +212,8 @@ class RouterRoutes with ChangeNotifier {
     final routes = <Route<dynamic>>[];
     theater!.debugVisitOnstageChildren((entry) {
       final route = _routeOf(entry);
-      if (route is PageRoute && route.opaque && !routes.contains(route)) routes.add(route);
+      // A page sliding out after a pop is still drawn, and no longer the app's route.
+      if (route is PageRoute && route.opaque && route.isActive && !routes.contains(route)) routes.add(route);
     });
     final lastPage = routes.lastIndexWhere((r) => r.settings is Page);
     return routes.sublist(lastPage + 1);

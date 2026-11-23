@@ -154,6 +154,15 @@ void main() {
       expect(find.text('The details'), findsNothing);
       screen = await drive(tester, methods, 'screen');
       expect(screen['route'], '/');
+
+      // Popped, a page is the app's route no more while it slides out.
+      await tester.tap(find.text('Details'));
+      await tester.pumpAndSettle();
+      Navigator.of(tester.element(find.text('The details'))).pop();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('The details'), findsOneWidget);
+      expect(RouterRoutes().current, '/');
     },
   );
 
