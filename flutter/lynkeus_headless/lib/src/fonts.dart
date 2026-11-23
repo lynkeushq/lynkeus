@@ -17,6 +17,12 @@ const _systemFamilies = [
   '.AppleSystemUIFont',
 ];
 
+/// The names a manifest family is loaded under. A package's font (`packages/cupertino_icons/CupertinoIcons`) is asked
+/// for by that whole name, which `TextStyle(package:)` and `IconData(fontPackage:)` make; its bare name is kept too.
+@visibleForTesting
+List<String> familyNames(String family) =>
+    family.startsWith('packages/') ? [family, family.split('/').last] : [family];
+
 /// Loads the app's own fonts (its FontManifest), Roboto under the system family names, and MaterialIcons. Returns
 /// the families loaded. Runs outside fake time: the engine answers font loads on the real event loop.
 Future<List<String>> loadFonts(String? fontsDir) async {
@@ -27,11 +33,13 @@ Future<List<String>> loadFonts(String? fontsDir) async {
       final family = entry['family'] as String?;
       final fonts = (entry['fonts'] as List<Object?>? ?? const []).whereType<Map<String, Object?>>();
       if (family == null) continue;
-      final loader = FontLoader(family.startsWith('packages/') ? family.split('/').last : family);
-      for (final font in fonts) {
-        loader.addFont(rootBundle.load(font['asset']! as String));
+      for (final name in familyNames(family)) {
+        final loader = FontLoader(name);
+        for (final font in fonts) {
+          loader.addFont(rootBundle.load(font['asset']! as String));
+        }
+        await loader.load();
       }
-      await loader.load();
       loaded.add(family);
     }
   } on FlutterError {
