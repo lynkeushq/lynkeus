@@ -33,7 +33,7 @@ A piece that would only work for one app does not belong in this repository.
 | Agent | The running React Native app: its tree, touches, keys, requests, SDK calls, console | `packages/agent` |
 | Flutter agent | The same for a Flutter app, in Dart: widget tree, touches, text input, `HttpClient` requests | `flutter/lynkeus_agent` |
 | Hosts | How to run the app: a simulator, an emulator or an Android phone on USB, Lynkeus FastSim (native drawing without a simulator), headless (Node, no drawing; for Flutter, `flutter test`) | the OS tools, the fastsim repository, `packages/headless`, `flutter/lynkeus_headless` |
-| CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration | `packages/cli` |
+| CLI and MCP | Driving, cases, runs, routes and paths, coverage, CI orchestration. The route graph is read from React Navigation in TypeScript (ts-morph) or from Dart (a tolerant reader of its own, no Dart SDK), into one `ScreenGraph` shape | `packages/cli` |
 | Cloud | Runs over time, reports, people, the forge (GitHub) | lynkeus-cloud |
 | Product | Its cases and flows, what its screens mean, its backend's state | the product's repositories |
 

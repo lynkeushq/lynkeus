@@ -66,7 +66,7 @@ An app command for `app.call` is registered with `LynkeusAgent.register('reset',
 
 Route names usually start with a slash, and a lowercase word alone is read as text, so say that it is a route: `app.wait: "route:/settings"`.
 
-With a `Navigator` and named routes, give the observer to the root navigator: `MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver], …)`. Routes with no name (a dialog, a page pushed with no settings) are not reported; the route stays the last named one under them. An app on a router describes its routes from the router's own state, since the agent depends on no router package. With go_router:
+With a `Navigator` and named routes, give the observer to the root navigator: `MaterialApp(navigatorObservers: [LynkeusAgent.navigatorObserver], …)`. A page pushed with no name (`Navigator.push(MaterialPageRoute(builder: (_) => const Items()))`) is reported by the class of the widget it shows, `Items`, which is also the name `lynkeus map` gives it; it cannot be opened by name. A route that is not a page (a dialog, a sheet) is not reported; the route stays the one under it. `navigate` to a route already on the stack goes back to it instead of pushing a second copy. An app on a router describes its routes from the router's own state, since the agent depends on no router package. With go_router:
 
 ```dart
 final router = GoRouter(routes: [...]);
@@ -74,19 +74,32 @@ final router = GoRouter(routes: [...]);
 void main() {
   LynkeusAgent.start(
     routes: LynkeusRoutes(
-      current: () => router.state.name ?? router.state.matchedLocation,
+      current: () => router.state.name ?? router.state.fullPath,
       changes: router.routerDelegate,
-      navigate: (name, params) => router.goNamed(
-        name,
-        pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'},
-      ),
+      navigate: (route, params) => route.startsWith('/')
+          ? router.go(route)
+          : router.goNamed(
+              route,
+              pathParameters: {for (final e in (params ?? const {}).entries) e.key: '${e.value}'},
+            ),
     ),
   );
   runApp(MaterialApp.router(routerConfig: router));
 }
 ```
 
-`current` is the focused route, `changes` fires when it may have changed, and `navigate` is what `lynkeus nav` calls.
+`current` is the focused route, `changes` fires when it may have changed, and `navigate` is what `lynkeus nav` calls. Report a route by its `name`, or by its `fullPath` (`/habits/:id`, not `/habits/42`) when it has none: those are the names the route graph uses.
+
+## The route graph
+
+`lynkeus map build` reads a Flutter app's routes from the Dart under `lib/`, without the Dart SDK, so `map`, `case impact`, `case coverage`, `smoke` and `crawl` work as they do in React Native, with the same output and flags. It reads:
+
+- **go_router:** `GoRoute` with nested `routes:`, inside `ShellRoute` and `StatefulShellRoute` branches, and `@TypedGoRoute`. The route is its `name:`, else its full path. A path or name built in a helper (an enum's field, a `switch` on it, a static constant, an interpolated string) is read at each call of the helper. A route that only redirects is not a screen.
+- **A Navigator:** `MaterialApp` (or `CupertinoApp`, `WidgetsApp`) `routes:` and `home:`, and `onGenerateRoute` when it switches on, or compares, the route's name.
+- **A router of the app's own** (fluro and the like): a call that registers a path with a builder, `router.define('/goods', handler: Handler(handlerFunc: (_, __) => const GoodsPage()))`.
+- **Edges:** `context.go`, `push`, `goNamed`, `pushNamed`, `Navigator.pushNamed` and the like, with a location matched to its route (`/habits/42` to `/habits/:id`), and `Navigator.push(MaterialPageRoute(builder: (_) => X()))`, an edge to the screen named `X`. The control that leads there is the widget whose `on…:` callback holds the call, by its `key: ValueKey('…')`, directly or through the handler it names.
+
+Each screen points at the file of the widget its builder makes; `case impact` follows imports from there (a barrel's names to the files that declare them), as it does in React Native. Whatever cannot be read is printed with its file and line by `map build` and kept in the graph's `warnings`; a route is never dropped without one. `smoke` opens the routes that need nothing: not one with a path parameter, one whose builder casts `state.extra` or the route's `arguments` to a type that is not nullable, or a page pushed without a name. Both `smoke` and `crawl` open routes through the agent's `navigate`, so the app needs the observer or `LynkeusRoutes` above.
 
 ## The network log
 
@@ -232,7 +245,7 @@ To compare FastSim's screens with a simulator's or an emulator's, build the refe
 - **Headless sees the machine.** `Platform` answers for it and `DateTime.now()` reads the real clock; only `package:clock` is virtual.
 - **`--seed` has no effect** on the headless host: Dart's `Random()` cannot be seeded from outside.
 - **`--host-heap` restarts are skipped.** The Dart VM gives a running program no heap figures.
-- **`lynkeus map`, `case impact`, `smoke` and `crawl` do not work for Flutter yet.** They read React Navigation sources.
+- **The route graph reads syntax, not types.** A route table built at runtime, a builder passed through more than a few helpers, or a widget wrapped in a router-specific page class may not resolve; `map build` says so with a warning. A page pushed without a name is reached by pressing what opens it, so a crawl cannot jump back into it.
 - **Lynkeus FastSim** has limits of its own; see [its section](#lynkeus-fastsim).
 - **Two apps cannot dial the same port.** Close the other one, or give one its own with `LYNKEUS_PORT`.
 
