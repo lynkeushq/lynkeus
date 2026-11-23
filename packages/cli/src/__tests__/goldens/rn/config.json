@@ -1,0 +1,240 @@
+{
+  "a locale that is not one": {
+    "config": {
+      "launch": {
+        "locale": "not a locale!"
+      }
+    },
+    "port": null,
+    "errorCopy": null,
+    "launch": "--locale not a locale!: not a language tag (es-AR, de-DE, en-US)",
+    "launchEnv": null,
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "a time zone that is not one": {
+    "config": {
+      "launch": {
+        "timeZone": "Mars/Olympus"
+      }
+    },
+    "port": null,
+    "errorCopy": null,
+    "launch": "--time-zone Mars/Olympus: not an IANA time zone (America/Argentina/Buenos_Aires, Europe/Madrid, UTC)",
+    "launchEnv": null,
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "an epoch that is not one": {
+    "config": {
+      "launch": {
+        "epoch": "yesterday"
+      }
+    },
+    "port": null,
+    "errorCopy": null,
+    "launch": "--epoch yesterday: not an instant (2026-03-01T09:00:00Z, or milliseconds since 1970)",
+    "launchEnv": null,
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "cases in a folder of their own": {
+    "config": {
+      "cases": {
+        "dir": "qa",
+        "base": "<top>/app"
+      }
+    },
+    "port": null,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": [
+      "app/qa/a.md"
+    ]
+  },
+  "cases in the default folder": {
+    "config": {},
+    "port": null,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": [
+      "app/cases/a.md",
+      "app/cases/nested/b.md"
+    ]
+  },
+  "empty": {
+    "config": {},
+    "port": null,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "every key": {
+    "config": {
+      "cases": {
+        "dir": "qa/cases",
+        "fixtures": "node qa/fixtures.js",
+        "macros": {
+          "app.login": [
+            {
+              "app.call": {
+                "command": "reset"
+              }
+            }
+          ]
+        },
+        "base": "<top>/app"
+      },
+      "ci": {
+        "backend": {
+          "up": "docker compose up -d",
+          "ready": "http://127.0.0.1:3000/health"
+        },
+        "hosts": {
+          "count": 2
+        },
+        "push": true,
+        "run": [
+          "--once"
+        ]
+      },
+      "entry": "qa/headless.tsx",
+      "apiEnv": "API_URL",
+      "apiUrl": "http://127.0.0.1:3000",
+      "port": 8200,
+      "device": "iPhone 17 Pro",
+      "app": "com.example.shop",
+      "report": {
+        "afterPush": "delete"
+      },
+      "language": "es",
+      "locale": {
+        "languageTag": "es-AR",
+        "country": "AR"
+      },
+      "launch": {
+        "seed": 7,
+        "locale": "es-ar",
+        "timeZone": "America/Argentina/Buenos_Aires",
+        "epoch": "2026-03-01T09:00:00Z"
+      },
+      "attachTimeout": 30000,
+      "errorCopy": [
+        "something went wrong",
+        "try again"
+      ],
+      "live": [
+        "^clock$"
+      ],
+      "strictMode": true,
+      "crawl": {
+        "never": [
+          "delete"
+        ],
+        "close": [
+          "close"
+        ],
+        "back": [
+          "back"
+        ]
+      }
+    },
+    "port": 8200,
+    "errorCopy": "something went wrong|try again",
+    "launch": {
+      "seed": "7",
+      "locale": "es-AR",
+      "timeZone": "America/Argentina/Buenos_Aires",
+      "epoch": "2026-03-01T09:00:00.000Z"
+    },
+    "launchEnv": {
+      "LYNKEUS_SEED": "7",
+      "LYNKEUS_LOCALE": "es-AR",
+      "LYNKEUS_TIME_ZONE": "America/Argentina/Buenos_Aires",
+      "TZ": "America/Argentina/Buenos_Aires",
+      "LYNKEUS_EPOCH": "2026-03-01T09:00:00.000Z"
+    },
+    "caseFiles": "no cases under qa/cases; `lynkeus case init` writes one"
+  },
+  "launch flags over the config": {
+    "config": {
+      "launch": {
+        "seed": "config",
+        "locale": "en-US"
+      }
+    },
+    "port": null,
+    "errorCopy": null,
+    "launch": {
+      "seed": "42",
+      "locale": "pt-BR",
+      "timeZone": "UTC",
+      "epoch": "2026-01-01T00:00:00.000Z"
+    },
+    "launchEnv": {
+      "LYNKEUS_SEED": "42",
+      "LYNKEUS_LOCALE": "pt-BR",
+      "LYNKEUS_TIME_ZONE": "UTC",
+      "TZ": "UTC",
+      "LYNKEUS_EPOCH": "2026-01-01T00:00:00.000Z"
+    },
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "launch from the environment": {
+    "config": {},
+    "port": null,
+    "errorCopy": null,
+    "launch": {
+      "seed": "abc",
+      "locale": "de-DE",
+      "timeZone": "Europe/Madrid",
+      "epoch": "2026-01-01T00:00:00.000Z"
+    },
+    "launchEnv": {
+      "LYNKEUS_SEED": "abc",
+      "LYNKEUS_LOCALE": "de-DE",
+      "LYNKEUS_TIME_ZONE": "Europe/Madrid",
+      "TZ": "Europe/Madrid",
+      "LYNKEUS_EPOCH": "2026-01-01T00:00:00.000Z"
+    },
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "LYNKEUS_CONFIG over the project": {
+    "config": {
+      "port": 8300,
+      "device": "iPhone 16",
+      "cases": {
+        "dir": "shared",
+        "base": "<top>/shared"
+      }
+    },
+    "port": 8300,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": [
+      "shared/shared/c.md"
+    ]
+  },
+  "LYNKEUS_PORT over the config": {
+    "config": {
+      "port": 8200
+    },
+    "port": 8400,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "none": {
+    "config": {},
+    "port": null,
+    "errorCopy": null,
+    "launch": {},
+    "launchEnv": {},
+    "caseFiles": "no cases under cases; `lynkeus case init` writes one"
+  },
+  "not JSON": {
+    "error": "<top>/app/lynkeus.config.json: <not JSON>"
+  }
+}

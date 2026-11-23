@@ -51,6 +51,71 @@ reader refuses a version it does not know.
 | Reports API | CLI → cloud | the service's `/v1` routes | the CLI's `pushRun` |
 | MCP | an LLM ↔ the CLI | the server's instructions and tool schemas | generated from the commands |
 
+## Runtimes
+
+Lynkeus drives React Native apps today and is built to drive apps of other runtimes. Adding one must not change or
+slow what exists, nor make every change re-test every runtime.
+
+**The rule.** The core never asks which runtime a folder is. Each runtime lives in its own directory and implements
+one adapter; the core calls the adapter.
+
+| Path | What it is |
+|---|---|
+| `packages/cli/src/runtimes/api.ts` | The adapter a runtime implements and the only core module a runtime imports |
+| `packages/cli/src/runtimes/index.ts` | `loadRuntime(id)`, the one place that loads a runtime, lazily |
+| `packages/cli/src/runtimes/detect.ts` | Which runtime a folder is, from its files, with no runtime code loaded |
+| `packages/cli/src/runtimes/<id>/` | One runtime's CLI side (`react-native`) |
+| `packages/agent`, `packages/headless`, `example/` | React Native's agent, headless host and example app |
+
+**The shared core** is everything a runtime runs through: `packages/cli/**` outside `src/runtimes/<id>/`,
+`packages/protocol`, `packages/client`, the root `package.json` and lockfile, `.github/actions` and `hack/ci`. A
+change there can affect every runtime.
+
+**The gate.** On every pull request:
+
+- `packages/cli/scripts/check-runtime-boundary.mjs` (lint job): the core imports from `runtimes/` only `index`,
+  `detect` and `api`; only `index.ts` imports a runtime's directory, with a lazy `import()`; a runtime imports only
+  its own files and `../api.js`; and the core holds no runtime check by name (`=== '<id>'`, `is<Runtime>(...)`) for
+  any id `detect.ts` lists, apart from the exceptions the script lists, which can only shrink.
+- `packages/cli/src/__tests__/rnInvariance.test.ts` (test job): React Native as on main, from goldens made by running
+  main's CLI. Case parsing and step resolution; the protocol messages and report of scripted runs against a fake app
+  on a virtual clock; every command's help, the MCP instructions and tool schemas, failure exit codes and texts; what
+  `status`, `init`, `headless start` and `map build` do in each kind of folder; which simulator, emulator or phone a
+  run picks and the `xcrun` and `adb` commands it sends; the run folder a scripted `case run --out` writes for a
+  report; how `lynkeus.config.json` resolves; and the runner's cost per step, at most twice main's. Every probe runs
+  on a fresh machine (empty home, no Lynkeus or CI variables, UTC, no network), so the goldens hold on any machine.
+- `src/cases/__tests__/rnWire.test.ts`: what a case run sends a React Native app over a real socket, with frames
+  and without. `runtimeBoundary.test.ts`: `lynkeus --help` loads no runtime and a project loads only its own.
+- `packages/headless/src/__tests__/host.golden.test.tsx`: the real headless host driven through a scripted sequence,
+  every answer of the agent's handlers in a snapshot. `packages/protocol/src/__tests__/api.test.ts`: every
+  declaration the protocol package exports, compared with `api.golden.d.ts.txt`.
+- `hack/ci/changed-areas.mjs` decides the heavy suites: React Native's native builds run when the agent, the
+  protocol, the example app, the root manifest or lockfile, or the workflow change, and on every push to main.
+
+A pull request that touches only one runtime's paths cannot change another runtime: no shared file changed, and
+nothing outside that runtime's directory imports it except the loader, which loads it only for a folder detected as
+that runtime. The gate is advisory until main's branch protection requires the `lint` and `test` checks.
+
+**Regenerating the goldens.** `pnpm --filter lynkeus goldens:rn` checks out `origin/main` (or `-- --ref <ref>`) in a
+temporary worktree and runs the probes there; nobody edits a golden by hand. A difference from main fails until
+`goldens/rn/allowed.json` names its key, says why React Native should now behave that way, and pins its hash; the
+failure prints the entry to add. Add one only for a deliberate React Native change whose diff a reviewer has read,
+and once that change is on main, regenerate and drop its entries (the test says which entry is no longer needed). `UPDATE_RN_WIRE=1`, `UPDATE_PROTOCOL_API=1` and `jest -u` in
+`packages/headless` record the other three, under the same rule.
+
+**Adding a runtime.** Add its id to `RUNTIMES` in `detect.ts` with how its folder is recognized (a folder that is
+also a React Native app stays React Native); implement the adapter in `runtimes/<id>/index.ts` and add it to
+`loadRuntime`; give its sample app a suite and a workflow of its own; add its paths to `hack/ci/changed-areas.mjs`.
+Nothing in the React Native goldens changes; a key that does is a React Native change and goes through
+`allowed.json`.
+
+**Still on the core's side.** React Native's own code predates the directories: `init`'s agent mount and setup
+checks (`commands/init.ts`), the TypeScript route reader (`knowledge/extract.ts`, a public export), the params
+reader (`knowledge/route-params.ts`, a public export) and the jest headless host (`commands/headless.ts`) live in the
+core and reach the React Native adapter through `runtimes/api.ts`. `fastsimVariant` still checks the platform itself
+as well as the adapter. The adapter's `hostCommandEnv` and `runner` answers are not asked yet: React Native is the
+runtime the core's defaults were written for.
+
 ## Where a new piece goes
 
 Ask, in order:

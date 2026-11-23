@@ -11,6 +11,7 @@ import { plan } from '../knowledge/plan.js';
 import { screensAffectedBy } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { caseFiles, startHost, stopHost } from './cases.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { changedSources } from './map.js';
 
 // The project's cases and what they cover, read the way `case run` reads them.
@@ -83,7 +84,7 @@ export const coverageCommands = [
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
       const base = ctx.flags.base as string;
-      const changed = changedSources(ctx.root, base, ctx.err);
+      const changed = changedSources(ctx.root, base, ctx.err, (await runtimeAt(ctx.root)).sources);
       const affected = screensAffectedBy(ctx.graph(), changed, ctx.flags.depth as number);
       const impact = impactOf(affected, read.coverage);
       if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: impact };

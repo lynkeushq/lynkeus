@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { define, type Ctx, type Result } from '../registry.js';
+import { runtimeAt } from '../runtimes/index.js';
 import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
 import { serviceBase } from './report.js';
 
@@ -380,7 +381,8 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     run: async (ctx) => {
       try {
         const cloud = cloudUrl(ctx.flags.cloud);
-        const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
+        const variant =
+          typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant((await runtimeAt(ctx.root)).fastsimBuild(String(ctx.flags.platform)));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const { release, dir, installed } = await installFastsim({
             cloud,
@@ -424,7 +426,8 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       try {
         const cloud = cloudUrl(ctx.flags.cloud);
         const forPerson = ctx.flags.print !== true && !ctx.attached && (deps.stdoutTty ?? (() => process.stdout.isTTY === true))();
-        const variant = typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant(String(ctx.flags.platform));
+        const variant =
+          typeof ctx.flags.variant === 'string' ? ctx.flags.variant : fastsimVariant((await runtimeAt(ctx.root)).fastsimBuild(String(ctx.flags.platform)));
         const result = await withCredentials(ctx, deps, cloud, async (key, signedIn): Promise<Result> => {
           const got = await fetchGrant({ cloud, key, variant, signedIn });
           const json = { grant: got.grant, expiresAt: got.expiresAt, variant };

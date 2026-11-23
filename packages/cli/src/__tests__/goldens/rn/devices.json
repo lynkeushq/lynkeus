@@ -1,0 +1,273 @@
+{
+  "agent/a phone by its adb serial, simulators booted": {
+    "result": {
+      "id": "R58M123ABC",
+      "name": "R58M123ABC",
+      "platform": "android",
+      "type": "physical",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j",
+      "adb devices"
+    ]
+  },
+  "agent/a shut-down simulator": {
+    "result": {
+      "error": "No booted simulator matching \"BBBB-2222\"."
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/a simulator by part of its name": {
+    "result": {
+      "id": "AAAA-1111",
+      "name": "iPhone 17 Pro",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/a simulator by udid": {
+    "result": {
+      "id": "CCCC-3333",
+      "name": "iPhone 16",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/an offline phone": {
+    "result": {
+      "error": "No booted simulator matching \"0123456789\"."
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j",
+      "adb devices"
+    ]
+  },
+  "agent/booted simulators": {
+    "result": {
+      "id": "AAAA-1111",
+      "name": "iPhone 17 Pro",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/LYNKEUS_DEVICE": {
+    "result": {
+      "id": "CCCC-3333",
+      "name": "iPhone 16",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/no simulator booted": {
+    "result": {
+      "id": "headless",
+      "name": "headless host",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/no simulator booted, one asked for": {
+    "result": {
+      "error": "No booted simulator matching \"iPhone 17 Pro\"."
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "agent/no xcrun, an adb serial asked for": {
+    "result": {
+      "id": "emulator-5554",
+      "name": "emulator-5554",
+      "platform": "android",
+      "type": "emulator",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "agent/no xcrun, an unknown device asked for": {
+    "result": {
+      "error": "No booted simulator matching \"nope\"."
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "agent/no xcrun, no adb": {
+    "result": {
+      "id": "headless",
+      "name": "headless host",
+      "platform": "ios",
+      "type": "simulator",
+      "connected": true
+    },
+    "asked": []
+  },
+  "agent/simctl fails": {
+    "result": {
+      "error": "Command failed: xcrun simctl list devices booted -j\nsimctl: CoreSimulatorService connection became invalid\n"
+    },
+    "asked": [
+      "xcrun simctl list devices booted -j"
+    ]
+  },
+  "android/a phone asked for": {
+    "result": {
+      "id": "R58M123ABC",
+      "name": "R58M123ABC",
+      "platform": "android",
+      "type": "physical",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "android/an unauthorized phone asked for": {
+    "result": {
+      "id": "emulator-5554",
+      "name": "emulator-5554",
+      "platform": "android",
+      "type": "emulator",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "android/an unknown device asked for": {
+    "result": {
+      "id": "emulator-5554",
+      "name": "emulator-5554",
+      "platform": "android",
+      "type": "emulator",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "android/freeze chrome": {
+    "asked": [
+      "adb -s emulator-5554 shell settings put global sysui_demo_allowed 1",
+      "adb -s emulator-5554 shell am broadcast -a com.android.systemui.demo -e command enter",
+      "adb -s emulator-5554 shell am broadcast -a com.android.systemui.demo -e command clock -e hhmm 0941",
+      "adb -s emulator-5554 shell am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false",
+      "adb -s emulator-5554 shell am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4",
+      "adb -s emulator-5554 shell am broadcast -a com.android.systemui.demo -e command notifications -e visible false"
+    ]
+  },
+  "android/launch": {
+    "asked": [
+      "adb -s emulator-5554 shell monkey --pct-syskeys 0 -p com.example.shop -c android.intent.category.LAUNCHER 1"
+    ]
+  },
+  "android/launch fresh": {
+    "asked": [
+      "adb -s emulator-5554 shell am force-stop com.example.shop",
+      "adb -s emulator-5554 shell monkey --pct-syskeys 0 -p com.example.shop -c android.intent.category.LAUNCHER 1"
+    ]
+  },
+  "android/LYNKEUS_DEVICE": {
+    "result": {
+      "id": "R58M123ABC",
+      "name": "R58M123ABC",
+      "platform": "android",
+      "type": "physical",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "android/no adb": {
+    "result": {
+      "error": "No Android device or emulator is up (adb devices lists none)."
+    },
+    "asked": []
+  },
+  "android/no device up": {
+    "result": {
+      "error": "No Android device or emulator is up (adb devices lists none)."
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "android/screenshot": {
+    "result": {
+      "wrote": "screencap-bytes"
+    },
+    "asked": [
+      "adb -s emulator-5554 exec-out screencap -p"
+    ]
+  },
+  "android/the first that is up": {
+    "result": {
+      "id": "emulator-5554",
+      "name": "emulator-5554",
+      "platform": "android",
+      "type": "emulator",
+      "connected": true
+    },
+    "asked": [
+      "adb devices"
+    ]
+  },
+  "ios/freeze chrome": {
+    "asked": [
+      "xcrun simctl status_bar AAAA-1111 override --time 9:41 --batteryState charged --batteryLevel 100 --cellularMode active --cellularBars 4 --wifiMode active --wifiBars 3"
+    ]
+  },
+  "ios/launch": {
+    "asked": [
+      "xcrun simctl launch AAAA-1111 com.example.shop"
+    ]
+  },
+  "ios/launch fresh": {
+    "asked": [
+      "xcrun simctl launch --terminate-running-process AAAA-1111 com.example.shop"
+    ]
+  },
+  "ios/screenshot": {
+    "result": {
+      "wrote": null
+    },
+    "asked": [
+      "xcrun simctl io AAAA-1111 screenshot <tools>/shot.png"
+    ]
+  },
+  "reverse/no adb": {
+    "asked": []
+  },
+  "reverse/phones only": {
+    "asked": [
+      "adb devices",
+      "adb -s R58M123ABC reverse tcp:8123 tcp:8123"
+    ]
+  }
+}

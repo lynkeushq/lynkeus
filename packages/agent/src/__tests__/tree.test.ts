@@ -136,6 +136,20 @@ describe('snapshotElements', () => {
     expect(elements.map((e) => [e.text, e.offscreen])).toEqual([['RECEPTOR', true]]);
   });
 
+  it('lists text the shadow tree still puts on the next page when its view is already in the window (Android)', () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    install(composite([host('RCTText', {}, [420, 100, 100, 20], [text('Go Long')]), host('RCTText', {}, [420, 140, 100, 20], [text('stays off')])]));
+    jest.spyOn(touch, 'frames').mockImplementation((tags) => tags.map((tag) => (tag === 1 ? [20, 100, 100, 20] : [420, 140, 100, 20])));
+    const { elements } = snapshotElements();
+    expect(elements.map((e) => [e.text, e.frame.x])).toEqual([['Go Long', 20]]);
+  });
+
+  it('drops text outside the window by its shadow frame where there is no native view to ask (iOS)', () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    install(composite([host('RCTText', {}, [420, 100, 100, 20], [text('next page')])]));
+    expect(snapshotElements().elements).toEqual([]);
+  });
+
   it('keeps a snapshot when a native view disappears during the read', () => {
     install(composite([host('RCTSinglelineTextInputView', { testID: 'phone' }, [10, 10, 100, 40])]));
     const failure = () => {

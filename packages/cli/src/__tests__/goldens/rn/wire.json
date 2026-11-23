@@ -1,0 +1,1227 @@
+{
+  "compare-run-frames": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "screen",
+      "screen",
+      "idle {\"quietMs\":700,\"timeoutMs\":2800}",
+      "screenshot {\"path\":\"<evidence>/01-app-press-increment.png\",\"inline\":true,\"sign\":true}",
+      "screenshot {\"path\":\"<evidence>/01-app-press-increment.png.again.png\",\"inline\":true,\"sign\":true}",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"send\"}",
+      "find {\"testId\":\"send\"}",
+      "screen",
+      "find {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"send\"}",
+      "press {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "idle {\"quietMs\":700,\"timeoutMs\":2800}",
+      "screenshot {\"path\":\"<evidence>/04-app-press-send.png\",\"inline\":true,\"sign\":true}",
+      "screenshot {\"path\":\"<evidence>/04-app-press-send.png.again.png\",\"inline\":true,\"sign\":true}",
+      "screen",
+      "waitFor {\"target\":{\"testId\":\"resend\"},\"timeoutMs\":5000}",
+      "screen",
+      "idle {\"quietMs\":700,\"timeoutMs\":2800}",
+      "screenshot {\"path\":\"<evidence>/05-app-wait-target-resend-timeoutms-5000.png\",\"inline\":true,\"sign\":true}",
+      "screenshot {\"path\":\"<evidence>/05-app-wait-target-resend-timeoutms-5000.png.again.png\",\"inline\":true,\"sign\":true}",
+      "screen"
+    ],
+    "report": {
+      "id": "compare-run-frames",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "screenshot": "01-app-press-increment.png"
+        },
+        {
+          "step": "app.see text: Count: 1",
+          "status": "passed",
+          "screenshot": "01-app-press-increment.png"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "passed",
+          "screenshot": "01-app-press-increment.png"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed",
+          "screenshot": "04-app-press-send.png"
+        },
+        {
+          "step": "app.wait target: #resend, timeoutMs: 5000",
+          "status": "passed",
+          "screenshot": "05-app-wait-target-resend-timeoutms-5000.png"
+        }
+      ]
+    }
+  },
+  "counter-name-and-countdown": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "reset",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "waitFor {\"target\":{\"testId\":\"name\"},\"timeoutMs\":5000}",
+      "idle {\"quietMs\":100,\"timeoutMs\":800}",
+      "type {\"text\":\"Ana\",\"target\":{\"testId\":\"name\"},\"paste\":false,\"clear\":false,\"submit\":false}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"send\"}",
+      "find {\"testId\":\"send\"}",
+      "screen",
+      "find {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"send\"}",
+      "press {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "screen",
+      "waitFor {\"target\":{\"text\":\"Resend now\"},\"timeoutMs\":6000}"
+    ],
+    "report": {
+      "id": "counter-name-and-countdown",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.call command: reset",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Count: 0",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Count: 2",
+          "status": "passed"
+        },
+        {
+          "step": "app.type target: #name, text: Ana",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Code sent to Ana",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Resend in 3",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait target: Resend now, timeoutMs: 6000",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "dry-run": {
+    "messages": [],
+    "report": {
+      "id": "dry-run",
+      "result": "failed",
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.nowhere at: all",
+          "status": "failed",
+          "error": "app.nowhere is not a step: Lynkeus has no command nowhere, and the project declares no macro for it"
+        },
+        {
+          "step": "app.see text: Count: 1",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "events": {
+    "messages": [
+      "events",
+      "trace {}",
+      "requests {}",
+      "events",
+      "screen",
+      "events {\"clear\":true}",
+      "events",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "waitFor {\"target\":{\"testId\":\"name\"},\"timeoutMs\":5000}",
+      "idle {\"quietMs\":100,\"timeoutMs\":800}",
+      "type {\"text\":\"Cy\",\"target\":{\"testId\":\"name\"},\"paste\":false,\"clear\":false,\"submit\":false}",
+      "events",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"send\"}",
+      "find {\"testId\":\"send\"}",
+      "screen",
+      "find {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"send\"}",
+      "press {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "events",
+      "screen",
+      "screen",
+      "events",
+      "events",
+      "screen"
+    ],
+    "report": {
+      "id": "events",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.events clear",
+          "status": "passed"
+        },
+        {
+          "step": "app.type target: #name, text: Cy",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed"
+        },
+        {
+          "step": "app.event name: code_sent, props: {\"to\":\"Cy\"}",
+          "status": "passed"
+        }
+      ],
+      "events": [
+        {
+          "name": "code_sent",
+          "props": {
+            "to": "Cy"
+          },
+          "step": 3,
+          "route": "Home"
+        }
+      ]
+    }
+  },
+  "every-wait": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "waitFor {\"route\":\"List\",\"timeoutMs\":10000,\"since\":0}",
+      "trace {}",
+      "requests {}",
+      "back",
+      "waitFor {\"route\":\"Home\",\"timeoutMs\":10000,\"since\":2}",
+      "waitFor {\"target\":{\"testId\":\"increment\"},\"timeoutMs\":10000}",
+      "waitFor {\"target\":{\"text\":\"Count: 0\"},\"timeoutMs\":10000}",
+      "waitFor {\"route\":\"Home\",\"timeoutMs\":10000}",
+      "waitFor {\"target\":{\"text\":\"Welcome\"},\"timeoutMs\":10000}",
+      "waitFor {\"anyOf\":[{\"text\":\"Goodbye\"},{\"testId\":\"send\"},{\"text\":\"Welcome\",\"nth\":0}],\"timeoutMs\":10000}",
+      "waitFor {\"target\":{\"testId\":\"later\"},\"enabled\":true,\"timeoutMs\":10000}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"send\"}",
+      "find {\"testId\":\"send\"}",
+      "screen",
+      "find {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"send\"}",
+      "press {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "requests {\"since\":0}",
+      "requests {\"since\":0}"
+    ],
+    "report": {
+      "id": "every-wait",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #open-list",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait List",
+          "status": "passed"
+        },
+        {
+          "step": "app.back",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait route:Home",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait 250",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait text: Count: 0",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait text: Home",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait what: \"Welcome\"",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait anyOf: [\"Goodbye\",{\"testId\":\"send\"},{\"text\":\"Welcome\",\"nth\":0}]",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait target: #later, enabled: true",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait request: POST /api/code",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait request: POST /api/code/, status: 200",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "failure-evidence-and-continue": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "waitFor {\"target\":{\"testId\":\"never\"},\"timeoutMs\":300}",
+      "screen",
+      "requests {}",
+      "trace {}",
+      "screen",
+      "find {\"testId\":\"never\"}",
+      "screen",
+      "screen",
+      "trace {\"since\":0}"
+    ],
+    "report": {
+      "id": "failure-evidence-and-continue",
+      "result": "failed",
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Count: 5, timeoutMs: 500",
+          "status": "failed",
+          "error": "not on screen: \"Count: 5\"",
+          "looked": {
+            "listing": "Home\ntext \"Welcome\"\ntext \"Count: 1\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+            "scrolls": [],
+            "scrollsTotal": 0
+          }
+        },
+        {
+          "step": "app.wait target: #never, timeoutMs: 300",
+          "status": "failed",
+          "error": "waitFor timed out after 300ms: {\"target\":{\"testId\":\"never\"},\"timeoutMs\":300} (never in the tree)",
+          "looked": {
+            "listing": "Home\ntext \"Welcome\"\ntext \"Count: 1\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+            "scrolls": [],
+            "scrollsTotal": 0,
+            "target": {
+              "found": false,
+              "seen": [
+                {
+                  "atMs": 306,
+                  "scrolls": 0,
+                  "state": "not in the tree"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "passed"
+        }
+      ],
+      "evidence": {
+        "screen": "Home\ntext \"Welcome\"\ntext \"Count: 1\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+        "requests": [],
+        "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      },
+      "diagnosis": [
+        "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      ]
+    }
+  },
+  "failure-stops-and-tears-down": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"missing\"}",
+      "waitFor {\"target\":{\"testId\":\"missing\"},\"timeoutMs\":500}",
+      "find {\"testId\":\"missing\"}",
+      "find {\"testId\":\"missing\"}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"missing\"}",
+      "screen",
+      "press {\"testId\":\"missing\"}",
+      "screen",
+      "requests {}",
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "reset",
+      "screen",
+      "trace {\"since\":0}"
+    ],
+    "report": {
+      "id": "failure-stops-and-tears-down",
+      "result": "failed",
+      "steps": [
+        {
+          "step": "app.press #missing",
+          "status": "failed",
+          "error": "No element matches {\"testId\":\"missing\"}"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "skipped"
+        }
+      ],
+      "evidence": {
+        "screen": "Home\ntext \"Welcome\"\ntext \"Count: 0\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+        "requests": [],
+        "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      },
+      "diagnosis": [
+        "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      ]
+    }
+  },
+  "interruptions": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"consent-sheet\"}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"consent-sheet\"}",
+      "trace {}",
+      "find {\"testId\":\"accept\"}",
+      "find {\"testId\":\"accept\"}",
+      "screen",
+      "find {\"testId\":\"accept\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"accept\"}",
+      "press {\"testId\":\"accept\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "find {\"testId\":\"consent-sheet\"}",
+      "screen",
+      "find {\"testId\":\"consent-sheet\"}",
+      "waitFor {\"target\":{\"testId\":\"send\"},\"timeoutMs\":1000}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"consent-sheet\"}",
+      "waitFor {\"target\":{\"testId\":\"name\"},\"timeoutMs\":5000}",
+      "idle {\"quietMs\":100,\"timeoutMs\":800}",
+      "type {\"text\":\"Bo\",\"target\":{\"testId\":\"name\"},\"paste\":false,\"clear\":true,\"submit\":true}"
+    ],
+    "report": {
+      "id": "interruptions",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Count: 2",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait target: #send",
+          "status": "passed"
+        },
+        {
+          "step": "app.type target: #name, text: Bo, clear: true, submit: true",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "list-back-and-dialog": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "waitFor {\"target\":{\"text\":\"Item 40\"},\"scroll\":true,\"timeoutMs\":10000}",
+      "trace {}",
+      "requests {}",
+      "find {\"text\":\"Item 40\"}",
+      "find {\"text\":\"Item 40\"}",
+      "screen",
+      "press {\"text\":\"Item 40\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "back",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"delete\"}",
+      "find {\"testId\":\"delete\"}",
+      "screen",
+      "find {\"testId\":\"delete\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"delete\"}",
+      "press {\"testId\":\"delete\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"confirm\"}",
+      "find {\"testId\":\"confirm\"}",
+      "screen",
+      "find {\"testId\":\"confirm\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"confirm\"}",
+      "press {\"testId\":\"confirm\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "waitFor {\"target\":{\"text\":\"Delete everything?\"},\"gone\":true,\"timeoutMs\":10000}",
+      "screen"
+    ],
+    "report": {
+      "id": "list-back-and-dialog",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #open-list",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Items",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait target: Item 40, scroll: true",
+          "status": "passed"
+        },
+        {
+          "step": "app.press Item 40",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Picked Item 40",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #open-list",
+          "status": "passed"
+        },
+        {
+          "step": "app.back",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #delete",
+          "status": "passed"
+        },
+        {
+          "step": "app.see layer: confirm-delete",
+          "status": "passed"
+        },
+        {
+          "step": "app.see testId: increment, absent: true",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #confirm",
+          "status": "passed"
+        },
+        {
+          "step": "app.wait target: Delete everything?, gone: true",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Everything was deleted",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "macros-blocks-and-commands": {
+    "messages": [
+      "requests {}",
+      "trace {}",
+      "trace {}",
+      "reset",
+      "waitFor {\"route\":\"Home\",\"timeoutMs\":10000,\"since\":0}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"send\"}",
+      "find {\"testId\":\"send\"}",
+      "screen",
+      "find {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"send\"}",
+      "press {\"testId\":\"send\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "ping",
+      "trace {}",
+      "requests {}",
+      "reset",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"footer\"}",
+      "swipe {\"direction\":\"up\",\"target\":{\"testId\":\"footer\"}}",
+      "trace {}",
+      "requests {}",
+      "swipe {\"from\":{\"x\":200,\"y\":600},\"to\":{\"x\":200,\"y\":200}}",
+      "trace {}",
+      "requests {}",
+      "trace {}",
+      "deepLink {\"url\":\"myapp://home\"}",
+      "trace {}",
+      "netmock {\"action\":\"add\",\"method\":\"GET\",\"path\":\"/v3/accounts\",\"status\":500}",
+      "trace {}",
+      "navigate {\"name\":\"Settings\"}",
+      "waitFor {\"route\":\"Settings\",\"timeoutMs\":8000}",
+      "idle {\"quietMs\":300,\"timeoutMs\":8000}",
+      "trace {}",
+      "navigate {\"name\":\"List\",\"params\":{\"from\":\"case\"}}",
+      "waitFor {\"route\":\"List\",\"timeoutMs\":8000}",
+      "idle {\"quietMs\":300,\"timeoutMs\":8000}",
+      "screen"
+    ],
+    "report": {
+      "id": "macros-blocks-and-commands",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.login wait: Home",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #increment",
+          "status": "skipped"
+        },
+        {
+          "step": "app.press #send",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "passed"
+        },
+        {
+          "step": "app.call command: reset, expect: {\"ok\":true}, as: answer",
+          "status": "passed"
+        },
+        {
+          "step": "app.swipe direction: up, target: #footer",
+          "status": "passed"
+        },
+        {
+          "step": "app.swipe from: 200,600, to: 200,200",
+          "status": "passed"
+        },
+        {
+          "step": "app.requests mark",
+          "status": "passed"
+        },
+        {
+          "step": "app.deeplink myapp://home",
+          "status": "passed"
+        },
+        {
+          "step": "app.mock route: GET /v3/accounts, status: 500",
+          "status": "passed"
+        },
+        {
+          "step": "app.nav Settings",
+          "status": "passed"
+        },
+        {
+          "step": "app.nav route: List, params: {\"from\":\"case\"}",
+          "status": "passed"
+        },
+        {
+          "step": "app.see route: List",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "native-window-scrolls": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"footer\"}",
+      "find {\"testId\":\"footer\"}",
+      "screen",
+      "screen",
+      "find {\"testId\":\"footer\"}",
+      "screen",
+      "screen",
+      "swipe {\"from\":{\"x\":195,\"y\":633},\"to\":{\"x\":195,\"y\":253}}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1500}",
+      "find {\"testId\":\"footer\"}",
+      "screen",
+      "find {\"testId\":\"footer\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"footer\"}",
+      "press {\"testId\":\"footer\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"text\":\"Item 13\"}",
+      "find {\"text\":\"Item 13\"}",
+      "screen",
+      "screen",
+      "find {\"text\":\"Item 13\"}",
+      "screen",
+      "screen",
+      "swipe {\"from\":{\"x\":195,\"y\":633},\"to\":{\"x\":195,\"y\":253}}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1500}",
+      "find {\"text\":\"Item 13\"}",
+      "screen",
+      "press {\"text\":\"Item 13\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "screen",
+      "waitFor {\"target\":{\"text\":\"Item 30\"},\"timeoutMs\":1500}",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "swipe {\"from\":{\"x\":195,\"y\":633},\"to\":{\"x\":195,\"y\":253}}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1500}",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "swipe {\"from\":{\"x\":195,\"y\":633},\"to\":{\"x\":195,\"y\":253}}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1500}",
+      "screen",
+      "screen",
+      "screen",
+      "screen",
+      "swipe {\"from\":{\"x\":195,\"y\":633},\"to\":{\"x\":195,\"y\":253}}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1500}",
+      "screen",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"text\":\"Item 30\"}",
+      "find {\"text\":\"Item 30\"}",
+      "screen",
+      "press {\"text\":\"Item 30\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}"
+    ],
+    "report": {
+      "id": "native-window-scrolls",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #footer",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #open-list",
+          "status": "passed"
+        },
+        {
+          "step": "app.press Item 13",
+          "status": "passed"
+        },
+        {
+          "step": "app.press #open-list",
+          "status": "passed"
+        },
+        {
+          "step": "app.see text: Item 30",
+          "status": "passed"
+        },
+        {
+          "step": "app.press text: Item 30",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "press-by-number": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "screen",
+      "requests {}",
+      "trace {}",
+      "screen",
+      "trace {\"since\":0}"
+    ],
+    "report": {
+      "id": "press-by-number",
+      "result": "failed",
+      "steps": [
+        {
+          "step": "app.press 2",
+          "status": "failed",
+          "error": "Cannot use 'in' operator to search for 'target' in 2"
+        },
+        {
+          "step": "app.see text: Count: 1",
+          "status": "skipped"
+        }
+      ],
+      "evidence": {
+        "screen": "Home\ntext \"Welcome\"\ntext \"Count: 0\"\nbutton #increment \"Increment\"\ninput #name value=\"\"\nbutton #send \"Send code\"\nbutton #open-list \"Open list\"\nbutton #open-settings \"Settings\"\nbutton #delete \"Delete everything\"\nbutton #later \"Later\"\nbutton #late \"Late\"\nbutton #footer \"Footer\"",
+        "requests": [],
+        "why": "  (nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      },
+      "diagnosis": [
+        "(nothing in the evidence explains it: the screen, requests and trace look ordinary)"
+      ]
+    }
+  },
+  "retries-until-enabled-and-listed": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"later\"}",
+      "find {\"testId\":\"later\"}",
+      "screen",
+      "find {\"testId\":\"later\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"later\"}",
+      "press {\"testId\":\"later\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"late\"}",
+      "waitFor {\"target\":{\"testId\":\"late\"},\"timeoutMs\":500}",
+      "find {\"testId\":\"late\"}",
+      "find {\"testId\":\"late\"}",
+      "screen",
+      "find {\"testId\":\"late\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"late\"}",
+      "press {\"testId\":\"late\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "waitFor {\"target\":{\"text\":\"Nowhere\"},\"timeoutMs\":300}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\",\"within\":{\"testId\":\"name\"},\"nth\":0}",
+      "find {\"testId\":\"increment\",\"within\":{\"testId\":\"name\"},\"nth\":0}",
+      "screen",
+      "find {\"testId\":\"increment\",\"within\":{\"testId\":\"name\"},\"nth\":0}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\",\"within\":{\"testId\":\"name\"},\"nth\":0}",
+      "press {\"testId\":\"increment\",\"within\":{\"testId\":\"name\"},\"nth\":0}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "trace {}",
+      "requests {}",
+      "find {\"i\":1}",
+      "find {\"i\":1}",
+      "screen",
+      "press {\"i\":1}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}"
+    ],
+    "report": {
+      "id": "retries-until-enabled-and-listed",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #later",
+          "status": "passed"
+        },
+        {
+          "step": "app.press testId: late, timeoutMs: 500",
+          "status": "passed"
+        },
+        {
+          "step": "app.press target: Nowhere, optional: true",
+          "status": "skipped"
+        },
+        {
+          "step": "app.press target: #increment, within: #name, nth: 0",
+          "status": "passed"
+        },
+        {
+          "step": "app.press 1",
+          "status": "passed"
+        }
+      ]
+    }
+  },
+  "screenshots-each-step": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"increment\"}",
+      "find {\"testId\":\"increment\"}",
+      "screen",
+      "find {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"increment\"}",
+      "press {\"testId\":\"increment\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "screenshot {\"path\":\"<evidence>/01-app-press-increment.png\",\"inline\":true}",
+      "screen",
+      "screen",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "screenshot {\"path\":\"<evidence>/02-app-see-text-count-1.png\",\"inline\":true}",
+      "screen",
+      "screen",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "screenshot {\"path\":\"<evidence>/03-app-see-text-welcome.png\",\"inline\":true}",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "find {\"testId\":\"open-list\"}",
+      "find {\"testId\":\"open-list\"}",
+      "screen",
+      "find {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":200}",
+      "find {\"testId\":\"open-list\"}",
+      "press {\"testId\":\"open-list\"}",
+      "idle {\"quietMs\":50,\"timeoutMs\":400}",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "screenshot {\"path\":\"<evidence>/04-app-press-open-list.png\",\"inline\":true}",
+      "screen",
+      "trace {}",
+      "requests {}",
+      "back",
+      "idle {\"quietMs\":150,\"timeoutMs\":1000}",
+      "screenshot {\"path\":\"<evidence>/05-app-back.png\",\"inline\":true}",
+      "screen"
+    ],
+    "report": {
+      "id": "screenshots-each-step",
+      "result": "passed",
+      "steps": [
+        {
+          "step": "app.press #increment",
+          "status": "passed",
+          "screenshot": "01-app-press-increment.png"
+        },
+        {
+          "step": "app.see text: Count: 1",
+          "status": "passed",
+          "screenshot": "02-app-see-text-count-1.png"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "passed",
+          "screenshot": "03-app-see-text-welcome.png"
+        },
+        {
+          "step": "app.press #open-list",
+          "status": "passed",
+          "screenshot": "04-app-press-open-list.png"
+        },
+        {
+          "step": "app.back",
+          "status": "passed",
+          "screenshot": "05-app-back.png"
+        }
+      ]
+    }
+  },
+  "unsupported-command": {
+    "messages": [
+      "trace {}",
+      "trace {}",
+      "requests {}",
+      "clock {\"advance\":100}"
+    ],
+    "report": {
+      "id": "unsupported-command",
+      "result": "unsupported",
+      "steps": [
+        {
+          "step": "app.call command: clock, params: {\"advance\":100}",
+          "status": "unsupported",
+          "error": "this host has no clock"
+        },
+        {
+          "step": "app.see text: Welcome",
+          "status": "skipped"
+        }
+      ]
+    }
+  }
+}

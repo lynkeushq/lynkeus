@@ -1,6 +1,6 @@
 {
   "name": "lynkeus",
-  "version": "0.7.4",
+  "version": "0.7.5",
   "description": "Drive a React Native app running lynkeus-agent from the terminal, a test runner or an MCP client: screens, flows, smoke, crawl, and the app's screen graph.",
   "type": "module",
   "bin": "./lib/cli.js",
@@ -22,7 +22,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test src/__tests__/*.test.ts src/knowledge/__tests__/*.test.ts src/cases/__tests__/*.test.ts",
     "dev": "tsx src/cli.ts",
-    "docs": "node lib/cli.js help --markdown > ../../docs/COMMANDS.md"
+    "docs": "node lib/cli.js help --markdown > ../../docs/COMMANDS.md",
+    "goldens:rn": "node scripts/goldens-rn.mjs",
+    "check:boundary": "node scripts/check-runtime-boundary.mjs"
   },
   "repository": {
     "type": "git",

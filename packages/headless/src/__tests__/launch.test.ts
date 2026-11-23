@@ -27,9 +27,9 @@ describe('launch facts', () => {
     expect(now).toBeLessThan(RealDate.parse('2026-03-01T09:00:10.000Z'));
   });
 
-  it('a clock reset goes back to the epoch, not to the real time', () => {
-    (host.get('clock') as (p: unknown) => unknown)({ advanceMs: 86_400_000 });
-    (host.get('clock') as (p: unknown) => unknown)({ reset: true });
+  it('a clock reset goes back to the epoch, not to the real time', async () => {
+    await (host.get('clock') as (p: unknown) => unknown)({ advanceMs: 86_400_000 });
+    await (host.get('clock') as (p: unknown) => unknown)({ reset: true });
     expect(new Date().toISOString().startsWith('2026-03-01T09:00')).toBe(true);
   });
 

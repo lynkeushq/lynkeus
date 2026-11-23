@@ -138,17 +138,16 @@ const nodeSocket = (url: string): Socket => {
 // it loaded, so it stays dead after useRealTimers; apps defer navigation and
 // overlay dismissal to the next frame, and nothing would ever move.
 const useRealFrames = () => {
-  const realSetTimeout = setTimeout;
-  const realClearTimeout = clearTimeout;
   Object.defineProperty(globalThis, 'requestAnimationFrame', {
     configurable: true,
     writable: true,
-    value: (callback: (time: number) => void) => realSetTimeout(() => callback(Date.now()), 0),
+    // Read at each call, so the timers the clock command can advance (installed later) carry the frames too.
+    value: (callback: (time: number) => void) => setTimeout(() => callback(Date.now()), 0),
   });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', {
     configurable: true,
     writable: true,
-    value: (id: ReturnType<typeof setTimeout>) => realClearTimeout(id),
+    value: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
   });
 };
 

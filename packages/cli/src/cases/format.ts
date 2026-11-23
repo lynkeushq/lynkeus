@@ -21,6 +21,8 @@ export type Case = {
   meta: Record<string, unknown>;
   setup: Step[];
   steps: Step[];
+  /** What puts back what the case changed outside the app (a Simulator's enrolled face): runs after the steps, failed or not. */
+  teardown: Step[];
   /**
    * The numbered section each of `steps` belongs to, from the comment that opens it (`# 3 A wrong PIN`), as
    * `3 A wrong PIN`; a step before the first one has none. Read for reports and progress, never for what a step does.
@@ -104,6 +106,7 @@ export const parseCase = (text: string, file: string): Case => {
     meta,
     setup: stepsOf(body.setup, file, 'setup'),
     steps: stepsOf(body.steps, file, 'steps'),
+    teardown: stepsOf(body.teardown, file, 'teardown'),
     sections: sectionsOf(match[2]!),
     expected: typeof body.expected === 'string' ? body.expected.trim() : undefined,
   };
