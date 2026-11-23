@@ -1,7 +1,8 @@
 import 'item.dart';
 
 /// How well an element answers a target: 0 = no, higher = better. Exact text on a control beats the same text in a
-/// paragraph, and a substring of a paragraph is no target at all: its center lands on whatever word sits there.
+/// paragraph, and a substring of a paragraph is no target at all: its center lands on whatever word sits there. A
+/// field with no label is known by its hint (`Search...`), whole, as a person reads the empty field.
 int score(Item element, Target target) {
   if (target.testId != null) return element.testId == target.testId ? 4 : 0;
   if (target.i != null) return element.i == target.i ? 4 : 0;
@@ -12,6 +13,7 @@ int score(Item element, Target target) {
   final control = element.kind == 'button' || element.kind == 'input';
   if (haystacks.any((h) => h == needle)) return control ? 4 : 3;
   if (control && haystacks.any((h) => h.contains(needle))) return 2;
+  if (element.kind == 'input' && element.placeholder?.toLowerCase().trim() == needle) return 3;
   return 0;
 }
 

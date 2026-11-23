@@ -10,6 +10,7 @@ Item el({
   String? testId,
   String? text,
   String? value,
+  String? placeholder,
   bool covered = false,
   String? hidden,
   int? parent,
@@ -21,6 +22,7 @@ Item el({
   testId: testId,
   text: text,
   value: value,
+  placeholder: placeholder,
   covered: covered,
   hidden: hidden,
   parent: parent,
@@ -31,6 +33,15 @@ void main() {
     test('matches testId exactly', () {
       expect(score(el(testId: 'a'), const Target(testId: 'a')), 4);
       expect(score(el(testId: 'ab'), const Target(testId: 'a')), 0);
+    });
+
+    test('knows a field with no label by its whole hint, below its label and text', () {
+      final field = el(kind: 'input', placeholder: 'Search...');
+      expect(score(field, const Target(text: 'search...')), 3);
+      expect(score(field, const Target(text: 'Search')), 0);
+      expect(score(el(kind: 'text', placeholder: 'Search...'), const Target(text: 'Search...')), 0);
+      final labeled = el(kind: 'input', placeholder: 'Search...')..accessibilityLabel = 'Search...';
+      expect(score(labeled, const Target(text: 'Search...')), 4);
     });
 
     test('prefers exact text on a control over the same text in a paragraph', () {
