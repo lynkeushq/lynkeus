@@ -48,6 +48,16 @@ test('a React Native app, a pure Dart package or no pubspec is not a Flutter app
   assert.equal(flutterProject(project('name: x\ndependencies:\n  flutter_lints: ^6.0.0\nflutter:\n  uses-material-design: true\n')), undefined);
 });
 
+test('a Flutter pubspec beside a React Native package.json is the React Native app, as init decides', () => {
+  const rn = (deps: string) => ({ 'package.json': `{"name":"rn","${deps}":{"react-native":"0.80.0"}}` });
+  assert.equal(flutterProject(project(APP, rn('dependencies'))), undefined);
+  assert.equal(flutterProject(project(APP, rn('devDependencies'))), undefined);
+  assert.deepEqual(flutterProject(project(APP, { 'package.json': '{"name":"tools","devDependencies":{"prettier":"3"}}' })), {
+    name: 'shop_app',
+    hosted: true,
+  });
+});
+
 test('the host file goes under .lynkeus, one per port, and git ignores it', () => {
   const root = project(APP, { 'lib/main.dart': 'void main() {}\n' });
   const file = writeFlutterHost(root, { name: 'shop_app', hosted: true }, 'lib/main.dart', 8140);
