@@ -64,7 +64,8 @@ from outside. The host plays an iPhone-sized iOS device (402x874 points at 3x, w
 
 flutter_test leaves platform channels unanswered: a plugin's method channel throws `MissingPluginException`, a
 Pigeon one fails to connect. The host answers every channel. These plugins have stand-ins that keep their state in
-memory for the run, answering the channels their platform interfaces fall back to under `flutter test`:
+memory for the run, answering the channels their platform interfaces fall back to under `flutter test`. They
+live in lynkeus_agent (`package:lynkeus_agent/hosts.dart`), which answers the same way inside Lynkeus FastSim:
 
 | Plugin | Stand-in | Driven by |
 |---|---|---|

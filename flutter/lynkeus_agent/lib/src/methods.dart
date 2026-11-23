@@ -152,9 +152,13 @@ class Methods {
   /// Requests from the driver being served right now.
   int serving = 0;
 
+  /// Told when [serving] changes: a host with its own clock runs it ahead while the driver waits.
+  void Function()? onServing;
+
   Future<Object?> call(String method, Object? params) async {
     final started = _ms();
     serving++;
+    onServing?.call();
     try {
       final result = await _dispatch(method, params);
       if (!_untraced.contains(method)) record({'kind': 'command', 'method': method, 'ms': _ms() - started});
@@ -164,6 +168,7 @@ class Methods {
       rethrow;
     } finally {
       serving--;
+      onServing?.call();
     }
   }
 

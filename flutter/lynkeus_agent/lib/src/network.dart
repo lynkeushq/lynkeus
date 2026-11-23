@@ -170,6 +170,9 @@ class Network {
   int get inFlight => math.max(0, _inFlight - _held.length);
   int get held => _held.length;
 
+  /// Told when [inFlight] may have changed: a host with its own clock keeps the wall's pace while a request is out.
+  void Function()? onInFlight;
+
   /// Wraps every HttpClient the app makes from now on, inside whatever overrides it had.
   void install() => HttpOverrides.global = _Overrides(this, HttpOverrides.current);
 
@@ -248,6 +251,7 @@ class Network {
   int _release((String, String)? route) {
     final released = _held.where((h) => route == null || _matches(route.$1, route.$2, h.method, h.path)).toList();
     _held = _held.where((h) => !released.contains(h)).toList();
+    onInFlight?.call();
     for (final h in released) {
       h.go.complete();
     }
@@ -264,6 +268,7 @@ class Network {
     gate.hits++;
     final held = _Held(method, path, Completer<void>());
     _held.add(held);
+    onInFlight?.call();
     return held.go.future;
   }
 
@@ -280,6 +285,7 @@ class Network {
   _Record _track(String method, Uri url) {
     final record = _Record(_nextId++, method, redactUrl(url.toString()));
     _inFlight++;
+    onInFlight?.call();
     _records.add(record);
     if (_records.length > _keep) _records.removeAt(0);
     return record;
@@ -289,6 +295,7 @@ class Network {
     if (record.finished) return;
     record.finished = true;
     _inFlight--;
+    onInFlight?.call();
     record
       ..status = status
       ..ms = _ms() - record.startedAt;

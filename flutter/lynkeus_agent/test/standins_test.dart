@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lynkeus_headless/src/plugins.dart';
-import 'package:lynkeus_headless/src/standins.dart';
+import 'package:lynkeus_agent/hosts.dart';
 
 void main() {
   late List<String> logged;
@@ -14,7 +13,11 @@ void main() {
   setUp(() {
     logged = [];
     commands = {};
-    standIns = StandIns(log: logged.add)..install(TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger);
+    standIns = StandIns(log: logged.add);
+    // The app's channels go through the messenger the FastSim binding gives the app.
+    final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final app = StandInMessenger(messenger.delegate, standIns);
+    messenger.allMessagesHandler = (channel, mock, message) => mock?.call(message) ?? app.send(channel, message);
     state = PluginState(Directory.systemTemp.createTempSync('standins-test'));
     installPlugins(standIns, state, (name, handler) => commands[name] = handler, (_, _) async {}, 'ios');
   });
@@ -89,5 +92,12 @@ void main() {
       'dev.fluttercommunity.plus/device_info',
     ).invokeMethod<Map<Object?, Object?>>('getDeviceInfo');
     expect(info?['systemName'], 'iOS');
+  });
+
+  test('the engine\'s and the host\'s channels are not a plugin\'s', () {
+    expect(StandIns.handles('flutter/platform'), isFalse);
+    expect(StandIns.handles('lynkeus/fastsim'), isFalse);
+    expect(StandIns.handles('plugins.flutter.io/shared_preferences'), isTrue);
+    expect(StandIns.handles('dev.flutter.pigeon.shared_preferences_foundation.UserDefaultsApi.getAll'), isTrue);
   });
 }

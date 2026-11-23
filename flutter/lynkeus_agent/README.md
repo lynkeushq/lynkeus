@@ -54,3 +54,21 @@ void main() {
   runApp(MaterialApp.router(routerConfig: router));
 }
 ```
+
+## Lynkeus FastSim
+
+Inside the FastSim host (the app's own debug kernel run by Flutter's embedder, on a clock the host moves) the agent
+wakes on `FASTSIM_HOST`, which only the host sets; on a simulator or a phone none of it runs. There it makes the
+app's binding, whose root view carries the device's safe area (the embedder cannot set one), asks the host on
+`lynkeus/fastsim` which commands it serves (`clock`, `screenshot`, …) and forwards them, and tells the host when a
+driver request is being served and how many of the app's requests are out, which is what moves its clock.
+
+For that, `LynkeusAgent.start()` has to come before the app's first `WidgetsFlutterBinding.ensureInitialized()`.
+An app that makes its binding first still runs and is driven; it gets no safe area, and says `binding: app` in its
+hello.
+
+The app has no native side there either, so the agent's binding answers its plugins' channels with the same
+stand-ins the headless host uses (`package:lynkeus_agent/hosts.dart`; the table is in lynkeus_headless's README),
+and the same `launched`, `biometrics`, `permissions` and `network` commands drive them. A plugin whose platform
+implementation calls native code through FFI instead of a channel (shared_preferences_foundation 2.6 on iOS) is
+out of their reach.
