@@ -125,6 +125,38 @@ test('main.dart: the agent starts before the first ensureInitialized(), in the s
   );
 });
 
+test('main.dart: the agent starts in main(), not in another entry point before it, and before an if that picks the binding', () => {
+  const src = [
+    "import 'package:flutter/widgets.dart';",
+    '',
+    "@pragma('vm:entry-point')",
+    'Future<void> backgroundMain() async {',
+    '  WidgetsFlutterBinding.ensureInitialized();',
+    '  await runInBackground();',
+    '}',
+    '',
+    'Future<void> main() async {',
+    '  if (Platform.isIOS) {',
+    '    FixedBinding.ensureInitialized(); // the platform (iOS) needs its own',
+    '  } else {',
+    '    WidgetsFlutterBinding.ensureInitialized();',
+    '  }',
+    '  runApp(const App());',
+    '}',
+    '',
+  ].join('\n');
+  const edit = addAgentToMain(src, 'habits');
+  assert.ok(edit.done);
+  assert.ok(edit.text.includes('Future<void> backgroundMain() async {\n  WidgetsFlutterBinding.ensureInitialized();'));
+  assert.ok(edit.text.includes("Future<void> main() async {\n  LynkeusAgent.start(app: {'name': 'habits'});\n  if (Platform.isIOS) {\n"));
+  const chain = addAgentToMain(
+    'void main() {\n  if (a) {\n    setup();\n  } else if (b) {\n    setup();\n  } else {\n    MyBinding.ensureInitialized();\n  }\n  runApp(A());\n}\n',
+  );
+  assert.ok(chain.text.startsWith("import 'package:lynkeus_agent/lynkeus_agent.dart';\n\nvoid main() {\n  LynkeusAgent.start();\n  if (a) {\n"));
+  const helper = addAgentToMain('void main() {\n  bootstrap();\n}\n\nvoid bootstrap() {\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n');
+  assert.ok(helper.text.includes('void bootstrap() {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();'));
+});
+
 test('main.dart: a start() already before ensureInitialized() is left alone; one after it is reported, not moved', () => {
   const right = 'void main() async {\n  LynkeusAgent.start();\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n';
   assert.equal(addAgentToMain(right).text, right);

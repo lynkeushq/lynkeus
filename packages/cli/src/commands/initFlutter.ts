@@ -81,17 +81,75 @@ const addDependency = (text: string, section: 'dependencies' | 'dev_dependencies
 export const addAgentToPubspec = (text: string): Edit => addDependency(text, 'dependencies', 'lynkeus_agent', AGENT_DEPENDENCY);
 export const addHeadlessToPubspec = (text: string): Edit => addDependency(text, 'dev_dependencies', 'lynkeus_headless', HEADLESS_DEPENDENCY);
 
-/** The index just past the `)` that closes the call whose `(` is at `open`, skipping string literals. */
+/** The index just past the bracket that closes the one at `open` (`(` or `{`), skipping string literals and line comments. */
 const closeOf = (text: string, open: number): number => {
+  const [opening, closing] = text[open] === '{' ? ['{', '}'] : ['(', ')'];
   let depth = 0;
   for (let i = open; i < text.length; i++) {
     const c = text[i]!;
     if (c === "'" || c === '"') {
       for (i++; i < text.length && text[i] !== c && text[i] !== '\n'; i++) if (text[i] === '\\') i++;
-    } else if (c === '(') depth++;
-    else if (c === ')' && --depth === 0) return i + 1;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i++;
+    } else if (c === opening) depth++;
+    else if (c === closing && --depth === 0) return i + 1;
   }
   return -1;
+};
+
+/** The body of a block `main`, from just past its `{` to its `}`: other functions in the file (a background entry point) are not the app's start. */
+const mainBody = (text: string): { start: number; end: number } | undefined => {
+  const head = /^(?:(?:Future<void>|FutureOr<void>|void)\s+)?main\s*\([^)]*\)\s*(?:async\s*)?\{/m.exec(text);
+  if (!head) return undefined;
+  const open = head.index + head[0].length - 1;
+  const close = closeOf(text, open);
+  return close < 0 ? undefined : { start: open + 1, end: close - 1 };
+};
+
+/** The index of the bracket that opens the one closing at `close` (`)` or `}`), scanning back no further than `from`. */
+const openOf = (text: string, from: number, close: number): number => {
+  const [opening, closing] = text[close] === '}' ? ['{', '}'] : ['(', ')'];
+  let depth = 0;
+  for (let i = close; i >= from; i--) {
+    if (text[i] === closing) depth++;
+    else if (text[i] === opening && --depth === 0) return i;
+  }
+  return -1;
+};
+
+/**
+ * Where a binding call at `at` sits in a branch of an `if`: the start of the line that opens that `if` (the first of
+ * an `else if` chain), so the agent goes before the whole statement and starts on every branch (`if (Platform.isIOS) {
+ * MyBinding.ensureInitialized(); } else { WidgetsFlutterBinding.ensureInitialized(); }`). Undefined when it is not.
+ */
+const enclosingIf = (text: string, from: number, at: number): number | undefined => {
+  let depth = 0;
+  let brace = -1;
+  for (let i = at - 1; i >= from && brace < 0; i--) {
+    if (text[i] === '}') depth++;
+    else if (text[i] === '{' && depth-- === 0) brace = i;
+  }
+  const trimmedEnd = (end: number): number => from + text.slice(from, end).trimEnd().length;
+  while (brace >= from) {
+    const before = trimmedEnd(brace);
+    let elseAt: number;
+    if (text[before - 1] === ')') {
+      const open = openOf(text, from, before - 1);
+      const head = open < 0 ? from : trimmedEnd(open);
+      if (!/\bif$/.test(text.slice(from, head))) return undefined;
+      const ifAt = head - 2;
+      const prior = trimmedEnd(ifAt);
+      if (!/\belse$/.test(text.slice(from, prior))) return text.lastIndexOf('\n', ifAt - 1) + 1;
+      elseAt = prior - 4;
+    } else if (/\belse$/.test(text.slice(from, before))) {
+      elseAt = before - 4;
+    } else return undefined;
+    // An `else` belongs to the `if` before it: go on from the block that ends there.
+    const closed = trimmedEnd(elseAt) - 1;
+    if (text[closed] !== '}') return undefined;
+    brace = openOf(text, from, closed);
+  }
+  return undefined;
 };
 
 export const mainByHand = (appName?: string): string =>
@@ -114,7 +172,17 @@ const withImport = (text: string, eol: string, uri = AGENT_URI): string => {
 /** Imports the agent and starts it before `runApp(`, in a block `main` or in an arrow `main` that becomes one. */
 export const addAgentToMain = (text: string, appName?: string): Edit => {
   const AGENT_START = agentStart(appName);
-  const initialized = /^([ \t]*)(?![ \t/])[^\n]*?\bensureInitialized\(/m.exec(text);
+  const binding = /^([ \t]*)(?![ \t/])[^\n]*?\bensureInitialized\(/gm;
+  const launch = /^([ \t]*)runApp\(/gm;
+  // A main that hands off to a helper (`void main() { bootstrap(); }`) is searched as a whole file.
+  let body = mainBody(text);
+  const within = (pattern: RegExp): RegExpExecArray | null => {
+    pattern.lastIndex = body?.start ?? 0;
+    return pattern.exec(body ? text.slice(0, body.end) : text);
+  };
+  if (body && !within(binding) && !within(launch)) body = undefined;
+  const from = body?.start ?? 0;
+  const initialized = within(binding);
   const started = text.indexOf('LynkeusAgent.start(');
   if (started >= 0) {
     if (initialized && initialized.index < started)
@@ -127,15 +195,19 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
   }
   const eol = eolOf(text);
   const arrow = /^([ \t]*)((?:Future<void>|void)\s+main\s*\(\s*\)\s*)(async\s*)?=>\s*runApp\(/m.exec(text);
-  const plain = /^([ \t]*)runApp\(/m.exec(text);
-  // The agent goes before the first ensureInitialized(), in the same block, since a binding cannot be replaced once it exists.
+  const plain = within(launch);
+  // The agent goes before the first ensureInitialized(), in the same block, since a binding cannot be replaced once it
+  // exists; before the whole `if` when that call is one of its branches.
+  const branch = initialized ? enclosingIf(text, from, initialized.index) : undefined;
   const at = arrow
     ? undefined
-    : initialized
-      ? { index: initialized.index, indent: initialized[1]! }
-      : plain
-        ? { index: plain.index, indent: plain[1]! }
-        : undefined;
+    : branch !== undefined
+      ? { index: branch, indent: /^[ \t]*/.exec(text.slice(branch))![0] }
+      : initialized
+        ? { index: initialized.index, indent: initialized[1]! }
+        : plain
+          ? { index: plain.index, indent: plain[1]! }
+          : undefined;
   let next: string;
   if (arrow) {
     const open = arrow.index + arrow[0].length - 1;
