@@ -411,6 +411,7 @@ type Element = {
   covered?: boolean;
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;
+  texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];
 };
 ```
 
@@ -429,6 +430,7 @@ type Element = {
 | `covered` | A touch at its center would not reach it: something is on top. |
 | `hidden` | It is mounted but the app is not presenting it, and why. |
 | `offscreen` | Its frame lies outside the window: it is on screen only after scrolling. |
+| `texts` | On a control that holds more than one piece of text (a card with a name and a balance), each piece and its frame. They are not elements: `see` and `find` still match the control's `text`. |
 
 `covered` and `hidden` mean different things, and both are reported.
 

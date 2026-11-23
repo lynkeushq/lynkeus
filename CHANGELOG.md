@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A control that holds more than one piece of text (a card with a name next to a balance) now lists each piece and its frame in an optional `texts` field of its element (`Element.texts` in `lynkeus-protocol`). The pieces are not elements, so `see`, `find`, reports and MCP answers match what they matched before; the field only lets a comparison find where each text sits. A control with one text has no `texts`.
+
 ## 0.7.5
 
 - `app.appstate background` on a Simulator or emulator no longer drives the suspended app: the runner stops calling its agent while it is in the background, and `lynkeus os appstate` gives the agent 3 s before it falls back to simctl or adb. Coming back to the front took 60 s (each call waited for its 20 s timeout) and long enough for an app with an idle lock to ask for its PIN; it now takes about half a second.

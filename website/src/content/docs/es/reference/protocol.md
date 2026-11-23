@@ -338,6 +338,7 @@ type Element = {
   covered?: boolean;    // un toque en su centro no lo alcanzaría
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;  // su rectángulo queda fuera de la ventana
+  texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];  // los textos de un control, cada uno con su rectángulo, si tiene más de uno
 };
 ```
 

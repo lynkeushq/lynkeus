@@ -61,6 +61,10 @@ export type Element = {
     covered?: boolean;
     hidden?: HiddenReason;
     offscreen?: boolean;
+    texts?: {
+        text: string;
+        frame: Frame;
+    }[];
 };
 export type Screen = {
     route?: string;

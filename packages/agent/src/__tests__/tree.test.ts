@@ -106,6 +106,28 @@ describe('snapshotElements', () => {
     expect(input?.value).toBe('••••');
   });
 
+  it('gives a button holding several texts their frames, without listing them as elements', () => {
+    install(
+      composite([
+        host(
+          'RCTView',
+          { testID: 'card', onClick: () => null },
+          [10, 10, 300, 100],
+          [host('RCTText', {}, [20, 20, 100, 20], [text('Get card')]), host('RCTText', {}, [200, 20, 90, 20], [text('$was1234')])],
+        ),
+        host('RCTView', { testID: 'one', onClick: () => null }, [10, 200, 100, 40], [host('RCTText', {}, [12, 210, 90, 20], [text('Go')])]),
+      ]),
+    );
+    const { elements } = snapshotElements();
+    expect(elements.map((e) => e.testId)).toEqual(['card', 'one']);
+    expect(elements[0]?.text).toBe('Get card$was1234');
+    expect(elements[0]?.texts).toEqual([
+      { text: 'Get card', frame: { x: 20, y: 20, w: 100, h: 20 } },
+      { text: '$was1234', frame: { x: 200, y: 20, w: 90, h: 20 } },
+    ]);
+    expect(elements[1]?.texts).toBeUndefined();
+  });
+
   it('keeps header text above the native window for assertions, but not text below it', () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     install(composite([host('RCTText', {}, [20, -40, 100, 20], [text('RECEPTOR')]), host('RCTText', {}, [20, 850, 100, 20], [text('below')])]));
