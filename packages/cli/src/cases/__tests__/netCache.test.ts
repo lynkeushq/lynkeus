@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { netCacheName, startNetRecord, takeNetRecord, writeNetCache } from '../netCache.js';
+import { netCacheEnv, netCacheName, startNetRecord, takeNetRecord, writeNetCache } from '../netCache.js';
 
 test('a URL is kept under the name the React Native host and the Flutter agent give it', () => {
   assert.equal(netCacheName('https://images.example/photo.png'), 'd1f88d0472c300623644b9b7d2a9412a');
@@ -61,4 +61,11 @@ test('a HEAD keeps its status beside an empty body, and never replaces what a GE
   });
   assert.equal(fs.readFileSync(path.join(dir, netCacheName(page)), 'utf8'), 'hello');
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, `${netCacheName(page)}.json`), 'utf8')).method, undefined);
+});
+
+test('a host replays from the folder, or records from its launch when the run records', () => {
+  assert.deepEqual(netCacheEnv('/net', false, false), { LYNKEUS_NET_CACHE: '/net' });
+  assert.deepEqual(netCacheEnv('/net', true, false), { LYNKEUS_NET_RECORD: '1' });
+  assert.deepEqual(netCacheEnv('/net', true, true), { LYNKEUS_NET_RECORD: 'credentials' });
+  assert.deepEqual(netCacheEnv(undefined, false, false), {});
 });

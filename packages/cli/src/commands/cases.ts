@@ -23,7 +23,7 @@ import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
 import { hostGrantEnv } from './fastsim.js';
 import { flutterNetworkEnv } from './flutterHost.js';
-import { startNetRecord, takeNetRecord } from '../cases/netCache.js';
+import { netCacheEnv, startNetRecord, takeNetRecord } from '../cases/netCache.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -509,7 +509,7 @@ export const caseCommands = [
       const netRecord = ctx.flags['net-record'] === true;
       if (netRecord && !netCache) return { text: '--net-record needs --net-cache <dir>: the folder the recorded fetches go to', code: 2 };
       // A host answers from the folder what its network fence blocks; recording happens in the app, case by case.
-      const netEnv: NodeJS.ProcessEnv = netCache && !netRecord ? { LYNKEUS_NET_CACHE: netCache } : {};
+      const netEnv = netCacheEnv(netCache, netRecord, ctx.flags['net-record-credentials'] === true);
       let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch, netEnv) : undefined;
       // With --keep-hosts, each job's own long-lived host, by job.
       const kept: (ChildProcess | undefined)[] = [];

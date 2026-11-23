@@ -153,6 +153,14 @@ abstract final class LynkeusAgent {
         ..replay = NetCache(Directory(cache))
         ..fenced = (host) => !allowed.contains(host) && !allowed.contains(host.toLowerCase());
     }
+    // Recording from the launch (LYNKEUS_NET_RECORD, set by `case run --net-record` on a host it starts, or a
+    // --dart-define on a device build): what the app fetches as it starts comes before any driver can ask.
+    final record = Platform.environment['LYNKEUS_NET_RECORD'] ?? const String.fromEnvironment('LYNKEUS_NET_RECORD');
+    if (record.isNotEmpty) {
+      network.recorder
+        ..on = true
+        ..credentials = record == 'credentials';
+    }
     methods.network = network;
     for (final entry in network.commands.entries) {
       methods.commands.putIfAbsent(entry.key, () => entry.value);

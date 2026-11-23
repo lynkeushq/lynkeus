@@ -57,3 +57,11 @@ export const takeNetRecord = async (device: Commands, dir: string): Promise<{ fi
   }
   return total;
 };
+
+/**
+ * What a host the run starts is told: the folder it replays from, or, when the run records, to record from its launch,
+ * before the driver attaches (what an app fetches as it starts, a connectivity check or its first screen's data, is
+ * otherwise lost).
+ */
+export const netCacheEnv = (dir: string | undefined, record: boolean, credentials: boolean): NodeJS.ProcessEnv =>
+  record ? { LYNKEUS_NET_RECORD: credentials ? 'credentials' : '1' } : dir ? { LYNKEUS_NET_CACHE: dir } : {};
