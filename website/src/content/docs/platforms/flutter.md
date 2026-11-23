@@ -46,7 +46,7 @@ void main() {
 }
 ```
 
-Start the agent first in `main()`, before `WidgetsFlutterBinding.ensureInitialized()`: under Lynkeus FastSim it installs its own binding, and a binding cannot be replaced once one exists (`lynkeus init` places it there). The agent reads the token from a `--dart-define`; without one it stays off and says so in the console. Run the app with it on a Simulator or emulator, then check with `npx lynkeus screen`:
+Start the agent first in `main()`, before `WidgetsFlutterBinding.ensureInitialized()`: it installs its own binding, which is the app's usual one plus what makes a captured frame repeatable (below), and a binding cannot be replaced once one exists (`lynkeus init` places it there). The agent reads the token from a `--dart-define`; without one it stays off and says so in the console. Run the app with it on a Simulator or emulator, then check with `npx lynkeus screen`:
 
 ```bash
 flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
@@ -219,6 +219,8 @@ npx lynkeus case run <cases> --ports 8232 --host-command "<install folder>/bin/f
 
 To compare FastSim's screens with a simulator's or an emulator's, build the reference app from the same code with the same flags: `flutter build ios --simulator --debug` or `flutter build apk --debug --no-track-widget-creation`, with the same `--dart-define` values. Without `--no-track-widget-creation` on both, the two kernels differ, and so can the pixels.
 
+A step's frame is the same on both sides even with something animating forever. When the agent answers `idle` (what `--settle` waits for) with a spinner, a shimmer or a blinking caret on screen, it draws one more frame with each of those at the moment it started, a caret drawn on, and draws nothing else until the next action, so the device's screenshot and the host's show that frame. Animations that end (a fade, a ripple, a scroll coasting) are drawn where they are. On the first wait of a launch, the agent also waits for the timers the launch set, such as a splash screen's: a device meets the driver seconds into the launch and a host at once, and without it one side would show the splash and the other what comes next. Both need the agent's binding, so the agent has to start first (below).
+
 ### What the host gives the app
 
 - **A device.** `ios` is an iPhone 17 (402×874 points at 3×, its safe area and its keyboard heights); `android` is a Pixel 9 (411×923 points at 2.625×). `Platform.isIOS` or `Platform.isAndroid` answers for that phone, and the app's platform code takes that path.
@@ -228,7 +230,7 @@ To compare FastSim's screens with a simulator's or an emulator's, build the refe
 
 ### What the app needs
 
-- **The agent starts first.** `LynkeusAgent.start()` has to come before anything calls `WidgetsFlutterBinding.ensureInitialized()`, on the line before it in the same block: inside FastSim the agent makes the app's binding, which gives the screen its safe area and the plugins their stand-ins. An app that made its binding first still runs and is driven, with no safe area, and a plugin awaited before `runApp` can wait forever.
+- **The agent starts first.** `LynkeusAgent.start()` has to come before anything calls `WidgetsFlutterBinding.ensureInitialized()`, on the line before it in the same block: inside FastSim the agent makes the app's binding, which gives the screen its safe area and the plugins their stand-ins. An app that made its binding first still runs and is driven, with no safe area, and a plugin awaited before `runApp` can wait forever. On a simulator or an emulator it also loses the repeatable frames described above, and the console says so.
 - **`lynkeus_plugins` when a plugin has no channel to fall back to** (sqflite 2.4 or newer, `cached_network_image`, shared_preferences' async API): the same package as on the [headless host](#headless), set up the same way.
 
 ### Limits

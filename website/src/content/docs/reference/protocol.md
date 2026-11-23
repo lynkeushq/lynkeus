@@ -295,7 +295,7 @@ It answers `{ commit, idle }`. On timeout it does not fail: it answers `idle: fa
 
 A screen that has not started looks exactly like one that has finished. Read `commit` from `screen` before the action, then pass it as `after`.
 
-The Flutter agent adds two waits. In the app's first 3 seconds after launch it never answers `idle: true`, so a splash screen's timer has fired before the first frame on any device or host. While one of the app's requests is out, the timeout is extended, by up to 10 seconds: a slow network on a device and a replayed response on a host then reach the same screen.
+The Flutter agent waits longer for work that ends on its own, by up to 10 seconds past the timeout: a request the app made since the previous `idle` answered (a slow network on a device and a replayed response on a host then reach the same screen; a long poll that was already out only keeps the app busy until the timeout), and, until the first time it finds the app quiet, the one-shot timers the app set while launching, such as a splash screen's. When it answers with something on screen that animates forever (a spinner, a blinking caret), it first draws that frame with those animations at the moment they started, and draws nothing more until the next request that is not a capture or a read (`screenshot`, `still`, `screen`, `find`), at most 3 seconds, so a screenshot taken by the OS a moment later shows the same frame on any device or host.
 
 ### `deepLink`
 

@@ -38,7 +38,7 @@ void main() {
 }
 ```
 
-Arranca el agente lo primero en `main()`, antes de `WidgetsFlutterBinding.ensureInitialized()`: Lynkeus FastSim instala su propio binding y uno ya creado no se puede reemplazar (`lynkeus init` lo deja en ese lugar). El agente necesita el token del proyecto en el build. En Flutter se pasa con `--dart-define`:
+Arranca el agente lo primero en `main()`, antes de `WidgetsFlutterBinding.ensureInitialized()`: el agente pone su propio binding, el de siempre más lo necesario para que un frame capturado salga igual cada vez (lo explicamos más abajo), y uno ya creado no se puede reemplazar (`lynkeus init` lo deja en ese lugar). El agente necesita el token del proyecto en el build. En Flutter se pasa con `--dart-define`:
 
 ```bash
 flutter run --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)
@@ -237,6 +237,8 @@ npx lynkeus case run <casos> --ports 8232 --host-command "<carpeta instalada>/bi
 
 Para comparar las pantallas de FastSim con las de un simulador o un emulador, arma la app de referencia con el mismo código y las mismas opciones: `flutter build ios --simulator --debug` o `flutter build apk --debug --no-track-widget-creation`, con los mismos `--dart-define`. Si alguno de los dos no lleva `--no-track-widget-creation`, los kernels ya no son iguales y los píxeles pueden diferir.
 
+Una animación que no termina nunca tampoco cambia el frame de un paso. Si al contestar `idle` (lo que espera `--settle`) hay en pantalla un spinner, un shimmer o un cursor que parpadea, el agente dibuja un frame más en el que cada uno está en el instante en que empezó, con el cursor visible, y no dibuja nada más hasta la acción siguiente: la captura del dispositivo y la del host salen de ese frame. Lo que sí termina (un fundido, el efecto de un toque, una lista que sigue deslizándose) se dibuja donde esté. Además, la primera espera después de abrir la app aguarda los temporizadores que dejó el arranque, como el de una pantalla de bienvenida: el dispositivo recibe al driver unos segundos después de abrir la app y el host enseguida, así que sin esa espera uno mostraría la bienvenida y el otro la pantalla siguiente. Las dos cosas dependen del binding del agente, por eso tiene que arrancar primero (ver abajo).
+
 ### Qué le da el host a la app
 
 - **Un dispositivo.** `ios` es un iPhone 17 (402×874 puntos a 3×, con su área segura y la altura de sus teclados); `android` es un Pixel 9 (411×923 puntos a 2,625×). `Platform.isIOS` o `Platform.isAndroid` responden por ese teléfono, y el código de la app va por esa rama.
@@ -246,7 +248,7 @@ Para comparar las pantallas de FastSim con las de un simulador o un emulador, ar
 
 ### Qué necesita la app
 
-- **Que el agente arranque primero.** `LynkeusAgent.start()` tiene que ir antes de cualquier `WidgetsFlutterBinding.ensureInitialized()`, en la línea anterior y dentro del mismo bloque: en FastSim el agente crea el binding de la app, que es el que le da a la pantalla su área segura y a los plugins sus reemplazos. Si la app creó su binding antes, igual corre y se puede manejar, pero sin área segura, y un plugin que espera antes de `runApp` puede quedarse esperando para siempre.
+- **Que el agente arranque primero.** `LynkeusAgent.start()` tiene que ir antes de cualquier `WidgetsFlutterBinding.ensureInitialized()`, en la línea anterior y dentro del mismo bloque: en FastSim el agente crea el binding de la app, que es el que le da a la pantalla su área segura y a los plugins sus reemplazos. Si la app creó su binding antes, igual corre y se puede manejar, pero sin área segura, y un plugin que espera antes de `runApp` puede quedarse esperando para siempre. En un simulador o un emulador, además, pierde los frames repetibles de los que hablamos arriba, y lo avisa en la consola.
 - **`lynkeus_plugins` cuando un plugin no tiene canal al que volver** (sqflite 2.4 o más nuevo, `cached_network_image`, la API asíncrona de shared_preferences): es el mismo paquete que en el [host sin pantalla](#sin-pantalla-headless) y se configura igual.
 
 ### Límites

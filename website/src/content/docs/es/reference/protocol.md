@@ -258,7 +258,9 @@ Espera a que la app se aquiete: que pase un tiempo sin commits de React y sin pe
 
 `after` resuelve una ambigüedad: una pantalla que todavía no empezó a cargar está tan quieta como una que ya terminó. Guarda el `commit` de una lectura anterior a tu acción y pásalo aquí.
 
-En Flutter el agente espera además dos cosas. Durante los 3 primeros segundos de vida de la app nunca contesta `idle: true`: así el temporizador de una pantalla de bienvenida ya corrió antes del primer frame, en un dispositivo o en un host. Y mientras la app tiene una petición en curso, el plazo se estira hasta 10 segundos más, para que una red lenta en el emulador y una respuesta grabada en el host lleguen a la misma pantalla.
+En Flutter el plazo se estira hasta 10 segundos más por lo que termina solo. Primero, las peticiones que la app hizo después de la respuesta anterior de `idle`: así una red lenta en el emulador y una respuesta grabada en el host llegan a la misma pantalla. Una petición que ya estaba en curso desde antes, como un long poll, mantiene ocupada la app pero no estira el plazo. Segundo, hasta la primera vez que encuentra la app quieta, los temporizadores de una sola vez que la app puso al arrancar, como el de una pantalla de bienvenida.
+
+Antes de contestar, si en pantalla hay algo que se anima sin fin (un spinner, un cursor que parpadea), el agente dibuja un frame con esas animaciones en el instante en que empezaron y deja de dibujar hasta el siguiente pedido que no sea una captura o una lectura (`screenshot`, `still`, `screen`, `find`), como mucho 3 segundos. Así la captura que el sistema toma un momento después muestra el mismo frame en cualquier dispositivo o host.
 
 :::note
 Estos son los valores por defecto del protocolo. El CLI envía los suyos: `lynkeus wait` espera 10 segundos, y `lynkeus idle` usa 300 ms de quietud y 5 segundos de espera.

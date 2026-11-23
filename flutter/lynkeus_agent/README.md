@@ -25,6 +25,17 @@ What it reads, and from where:
   `HttpOverrides.global`: recorded for `requests` and `trace` with secrets redacted by the same rules as the React
   Native agent, counted in flight for `idle`, and answered, held or lost by the driver's `netmock` rules.
 
+## Captured frames
+
+Start the agent before anything calls `WidgetsFlutterBinding.ensureInitialized()`: it then makes the app's binding, a
+`WidgetsFlutterBinding` that also makes a step's frame repeatable. When `idle` answers with something on screen that
+animates forever (an `AnimationController.repeat`, such as a progress indicator, or a text field's blinking caret), the
+agent draws one more frame with each of those at the moment it started and the caret on, and draws nothing else until
+the driver's next action, so a screenshot the OS takes a moment later is the same on every run, on a device or on
+Lynkeus FastSim. Animations that run to an end are drawn where they are. On its first wait after a launch, `idle` also
+waits for the one-shot timers the app set while launching (a splash screen's). An app that makes its binding first is
+still driven, without either, and the console says so.
+
 ## Routes
 
 `route`, `path`, `navigation` events and `navigate` need to know the app's routes. With a `Navigator` and named
