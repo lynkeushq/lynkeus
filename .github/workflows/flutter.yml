@@ -1,21 +1,37 @@
 name: Flutter
 
 # Runs for any base branch, so stacked pull requests are checked too (ci.yml only sees pull requests into main).
+# The Dart suites run when Flutter's own packages change; the sample's conformance cases also when the shared core
+# does (hack/ci/changed-areas.mjs), and never for a change only to another runtime's directories.
 on:
   push:
     branches:
       - main
     paths:
       - 'flutter/**'
-      - 'packages/cli/src/commands/flutterHost.ts'
-      - 'packages/cli/src/commands/headless.ts'
+      - 'conformance/**'
+      - 'packages/cli/**'
+      - '!packages/cli/src/runtimes/react-native/**'
+      - 'packages/protocol/**'
+      - 'packages/client/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/**'
       - '.github/workflows/flutter.yml'
+      - 'hack/ci/**'
   pull_request:
     paths:
       - 'flutter/**'
-      - 'packages/cli/src/commands/flutterHost.ts'
-      - 'packages/cli/src/commands/headless.ts'
+      - 'conformance/**'
+      - 'packages/cli/**'
+      - '!packages/cli/src/runtimes/react-native/**'
+      - 'packages/protocol/**'
+      - 'packages/client/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/**'
       - '.github/workflows/flutter.yml'
+      - 'hack/ci/**'
   merge_group:
     types:
       - checks_requested
@@ -28,7 +44,24 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      dart: ${{ steps.areas.outputs.flutter_dart }}
+      e2e: ${{ steps.areas.outputs.flutter_e2e }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Check what the change touches
+        id: areas
+        run: node hack/ci/changed-areas.mjs ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+
   dart:
+    needs: changes
+    if: needs.changes.outputs.dart == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +123,9 @@ jobs:
         run: echo "::warning title=Flutter ${{ matrix.name }}::${{ github.job }} failed on the beta channel; it does not block the pull request."
 
   headless-e2e:
-    needs: dart
+    needs: [changes, dart]
+    # After the Dart suites when they run; on their own when only the shared core changed.
+    if: ${{ !cancelled() && needs.changes.outputs.e2e == 'true' && (needs.dart.result == 'success' || needs.dart.result == 'skipped') }}
     strategy:
       fail-fast: false
       matrix:

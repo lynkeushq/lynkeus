@@ -52,6 +52,57 @@ reader refuses a version it does not know.
 | Reports API | CLI → cloud | the service's `/v1` routes | the CLI's `pushRun` |
 | MCP | an LLM ↔ the CLI | the server's instructions and tool schemas | generated from the commands |
 
+## Runtimes
+
+Lynkeus drives apps built with more than one runtime (React Native, Flutter; Exact and native iOS and Android next).
+Adding one must not break or slow the others, nor make every change re-test all of them.
+
+**The rule.** The core never asks which runtime a folder is. Each runtime lives in its own directory and implements
+one adapter; the core calls the adapter.
+
+| Path | What it is |
+|---|---|
+| `packages/cli/src/runtimes/api.ts` | The adapter a runtime implements and the only core module a runtime imports |
+| `packages/cli/src/runtimes/index.ts` | `loadRuntime(id)`, the one place that loads a runtime, lazily |
+| `packages/cli/src/runtimes/detect.ts` | Which runtime a folder is, from its files, with no runtime code loaded |
+| `packages/cli/src/runtimes/<id>/` | One runtime's CLI side (`react-native`, `flutter`) |
+| `flutter/` | Flutter's Dart packages and sample; `packages/agent`, `packages/headless`, `example/` are React Native's |
+| `conformance/cases/` | The cases every runtime's sample app passes headless |
+
+**The shared core** is everything a runtime runs through: `packages/cli/**` outside `src/runtimes/<id>/`,
+`packages/protocol`, `packages/client`, `conformance/`, the root `package.json` and lockfile, `.github/actions` and
+`hack/ci`. A change there can affect every runtime.
+
+**The gate.** On every pull request, in seconds:
+
+- `scripts/check-runtime-boundary.mjs` (lint job): the core imports from `runtimes/` only `index`, `detect` and `api`;
+  only `index.ts` imports a runtime's directory, with a lazy `import()`; a runtime imports only its own files and
+  `../api.js`; and the core holds no runtime check by name (`=== 'flutter'`, `flutterProject(...)`), apart from the
+  exceptions the script lists, which can only shrink.
+- `src/__tests__/rnInvariance.test.ts` (test job): React Native as on main, from goldens made by running main's CLI
+  (`pnpm --filter lynkeus goldens:rn`): case parsing and step resolution, the protocol messages the runner sends a
+  scripted app, help and failure texts and MCP tools, the runtime of each kind of folder, and the runner's cost per
+  step (at most twice main's). A difference passes only when `goldens/rn/allowed.json` names it, says why and pins
+  its hash. `runtimeBoundary.test.ts` checks that `lynkeus --help` loads no runtime and a React Native project only
+  its own.
+- `hack/ci/changed-areas.mjs` decides the heavy suites: React Native's native builds when the agent, the protocol or
+  the example app change; Flutter's Dart suites when `flutter/` changes; the conformance cases on Flutter's headless
+  host when Flutter's paths or the shared core change.
+
+So a pull request that touches only one runtime's paths cannot change another runtime: no shared file changed, and
+nothing outside that runtime's directory imports it except the loader, which loads it only for a folder detected as
+that runtime. Its own suites run; the others' are skipped.
+
+**Adding a runtime.** Add its id to `detect.ts` with how its folder is recognized; implement the adapter in
+`runtimes/<id>/index.ts` and add it to `loadRuntime`; make its sample app pass `conformance/cases` on its own host in
+a workflow of its own; add its paths to `hack/ci/changed-areas.mjs`. Nothing in the React Native goldens changes.
+
+**Still on the core's side.** React Native's own code predates the directories: init's agent mount, the TypeScript
+route reader, the jest headless host (`commands/headless.ts`) and the params reader live in the core and reach the
+React Native adapter through `runtimes/api.ts`. Two checks read the attached app's hello rather than the folder
+(`cases/runner.ts` settles a Flutter agent's frame first; `device/agentVersion.ts` names `flutter-headless` as a
+hosted app). Config keys (`flutterHost`) and the graph's Flutter fields (`params`, `unnamed`) are public shapes and stay.
+
 ## Where a new piece goes
 
 Ask, in order:
