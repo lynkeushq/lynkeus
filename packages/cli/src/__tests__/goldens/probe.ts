@@ -462,9 +462,16 @@ const quietBase = (root: string): Base => ({
   },
 });
 
-/** Runs an argv with the environment a fresh shell in that folder would give it. */
+// The machine's own state stays out of the goldens: no FastSim installed, no reports key, no cloud key.
+const MACHINE = ['LYNKEUS_FASTSIM_DIR', 'LYNKEUS_REPORTS_KEY', 'LYNKEUS_CLOUD_KEY'] as const;
+const noFastsim = path.join(os.tmpdir(), 'lynkeus-goldens-no-fastsim');
+
+/** Runs an argv with the environment a fresh shell in that folder of a fresh machine would give it. */
 const outcomeOf = async (argv: string[], root: string, token = false): Promise<unknown> => {
   const { execute } = await mod<Execute>('runtime.js');
+  const machine = Object.fromEntries(MACHINE.map((k) => [k, process.env[k]]));
+  for (const k of MACHINE) delete process.env[k];
+  process.env.LYNKEUS_FASTSIM_DIR = noFastsim;
   const saved = { token: process.env.LYNKEUS_TOKEN, config: process.env.LYNKEUS_CONFIG, cwd: process.cwd() };
   if (token) process.env.LYNKEUS_TOKEN = 'goldens';
   else delete process.env.LYNKEUS_TOKEN;
@@ -477,6 +484,10 @@ const outcomeOf = async (argv: string[], root: string, token = false): Promise<u
     if (saved.token === undefined) delete process.env.LYNKEUS_TOKEN;
     else process.env.LYNKEUS_TOKEN = saved.token;
     if (saved.config !== undefined) process.env.LYNKEUS_CONFIG = saved.config;
+    for (const k of MACHINE) {
+      if (machine[k] === undefined) delete process.env[k];
+      else process.env[k] = machine[k];
+    }
     process.chdir(saved.cwd);
   }
 };

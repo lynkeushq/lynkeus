@@ -113,7 +113,7 @@
   },
   "fails/status offline": {
     "code": 0,
-    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is installed (2026.11.17, darwin-arm64-ios)",
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
     "json": [
       {
         "what": "lynkeus-agent is a dependency",
@@ -151,7 +151,7 @@
         "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
       },
       {
-        "what": "Lynkeus FastSim is installed (2026.11.17, darwin-arm64-ios)",
+        "what": "Lynkeus FastSim is not installed",
         "ok": true
       }
     ]
