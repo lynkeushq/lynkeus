@@ -30,6 +30,9 @@ It acts only when the agent runs on a host (`LynkeusAgent.standingIn`), and only
 
 ## Versions
 
+Flutter 3.47.9 or newer, as `lynkeus_agent`: the versions the packages are tested on (stable, the previous stable
+and beta).
+
 It depends on the plugins' platform interfaces, never on the plugins, so an app keeps choosing its plugin versions.
 Each range runs from the first release with the API used here to the next major:
 
