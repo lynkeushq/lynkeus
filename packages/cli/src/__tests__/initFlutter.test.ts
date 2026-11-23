@@ -4,13 +4,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
+import { lockedVersions, pluginsNeeded } from '../commands/flutterPlugins.js';
 import {
   addAgentToMain,
   addAgentToPubspec,
   addHeadlessToPubspec,
+  addPluginsToMain,
+  addPluginsToPubspec,
   AGENT_DEPENDENCY,
   detectRuntime,
   isFlutterPubspec,
+  pluginsDependencyLike,
   pubspecName,
   setupApp,
 } from '../commands/initFlutter.js';
@@ -266,4 +270,66 @@ test('flutter init with --no-install leaves pubspec.yaml alone; a missing main.d
   const notes = setupApp(root, { install: false });
   assert.equal(fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), PUBSPEC);
   assert.ok(notes.some((n) => n.includes('no lib/main.dart')));
+});
+
+const LOCK = (packages: Record<string, string>) =>
+  `packages:\n${Object.entries(packages)
+    .map(([name, version]) => `  ${name}:\n    dependency: transitive\n    description:\n      name: ${name}\n    source: hosted\n    version: "${version}"\n`)
+    .join('')}sdks:\n  dart: ">=3.8.0 <4.0.0"\n`;
+
+test('the lock says which plugins need the companion', () => {
+  assert.equal(lockedVersions(LOCK({ a: '1.0.0', b: '2.1.0' })).get('b'), '2.1.0');
+  const need = (packages: Record<string, string> | undefined) => pluginsNeeded(tmp(packages ? { 'pubspec.lock': LOCK(packages) } : {})).map((n) => n.package);
+  assert.deepEqual(need({ sqflite_platform_interface: '2.4.1' }), ['sqflite_platform_interface 2.4.1']);
+  assert.deepEqual(need({ shared_preferences_platform_interface: '2.4.0' }), ['shared_preferences_platform_interface 2.4.0']);
+  assert.deepEqual(need({ shared_preferences_platform_interface: '2.3.2' }), []);
+  assert.deepEqual(need({ shared_preferences_platform_interface: '2.10.0' }), ['shared_preferences_platform_interface 2.10.0']);
+  assert.deepEqual(need({ http: '1.0.0' }), []);
+  assert.deepEqual(need(undefined), []);
+});
+
+const withDeps = (extra: string) => PUBSPEC.replace('dependencies:\n', `dependencies:\n${extra}`);
+
+test('the companion goes where lynkeus_agent comes from', () => {
+  assert.deepEqual(pluginsDependencyLike(withDeps('  lynkeus_agent:\n    path: ../lynkeus/flutter/lynkeus_agent\n')), [
+    'lynkeus_plugins:',
+    '  path: ../lynkeus/flutter/lynkeus_plugins',
+  ]);
+  assert.deepEqual(
+    pluginsDependencyLike(withDeps('  lynkeus_agent:\n    git:\n      url: https://example.com/l.git\n      ref: v1\n      path: flutter/lynkeus_agent\n')),
+    ['lynkeus_plugins:', '  git:', '    url: https://example.com/l.git', '    ref: v1', '    path: flutter/lynkeus_plugins'],
+  );
+  assert.ok(addPluginsToPubspec(PUBSPEC).text.includes('  lynkeus_plugins:\n    git:'));
+});
+
+test('main.dart: the companion call follows start(), in its block, with its import; once', () => {
+  const src =
+    "import 'package:flutter/material.dart';\n\nvoid main() async {\n  LynkeusAgent.start(app: {'name': 'a'});\n  WidgetsFlutterBinding.ensureInitialized();\n  runApp(A());\n}\n";
+  const edit = addPluginsToMain(src);
+  assert.ok(edit.done);
+  assert.ok(edit.text.includes("  LynkeusAgent.start(app: {'name': 'a'});\n  LynkeusPlugins.ensureInitialized();\n  WidgetsFlutterBinding"));
+  assert.ok(edit.text.includes("import 'package:flutter/material.dart';\nimport 'package:lynkeus_plugins/lynkeus_plugins.dart';\n"));
+  assert.equal(addPluginsToMain(edit.text).text, edit.text);
+  assert.ok(!addPluginsToMain('void main() {}\n').done);
+});
+
+test('init adds the companion only when the lock shows a plugin that needs it, and says why', () => {
+  const files = { 'pubspec.yaml': PUBSPEC, 'lib/main.dart': 'void main() => runApp(A());\n' };
+  const none = tmp({ ...files, 'pubspec.lock': LOCK({ http: '1.0.0' }) });
+  assert.ok(!setupApp(none, { install: true }).join('\n').includes('lynkeus_plugins'));
+  assert.ok(!fs.readFileSync(path.join(none, 'lib/main.dart'), 'utf8').includes('LynkeusPlugins'));
+  const root = tmp({ ...files, 'pubspec.lock': LOCK({ sqflite_platform_interface: '2.4.1' }) });
+  const notes = setupApp(root, { install: true }).join('\n');
+  assert.match(notes, /why: sqflite 2\.4 or later is in pubspec\.lock.*databaseFactory not initialized/);
+  assert.match(notes, /lynkeus_plugins:\n\s+path: \/path\/to\/lynkeus\/flutter\/lynkeus_plugins/);
+  assert.ok(fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8').includes('lynkeus_plugins:\n    git:'));
+  const main = fs.readFileSync(path.join(root, 'lib/main.dart'), 'utf8');
+  assert.ok(main.includes("LynkeusAgent.start(app: {'name': 'demo'});\n  LynkeusPlugins.ensureInitialized();\n  runApp"));
+  const before = [fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), main];
+  setupApp(root, { install: true });
+  assert.deepEqual([fs.readFileSync(path.join(root, 'pubspec.yaml'), 'utf8'), fs.readFileSync(path.join(root, 'lib/main.dart'), 'utf8')], before);
+  const manual = tmp({ ...files, 'pubspec.lock': LOCK({ sqflite_platform_interface: '2.4.1' }) });
+  const hand = setupApp(manual, { install: false }).join('\n');
+  assert.match(hand, /lynkeus_plugins is needed on a host/);
+  assert.ok(!fs.readFileSync(path.join(manual, 'lib/main.dart'), 'utf8').includes('LynkeusPlugins'));
 });

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ensureToken } from '../config.js';
+import { pluginsNeeded } from './flutterPlugins.js';
 import { installAgent, mountAgent } from './init.js';
 
 export type Runtime = 'react-native' | 'flutter';
@@ -97,16 +98,17 @@ export const mainByHand = (appName?: string): string =>
   `add to lib/main.dart:\n    ${AGENT_IMPORT}\n  and, in main(), before WidgetsFlutterBinding.ensureInitialized() when there is one, otherwise before runApp(...):\n    ${agentStart(appName)}`;
 
 /** Puts the agent's import where `directives_ordering` wants it: among the `package:` imports, sorted by URI. */
-const withImport = (text: string, eol: string): string => {
+const withImport = (text: string, eol: string, uri = AGENT_URI): string => {
+  const line = `import '${uri}';`;
   const imports = [...text.matchAll(/^import\s+['"]([^'"]+)['"][^;]*;[ \t]*$/gm)].map((m) => ({ uri: m[1]!, start: m.index!, end: m.index! + m[0].length }));
   const packages = imports.filter((i) => i.uri.startsWith('package:'));
-  const after = packages.find((i) => i.uri > AGENT_URI);
-  if (after) return `${text.slice(0, after.start)}${AGENT_IMPORT}${eol}${text.slice(after.start)}`;
+  const after = packages.find((i) => i.uri > uri);
+  if (after) return `${text.slice(0, after.start)}${line}${eol}${text.slice(after.start)}`;
   const last = packages[packages.length - 1] ?? imports.filter((i) => i.uri.startsWith('dart:')).pop();
-  if (last) return `${text.slice(0, last.end)}${eol}${last.uri.startsWith('dart:') ? eol : ''}${AGENT_IMPORT}${text.slice(last.end)}`;
+  if (last) return `${text.slice(0, last.end)}${eol}${last.uri.startsWith('dart:') ? eol : ''}${line}${text.slice(last.end)}`;
   // Only relative imports, or none: the package import leads them, with a blank line between.
   const first = imports[0];
-  return first ? `${text.slice(0, first.start)}${AGENT_IMPORT}${eol}${eol}${text.slice(first.start)}` : `${AGENT_IMPORT}${eol}${eol}${text}`;
+  return first ? `${text.slice(0, first.start)}${line}${eol}${eol}${text.slice(first.start)}` : `${line}${eol}${eol}${text}`;
 };
 
 /** Imports the agent and starts it before `runApp(`, in a block `main` or in an arrow `main` that becomes one. */
@@ -150,6 +152,41 @@ export const addAgentToMain = (text: string, appName?: string): Edit => {
   }
   next = withImport(next, eol);
   return { text: next, done: true, note: 'added the import and LynkeusAgent.start() to lib/main.dart' };
+};
+
+const PLUGINS_URI = 'package:lynkeus_plugins/lynkeus_plugins.dart';
+const PLUGINS_CALL = 'LynkeusPlugins.ensureInitialized();';
+
+/** `lynkeus_plugins` from wherever `lynkeus_agent` comes from: the same git url and ref, or the sibling folder of its path. */
+export const pluginsDependencyLike = (pubspec: string): string[] => {
+  const lines = pubspec.split(/\r?\n/);
+  const at = lines.findIndex((l) => /^[ \t]+lynkeus_agent:/.test(l));
+  if (at < 0) return gitDependency('lynkeus_plugins');
+  const indent = /^[ \t]*/.exec(lines[at]!)![0].length;
+  const block = [lines[at]!];
+  for (let i = at + 1; i < lines.length && (lines[i]!.trim() === '' || /^[ \t]*/.exec(lines[i]!)![0].length > indent); i++)
+    if (lines[i]!.trim()) block.push(lines[i]!);
+  return block.map((l) => l.slice(indent).replace(/lynkeus_agent/g, 'lynkeus_plugins'));
+};
+
+export const addPluginsToPubspec = (text: string): Edit => addDependency(text, 'dependencies', 'lynkeus_plugins', pluginsDependencyLike(text));
+
+/** Calls the companion on the line after the agent starts, in the same block, and imports it. */
+export const addPluginsToMain = (text: string): Edit => {
+  if (text.includes('LynkeusPlugins.ensureInitialized(')) return { text, done: true, note: 'lib/main.dart already calls LynkeusPlugins.ensureInitialized()' };
+  const start = /^([ \t]*)[^\n]*LynkeusAgent\.start\(/m.exec(text);
+  if (!start) return { text, done: false, note: `lib/main.dart does not start the agent yet; after LynkeusAgent.start(...) add:\n    ${PLUGINS_CALL}` };
+  const open = start.index + start[0].length - 1;
+  const close = closeOf(text, open);
+  const end = close < 0 ? -1 : text.indexOf(';', close);
+  if (end < 0) return { text, done: false, note: `could not read LynkeusAgent.start(...) in lib/main.dart; after it add:\n    ${PLUGINS_CALL}` };
+  const eol = eolOf(text);
+  const next = `${text.slice(0, end + 1)}${eol}${start[1]}${PLUGINS_CALL}${text.slice(end + 1)}`;
+  return {
+    text: withImport(next, eol, PLUGINS_URI),
+    done: true,
+    note: 'added the import and LynkeusPlugins.ensureInitialized() after LynkeusAgent.start() in lib/main.dart',
+  };
 };
 
 const readIfExists = (file: string): string | undefined => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : undefined);
@@ -210,12 +247,34 @@ export const initFlutter = (root: string, opts: { install: boolean; headless?: b
   const mainFile = path.join(root, 'lib', 'main.dart');
   const main = readIfExists(mainFile);
   const name = pubspecName(pubspec);
+  let started = false;
   if (main === undefined) {
     notes.push(`no lib/main.dart; ${mainByHand(name)}`);
   } else {
     const edit = addAgentToMain(main, name);
     if (edit.text !== main) fs.writeFileSync(mainFile, edit.text);
     notes.push(edit.note);
+    started = edit.done;
+  }
+  const needs = pluginsNeeded(root);
+  let pluginsAdded = false;
+  if (needs.length) {
+    const why = needs.map((n) => `${n.because}: without lynkeus_plugins, ${n.failure}`).join('; ');
+    if (!opts.install)
+      notes.push(
+        `lynkeus_plugins is needed on a host (${why}); add it next to lynkeus_agent and call LynkeusPlugins.ensureInitialized() after LynkeusAgent.start()`,
+      );
+    else if (!started || main === undefined)
+      notes.push(`lynkeus_plugins is needed on a host (${why}); once the agent starts in main(), add it and call LynkeusPlugins.ensureInitialized() after it`);
+    else {
+      const latest = fs.readFileSync(pubspecFile, 'utf8');
+      const dep = addPluginsToPubspec(latest);
+      if (dep.text !== latest) fs.writeFileSync(pubspecFile, dep.text);
+      const call = addPluginsToMain(fs.readFileSync(mainFile, 'utf8'));
+      fs.writeFileSync(mainFile, call.text);
+      pluginsAdded = dep.done && call.done;
+      notes.push(`${dep.note}; ${call.note}`, `  why: ${why}`);
+    }
   }
   if (ensureToken(root).made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
   notes.push('next: flutter pub get, then run the app with the token:');
@@ -225,6 +284,7 @@ export const initFlutter = (root: string, opts: { install: boolean; headless?: b
   if (AGENT_DEPENDENCY.includes('  git:')) {
     notes.push(...GIT_NOTE);
     if (opts.headless) notes.push('          lynkeus_headless:', '            path: /path/to/lynkeus/flutter/lynkeus_headless');
+    if (pluginsAdded) notes.push('          lynkeus_plugins:', '            path: /path/to/lynkeus/flutter/lynkeus_plugins');
   }
   return notes;
 };
