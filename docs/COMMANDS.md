@@ -224,15 +224,17 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install]`
+### `lynkeus init [--no-install] [--runtime <react-native|flutter>] [--headless]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
-React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
+React Native, Expo (an Expo Router app gets an entry of its own) or Flutter (adds lynkeus_agent to pubspec.yaml and starts it from lib/main.dart; run the app with `--dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)`). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
 
 | Flag | |
 |---|---|
-| `--no-install` | do not add lynkeus-agent to the app; mount it only |
+| `--no-install` | do not add the agent package to the app; mount it only |
+| `--runtime <react-native|flutter>` | react-native or flutter (default: what this folder is) |
+| `--headless` | Flutter: also add lynkeus_headless to dev_dependencies, to run with `case run --host` |
 
 ### `lynkeus status [--offline]`
 
