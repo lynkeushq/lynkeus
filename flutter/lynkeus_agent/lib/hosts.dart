@@ -2,5 +2,6 @@
 /// Lynkeus FastSim the agent installs them itself): the stand-ins that answer the common plugins' channels.
 library;
 
+export 'src/fence.dart' show FencedHttpOverrides, blockedMessage, defaultNetworkHosts, networkHostsFrom;
 export 'src/plugins.dart' show PluginState, installPlugins;
 export 'src/standins.dart' show StandIn, StandInMessenger, StandIns, explainHostError, noPlatformViews;

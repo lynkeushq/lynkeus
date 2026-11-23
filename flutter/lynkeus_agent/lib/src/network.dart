@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 
+import 'fence.dart';
+import 'netcache.dart';
 import 'redact.dart';
 
 /*
@@ -32,6 +35,8 @@ class _Rule {
     this.delayMs,
     this.times,
     this.lost = false,
+    this.bytes,
+    this.replayed = false,
   });
   final String method;
   final String path;
@@ -42,6 +47,10 @@ class _Rule {
   final int? times;
   final bool lost;
   int hits = 0;
+
+  /// A recorded body, answered as it was (a replayed fetch); a netmock rule's body is text.
+  final List<int>? bytes;
+  final bool replayed;
 
   Map<String, Object?> toJson() => {
     'method': method,
@@ -90,6 +99,7 @@ class _Record {
   int? ms;
   String? error;
   bool mocked = false;
+  bool replayed = false;
   bool answeredHere = false;
   bool finished = false;
   Map<String, Object?>? request;
@@ -104,6 +114,7 @@ class _Record {
     'ms': ?ms,
     'error': ?error,
     if (mocked) 'mocked': true,
+    if (replayed) 'replayed': true,
     'request': ?request,
     'response': ?response,
   };
@@ -176,6 +187,16 @@ class Network {
   /// clock, so a host with its own clock fast-forwards through its delay; it keeps the wall's pace only for these.
   int get onWire => math.max(0, inFlight - _answeringHere);
 
+  /// Where a host replays recorded fetches from, for the hosts [fenced] says the app may not reach.
+  NetCache? replay;
+  bool Function(String host) fenced = (_) => true;
+
+  /// Records remote fetches for the driver to keep, on a run where the network is real.
+  final recorder = NetRecorder();
+
+  /// Hosts never recorded: this machine and the emulator's name for it.
+  Set<String> local = defaultNetworkHosts;
+
   /// Told when [inFlight] or [onWire] may have changed.
   void Function()? onInFlight;
 
@@ -193,6 +214,7 @@ class Network {
 
   late final Map<String, FutureOr<Object?> Function(Object? params)> commands = {
     'netmock': _netmock,
+    'netcache': _netcache,
     'networkBodies': (params) {
       _keepBodies = params is Map && params['on'] == true;
       return {'bodies': _keepBodies};
@@ -203,6 +225,18 @@ class Network {
       return {'traceparent': _traceparent};
     },
   };
+
+  // The driver's side of recording: start or stop it, and take what was recorded so far (a piece at a time).
+  Object? _netcache(Object? params) {
+    final p = params is Map ? params : const {};
+    if (p['take'] == true) return recorder.take();
+    if (p['record'] is bool) {
+      recorder
+        ..on = p['record'] == true
+        ..credentials = p['credentials'] == true;
+    }
+    return {'recording': recorder.on, 'replaying': replay?.folder.path};
+  }
 
   Object? _netmock(Object? params) {
     final p = params is Map ? params : const {};
@@ -321,6 +355,7 @@ class Network {
       'ms': record.ms,
       'error': ?record.error,
       if (record.mocked) 'mocked': true,
+      if (record.replayed) 'replayed': true,
     });
   }
 }
@@ -352,6 +387,20 @@ class _Client implements HttpClient {
     if (rule != null && !rule.lost) {
       network._answerHere(record);
       return _MockRequest(network, record, rule, method, url, keep: keep);
+    }
+    // After netmock and before the fence: a fetch the host may not make, answered as a reference run recorded it.
+    final replayed = verb == 'GET' && network.fenced(url.host) ? network.replay?.read(url) : null;
+    if (replayed != null) {
+      network._answerHere(record);
+      final answer = _Rule(
+        method: verb,
+        path: url.path,
+        status: replayed.status,
+        headers: replayed.headers,
+        bytes: replayed.body,
+        replayed: true,
+      );
+      return _MockRequest(network, record, answer, method, url, keep: keep);
     }
     final HttpClientRequest request;
     try {
@@ -476,7 +525,16 @@ class _TrackedRequest implements HttpClientRequest {
       // Done when the answer arrives, as an XMLHttpRequest's load is: an app may never read a body it does not want
       // (an image loader turning down a status), and such a request would otherwise keep the screen busy forever.
       network._finish(record, response.statusCode);
-      final tracked = _TrackedResponse(network, record, response, keep: body.on);
+      final recording =
+          !record.mocked &&
+          network.recorder.wants(record.method, inner.uri, inner.headers, inner.cookies, network.local);
+      final tracked = _TrackedResponse(
+        network,
+        record,
+        response,
+        keep: body.on,
+        recording: recording ? inner.uri : null,
+      );
       _done.complete(tracked);
       return tracked;
     } catch (error) {
@@ -560,13 +618,27 @@ class _TrackedRequest implements HttpClientRequest {
 }
 
 class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
-  _TrackedResponse(this.network, this.record, this.inner, {required bool keep}) : body = _Body(keep);
+  _TrackedResponse(this.network, this.record, this.inner, {required bool keep, this.recording})
+    : body = _Body(keep),
+      recorded = recording != null ? BytesBuilder(copy: false) : null;
   final Network network;
   final _Record record;
   final HttpClientResponse inner;
   final _Body body;
 
+  /// The URL the app asked for and the whole body, for the driver to keep, when this fetch is being recorded.
+  final Uri? recording;
+  final BytesBuilder? recorded;
+
+  var _ended = false;
+
   void _end([Object? error]) {
+    if (_ended) return;
+    _ended = true;
+    // The recording first: it must not depend on how the log shows the body.
+    if (error == null && recording != null) {
+      network.recorder.add(recording!, inner.statusCode, inner.headers, recorded!.takeBytes());
+    }
     if (body.on) record.response = _exchange(_flat(inner.headers), body.bytes);
     if (error != null) record.error ??= '$error';
   }
@@ -581,6 +653,7 @@ class _TrackedResponse extends Stream<List<int>> implements HttpClientResponse {
     final subscription = inner.listen(
       (data) {
         body.add(data);
+        recorded?.add(data);
         onData?.call(data);
       },
       onError: (Object error, StackTrace stack) {
@@ -641,14 +714,18 @@ class _Ending implements StreamSubscription<List<int>> {
     return inner.cancel();
   }
 
+  // drain() and the like end the stream through asFuture or onDone, which replace the handlers given to listen.
   @override
-  Future<E> asFuture<E>([E? futureValue]) => inner.asFuture(futureValue);
+  Future<E> asFuture<E>([E? futureValue]) => inner.asFuture(futureValue).whenComplete(end);
   @override
   bool get isPaused => inner.isPaused;
   @override
   void onData(void Function(List<int> data)? handleData) => inner.onData(handleData);
   @override
-  void onDone(void Function()? handleDone) => inner.onDone(handleDone);
+  void onDone(void Function()? handleDone) => inner.onDone(() {
+    end();
+    handleDone?.call();
+  });
   @override
   void onError(Function? handleError) => inner.onError(handleError);
   @override
@@ -745,17 +822,22 @@ class _MockRequest implements HttpClientRequest {
   Future<HttpClientResponse> close() async {
     final delay = rule.delayMs;
     if (delay != null && delay > 0) await Future<void>.delayed(Duration(milliseconds: delay));
-    final text = rule.body ?? (rule.status == 204 ? '' : '{}');
-    final answer = _Headers()..set(HttpHeaders.contentTypeHeader, 'application/json');
+    final sent = rule.bytes ?? utf8.encode(rule.body ?? (rule.status == 204 ? '' : '{}'));
+    final answer = _Headers();
+    if (!rule.replayed) answer.set(HttpHeaders.contentTypeHeader, 'application/json');
     rule.headers?.forEach(answer.set);
-    record.mocked = true;
+    if (rule.replayed) {
+      record.replayed = true;
+    } else {
+      record.mocked = true;
+    }
     if (body.on) {
       record
         ..request = _exchange(_flat(headers), body.bytes)
-        ..response = _exchange(_flat(answer), utf8.encode(text));
+        ..response = _exchange(_flat(answer), sent);
     }
     network._finish(record, rule.status);
-    final response = _MockResponse(rule.status, answer, utf8.encode(text));
+    final response = _MockResponse(rule.status, answer, sent);
     _done.complete(response);
     return response;
   }

@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'fastsim.dart';
+import 'fence.dart';
+import 'netcache.dart';
 import 'link.dart';
 import 'methods.dart';
 import 'network.dart';
@@ -116,8 +118,20 @@ abstract final class LynkeusAgent {
       serve: methods.call,
     );
     methods.onNavigation = (route) => _link?.emit({'event': 'navigation', 'route': ?route});
+    // The host is not a phone on someone's network: its requests reach as far as the project allows, as headless.
+    // Installed under the network log, so netmock answers first and a blocked request is still listed.
+    if (fastsim != null) HttpOverrides.global = FencedHttpOverrides(fastsim.networkHosts);
     // After the link has its own HttpClient, so the agent's socket is not among the app's requests.
     final network = Network(trace: methods.record)..install();
+    // On a host, fetches a reference run recorded (LYNKEUS_NET_CACHE, the folder `case run --net-cache` names) answer
+    // what the fence would block, so a network image shows the picture the device showed.
+    final cache = Platform.environment['LYNKEUS_NET_CACHE'] ?? '';
+    if ((fastsim != null || hosted != null) && cache.isNotEmpty) {
+      final allowed = fastsim?.networkHosts ?? networkHostsFrom(Platform.environment);
+      network
+        ..replay = NetCache(Directory(cache))
+        ..fenced = (host) => !allowed.contains(host) && !allowed.contains(host.toLowerCase());
+    }
     methods.network = network;
     for (final entry in network.commands.entries) {
       methods.commands.putIfAbsent(entry.key, () => entry.value);

@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/hosts.dart';
 import 'package:lynkeus_agent/lynkeus_agent.dart';
 
-import 'fence.dart';
 import 'fonts.dart';
 import 'settings.dart';
 
