@@ -187,3 +187,16 @@ test('the runtime is the flag, else what the folder is: a pubspec that takes flu
   fs.writeFileSync(path.join(root, 'pubspec.yaml'), 'name: tool\ndependencies:\n  path: ^1.9.0\n');
   assert.equal(projectRuntime(root), 'react-native');
 });
+
+test('a Flutter pubspec beside a React Native package.json is the React Native app, as init decides, unless --runtime says flutter', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-runtime-'));
+  fs.writeFileSync(path.join(root, 'pubspec.yaml'), 'name: app\ndependencies:\n  flutter:\n    sdk: flutter\n');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'tools', devDependencies: { prettier: '3' } }));
+  assert.equal(projectRuntime(root), 'flutter');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'app', dependencies: { 'react-native': '0.80.0' } }));
+  assert.equal(projectRuntime(root), 'react-native');
+  assert.equal(fastsimRuntime(undefined, root), 'react-native');
+  assert.equal(fastsimRuntime('flutter', root), 'flutter');
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'app', devDependencies: { 'react-native': '0.80.0' } }));
+  assert.equal(projectRuntime(root), 'react-native');
+});
