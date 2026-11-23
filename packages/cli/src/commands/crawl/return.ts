@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process';
 
 import type { Screen } from 'lynkeus-protocol';
 
+import { hostedHeadless } from '../../device/agentVersion.js';
 import type { Device } from '../../device/driver.js';
 import { runFlow } from '../../flow/runner.js';
 import type { CrawlOptions } from '../crawl.js';
@@ -45,7 +46,7 @@ export const createReturns = ({ device, options, goTo }: Context) => {
   };
 
   const recover = async () => {
-    if (device.server.hello?.app?.runtime === 'headless') {
+    if (hostedHeadless(device.server.hello)) {
       // A host has no process to relaunch; a reset mounts the app again from scratch.
       await device.command('reset');
       if (options.login) await logIn(options.login);
