@@ -203,8 +203,8 @@ package_info_plus, connectivity_plus and dynamic_color. The app is not committed
 - App: `FriesI23/mhabit` at `44df07b9d318165a2129eab59062bf20888312e4` (2026-11-23), Flutter 3.47.9 (its pinned
   version; the clone's `.flutter` submodule was not used). It resolved with no change.
 - Headless: the iOS look (the host's default) and the Android look (`"flutterHost": { "platform": "android",
-  "window": "412x915@2.625" }`). Lynkeus FastSim on a Mac: the Android look, and the iOS look blocked on the app's own
-  binding ([below](#mhabit-on-lynkeus-fastsim)). The Simulator and emulator runs are still to do.
+  "window": "412x915@2.625" }`). Lynkeus FastSim on a Mac: both looks
+  ([below](#mhabit-on-lynkeus-fastsim)). The Simulator and emulator runs are still to do.
 
 ## Wiring it, as the docs say
 
@@ -297,35 +297,42 @@ Native (jest, RNTL); the case reference says `qa.register` where a Flutter app u
 
 ## mhabit on Lynkeus FastSim
 
-On the FastSim Flutter host on a Mac (Apple Silicon), 2026-11-23, with the app wired as above (no change for FastSim):
+On the FastSim Flutter host on a Mac (Apple Silicon), 2026-11-23:
 
 ```sh
-<kit>/bin/fastsim-bundle . <bundle> android -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)   # or ios
+<kit>/bin/fastsim-bundle . <bundle> ios -- --dart-define=LYNKEUS_TOKEN=$(cat .lynkeus/token)   # or android
 npx lynkeus case run --ports 8421 --host-command "<kit>/bin/fastsim-run <bundle> {port}" --once
 ```
 
-- **iOS look: does not start (0/10).** With `Platform.isIOS` true, `main()` runs
-  `FixedIos26FlutterBinding.ensureInitialized()` after `LynkeusAgent.start()` has made the agent's binding, and the
-  debug build stops at `'_debugInitializedType == null': Binding is already initialized to FastSimBinding`. A Simulator
-  run will stop the same way (the agent makes its binding there too). The fix is the agent's: let an app that makes its
-  own binding run, or say how to add the agent's to it (fastsim `docs/FLUTTER-HOST.md`, "Apps that make their own
-  binding", says what the host needs: the safe area cannot come from the host).
-- **iOS look with that one line guarded** (a local probe, not the app's code: the binding made only when none is),
-  9 of 10: every case but 05 below, after the fixes listed here.
-- **Android look:** two full runs, 10/10 (71 s wall) and 8/10 (68 s wall):
+mhabit makes a binding of its own on iOS (`FixedIos26FlutterBinding`, which filters a phantom tap iOS 26 sends).
+Wired as above, `LynkeusAgent.start()` came first, made the agent's binding, and the app's then failed Flutter's
+assertion (`Binding is already initialized`) before `runApp`: the iOS look did not start, here or on a Simulator. Two
+ways to run it, both measured:
 
-| Case | Run 1 | Run 2 |
+- **The documented change** (the Flutter page): `FixedIos26FlutterBinding extends LynkeusBinding`, made before
+  `LynkeusAgent.start()` in `main()`. Every case passes, twice per look:
+
+| Case | iOS look | Android look |
 |---|---|---|
-| 01-create-habit | 11/11, 3.7 s | 11/11, 2.6 s |
-| 02-check-in-undo | 19/19, 4.6 s | 19/19, 3.5 s |
-| 03-habit-detail | 19/19, 4.7 s | 19/19, 4.2 s |
-| 04-edit-archive | 31/31, 6.5 s | failed at step 28: the menu a press opened right after `back` did not open |
-| 05-groups-sorting | 53/53, 13.8 s | failed at step 52: the snackbar UNDO hides stayed |
-| 06-reminder | 24/24, 5.1 s | 24/24, 4.0 s |
-| 07-settings | 46/46, 7.4 s | 46/46, 6.8 s |
-| 08-export-import | 28/28, 4.6 s | 28/28, 5.1 s |
-| 09-sync-server | 33/33, 2.7 s | 33/33, 6.4 s |
-| 10-about-changelog | 23/23, 2.5 s | 23/23, 2.9 s |
+| 01-create-habit | 11/11, 3.5 s | 11/11, 2.7–2.8 s |
+| 02-check-in-undo | 19/19, 4.6 s | 19/19, 3.5–3.6 s |
+| 03-habit-detail | 19/19, 4.0–4.1 s | 19/19, 3.4–3.5 s |
+| 04-edit-archive | 31/31, 8.8 s | 31/31, 6.0–6.2 s |
+| 05-groups-sorting | 54/54, 14.3–14.5 s | 53/53, 9.0–9.4 s |
+| 06-reminder | 24/24, 5.7 s | 24/24, 3.9–4.0 s |
+| 07-settings | 42/42, 8.9–9.0 s | 46/46, 6.3–6.4 s |
+| 08-export-import | 29/29, 7.7 s | 28/28, 4.6–4.7 s |
+| 09-sync-server | 35/35, 4.4–4.5 s | 33/33, 2.8–2.9 s |
+| 10-about-changelog | 24/24, 5.8 s | 23/23, 2.6 s |
+| All | 288/288, 82 s wall | 283/283, 59 s wall |
+
+- **No change but the order `lynkeus init` now writes** (the app's own binding first, `WidgetsFlutterBinding` on
+  Android, then `start()`): the agent cannot wrap that binding, so the safe area is off (`MediaQuery.padding` is 0)
+  and frames are not pinned; the plugins are answered through the host (below). iOS look 10/10 twice (81–85 s wall):
+  no case asserts a position the padding moves. Android look 9/10 twice (58–62 s wall): 04-edit-archive's press on
+  "Show menu" right after `back` lands while the navigator still absorbs pointers for the route change; the agent's
+  own binding waits for a frame before such a request, a plain one cannot. This is what an app gets with no change
+  beyond `lynkeus init`.
 
 What it found and fixed (lynkeus `dev/flutter`, fastsim `dev/flutter-host-all`), each with a test:
 
@@ -342,11 +349,12 @@ What it found and fixed (lynkeus `dev/flutter`, fastsim `dev/flutter-host-all`),
   picker's hour left the cursor inside "10": it became "70". It now empties the field.
 - **flutter_local_notifications** has no method-channel default: `fastsim-bundle` builds the kernel from an entry
   that registers its class (as headless's host file does), so `NotificationService().init()` and case 06's scheduled
-  notification work with no app change.
-
-Still failing, both the agent's capture work (reported 2026-11-23): when `idle` answers while a looping animation runs,
-the agent draws a capture frame and holds the next frames until a request that is not a read; a `see` or `wait` only
-reads, so a snackbar's exit (05) or the frame after a route change that lets taps through again (04) never comes.
+  notification work with no app change. Without it, the screen stays empty: `init()` is awaited before `runApp`.
+- **An app's own binding without the agent's.** Its plugin messages reached the host, which answered them as not
+  implemented, so mhabit's first `path_provider` call failed before `runApp` (0/10 on both looks). The agent now asks
+  the host to hand it the plugin messages the host does not answer; only the safe area stays off.
+- The capture frame held the app's frames while the driver only read the screen (05's undo snackbar, 04's menu right
+  after `back`): fixed on the agent's side the same day.
 
 ## Still to run
 
@@ -522,20 +530,20 @@ npx lynkeus case run --ports 8421 --host-command "<kit>/bin/fastsim-run <bundle>
 
 | Case | iOS look | Android look |
 |---|---|---|
-| 01-onboarding | 19/19, 2.3–3.9 s | 19/19, 1.5–1.8 s |
-| 02-location-permission | 17/17, 1.6–2.3 s | 16/16, 1.1–1.4 s |
-| 03-add-city | 20/20, 2.9 s | 20/20, 1.9–2.2 s |
-| 04-reorder-delete | 30/30, 4.3–5.1 s | 30/30, 2.8–3.0 s |
-| 05-hourly-daily | 25/25, 3.2–3.8 s | 25/25, 2.1–2.6 s |
-| 06-units | 25/25, 4.1–4.4 s | 25/25, 2.7–2.8 s |
-| 07-air-quality | 26/26, 3.9–4.6 s | 26/26, 2.4–2.5 s |
-| 08-map | 19/19, 2.7–3.4 s | 19/19, 2.1–2.9 s |
-| 09-theme-language | 26/26, 8.2–9.2 s | 26/26, 5.6–6.8 s |
-| 10-network-down | 25/25, 4.3–5.7 s | 25/25, 3.3–3.7 s |
-| All | 232/232, 53–57 s wall | 231/231, 38–42 s wall |
+| 01-onboarding | 19/19, 1.5–1.7 s | 19/19, 1.3–1.6 s |
+| 02-location-permission | 17/17, 1.3–1.4 s | 16/16, 1.1–1.2 s |
+| 03-add-city | 20/20, 2.2–2.6 s | 20/20, 1.8–2.4 s |
+| 04-reorder-delete | 30/30, 3.3–4.1 s | 30/30, 2.9–3.4 s |
+| 05-hourly-daily | 25/25, 2.4–3.2 s | 25/25, 2.0–2.4 s |
+| 06-units | 25/25, 2.7–5.1 s | 25/25, 2.1–2.5 s |
+| 07-air-quality | 26/26, 3.3–3.9 s | 26/26, 2.7–3.2 s |
+| 08-map | 19/19, 2.3–2.7 s | 19/19, 1.8–2.0 s |
+| 09-theme-language | 26/26, 7.1–7.3 s | 26/26, 4.6–4.7 s |
+| 10-network-down | 25/25, 4.0–4.2 s | 25/25, 3.3–3.6 s |
+| All | 232/232, 41–47 s wall | 231/231, 35–39 s wall |
 
-The wall time includes ten host starts. The Mac was shared with other runs; a quieter first run of the iOS look took
-1.5–7.4 s per case and 39 s in all.
+The wall time includes ten host starts. The same figures held in two earlier pairs of runs (53–57 s and 38–42 s
+wall on a busier Mac).
 
 What it took (lynkeus `dev/flutter` and fastsim `dev/flutter-host-all`, 2026-11-23):
 
