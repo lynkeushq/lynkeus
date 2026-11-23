@@ -1,0 +1,22 @@
+name: lynkeus_sample
+description: A small Flutter app the Lynkeus cases in cases/ run against.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  lynkeus_agent:
+    path: ../lynkeus_agent
+  material_ui: ^1.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
