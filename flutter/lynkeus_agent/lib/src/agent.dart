@@ -60,6 +60,15 @@ abstract final class LynkeusAgent {
   /// for `route`, `path` and `navigate` unless [start] is given routes of the app's own (a router's).
   static final navigatorObserver = LynkeusNavigatorObserver();
 
+  static LynkeusRoutes? _routes;
+
+  /// The app's routes, for a router that only exists once the app's widgets build (a GoRouter made in a State or a
+  /// provider): set where it is made. Without them the agent reads the app's Router, or the observer's Navigator.
+  static set routes(LynkeusRoutes routes) {
+    _routes = routes;
+    _methods?.routes = routes;
+  }
+
   /// Starts dialing the driver. Call once from `main()`, before `runApp`. The token comes from
   /// `--dart-define=LYNKEUS_TOKEN=...` unless given; `host` and `port` from `LYNKEUS_HOST` and `LYNKEUS_PORT`.
   ///
@@ -96,7 +105,7 @@ abstract final class LynkeusAgent {
       ..onHost = fastsim != null || hosted != null
       ..capture = binding is FrameCapture ? binding : null
       ..commands.addAll(_pending)
-      ..routes = routes ?? navigatorObserver.routes;
+      ..routes = routes ?? _routes ?? defaultRoutes(navigatorObserver, RouterRoutes());
     _pending.clear();
     _methods = methods;
     final where = host ?? fastsim?.driverHost ?? hosted?.host ?? (_host.isEmpty ? null : _host);
