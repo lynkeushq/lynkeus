@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/fastsim.dart';
+import 'package:lynkeus_agent/src/standins.dart';
 
 void main() {
   test('sleeps on a simulator or a phone: only FASTSIM_HOST wakes it', () {
@@ -73,15 +74,49 @@ void main() {
     ]);
   });
 
+  for (final (name, reply, placeholder) in [
+    ('a host that draws native views says so in its hello', {'platformViews': 'placeholder'}, true),
+    ('a host from before native views says nothing of them', <String, Object?>{}, false),
+    ('a value the agent does not know is no placeholder', {'platformViews': 'webkit'}, false),
+  ]) {
+    testWidgets(name, (tester) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        const MethodChannel(channelName, JSONMethodCodec()),
+        (call) async => {
+          'commands': ['clock', 7, null],
+          'somethingNew': {'a': 1},
+          ...reply,
+        },
+      );
+      final host = FastSimHost.detect({'FASTSIM_HOST': 'flutter'})!
+        ..standIns = StandIns(log: (_) {}, hostSaysViews: true);
+      expect(await host.hello('0.7.5'), ['clock'], reason: 'unknown fields and entries are skipped');
+      expect(await host.standIns!.hostViews, placeholder);
+    });
+  }
+
+  testWidgets('a hello reply that is not a map serves nothing and keeps the stand-ins on native views', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel(channelName, JSONMethodCodec()),
+      (call) async => ['clock'],
+    );
+    final host = FastSimHost.detect({'FASTSIM_HOST': 'flutter'})!
+      ..standIns = StandIns(log: (_) {}, hostSaysViews: true);
+    expect(await host.hello('0.7.5'), isEmpty);
+    expect(await host.standIns!.hostViews, isFalse);
+  });
+
   testWidgets('a host that does not answer hello serves nothing, and the agent still starts', (tester) async {
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       const MethodChannel(channelName, JSONMethodCodec()),
       null,
     );
-    final host = FastSimHost.detect({'FASTSIM_HOST': 'flutter'})!;
+    final host = FastSimHost.detect({'FASTSIM_HOST': 'flutter'})!
+      ..standIns = StandIns(log: (_) {}, hostSaysViews: true);
     final served = host.hello('0.7.5');
     await tester.pump(const Duration(seconds: 6));
     expect(await served, isEmpty);
+    expect(await host.standIns!.hostViews, isFalse);
   });
 
   test('the system bars the app hides move the safe area as on the phone, edge by edge', () {

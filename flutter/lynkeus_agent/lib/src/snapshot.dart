@@ -629,8 +629,16 @@ Snapshot takeSnapshot() {
 /// The native views on screen (a web view, a map, a native tab bar): their type and their rectangle in window points.
 /// The rectangle is the widget's whether or not the platform made the view, so a device and a host, which draws none,
 /// report the same place; a pixel comparison masks it on both sides.
-List<Map<String, Object?>> platformViews() {
-  final out = <Map<String, Object?>>[];
+List<Map<String, Object?>> platformViews() => [
+  for (final (type, _, frame) in _platformViews())
+    {
+      'viewType': type,
+      'frame': {'x': frame.left, 'y': frame.top, 'w': frame.width, 'h': frame.height},
+    },
+];
+
+List<(String, RenderObject, Rect)> _platformViews() {
+  final out = <(String, RenderObject, Rect)>[];
   void visit(Element e) {
     final w = e.widget;
     final type = switch (w) {
@@ -641,13 +649,9 @@ List<Map<String, Object?>> platformViews() {
       _ => null,
     };
     if (type != null) {
-      final frame = _frameOf(e.findRenderObject());
-      if (frame != null && !frame.isEmpty) {
-        out.add({
-          'viewType': type,
-          'frame': {'x': frame.left, 'y': frame.top, 'w': frame.width, 'h': frame.height},
-        });
-      }
+      final ro = e.findRenderObject();
+      final frame = _frameOf(ro);
+      if (frame != null && !frame.isEmpty) out.add((type, ro!, frame));
       return;
     }
     _onstage(e).forEach(visit);
@@ -656,6 +660,36 @@ List<Map<String, Object?>> platformViews() {
   final root = WidgetsBinding.instance.rootElement;
   if (root != null) visit(root);
   return out;
+}
+
+/// The type of the native view a finger at [point] would land on, or null when Flutter content takes it. Flutter
+/// content drawn over the view (a button over a map) takes the touch on a device too; anything else inside the
+/// view's rectangle is the view's there, whether or not this side made it.
+String? nativeViewAt(Offset point) {
+  // In tree order, so the last is the one on top.
+  final (type, view, _) = _platformViews().where((v) => v.$3.contains(point)).lastOrNull ?? (null, null, null);
+  if (type == null || view == null) return null;
+  final result = HitTestResult();
+  WidgetsBinding.instance.hitTestInView(result, point, viewId());
+  final hit = result.path.map((entry) => entry.target).whereType<RenderObject>().firstOrNull;
+  return hit != null && _drawnOver(hit, view) ? null : type;
+}
+
+// Whether [a] paints after [b] in a branch of its own: not inside it, not one of its ancestors (a touch that fell
+// through to the page behind), and later among the children of the parent they share.
+bool _drawnOver(RenderObject a, RenderObject b) {
+  final aChain = <RenderObject>[for (RenderObject? r = a; r != null; r = r.parent) r];
+  final bChain = <RenderObject>[for (RenderObject? r = b; r != null; r = r.parent) r];
+  if (aChain.contains(b) || bChain.contains(a)) return false;
+  final bSet = bChain.toSet();
+  final i = aChain.indexWhere(bSet.contains);
+  if (i <= 0) return false;
+  final shared = aChain[i];
+  final aBranch = aChain[i - 1];
+  final bBranch = bChain[bChain.indexOf(shared) - 1];
+  final children = <RenderObject>[];
+  shared.visitChildren(children.add);
+  return children.indexOf(aBranch) > children.indexOf(bBranch);
 }
 
 /// What the walker can see, for when a screen comes back empty or wrong.

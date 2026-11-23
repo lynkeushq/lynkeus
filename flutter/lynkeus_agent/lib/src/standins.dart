@@ -22,15 +22,35 @@ const _methods = StandardMethodCodec();
  * to a method name and a list of arguments here.
  */
 class StandIns {
-  StandIns({required this.log, this.trace = false}) {
+  /// [hostSaysViews]: the host's hello is yet to say whether it answers the native-view channels itself (FastSim);
+  /// their calls wait for it. Otherwise the stand-ins answer them from the start.
+  StandIns({required this.log, this.trace = false, bool hostSaysViews = false}) {
     // A host draws no native views: an app's UiKitView or AndroidView gets a clear error instead of the engine's
     // MissingPluginException, and the rest of the screen goes on.
     for (final channel in _platformViews) {
       add(channel, _platformView);
     }
+    if (!hostSaysViews) hostAnswersPlatformViews(false);
   }
 
   static const _platformViews = ['flutter/platform_views', 'flutter/platform_views_2'];
+
+  /// Whether [channel] is one of the engine's native-view channels.
+  static bool isPlatformViews(String channel) => _platformViews.contains(channel);
+
+  final _hostViews = Completer<bool>();
+
+  /// Whether the host answers the native-view channels itself (FastSim's placeholder, `platformViews: "placeholder"`
+  /// in its hello). Completes once the host has said, false for a host that does not.
+  Future<bool> get hostViews => _hostViews.future;
+  bool? _hostViewsNow;
+
+  /// Set once, from the host's hello; a later call changes nothing.
+  void hostAnswersPlatformViews(bool value) {
+    if (_hostViews.isCompleted) return;
+    _hostViewsNow = value;
+    _hostViews.complete(value);
+  }
 
   final void Function(String line) log;
 
@@ -44,9 +64,11 @@ class StandIns {
   void add(String channelOrApi, StandIn handler) => handlers[channelOrApi] = handler;
 
   /// The engine's own channels and the host's are not a plugin's: they go where they would go anyway. Native views
-  /// are the one engine channel answered here, since no host has them.
-  static bool handles(String channel) =>
-      _platformViews.contains(channel) || (!channel.startsWith('flutter/') && !channel.startsWith('lynkeus/'));
+  /// are the one engine channel answered here, unless [hostViews] says the host answers them (FastSim draws a
+  /// placeholder); headless and older hosts have nothing behind them.
+  static bool handles(String channel, {bool hostViews = false}) =>
+      (!hostViews && _platformViews.contains(channel)) ||
+      (!channel.startsWith('flutter/') && !channel.startsWith('lynkeus/'));
 
   final _blankViews = <String>{};
 
@@ -117,8 +139,19 @@ class StandInMessenger extends BinaryMessenger {
   @override
   Future<ByteData?>? send(String channel, ByteData? message) {
     sent?.call(channel, message);
-    return StandIns.handles(channel) ? standIns.answer(channel, message) : inner.send(channel, message);
+    final hostViews = standIns._hostViewsNow;
+    // An app can make a native view before the host's hello reply is in: its calls wait for it, so the view goes
+    // where the host says.
+    if (hostViews == null && StandIns.isPlatformViews(channel)) {
+      return standIns.hostViews.then((_) => _route(channel, message));
+    }
+    return _route(channel, message);
   }
+
+  Future<ByteData?>? _route(String channel, ByteData? message) =>
+      StandIns.handles(channel, hostViews: standIns._hostViewsNow ?? false)
+      ? standIns.answer(channel, message)
+      : inner.send(channel, message);
 
   @override
   void setMessageHandler(String channel, MessageHandler? handler) => inner.setMessageHandler(channel, handler);
@@ -133,7 +166,8 @@ class StandInMessenger extends BinaryMessenger {
 /// Why a native view stays blank under a host.
 String noPlatformViews(String viewType) =>
     'lynkeus: $viewType is a native view (UiKitView, AndroidView), and a Lynkeus host (headless or FastSim) draws '
-    'none: it stays blank there. Cases can still check everything around it; look at it on a simulator or a phone.';
+    'none: it stays blank there, and a step aimed inside it fails. Cases can still check everything around it; look '
+    'at it on a simulator or a phone.';
 
 /// A plugin with no method-channel default fails under a host, where the plugin registrant does not run and no
 /// platform implementation is set: the line that says so, for the error the app reports; null for any other error.

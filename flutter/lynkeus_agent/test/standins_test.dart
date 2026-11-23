@@ -194,7 +194,62 @@ void main() {
     expect(StandIns.handles('lynkeus/fastsim'), isFalse);
     expect(StandIns.handles('plugins.flutter.io/shared_preferences'), isTrue);
     expect(StandIns.handles('dev.flutter.pigeon.shared_preferences_foundation.UserDefaultsApi.getAll'), isTrue);
+    // Native views are answered here unless the host draws them (FastSim's placeholder).
+    expect(StandIns.handles('flutter/platform_views'), isTrue);
+    expect(StandIns.handles('flutter/platform_views_2'), isTrue);
+    expect(StandIns.handles('flutter/platform_views', hostViews: true), isFalse);
+    expect(StandIns.handles('flutter/platform_views_2', hostViews: true), isFalse);
+    expect(StandIns.handles('plugins.flutter.io/shared_preferences', hostViews: true), isTrue);
   });
+
+  for (final placeholder in [true, false]) {
+    testWidgets(
+      placeholder
+          ? 'a host that draws native views gets their calls, once its hello has said so'
+          : 'a host that says nothing of native views leaves them to the stand-ins',
+      (tester) async {
+        final host = <MethodCall>[];
+        final inner = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+        for (final channel in const [
+          MethodChannel('flutter/platform_views'),
+          MethodChannel('flutter/platform_views_2'),
+        ]) {
+          inner.setMockMethodCallHandler(channel, (call) async {
+            host.add(call);
+            return null;
+          });
+          addTearDown(() => inner.setMockMethodCallHandler(channel, null));
+        }
+        // Made in the test's zone, so its hello completes on the test's clock.
+        final said = <String>[];
+        final standIns = StandIns(log: said.add, hostSaysViews: true);
+        final app = StandInMessenger(inner, standIns);
+        final create = const StandardMethodCodec().encodeMethodCall(
+          const MethodCall('create', {'id': 0, 'viewType': 'map'}),
+        );
+        // Made before the hello reply is in: it waits for it.
+        var answered = false;
+        final reply = app.send('flutter/platform_views', create)!..then((_) => answered = true);
+        await tester.pump();
+        expect(answered, isFalse);
+        standIns.hostAnswersPlatformViews(placeholder);
+        standIns.hostAnswersPlatformViews(!placeholder);
+        final envelope = await reply;
+        if (placeholder) {
+          expect(const StandardMethodCodec().decodeEnvelope(envelope!), isNull);
+          expect(host.map((c) => c.method), ['create']);
+          expect(said, isEmpty);
+        } else {
+          expect(() => const StandardMethodCodec().decodeEnvelope(envelope!), throwsA(isA<PlatformException>()));
+          expect(host, isEmpty);
+          expect(said.single, contains('map is a native view'));
+        }
+        // Once the host has said, a call goes straight where it said.
+        expect(await app.send('flutter/platform_views_2', create), isNotNull);
+        expect(host.length, placeholder ? 2 : 0);
+      },
+    );
+  }
 
   testWidgets('the app\'s messenger shows what it sends before routing it', (tester) async {
     final seen = <String>[];

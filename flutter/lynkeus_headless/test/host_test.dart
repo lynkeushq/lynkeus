@@ -37,6 +37,7 @@ class _ProbeState extends State<Probe> {
           if (done) const Text('Done'),
           Text('Year ${clock.now().year}'),
           Text('Locale ${WidgetsBinding.instance.platformDispatcher.locale.toLanguageTag()}'),
+          const SizedBox(width: 200, height: 100, child: UiKitView(viewType: 'map')),
         ],
       ),
     ),
@@ -86,6 +87,11 @@ class Driver {
   Future<void> _script() async {
     try {
       answers['screen'] = (await call('screen'))['result'];
+      final view = (((answers['screen']! as Map)['platformViews']! as List).single as Map)['frame']! as Map;
+      answers['pressView'] = (await call('press', {
+        'x': (view['x']! as num) + (view['w']! as num) / 2,
+        'y': (view['y']! as num) + (view['h']! as num) / 2,
+      }))['error'];
       await call('press', {'testId': 'go'});
       final watch = Stopwatch()..start();
       answers['waitFor'] = (await call('waitFor', {
@@ -128,6 +134,17 @@ void main() {
     expect(driver.answers['error'], isNull);
     final texts = ((driver.answers['screen']! as Map)['elements']! as List).map((e) => (e as Map)['text']).toList();
     expect(texts, containsAll(['Start', 'Year 2030', 'Locale es-AR']));
+    // Headless has no native views: the rectangle is still reported, and a press inside it fails with the type.
+    expect((driver.answers['screen']! as Map)['platformViews'], [
+      {
+        'viewType': 'map',
+        'frame': {'x': 101.0, 'y': 408.0, 'w': 200.0, 'h': 100.0},
+      },
+    ]);
+    expect(
+      (driver.answers['pressView']! as Map)['message'],
+      contains('this point is inside native view map, which only exists on a device'),
+    );
     // Three seconds of the app's time, in far less of the wall's.
     expect((driver.answers['waitFor']! as Map)['waitedMs'], greaterThanOrEqualTo(2900));
     expect(driver.waits['realMs'], lessThan(2000));

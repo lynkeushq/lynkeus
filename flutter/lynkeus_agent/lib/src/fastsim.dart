@@ -17,7 +17,9 @@ import 'standins.dart';
  * lives here and wakes only on FASTSIM_HOST, which only the host sets: on a simulator or a phone none of it runs.
  *
  * The host speaks to the agent on one channel, `lynkeus/fastsim` (JSON method calls):
- *   hello {agentVersion, binding, safeArea}  -> {commands}  what the host serves (clock, screenshot, ...)
+ *   hello {agentVersion, binding, safeArea}  -> {commands, platformViews}  what the host serves (clock, screenshot,
+ *                                            ...); platformViews "placeholder" when it answers flutter/platform_views
+ *                                            itself and draws a placeholder where each native view is
  *   call {name, params}                      -> the command's result, forwarded from a driver request
  *   activity {serving, inFlight}             a driver request being served, the app's requests out: the clock runs
  *                                            ahead while the first is above zero and the second is zero
@@ -83,7 +85,7 @@ class FastSimHost {
       );
       return;
     }
-    final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace');
+    final standIns = StandIns(log: debugPrint, trace: env['LYNKEUS_CHANNELS'] == 'trace', hostSaysViews: true);
     FastSimBinding(safeArea ?? const [0, 0, 0, 0], standIns, hidden: safeAreaHidden);
     this.standIns = standIns;
     ownsBinding = true;
@@ -108,21 +110,25 @@ class FastSimHost {
     };
   }
 
-  /// Asks the host what it serves; empty when it does not answer.
+  /// Asks the host what it serves; empty when it does not answer. Fields the agent does not know are ignored.
   Future<List<String>> hello(String agentVersion) async {
+    Map<Object?, Object?>? reply;
     try {
-      final reply = await channel
-          .invokeMapMethod<String, Object?>('hello', {
+      final answer = await channel
+          .invokeMethod<Object?>('hello', {
             'agentVersion': agentVersion,
             'binding': ownsBinding ? 'lynkeus' : 'app',
             'safeArea': ownsBinding && safeArea != null,
           })
           .timeout(const Duration(seconds: 5));
-      return [...?(reply?['commands'] as List<Object?>?)?.whereType<String>()];
+      if (answer is Map) reply = answer;
     } on Object catch (error) {
       debugPrint('lynkeus: the FastSim host did not answer hello ($error)');
-      return const [];
     }
+    // A host from before 2026-11-23 says nothing about native views: the stand-ins keep failing them.
+    standIns?.hostAnswersPlatformViews(reply?['platformViews'] == 'placeholder');
+    final commands = reply?['commands'];
+    return [if (commands is List) ...commands.whereType<String>()];
   }
 
   /// A driver request for a command the host serves.

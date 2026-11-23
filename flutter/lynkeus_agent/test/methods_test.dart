@@ -490,6 +490,70 @@ void main() {
     expect(find.text('Row 55'), findsOneWidget);
     expect(backward, isFalse, reason: 'the list was loading its next page, not at its end');
   });
+
+  for (final made in [true, false]) {
+    final side = made ? 'made, as on FastSim' : 'refused, as headless';
+    Future<void> showMap(WidgetTester tester, {required bool onHost}) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views, (call) async {
+        if (call.method == 'create' && !made) throw PlatformException(code: 'unsupported');
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views, null),
+      );
+      await tester.pumpWidget(const MaterialApp(home: _MapScreen()));
+      await tester.pump();
+      if (!made) tester.takeException();
+      methods = Methods()..onHost = onHost;
+    }
+
+    testWidgets('on a host, a step aimed inside a native view fails with its type ($side)', (tester) async {
+      await showMap(tester, onHost: true);
+      const inside = {'x': 100.0, 'y': 50.0};
+      for (final (method, params) in [
+        ('press', inside),
+        ('type', {'target': inside, 'text': 'x'}),
+        (
+          'swipe',
+          {
+            'from': inside,
+            'to': {'x': 100.0, 'y': 250.0},
+          },
+        ),
+      ]) {
+        expect(
+          await failureOf(tester, methods, method, params),
+          contains('this point is inside native view map, which only exists on a device'),
+          reason: method,
+        );
+      }
+      if (!made) {
+        // Headless draws nothing over the button under the view; on a device the view takes the touch.
+        expect(await failureOf(tester, methods, 'press', {'testId': 'under'}), contains('native view map'));
+      }
+      await drive(tester, methods, 'press', {'testId': 'over'});
+      await drive(tester, methods, 'press', {'testId': 'outside'});
+      expect(find.text('Pressed: over,outside'), findsOneWidget);
+    });
+  }
+
+  testWidgets('on a device the native view is real: a step aimed inside it goes through', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform_views,
+      (call) async => throw PlatformException(code: 'unsupported'),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform_views, null),
+    );
+    await tester.pumpWidget(const MaterialApp(home: _MapScreen()));
+    await tester.pump();
+    tester.takeException();
+    methods = Methods();
+    expect(methods.onHost, isFalse);
+    await drive(tester, methods, 'press', {'testId': 'under'});
+    await drive(tester, methods, 'press', {'x': 100.0, 'y': 50.0});
+    expect(find.text('Pressed: under'), findsOneWidget);
+  });
 }
 
 /// Twenty rows a page; reaching the very end shows a footer and adds the next page two seconds later, three pages in
@@ -556,6 +620,40 @@ class _BouncingState extends State<Bouncing> with SingleTickerProviderStateMixin
         padding: EdgeInsets.only(top: 40 * _controller.value),
         child: const Text('Support us'),
       ),
+    ),
+  );
+}
+
+/// A native view (a map) with a Flutter button drawn under it, one drawn over it, and one below it.
+class _MapScreen extends StatefulWidget {
+  const _MapScreen();
+  @override
+  State<_MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<_MapScreen> {
+  final pressed = <String>[];
+
+  Widget _button(String name) =>
+      ElevatedButton(key: ValueKey(name), onPressed: () => setState(() => pressed.add(name)), child: Text(name));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Column(
+      children: [
+        SizedBox(
+          height: 300,
+          child: Stack(
+            children: [
+              Positioned.fill(child: Center(child: _button('under'))),
+              const Positioned.fill(child: UiKitView(viewType: 'map')),
+              Positioned(right: 16, bottom: 16, child: _button('over')),
+            ],
+          ),
+        ),
+        _button('outside'),
+        Text('Pressed: ${pressed.join(',')}'),
+      ],
     ),
   );
 }

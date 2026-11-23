@@ -93,6 +93,7 @@ abstract final class LynkeusAgent {
     _standingIn = hosted != null || fastsim?.standIns != null;
     final binding = WidgetsBinding.instance;
     final methods = Methods()
+      ..onHost = fastsim != null || hosted != null
       ..capture = binding is FrameCapture ? binding : null
       ..commands.addAll(_pending)
       ..routes = routes ?? navigatorObserver.routes;

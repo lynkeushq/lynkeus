@@ -76,6 +76,32 @@ class Methods {
   /// The app's requests, once the agent wraps its HttpClient.
   Network? network;
 
+  /// Whether the app runs on a Lynkeus host (headless or FastSim), where native views do not exist: a touch aimed
+  /// inside one fails there, since on a device the view would take it. False on a simulator, an emulator or a phone.
+  bool onHost = false;
+
+  // Before any finger goes down: on a host, a touch at [point] must not land where a device has a native view.
+  void _reachable(Offset point) {
+    if (!onHost) return;
+    final type = nativeViewAt(point);
+    if (type == null) return;
+    throw AgentError(
+      '(${point.dx.toStringAsFixed(1)}, ${point.dy.toStringAsFixed(1)}): this point is inside native view $type, '
+      'which only exists on a device. Lynkeus FastSim draws a placeholder there and headless draws nothing; aim the '
+      'step at Flutter content, or cover this view on a simulator, an emulator or a phone.',
+    );
+  }
+
+  Future<void> _tap(Offset at, int holdMs) {
+    _reachable(at);
+    return touch.tap(at, holdMs);
+  }
+
+  Future<void> _drag(Offset from, Offset to, int durationMs, {int holdMs = 0}) {
+    _reachable(from);
+    return touch.drag(from, to, durationMs, holdMs: holdMs);
+  }
+
   LynkeusRoutes? _routes;
 
   /// Told the focused route whenever it may have changed: the link sends it to the driver as a `navigation` event.
@@ -354,7 +380,7 @@ class Methods {
       await _sleep(300);
       point = await _settled(target);
     }
-    await touch.tap(Offset(point.x, point.y), holdMs);
+    await _tap(Offset(point.x, point.y), holdMs);
     return point;
   }
 
@@ -426,7 +452,7 @@ class Methods {
       fromY = fromY.clamp(inset, height - inset);
       final from = Offset(fromX, fromY);
       final to = Offset((fromX + dx).clamp(inset, width - inset), (fromY + dy).clamp(inset, height - inset));
-      await touch.drag(from, to, durationMs);
+      await _drag(from, to, durationMs);
       return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
     }
     final presets = {
@@ -439,7 +465,7 @@ class Methods {
     final from = _offset(p['from']) ?? preset?.$1;
     final to = _offset(p['to']) ?? preset?.$2;
     if (from == null || to == null) throw AgentError('swipe needs a direction, a target, or from/to points');
-    await touch.drag(from, to, durationMs);
+    await _drag(from, to, durationMs);
     return {'from': _xy(from), 'to': _xy(to), 'settledMs': await _scrollsSettled()};
   }
 
@@ -539,7 +565,7 @@ class Methods {
     // something else (a pager of tabs).
     if (at != null && (at.dx < 0 || at.dx > win.width) && at.dy >= 0 && at.dy <= win.height) {
       final forward = at.dx > win.width;
-      await touch.drag(Offset(cx + (forward ? dx : -dx), at.dy), Offset(cx + (forward ? -dx : dx), at.dy), 250);
+      await _drag(Offset(cx + (forward ? dx : -dx), at.dy), Offset(cx + (forward ? -dx : dx), at.dy), 250);
       return;
     }
     final up = at == null ? back : at.dy < top;
@@ -548,7 +574,7 @@ class Methods {
     // than a window past a row that was being built, or swing it back and forth over one that is known. Towards a
     // known row, about the distance that centers it.
     final half = at == null ? dy : math.min((at.dy - cy).abs(), dy * 2) / 2;
-    await touch.drag(Offset(x, cy + (up ? -half : half)), Offset(x, cy + (up ? half : -half)), 250, holdMs: 120);
+    await _drag(Offset(x, cy + (up ? -half : half)), Offset(x, cy + (up ? half : -half)), 250, holdMs: 120);
   }
 
   Future<Map<String, Object?>> _waitFor(Map<String, Object?> p) async {
