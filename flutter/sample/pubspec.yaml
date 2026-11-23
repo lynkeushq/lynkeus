@@ -12,10 +12,14 @@ dependencies:
   lynkeus_agent:
     path: ../lynkeus_agent
   material_ui: ^1.11.0
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  lynkeus_headless:
+    path: ../lynkeus_headless
   flutter_lints: ^6.0.0
 
 flutter:
