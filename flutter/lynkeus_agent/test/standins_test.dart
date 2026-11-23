@@ -124,7 +124,10 @@ void main() {
       {'id': 7, 'title': 'Read', 'body': 'Did you read today?', 'payload': ''},
     ]);
     final listed = commands['notifications']!(null)! as Map<String, Object?>;
-    expect((listed['scheduled']! as List).single, containsPair('at', '2026-11-24T08:00:00'));
+    expect(
+      (listed['scheduled']! as List).single,
+      allOf(containsPair('at', '2026-11-24T08:00:00'), containsPair('time', '08:00')),
+    );
     expect((listed['shown']! as List).single, containsPair('title', 'Now'));
     await channel.invokeMethod<void>('cancel', 7);
     expect(await channel.invokeListMethod<Object?>('pendingNotificationRequests'), isEmpty);

@@ -354,7 +354,11 @@ void _installOthers(
       'title': a['title'],
       'body': a['body'],
       'payload': a['payload'],
-      if (a['scheduledDateTime'] != null) 'at': a['scheduledDateTime'],
+      if (a['scheduledDateTime'] case final String at) ...{
+        'at': at,
+        // The wall-clock time alone, which a daily reminder keeps whatever day it falls on next.
+        'time': at.length >= 16 ? at.substring(11, 16) : at,
+      },
       if (a['timeZoneName'] != null) 'timeZone': a['timeZoneName'],
       if (a['matchDateTimeComponents'] != null) 'repeats': a['matchDateTimeComponents'],
       if (a['repeatInterval'] != null) 'repeats': a['repeatInterval'],
