@@ -334,8 +334,15 @@ class _Walker {
     }
 
     final kind = role.kind;
+    // A paragraph made of widgets in its spans (a markdown list: a bullet and a nested paragraph per item) says
+    // nothing itself: what it shows is in those widgets, which are its children.
+    if (w is RichText && testId == null && label == null && _clean(_plain(w)) == null) {
+      walkChildren(e, at);
+      return;
+    }
     if (kind == 'text' && at.inButton) {
       _absorbText(at.sink, w);
+      if (w is RichText) walkChildren(e, at);
       if (testId == null && label == null) return;
     }
     if (kind == 'image' && testId == null && role.label == null && label == null) return;
@@ -375,6 +382,7 @@ class _Walker {
     if (w is RichText) {
       item.text = _clean(_plain(w));
       _fontFrom(item, w.text.style);
+      walkChildren(e, at.copyWith(depth: at.depth + 1, owner: item.i));
       return;
     }
     if (w is EditableText) {
@@ -456,6 +464,7 @@ class _Walker {
     if (region.kind != 'input') {
       if (w is RichText) {
         _absorbText(owner, w);
+        walkChildren(e, inherited);
         return;
       }
       if (_distinct(e, owner)) {

@@ -205,6 +205,25 @@ void main() {
     expect(status.i, greaterThan(anchor.i));
   });
 
+  testWidgets('a paragraph of widget spans lists the paragraphs inside them', (tester) async {
+    final items = await screenOf(
+      tester,
+      const Text.rich(
+        TextSpan(
+          children: [
+            WidgetSpan(child: Text('Fix: show the window at startup')),
+            TextSpan(text: ' and '),
+            WidgetSpan(child: Text('Feature: Esperanto')),
+          ],
+        ),
+      ),
+    );
+    final texts = items.where((e) => e.kind == 'text').map((e) => e.text).toList();
+    expect(texts, containsAll(['Fix: show the window at startup', 'Feature: Esperanto']));
+    final bare = await screenOf(tester, const Text.rich(WidgetSpan(child: Text('Only a widget'))));
+    expect(bare.where((e) => e.kind == 'text').map((e) => e.text), ['Only a widget']);
+  });
+
   testWidgets('lists only what is on screen: the top route, the visible rows', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
