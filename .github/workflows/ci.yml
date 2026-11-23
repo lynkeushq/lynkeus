@@ -32,6 +32,12 @@ jobs:
       - name: Typecheck files
         run: pnpm typecheck
 
+      # No core module may import a runtime's directory or ask which runtime a folder is by name (docs/ARCHITECTURE.md).
+      - name: Check the runtime boundary
+        run: |
+          pnpm --filter lynkeus check:boundary
+          node hack/ci/changed-areas.mjs --self-test
+
   test:
     runs-on: ubuntu-latest
 
@@ -59,6 +65,8 @@ jobs:
         run: pnpm run prepare
 
   build-android:
+    needs: changes
+    if: needs.changes.outputs.rn_native == 'true'
     runs-on: ubuntu-latest
 
     env:
@@ -117,13 +125,15 @@ jobs:
         run: |
           pnpm turbo run build:android --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
-  # The iOS build needs a hosted macOS runner, which can wait in GitHub's queue long enough to be cancelled. It
-  # checks the agent's native side and the example app, so a change elsewhere (the CLI, docs) skips it; a skipped
-  # job still satisfies a required check. Pushes to main and merge queues always build.
-  ios-changes:
+  # React Native's native builds compile the agent and the example app against the protocol; a change elsewhere (the
+  # CLI, docs) skips them. The iOS one needs a hosted macOS runner, which can wait in GitHub's queue long enough to be
+  # cancelled. The CLI's React Native behavior is pinned by the goldens in the test job, which always runs. A skipped
+  # job still satisfies a required check. hack/ci/changed-areas.mjs says which suites a change needs; pushes to main
+  # and merge queues run them all.
+  changes:
     runs-on: ubuntu-latest
     outputs:
-      ios: ${{ steps.diff.outputs.ios }}
+      rn_native: ${{ steps.areas.outputs.rn_native }}
     steps:
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -131,24 +141,12 @@ jobs:
           fetch-depth: 0
 
       - name: Check what the change touches
-        id: diff
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ "${{ github.event_name }}" != pull_request ]; then
-            echo "ios=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git diff --name-only "$BASE...$HEAD" | grep -qE '^(packages/(agent|protocol)/|example/|\.github/|pnpm-lock\.yaml$|package\.json$)'; then
-            echo "ios=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ios=false" >> "$GITHUB_OUTPUT"
-          fi
+        id: areas
+        run: node hack/ci/changed-areas.mjs ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
 
   build-ios:
-    needs: ios-changes
-    if: needs.ios-changes.outputs.ios == 'true'
+    needs: changes
+    if: needs.changes.outputs.rn_native == 'true'
     runs-on: macos-15
 
     env:
