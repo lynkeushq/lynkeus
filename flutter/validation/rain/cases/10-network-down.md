@@ -15,6 +15,9 @@ steps:
   - app.press: '"Berlin, State of Berlin"'
   - app.press: Done
   - app.wait: '"Berlin, State of Berlin"'
+  # The forecast page slides in over the picker: a pull before it has stopped lands on the route's barrier, as a
+  # person's would.
+  - app.idle
   - on: has:network
     do:
       - app.call: { command: network, params: { state: "off" } }
