@@ -167,6 +167,7 @@ void main() {
         )
         .position;
     final swiped = asMap(await drive(tester, methods, 'swipe', {'direction': 'up', 'durationMs': 60}));
+    expect(swiped['settledMs'], isA<int>());
     final landed = position.pixels;
     expect(position.isScrollingNotifier.value, isFalse);
     await tester.pump(const Duration(seconds: 1));
