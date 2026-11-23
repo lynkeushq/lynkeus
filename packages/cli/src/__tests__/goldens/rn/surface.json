@@ -1,0 +1,851 @@
+{
+  "commands": [
+    "back: drive, needs app",
+    "call: drive, needs app",
+    "case coverage: runs, needs graph",
+    "case here: runs, needs app",
+    "case impact: runs, needs graph",
+    "case init: runs, needs nothing",
+    "case new: runs, needs graph",
+    "case prepare: runs, needs nothing",
+    "case run: runs, needs nothing",
+    "case status: runs, needs nothing",
+    "ci: runs, needs nothing",
+    "crawl: runs, needs app",
+    "events: runs, needs nothing",
+    "events diff: runs, needs nothing",
+    "fastsim grant: runs, needs nothing",
+    "fastsim install: runs, needs nothing",
+    "fixtures check: runs, needs nothing",
+    "fixtures describe: runs, needs nothing",
+    "flake: runs, needs app",
+    "funnel check: runs, needs nothing",
+    "funnel report: runs, needs nothing",
+    "headless doctor: headless, needs nothing",
+    "headless init: headless, needs nothing",
+    "headless start (headless): headless, needs nothing",
+    "hello: drive, needs app",
+    "idle: drive, needs app",
+    "init: drive, needs nothing",
+    "launch: drive, needs app",
+    "lint: drive, needs app",
+    "login: runs, needs nothing",
+    "logout: runs, needs nothing",
+    "map build: map, needs nothing",
+    "map changes: map, needs nothing",
+    "map check: map, needs graph",
+    "map ci: map, needs nothing",
+    "map impact: map, needs graph",
+    "map paths: map, needs graph",
+    "map plan (plan): map, needs graph",
+    "map screens: map, needs graph",
+    "map show: map, needs graph",
+    "mock: os, needs app",
+    "nav: drive, needs app",
+    "os appearance: os, needs app",
+    "os appstate (appstate): os, needs app",
+    "os biometrics (biometrics): os, needs app",
+    "os clock (clock): os, needs app",
+    "os deeplink (deeplink): os, needs app",
+    "os gallery (gallery): os, needs app",
+    "os language: os, needs app",
+    "os location: os, needs app",
+    "os network (network): os, needs app",
+    "os permissions: os, needs app",
+    "os push: os, needs app",
+    "os scan (scan): os, needs app",
+    "perf: drive, needs app",
+    "press: drive, needs app",
+    "profile: drive, needs app",
+    "record: runs, needs app",
+    "relay: runs, needs nothing",
+    "report flakes: runs, needs nothing",
+    "report history: runs, needs nothing",
+    "report list: runs, needs nothing",
+    "report plan: runs, needs nothing",
+    "report prune: runs, needs nothing",
+    "report push: runs, needs nothing",
+    "requests: drive, needs app",
+    "run: runs, needs app",
+    "screen: drive, needs app",
+    "screenshot: drive, needs app",
+    "see: drive, needs app",
+    "smoke: runs, needs app",
+    "snapshot: runs, needs app",
+    "status: drive, needs nothing",
+    "swipe: drive, needs app",
+    "trace: drive, needs app",
+    "type: drive, needs app",
+    "wait: drive, needs app",
+    "why: drive, needs app"
+  ],
+  "fails/case run of a missing file": {
+    "code": 1,
+    "text": "no such case file: missing.md"
+  },
+  "fails/fastsim install for windows": {
+    "code": 1,
+    "text": "the platform is ios or android, not windows"
+  },
+  "fails/headless start without a token": {
+    "code": 1,
+    "text": "lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or set LYNKEUS_TOKEN): a hosted app talks to a real backend, and without one any local process could drive it."
+  },
+  "fails/headless start without jest": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "fails/help for press": {
+    "code": 2,
+    "error": "missing <target>\n\nlynkeus press <target> [--in <target>] [--nth <n>] [--hold <ms>] [--js] [--settle]\n\nA finger on an element\n\nArguments\n  target         #testId | \"text\" | 12 (index) | 100,200\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --hold <ms>              hold for this long\n  --js                     call onPress directly instead of a synthesized touch\n  --settle                 wait for the app to stop committing, then print the screen\n\nNeeds: the app running with the agent; available in a session; served over MCP"
+  },
+  "fails/map build without tsconfig": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "fails/press with an unknown flag": {
+    "code": 2,
+    "error": "unknown flag --bogus; flags: --root --device --app --launch --attach-timeout --json --help --in --nth --hold --js --settle\n\nlynkeus press <target> [--in <target>] [--nth <n>] [--hold <ms>] [--js] [--settle]\n\nA finger on an element\n\nArguments\n  target         #testId | \"text\" | 12 (index) | 100,200\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --hold <ms>              hold for this long\n  --js                     call onPress directly instead of a synthesized touch\n  --settle                 wait for the app to stop committing, then print the screen\n\nNeeds: the app running with the agent; available in a session; served over MCP"
+  },
+  "fails/press without a target": {
+    "code": 2,
+    "error": "missing <target>\n\nlynkeus press <target> [--in <target>] [--nth <n>] [--hold <ms>] [--js] [--settle]\n\nA finger on an element\n\nArguments\n  target         #testId | \"text\" | 12 (index) | 100,200\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --hold <ms>              hold for this long\n  --js                     call onPress directly instead of a synthesized touch\n  --settle                 wait for the app to stop committing, then print the screen\n\nNeeds: the app running with the agent; available in a session; served over MCP"
+  },
+  "fails/status offline": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "fails/swipe --from alone": {
+    "code": 1,
+    "error": "no app attached (goldens)"
+  },
+  "fails/swipe sideways": {
+    "code": 1,
+    "error": "no app attached (goldens)"
+  },
+  "fails/unknown command": {
+    "code": 2,
+    "error": "unknown command \"frobnicate\"; `lynkeus help` lists them"
+  },
+  "fails/wait --gone with --anyOf": {
+    "code": 1,
+    "error": "wait --gone takes one target, not --anyOf"
+  },
+  "fails/wait with nothing": {
+    "code": 1,
+    "error": "wait needs a route, target, milliseconds, or --anyOf"
+  },
+  "help/back": "lynkeus back\n\nPop the current route\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/call": "lynkeus call <command> [params]\n\nAn app command registered with qa.register (reset, busy, …)\n\nArguments\n  command        its name\n  params         JSON params (optional)\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/case coverage": "lynkeus case coverage [--route <Route>] [--seen <dir>]\n\nWhich of the app’s screens the cases touch, which none does, and which a case names that the app no longer has\n\nA screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).\n\nFlags\n  --route <Route>          only this screen: the cases that touch it\n  --seen <dir>             where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)\n\nNeeds: a graph (lynkeus map build); served over MCP",
+  "help/case here": "lynkeus case here <id> [--title <text>] [--write] [--host]\n\nDraft a case from the screen the app shows now, with checks that pass as it is\n\nReads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.\n\nArguments\n  id             the case id, which is also its file name\n\nFlags\n  --title <text>           what the case shows, as the report will title it\n  --write                  save it in the cases folder instead of printing it\n  --host                   start `headless start` for the read and stop it after\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/case impact": "lynkeus case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]\n\nThe cases a branch’s changes reach, to run only those, and the reached screens no case covers\n\nThe screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.\n\nFlags\n  --base <ref>             git ref to diff against (default main)\n  --depth <n>              how many imports away a change still reaches a screen (default 4)\n  --seen <dir>             where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)\n  --files                  print only the case files, one per line\n\nNeeds: a graph (lynkeus map build); served over MCP",
+  "help/case init": "lynkeus case init [--force]\n\nWrite an example case, the reference of the format and a fixtures server to start from\n\nFlags\n  --force                  overwrite what is there\n\nNeeds: nothing; served over MCP",
+  "help/case new": "lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]\n\nDraft a case for a screen: the way there, the backend setup to pick from, and the checks left to write\n\nPrints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.\n\nArguments\n  id             the case id, which is also its file name\n\nFlags\n  --to <Route>             the screen the case is about\n  --from <Route>           where it begins (default: cases.start in lynkeus.config.json)\n  --title <text>           what a person can do there, as the report will title it\n  --write                  save it in the cases folder instead of printing it\n\nNeeds: a graph (lynkeus map build); served over MCP",
+  "help/case prepare": "lynkeus case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]\n\nRun the setup of cases ahead of them, so each starts at its first step\n\nFor a suite that starts `case run --prepared <dir>` once per case: start this first, with the same cases in the order they will run, and leave it running. It runs every setup made only of the project fixtures and leaves what each produced in <dir>; a case that starts before its setup is ready runs its own, and this skips it. It asks the fixtures server for a lower priority (`lynkeus.ahead`), so it takes what the running cases leave of the machine.\n\nArguments\n  files          case files, in the order they will run (default: every .md under cases.dir) (optional)\n\nFlags\n  --prepared <dir>         where to leave the setups (emptied first) (default .lynkeus/prepared)\n  --jobs <n>               setups made at once (default 1)\n  --ahead <n>              setups kept ready and not yet taken, at most (default 4)\n  --idle <share>           start a setup only while at least this share of the CPU is idle (0 to 1) (default 0.25)\n\nNeeds: nothing",
+  "help/case run": "lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]\n\nRun cases: setup through fixtures, steps against the app, the evidence when one fails\n\nA case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run.\n\nArguments\n  files          case files (default: every .md under cases.dir) (optional)\n\nFlags\n  --host                   start `headless start` for the run and stop it after\n  --host-heap <percent>    with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default 60)\n  --seed <text>            make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED)\n  --locale <tag>           the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE)\n  --time-zone <zone>       the IANA time zone a host the run starts launches with, as in Europe/Madrid (default: launch.timeZone, LYNKEUS_TIME_ZONE)\n  --epoch <iso>            the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH)\n  --once                   no second chance for a case that fails\n  --continue               keep running a case's steps after one fails (a failed setup still stops it)\n  --seen <dir>             write <dir>/<case id>.json with the screens each passing case went through, for a coverage map\n  --report <file>          append one JSON line per case\n  --events <dir>           keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl\n  --out <dir>              write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt\n  --no-app-events          with --out: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen; frames two runs compare should not have it\n  --screenshots            with --out: a frame of the screen after every step of the app\n  --settle <ms>            with --screenshots: how long the screen must stay still before a frame, in ms; 700 for frames two runs can be compared by (default 150)\n  --frames-on-change       with --screenshots: a step that only looks (app.see, app.wait) on an unchanged screen shares the last frame\n  --still <ms>             with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see)\n  --frames <avif|png>      with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel (default avif)\n  --video                  with --out: film each case, where the host films (the step says at what second it began)\n  --traces                 listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>\n  --traces-port <port>     where --traces listens (default 4318)\n  --push                   with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case\n  --project <name>         with --push: the project the run is filed under (default: the app’s folder name)\n  --video-fps <n>          frames per second of the film (default 30)\n  --video-scale <n>        pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told)\n  --flakes <file>          the ledger of how each case did across runs (default .lynkeus/flakes.json)\n  --prepared <dir>         where `case prepare` leaves setups made ahead; a case found there skips its setup\n  --jobs <n>               cases at once, each on its own host (needs --ports) (default 1)\n  --ports <list>           the driver port of each job, comma-separated: where its host dials in\n  --host-command <command> starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job\n  --keep-hosts             with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent\n  --host-timeout <ms>      with --keep-hosts: how long a host may take to attach (it builds the app first) (default 600000)\n  --in-order               with --jobs: take the cases in the order given, not the longest first\n  --ahead <n>              make up to this many setups ahead of their cases while others run (0: none) (default 0)\n  --idle <share>           with --ahead: start a setup only while this share of the CPU is idle (default 0.25)\n  --dry-run                parse and list the steps without running them\n  --progress <json|none>   how the run says where it is, besides <out>/progress.ndjson (`case status` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal\n\nNeeds: nothing; served over MCP",
+  "help/case status": "lynkeus case status [dir]\n\nWhere a run of cases is: how many are done, what each job is running and in which section, and the time left\n\nReads progress.ndjson, which `case run` writes as it goes: in the run directory given (its --out), or the last run of this project. It works while the run goes on, from another terminal or an MCP client, and after it: a run whose process is gone without finishing says so. The time left comes from how long each case took when it last passed, else from the run's own cases. --json gives the same as an object.\n\nArguments\n  dir            the run directory (case run --out), or its progress.ndjson; default: the last run here (optional)\n\nNeeds: nothing; served over MCP",
+  "help/ci": "lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]\n\nRun the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down\n\nReads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.\n\nFlags\n  --affected               only the cases the changes against --base reach\n  --base <ref>             git ref --affected diffs against (default origin/main)\n  --jobs <n>               how many hosts and jobs (default ci.hosts.count, else 2)\n  --out <dir>              where the run goes (default lynkeus-run)\n  --keep-up                leave the backend up afterwards (the hosts end with the run)\n  --dry-run                say what it would do and run nothing\n\nNeeds: nothing",
+  "help/crawl": "lynkeus crawl [Route] [--depth <n>] [--max <n>] [--to <Route>] [--fresh] [--overlay-when <target>] [--overlay-flow <flow.json>] [--login-flow <a.json,b.json>] [--var <k=v>] [--var-cmd <name='cmd'>] [--press-anything] [--verbose]\n\nPress every control it finds, learn where each leads (feeds map paths and plan)\n\nFinishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.\n\nArguments\n  Route          where to start (default: the current screen) (optional)\n\nFlags\n  --depth <n>              how many screens deep (default 1)\n  --max <n>                at most this many presses (default 80)\n  --to <Route>             walk towards this route and stop on arrival\n  --fresh                  ignore what earlier runs already pressed\n  --overlay-when <target>  a target the app raises on its own (a lock screen, a rating prompt)\n  --overlay-flow <flow.json> the flow that clears it\n  --login-flow <a.json,b.json> flows that log in again after a reset, comma-separated\n  --var <k=v>              a flow variable (repeatable)\n  --var-cmd <name='cmd'>   a variable produced by a shell command when needed (repeatable)\n  --press-anything         keep exploring past a press that wrote (a disposable environment only)\n  --verbose                print every recovery and decision\n\nNeeds: the app running with the agent; served over MCP with --full",
+  "help/events": "lynkeus events [--run <dir>] [--name <regex>]\n\nWhat the app told its analytics: live, or step by step in a run\n\nWithout `--run`, what the app has recorded so far (its `events` command, left as it is). With `--run <dir>` or `--run last`, the events a `run --events` kept, each with the step and route it happened on.\n\nFlags\n  --run <dir>              a run folder, or `last`\n  --name <regex>           only events whose name matches\n\nNeeds: nothing",
+  "help/events diff": "lynkeus events diff <before> <after>\n\nThe same flow on two builds: events that appeared, disappeared or changed shape\n\nArguments\n  before         a run folder (main)\n  after          a run folder (the branch), or `last`\n\nNeeds: nothing",
+  "help/fastsim grant": "lynkeus fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--print]\n\nPrint a fresh grant a Lynkeus FastSim host needs to start, fetched from lynkeus.io (cached for an hour)\n\nAsks lynkeus.io for a grant for the build this machine runs (--platform ios unless told, or --variant by name) with LYNKEUS_CLOUD_KEY or else the sign-in `lynkeus login` saved, and prints only the grant on stdout when a script reads it (stdout not a terminal, or --print): FastSim's bin/fastsim-run runs `npx --no-install lynkeus fastsim grant --variant <variant>` before each host. At a terminal it prints a summary instead (the variant and until when it is valid), so the token does not sit on screen; --json always carries it. A grant is valid for one hour; it is kept in ~/.cache/lynkeus/fastsim/grants/ (XDG_CACHE_HOME moves it; the file is readable only by you) and reused while it has more than 5 minutes left. Messages go to stderr. It opens a browser to sign in only when stdin and stderr are TTYs and CI is unset; otherwise it exits 2 without a key or a sign-in. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the service refuses (no FastSim entitlement, a key or sign-in it does not accept, or no grants set up) or cannot be reached.\n\nFlags\n  --platform <ios|android> the platform it draws: ios or android (default ios)\n  --variant <name>         a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)\n  --cloud <url>            service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)\n  --print                  print the token even at a terminal (it is printed anyway when stdout is a pipe)\n\nNeeds: nothing",
+  "help/fastsim install": "lynkeus fastsim install [--version <version>] [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--force] [--no-browser]\n\nDownload Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key\n\nAsks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.\n\nFlags\n  --version <version>      release to install (default latest)\n  --platform <ios|android> the platform it draws: ios or android (default ios)\n  --variant <name>         a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)\n  --cloud <url>            service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)\n  --force                  download again even when that release is installed\n  --no-browser             when a sign-in is needed, print its address instead of opening it\n\nNeeds: nothing; served over MCP",
+  "help/fixtures check": "lynkeus fixtures check\n\nTell whether the project’s fixtures server keeps the fixtures protocol\n\nStarts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.\n\nNeeds: nothing; served over MCP",
+  "help/fixtures describe": "lynkeus fixtures describe [--fresh]\n\nList what the project’s fixtures server can do: each command, what it makes or reads, its parameters\n\nStarts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names. What it answered last (here or before a run) is kept in .lynkeus and shown for a day without starting it; --fresh asks again.\n\nFlags\n  --fresh                  ask the server even when it described itself in the last day\n\nNeeds: nothing; served over MCP",
+  "help/flake": "lynkeus flake <flow.json> [--times <n>] [--var <k=v>]\n\nThe same flow n times: how often it passes, and the step and error it dies on\n\nArguments\n  flow.json      the flow file\n\nFlags\n  --times <n>              how many runs (default 5)\n  --var <k=v>              a flow variable (repeatable)\n\nNeeds: the app running with the agent; served over MCP with --full",
+  "help/funnel check": "lynkeus funnel check <name> [--run <dir>]\n\nDid a run produce a funnel: every step, in order, with the properties it needs\n\nA funnel is `.lynkeus/funnels/<name>.json`: `{ \"steps\": [{ \"event\": \"signup_started\", \"props\": { \"source\": \"string\", \"step\": \"number\" } }, { \"event\": \"signup_completed\" }] }`. A property names a type the dashboard needs, or a value it filters on. Exit 1 when a step is missing, out of order, or has the wrong shape.\n\nArguments\n  name           the funnel\n\nFlags\n  --run <dir>              a run folder, or `last` (default last)\n\nNeeds: nothing",
+  "help/funnel report": "lynkeus funnel report [--last <n>]\n\nAcross the recorded runs: which funnel steps some run produces, and which none does\n\nFlags\n  --last <n>               how many recent runs (default 50)\n\nNeeds: nothing",
+  "help/headless doctor": "lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]\n\nWhat Lynkeus mocks, and which native modules still need one\n\nFlags\n  --entry <file>           the headless entry (or `entry` in lynkeus.config.json)\n  --fix                    write stubs for the uncovered modules into the entry\n  --explain <text>         turn a jest error into its usual cause and fix\n\nNeeds: nothing; served over MCP",
+  "help/headless init": "lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]\n\nWrite the headless entry: default mocks, a local-backend guard, your App\n\nFlags\n  --entry <file>           the headless entry (or `entry` in lynkeus.config.json)\n  --component <App.tsx>    the App component file (found by itself when standard)\n  --api-env <NAME>         the env var the app reads its API base from\n  --auto                   also mount the agent from index.js with auto()\n  --force                  overwrite an existing entry\n  --no-install             do not add jest, Testing Library and lynkeus-headless to the project\n\nNeeds: nothing; served over MCP",
+  "help/headless start": "lynkeus headless start [--entry <file>]\n\nHost the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator\n\nNeeds the project's token: the one `lynkeus init` wrote to .lynkeus/token, or LYNKEUS_TOKEN in the environment. The app's API base comes from the environment variable `apiEnv` names, or else from `apiUrl` in lynkeus.config.json. LYNKEUS_PORT moves the host and its driver together; LYNKEUS_HOST says where the driver is listening, for a host that is not in the same place as its driver (a container dialling out, say). Arguments after `--` go to jest. When the host crashes, the last lines say what the error usually means.\n\nFlags\n  --entry <file>           the headless entry (or `entry` in lynkeus.config.json)\n\nAlso: headless\n\nNeeds: nothing",
+  "help/hello": "lynkeus hello\n\nWhat the app said about itself: platform, native, registered commands\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/idle": "lynkeus idle [--quiet <ms>] [--timeout <ms>] [--after <commit>]\n\nUntil the app stops committing: data arrived, animations done\n\nA screen that has not started looks exactly like one that has finished — both are quiet. `--after <commit>`, given the commit count from before whatever was supposed to happen, waits for the app to commit past it first.\n\nFlags\n  --quiet <ms>             no commit for this long counts as settled (default 300)\n  --timeout <ms>           give up after (the answer says whether it settled) (default 5000)\n  --after <commit>         a commit count from before: quiet only counts once the app has committed past it\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/init": "lynkeus init [--no-install]\n\nSet Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token\n\nReact Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.\n\nFlags\n  --no-install             do not add lynkeus-agent to the app; mount it only\n\nNeeds: nothing; served over MCP",
+  "help/launch": "lynkeus launch [bundleId] [--clean]\n\nRelaunch the app and wait for the agent\n\nArguments\n  bundleId       or --app (optional)\n\nFlags\n  --clean                  run the app's reset command first, if it is attached\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/lint": "lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]\n\nUnlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements\n\nFlags\n  --strict                 exit 1 on any warning\n  --no-contrast            skip the contrast of text against its background (it takes a screenshot)\n  --save <file>            keep this screen's findings in a baseline file\n  --baseline <file>        print only what is new against a baseline file\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/login": "lynkeus login [--cloud <url>] [--no-browser]\n\nSign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key\n\nOpens the sign-in page of the reports service (LYNKEUS_REPORTS_URL, https://lynkeus.io by default) in your browser, where you sign in and pick the organization. A short-lived listener on 127.0.0.1 receives the answer, once, for at most 15 minutes; the sign-in uses PKCE, and the CLI registers itself with the service for each login. The tokens are saved in ~/.config/lynkeus/credentials.json (XDG_CONFIG_HOME moves it; the file is readable only by you), one entry per service address. `lynkeus fastsim install` uses them when LYNKEUS_CLOUD_KEY is not set, and renews them as they expire. lynkeus logout removes them. Exit code 1 when the sign-in fails or is refused.\n\nFlags\n  --cloud <url>            service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)\n  --no-browser             print the sign-in address instead of opening it\n\nNeeds: nothing",
+  "help/logout": "lynkeus logout [--cloud <url>]\n\nRemove the saved sign-in for a lynkeus.io service from this machine\n\nDeletes that service's entry from ~/.config/lynkeus/credentials.json. The sign-in stays valid on the service until it expires; an owner can end it there.\n\nFlags\n  --cloud <url>            service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)\n\nNeeds: nothing",
+  "help/map build": "lynkeus map build [--as-base]\n\nRead the source once: routes, testIDs, navigations → .lynkeus/graph.json\n\nFlags\n  --as-base                also keep it as graph.base.json, for `map check` to diff against\n\nNeeds: nothing",
+  "help/map changes": "lynkeus map changes [--last <n>]\n\ntestIDs that appeared, disappeared or moved on a recorded screen since it was last read\n\nFlags\n  --last <n>               how many changes (default 30)\n\nNeeds: nothing",
+  "help/map check": "lynkeus map check [--base <ref>] [--graph-base <file>] [--depth <n>]\n\nA branch from the app's side: screens its diff reaches, routes/navigations/testIDs that changed\n\nFlags\n  --base <ref>             git ref to diff against (default main)\n  --graph-base <file>      graph to diff against (default .lynkeus/graph.base.json)\n  --depth <n>              how many imports away to look (default 4)\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP with --full",
+  "help/map ci": "lynkeus map ci [--force] [--depth <n>]\n\nWrite a GitHub workflow that comments on each pull request which screens its diff reaches\n\nWrites `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--force` overwrites an existing file.\n\nFlags\n  --force                  overwrite the workflow if it exists\n  --depth <n>              how many imports away the check looks (default 2)\n\nNeeds: nothing",
+  "help/map impact": "lynkeus map impact <file>… [--depth <n>] [--direct]\n\nScreens a change can reach, nearest first\n\nArguments\n  file           changed source files\n\nFlags\n  --depth <n>              how many imports away to look (default 4)\n  --direct                 only the screen and its importers\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP with --full",
+  "help/map paths": "lynkeus map paths <route>\n\nWhat leads to a route: observed edges first, then static\n\nArguments\n  route          e.g. Checkout.Confirm\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP with --full",
+  "help/map plan": "lynkeus map plan [--from <Route>] [--to <Route>]\n\nDirections from one route to another: which buttons to press, screen by screen\n\nFlags\n  --from <Route>           starting route\n  --to <Route>             destination route\n\nAlso: plan\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP",
+  "help/map screens": "lynkeus map screens\n\nEvery route in the graph, and every route a run has actually opened\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP with --full",
+  "help/map show": "lynkeus map show <route>\n\ntestIDs and navigations a screen is likely to have, from source\n\nArguments\n  route          e.g. Settings.Main\n\nNeeds: a graph (lynkeus map build); available in a session; served over MCP",
+  "help/mock": "lynkeus mock [route] [--status <code>] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] [--hold] [--release] [--clear] [--list]\n\nAnswer a request before the network, or hold it until you release it (--hold, --release): a host stands in for the network, on a device the agent does it in the app (--sticky survives a host reset)\n\nWith a route and no other flag, the matching requests are answered by a rule (`--status`, `--body`, `--delay`, `--times`, `--lost`). `--hold` is a gate instead: matching requests wait, as far as the app can tell still in flight, so a loading state stays on screen as long as you want; `--release [route]` lets the held ones go on, to a rule or to the network, oldest first, and the gate stays for the next requests (`--times n` holds only the first n). `--clear` drops every rule and gate and lets whatever is held go; so does an app reset on a host, unless the hold is `--sticky`. `--list` also shows what is held and for how long. A held request is not waited for: `idle`, a frame's `--settle` and `clock --settle` go on without it, and `requests` and `clock --settle` report it apart as `held`, outside `inFlight`. Works wherever `--status` does (headless, a device with the agent, Lynkeus FastSim); a host that has no netmock answers `Unknown method`.\n\nArguments\n  route          'GET /path' (a bare path matches any method) (optional)\n\nFlags\n  --status <code>          HTTP status to answer (default 200)\n  --body <json>            JSON body\n  --delay <ms>             answer after\n  --times <n>              only this many times\n  --sticky                 keep the rule across an app reset\n  --lost                   let the request reach the server and fail it on the way back\n  --hold                   hold matching requests where they are until --release (the route is required; --times holds only the first n)\n  --release                let held requests go on: all of them, or those matching the route\n  --clear                  drop every rule and gate, and let held requests go\n  --list                   show the rules, the gates and what is held\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/nav": "lynkeus nav <route> [params]\n\nJump straight to a route (a teleport, not a user action)\n\nArguments\n  route          e.g. Settings.Main\n  params         JSON params (optional)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os appearance": "lynkeus os appearance <mode>\n\nSimulator: light or dark\n\nArguments\n  mode           light | dark\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os appstate": "lynkeus os appstate <state> [--app <bundleId>]\n\nAppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real\n\nArguments\n  state          active | background | inactive (inactive: a host only)\n\nFlags\n  --app <bundleId>         the app to bring back on a simulator or emulator (default: the config’s app)\n\nAlso: appstate\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os biometrics": "lynkeus os biometrics [--available <kind>] [--next <success,fail,cancel>] [--fallback <outcome>]\n\nThe sensor and what the next prompts answer; on a simulator, --available enrolls Face ID or Touch ID or not\n\nFlags\n  --available <kind>       FaceID | TouchID | none\n  --next <success,fail,cancel> outcomes of the next prompts, in order\n  --fallback <outcome>     what a fallback prompt answers\n\nAlso: biometrics\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os clock": "lynkeus os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]\n\nHeadless and Lynkeus FastSim: what Date answers; --advance runs the timers that fall due; --settle runs what is pending without letting time pass\n\n`--now` and `--reset` change what `Date` answers; timers are not touched. `--advance <ms>` moves the clock forward and runs every timer and interval that falls due inside those milliseconds, in due order, each at its own due time (`Date` answers that instant inside its callback), as `jest.advanceTimersByTime` does: a 5 s `setTimeout` fires on `--advance 5000` and not on `--advance 4000`, with no real waiting. Promise work a timer sets off runs before the next timer. A timer that sets itself again forever inside the window stops the advance after 100,000 runs, with an error that names it. `--advance` answers `advancedMs` (how far the clock moved) and `nextDueMs` (milliseconds until the next timer is due, or `null`). `--settle` runs what is pending now (microtasks, timers due at this instant, queued renders) until nothing is, without waiting for work that is due later, and answers `settled`, `inFlight` (requests still out) and `nextDueMs`; on Lynkeus FastSim `advancedMs` counts what the virtual clock moved in the whole command. `settled: false` means something re-arms itself (an animation loop) and never goes quiet. A Simulator or emulator has no such command: a case step on one is `unsupported`. `idle` is the other way to wait: it lets time pass until the screen is quiet. Combined, the time moves first: `--now`, then `--advance` (firing timers), then `--settle`. A host older than this option moves `Date` and fires nothing: the command fails saying so.\n\nFlags\n  --now <iso>              set the time\n  --advance <ms>           move the clock forward, running the timers that fall due\n  --reset                  back to the real clock\n  --settle                 run what is pending to idle without letting time pass (after any of the above)\n\nAlso: clock\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os deeplink": "lynkeus os deeplink <url>\n\nOpen a URL in the app, as the OS would hand it over\n\nArguments\n  url            myapp://pay/abc or https://…\n\nAlso: deeplink\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/os gallery": "lynkeus os gallery [uri] [--cancel] [--name <name>] [--mime <type>]\n\nHeadless: what the next image picker answers\n\nArguments\n  uri            file the picker returns (optional)\n\nFlags\n  --cancel                 the user cancelled\n  --name <name>            file name reported\n  --mime <type>            mime type reported\n\nAlso: gallery\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os language": "lynkeus os language [tag]\n\nSimulator: relaunch the app in a locale\n\nArguments\n  tag            de-DE, en-US, … (default: the locale in lynkeus.config.json) (optional)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os location": "lynkeus os location <where>\n\nSimulator: where the device is\n\nArguments\n  where          <lat>,<lon> | clear\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os network": "lynkeus os network <state>\n\nHeadless: airplane mode (requests fail, open sockets drop, NetInfo listeners hear it)\n\nArguments\n  state          off | on\n\nAlso: network\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os permissions": "lynkeus os permissions <action> <service>\n\nSimulator: grant, revoke or reset a permission for the app\n\nArguments\n  action         grant | revoke | reset\n  service        camera, photos, location, microphone, contacts, …\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os push": "lynkeus os push <payload>\n\nSimulator: deliver a push notification to the app\n\nArguments\n  payload        '{\"alert\":\"…\"}' or a .json file\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/os scan": "lynkeus os scan <value> [--type <qr|ean13|…>]\n\nHeadless: the open camera's code scanner receives a value\n\nArguments\n  value          what the code carries\n\nFlags\n  --type <qr|ean13|…>      code type (default qr)\n\nAlso: scan\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/perf": "lynkeus perf [--since <seq>] [--last <n>]\n\nPer screen: requests on arrival, time to quiet, errors, stalls, the slowest call\n\nFlags\n  --since <seq>            only after this trace seq\n  --last <n>               only the last n trace events\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/press": "lynkeus press <target> [--in <target>] [--nth <n>] [--hold <ms>] [--js] [--settle]\n\nA finger on an element\n\nArguments\n  target         #testId | \"text\" | 12 (index) | 100,200\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --hold <ms>              hold for this long\n  --js                     call onPress directly instead of a synthesized touch\n  --settle                 wait for the app to stop committing, then print the screen\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/profile": "lynkeus profile [action]\n\nWhat React spent rendering, per route, measured by the Profiler auto() mounts\n\n`profile start` clears and starts recording, `profile` reports what was recorded since, `profile stop` reports and stops. Recording is off until started, so an app that never asks pays nothing.\n\nArguments\n  action         start | stop (omit to report) (optional)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/record": "lynkeus record [--out <flow.json>] [--so-far] [--screenshots]\n\nWatch what a person does in the app; Ctrl-C writes a flow with what each step caused\n\nTouches are traced on device builds mounted with auto(); a host records routes and requests only. Lines typed on stdin run as commands meanwhile.\n\nFlags\n  --out <flow.json>        where to write the flow\n  --so-far                 draft from the trace as it stands and stop\n  --screenshots            one capture per touch, listed in <out>.strip.md\n\nNeeds: the app running with the agent",
+  "help/relay": "lynkeus relay [--cloud <url>] [--backend <url>] [--prefix <path>] [--ttl <seconds>]\n\nExpose a loopback backend to one app session through a short-lived outbound WSS relay\n\nCreates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connects outbound to the reports service and forwards only /api/mobile/ requests to the loopback backend. Prints the API_URL to give that app session on stderr and stays connected until Ctrl-C or the session expires. Exit code 2 without a key, 1 when the session cannot be created or the service is too old. No project token or listener is exposed to the internet.\n\nFlags\n  --cloud <url>            relay service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)\n  --backend <url>          loopback backend URL (default http://127.0.0.1:3000)\n  --prefix <path>          allowed backend path prefix (default /api/mobile/)\n  --ttl <seconds>          session lifetime in seconds (max 3600) (default 900)\n\nNeeds: nothing",
+  "help/report flakes": "lynkeus report flakes [--project <name>] [--runs <n>]\n\nList the cases that do not always pass at the first try, across the project’s last runs\n\nReads the reports pushed for the project and ranks its cases by how often they passed at the first try, the least reliable first. Each line shows the recent runs newest first (✓ passed, ↻ passed on a retry, ✗ failed) and the last report where it went wrong. A case that failed its last three runs is broken rather than flaky. On the Team plan.\n\nFlags\n  --project <name>         the project (default: the app’s folder name)\n  --runs <n>               how many of the latest runs to read (default 30)\n\nNeeds: nothing",
+  "help/report history": "lynkeus report history <case> [--project <name>] [--runs <n>]\n\nShow how one case came out in each of the project’s last runs\n\nNewest first: ✓ passed, ↻ passed on a retry, ✗ failed, with how long it took, the branch and commit the run was made from, and the report to open. What tells a case that fails now and then from one a commit broke.\n\nArguments\n  case           the case id\n\nFlags\n  --project <name>         the project (default: the app’s folder name)\n  --runs <n>               how many of the latest runs to read (default 50)\n\nNeeds: nothing",
+  "help/report list": "lynkeus report list [--limit <n>]\n\nList the organization’s reports, newest first\n\nEach line is when the run started, its project and platform, how many cases passed, and the report’s address.\n\nFlags\n  --limit <n>              how many runs (default 20, at most 100)\n\nNeeds: nothing",
+  "help/report plan": "lynkeus report plan [--upgrade] [--manage]\n\nShow the organization’s plan, or open the page that changes it\n\nFree keeps frames for 7 days and one project; Team keeps films too, for 90 days, and any number of projects. `--upgrade` prints the Stripe checkout for Team; `--manage` prints Stripe’s portal for the card, the invoices and cancelling.\n\nFlags\n  --upgrade                print the Stripe checkout address for the Team plan\n  --manage                 print the Stripe portal address for a paying organization\n\nNeeds: nothing",
+  "help/report prune": "lynkeus report prune [dir] [--older <age>] [--dry-run]\n\nDelete the runs `case run --out` left in a folder that ended more than a while ago\n\nLooks at the folder given, or each folder right under it, and deletes the ones that hold a run (`run.json` and `cases.jsonl`) older than --older. Nothing else is touched. Pushed reports stay on the service; this only frees the disk.\n\nArguments\n  dir            a run folder, or the folder that holds them (optional)\n\nFlags\n  --older <age>            how old a run must be: 7d, 12h, 30m (default 7d)\n  --dry-run                list what would go, delete nothing\n\nNeeds: nothing",
+  "help/report push": "lynkeus report push <dir> [--project <name>]\n\nUpload a run to the reports service and print the report’s address\n\nUploads what `case run --out <dir>` wrote: the run, its cases, and every frame and film they name. The report shows the film in step with the steps, the events each step sent, and why a case failed. The service and the organization’s key come from LYNKEUS_REPORTS_URL and LYNKEUS_REPORTS_KEY; a film the organization’s plan does not keep is left out and said so.\n\nArguments\n  dir            the run directory `case run --out` wrote\n\nFlags\n  --project <name>         the project the run is filed under (default: the app’s folder name)\n\nNeeds: nothing",
+  "help/requests": "lynkeus requests [--last <n>]\n\nThe HTTP requests the app made: method, path, status, ms\n\nFlags\n  --last <n>               how many (default 30)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/run": "lynkeus run <flow.json> [--var <k=v>] [--screenshots] [--diff] [--events]\n\nReplay a flow with variables; per-step timing, route and errors\n\nArguments\n  flow.json      the flow file\n\nFlags\n  --var <k=v>              a flow variable (repeatable)\n  --screenshots            one capture per step\n  --diff                   print what changed on screen after each step\n  --events                 keep the app's analytics events per step (runs/…/events.jsonl); empties its buffer\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/screen": "lynkeus screen [--tree] [--record] [--all] [--frames] [--verbose]\n\nRoute, path and every element on screen, in ms\n\nOne line per element: index, kind, #testId, label, value and state (`!disabled`, `~covered`, `~inert`). What the platform is not presenting is left out and counted in the header; `--all` lists it. `--frames` adds each centre in points; `--verbose` the commit count and cost. `--tree` prints nested lines with no geometry: the form to diff. `--record` keeps the structure under .lynkeus/screens/ and notes what changed since the last read.\n\nFlags\n  --tree                   as a tree of meaning, without frames\n  --record                 keep it under .lynkeus/screens/ and report changes (or LYNKEUS_RECORD_SCREENS=1)\n  --all                    also list what is not presented\n  --frames                 with each centre, in points\n  --verbose                commit count and read cost in the header\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/screenshot": "lynkeus screenshot <file>\n\nWhat the screen looks like right now, written to a file\n\nA host that draws the app (Lynkeus FastSim) captures its own frame, within the output folders it allows; a device or simulator is captured by its OS; the headless host renders nothing to capture.\n\nArguments\n  file           where to write the png\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/see": "lynkeus see <what> [--absent] [--within <ms>]\n\nAssert a route or element is on screen now (exit 1 if not)\n\nArguments\n  what           Route | route:index | #testId | \"text\" | 12 (index) | 100,200\n\nFlags\n  --absent                 assert it is not there\n  --within <ms>            allow it this long to appear (default 0)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/smoke": "lynkeus smoke [Route.Prefix]… [--params <file>] [--screenshots] [--overlay-when <target>] [--overlay-flow <flow.json>]\n\nOpen every parameter-free route (or the prefixes given) and record what renders\n\nArguments\n  Route.Prefix   only routes under these prefixes (optional)\n\nFlags\n  --params <file>          route params type map, relative to the app\n  --screenshots            one capture per screen\n  --overlay-when <target>  a target the app raises on its own (a lock screen, a rating prompt)\n  --overlay-flow <flow.json> the flow that clears it\n\nNeeds: the app running with the agent; served over MCP with --full",
+  "help/snapshot": "lynkeus snapshot <name> [--update] [--pixels] [--tolerance <ratio>] [--no-freeze]\n\nA baseline for a screen: its tree (diffed like code) and, on a simulator, its pixels\n\nThe tree is the screen as nested lines of meaning: kinds, labels, testIDs, values, states, no geometry. A renamed heading or a lost button is a changed line; a font hint is nothing. `--pixels` adds a screenshot compared with a red-on-grey diff. Baselines live under .lynkeus/snapshots/; what differs goes under runs/.\n\nArguments\n  name           the baseline name, e.g. onboarding-hero\n\nFlags\n  --update                 the change is intended: overwrite the baseline\n  --pixels                 also compare a screenshot (simulator)\n  --tolerance <ratio>      pixels allowed to differ, as a fraction (default 0.001)\n  --no-freeze              do not pin the status bar before the screenshot\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/status": "lynkeus status [--offline]\n\nWhat this project has of Lynkeus and what is missing: the agent, the token, a running app, cases, the reports key\n\nThe first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.\n\nFlags\n  --offline                check the files only; do not wait for a running app\n\nNeeds: nothing; served over MCP",
+  "help/swipe": "lynkeus swipe [direction] [target] [--distance <pt>] [--from <x,y>] [--to <x,y>] [--duration <ms>]\n\nA drag; on a target, drives its gesture (a slider, a sheet)\n\nOn a target the drag starts at its centre, which a wide control cannot always afford: a slider needing 80% of its width would end off-screen, and a touch that leaves the screen is cancelled. `--from`/`--to` place both ends, in points.\n\nArguments\n  direction      up | down | left | right (omit when giving --from/--to) (optional)\n  target         #testId | \"text\" | 12 (index) | 100,200 (optional)\n\nFlags\n  --distance <pt>          how far, in points\n  --from <x,y>             where the finger lands, as x,y\n  --to <x,y>               where it lifts, as x,y\n  --duration <ms>          how long the drag takes, ms\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/trace": "lynkeus trace [--since <seq>] [--last <n>]\n\nWhat happened, in order: routes, requests, store diffs, touches, commands\n\nFlags\n  --since <seq>            only after this seq (from a previous trace)\n  --last <n>               how many (default 60)\n\nNeeds: the app running with the agent; available in a session; served over MCP with --full",
+  "help/type": "lynkeus type <text> [target] [--in <target>] [--nth <n>] [--paste] [--submit] [--clear]\n\nType into the focused input, or tap a target first\n\nArguments\n  text           what to type\n  target         tap this first: #testId | \"text\" | 12 (index) | 100,200 (optional)\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --paste                  insert at once instead of key by key\n  --submit                 then the return key (onSubmitEditing)\n  --clear                  clear the field first\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/wait": "lynkeus wait [what] [--in <target>] [--nth <n>] [--anyOf <target>] [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]\n\nUntil a route or element appears (or leaves), any of several targets appears, or a number of ms\n\nArguments\n  what           Route | route:index | #testId | \"text\" | 12 (index) | 100,200 | 800 (ms) (optional)\n\nFlags\n  --in <target>            the match nearest this target\n  --nth <n>                the nth match, from 0\n  --anyOf <target>         accept any of these targets (repeatable)\n  --gone                   until it leaves the screen\n  --scroll                 scroll until it is in the window\n  --enabled                until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed)\n  --timeout <ms>           give up after (default 10000)\n  --since <seq>            a trace mark: a route reached after it counts, even if already left\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "help/why": "lynkeus why [target] [--route <Route>]\n\nWhy the last thing failed: screen, requests and trace read as rules\n\nRuns by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.\n\nArguments\n  target         what was expected: Route | #testId | \"text\" | 12 (index) | 100,200 (optional)\n\nFlags\n  --route <Route>          the route that was expected\n\nNeeds: the app running with the agent; available in a session; served over MCP",
+  "mcp/full": [
+    "back",
+    "call",
+    "case_coverage",
+    "case_here",
+    "case_impact",
+    "case_init",
+    "case_new",
+    "case_run",
+    "case_status",
+    "crawl",
+    "fastsim_install",
+    "fixtures_check",
+    "fixtures_describe",
+    "flake",
+    "headless_doctor",
+    "headless_init",
+    "hello",
+    "idle",
+    "init",
+    "launch",
+    "lint",
+    "map_check",
+    "map_impact",
+    "map_paths",
+    "map_plan",
+    "map_screens",
+    "map_show",
+    "mock",
+    "nav",
+    "os_appearance",
+    "os_appstate",
+    "os_biometrics",
+    "os_clock",
+    "os_deeplink",
+    "os_gallery",
+    "os_language",
+    "os_location",
+    "os_network",
+    "os_permissions",
+    "os_push",
+    "os_scan",
+    "perf",
+    "press",
+    "profile",
+    "requests",
+    "run",
+    "screen",
+    "screenshot",
+    "see",
+    "smoke",
+    "snapshot",
+    "status",
+    "swipe",
+    "trace",
+    "type",
+    "wait",
+    "why"
+  ],
+  "mcp/instructions": "Lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.\n\nIn a project you do not know, call status first: it lists what is set up and, for what is not, the one thing that fixes it.\n\nTo set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.\n\nTo write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there (press with settle: true answers with the screen once the app has settled; a screen read right after a press can still be the one it left); prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.\n\nTo test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.\n\nTo test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing; use it when the person asks for it or their organization already has it, otherwise the headless host and the Simulator or emulator are free and cover the same cases): fastsim_install with platform ios or android (the sign-in a member with a seat saved by running \"lynkeus login\" in a terminal, which you cannot do for them: when there is none, tell the person to run it; or, in CI, LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with \"May download Lynkeus FastSim\"), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. iOS matches the simulator only on a Mac. When the service refuses (no FastSim in the organization's plan, no seat, a key without \"May download Lynkeus FastSim\"), tell the person what the refusal says and where to get it (an owner subscribes at https://lynkeus.io/pricing, or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.\n\nTo share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.\n\nFor a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs FastSim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.\n\nA case that changes something outside the app (a face enrolled on a shared Simulator) puts it back in `teardown:`, a list of steps with the same syntax as `steps`: it runs after them whether they passed, failed or were skipped, a failing teardown step is only a warning, and a run cut by a timeout never reaches it.\nA long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.\n\nFor a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.\n\nFor a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.\n\nA request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.\n\nTo look at a loading state, a case holds the request and releases it later: app.mock with route and hold: true, the steps that look at the screen, then app.mock with release: true. A held request is not waited for (idle and screenshots go on without it) and is reported apart as held, not in inFlight.",
+  "mcp/tool/call": {
+    "name": "call",
+    "description": "An app command registered with qa.register (reset, busy, …)",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "its name"
+        },
+        "params": {
+          "type": "string",
+          "description": "JSON params"
+        }
+      },
+      "required": [
+        "command"
+      ]
+    }
+  },
+  "mcp/tool/case_coverage": {
+    "name": "case_coverage",
+    "description": "Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has\n\nA screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "route": {
+          "type": "string",
+          "description": "only this screen: the cases that touch it"
+        },
+        "seen": {
+          "type": "string",
+          "description": "where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)"
+        }
+      }
+    }
+  },
+  "mcp/tool/case_here": {
+    "name": "case_here",
+    "description": "Draft a case from the screen the app shows now, with checks that pass as it is\n\nReads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "the case id, which is also its file name"
+        },
+        "title": {
+          "type": "string",
+          "description": "what the case shows, as the report will title it"
+        },
+        "write": {
+          "type": "boolean",
+          "description": "save it in the cases folder instead of printing it"
+        },
+        "host": {
+          "type": "boolean",
+          "description": "start `headless start` for the read and stop it after"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "mcp/tool/case_impact": {
+    "name": "case_impact",
+    "description": "The cases a branch’s changes reach, to run only those, and the reached screens no case covers\n\nThe screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "type": "string",
+          "description": "git ref to diff against (default main)"
+        },
+        "depth": {
+          "type": "number",
+          "description": "how many imports away a change still reaches a screen (default 4)"
+        },
+        "seen": {
+          "type": "string",
+          "description": "where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)"
+        },
+        "files": {
+          "type": "boolean",
+          "description": "print only the case files, one per line"
+        }
+      }
+    }
+  },
+  "mcp/tool/case_init": {
+    "name": "case_init",
+    "description": "Write an example case, the reference of the format and a fixtures server to start from",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "force": {
+          "type": "boolean",
+          "description": "overwrite what is there"
+        }
+      }
+    }
+  },
+  "mcp/tool/case_new": {
+    "name": "case_new",
+    "description": "Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write\n\nPrints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "the case id, which is also its file name"
+        },
+        "to": {
+          "type": "string",
+          "description": "the screen the case is about"
+        },
+        "from": {
+          "type": "string",
+          "description": "where it begins (default: cases.start in lynkeus.config.json)"
+        },
+        "title": {
+          "type": "string",
+          "description": "what a person can do there, as the report will title it"
+        },
+        "write": {
+          "type": "boolean",
+          "description": "save it in the cases folder instead of printing it"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "mcp/tool/case_run": {
+    "name": "case_run",
+    "description": "Run cases: setup through fixtures, steps against the app, the evidence when one fails\n\nRuns case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project's cases config, with `value: null` left for you to fill. Work the value out from the library's native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ \"value\": <json> }`, `{ \"ios\": …, \"android\": … }` or `{ \"absent\": true }` and run again; the same list is `nativeValues` in the run's run.json.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "case files (default: every .md under cases.dir)"
+        },
+        "host": {
+          "type": "boolean",
+          "description": "start `headless start` for the run and stop it after"
+        },
+        "host_heap": {
+          "type": "number",
+          "description": "with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default 60)"
+        },
+        "seed": {
+          "type": "string",
+          "description": "make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED)"
+        },
+        "locale": {
+          "type": "string",
+          "description": "the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE)"
+        },
+        "time_zone": {
+          "type": "string",
+          "description": "the IANA time zone a host the run starts launches with, as in Europe/Madrid (default: launch.timeZone, LYNKEUS_TIME_ZONE)"
+        },
+        "epoch": {
+          "type": "string",
+          "description": "the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH)"
+        },
+        "once": {
+          "type": "boolean",
+          "description": "no second chance for a case that fails"
+        },
+        "out": {
+          "type": "string",
+          "description": "write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt"
+        },
+        "no_app_events": {
+          "type": "boolean",
+          "description": "with --out: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen; frames two runs compare should not have it"
+        },
+        "screenshots": {
+          "type": "boolean",
+          "description": "with --out: a frame of the screen after every step of the app"
+        },
+        "video": {
+          "type": "boolean",
+          "description": "with --out: film each case, where the host films (the step says at what second it began)"
+        },
+        "traces": {
+          "type": "boolean",
+          "description": "listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>"
+        },
+        "push": {
+          "type": "boolean",
+          "description": "with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case"
+        },
+        "jobs": {
+          "type": "number",
+          "description": "cases at once, each on its own host (needs --ports) (default 1)"
+        },
+        "ports": {
+          "type": "string",
+          "description": "the driver port of each job, comma-separated: where its host dials in"
+        },
+        "host_command": {
+          "type": "string",
+          "description": "starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job"
+        },
+        "keep_hosts": {
+          "type": "boolean",
+          "description": "with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent"
+        },
+        "host_timeout": {
+          "type": "number",
+          "description": "with --keep-hosts: how long a host may take to attach (it builds the app first) (default 600000)"
+        },
+        "in_order": {
+          "type": "boolean",
+          "description": "with --jobs: take the cases in the order given, not the longest first"
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "parse and list the steps without running them"
+        }
+      }
+    }
+  },
+  "mcp/tool/case_status": {
+    "name": "case_status",
+    "description": "Where a run of cases is: how many are done, what each job is running and in which section, and the time left\n\nWhere a case run stands: cases done, what each job runs and in which section, failures so far and the time left. Give the run's out directory, or nothing for the project's last run. Call it while case_run runs (from here or from a terminal) to follow a long suite.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "dir": {
+          "type": "string",
+          "description": "the run directory (case run --out), or its progress.ndjson; default: the last run here"
+        }
+      }
+    }
+  },
+  "mcp/tool/fastsim_install": {
+    "name": "fastsim_install",
+    "description": "Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key\n\nDownloads Lynkeus FastSim (the fast simulator; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing) for this machine and the platform asked for, and answers where it went. Needs the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it), or else, for CI, LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download Lynkeus FastSim”; other keys are refused with that message). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it. Call it when the person asks for Lynkeus FastSim or their organization has it; otherwise the headless host and the Simulator or emulator are free and cover the same cases. When the service refuses (no FastSim in the plan, no seat, a key without that permission), tell the person what it says and where to get it (an owner subscribes at https://lynkeus.io/pricing or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "release to install (default latest)"
+        },
+        "platform": {
+          "type": "string",
+          "description": "the platform it draws: ios or android (default ios)"
+        },
+        "variant": {
+          "type": "string",
+          "description": "a build by name instead of this machine's (darwin-arm64-ios, linux-x64-android)"
+        },
+        "cloud": {
+          "type": "string",
+          "description": "service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io)"
+        },
+        "force": {
+          "type": "boolean",
+          "description": "download again even when that release is installed"
+        },
+        "no_browser": {
+          "type": "boolean",
+          "description": "when a sign-in is needed, print its address instead of opening it"
+        }
+      }
+    }
+  },
+  "mcp/tool/fixtures_check": {
+    "name": "fixtures_check",
+    "description": "Tell whether the project’s fixtures server keeps the fixtures protocol\n\nStarts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    }
+  },
+  "mcp/tool/fixtures_describe": {
+    "name": "fixtures_describe",
+    "description": "List what the project’s fixtures server can do: each command, what it makes or reads, its parameters\n\nStarts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints each command with its summary and parameters, for whoever writes a case. A server that answers names only shows names. What it answered last (here or before a run) is kept in .lynkeus and shown for a day without starting it; --fresh asks again.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fresh": {
+          "type": "boolean",
+          "description": "ask the server even when it described itself in the last day"
+        }
+      }
+    }
+  },
+  "mcp/tool/headless_doctor": {
+    "name": "headless_doctor",
+    "description": "What Lynkeus mocks, and which native modules still need one\n\nWhich native modules the app uses that nothing mocks yet, so the headless host would fail on them; `fix` writes stubs for them into the entry. `explain` turns the first line of a jest error into its cause.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "fix": {
+          "type": "boolean",
+          "description": "write stubs for the uncovered modules into the entry"
+        },
+        "explain": {
+          "type": "string",
+          "description": "turn a jest error into its usual cause and fix"
+        }
+      }
+    }
+  },
+  "mcp/tool/headless_init": {
+    "name": "headless_init",
+    "description": "Write the headless entry: default mocks, a local-backend guard, your App\n\nPrepares the app to run in Node, no simulator: installs jest, Testing Library and lynkeus-headless, writes the entry. Then `case_run` with `host`.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "type": "string",
+          "description": "the App component file (found by itself when standard)"
+        },
+        "api_env": {
+          "type": "string",
+          "description": "the env var the app reads its API base from"
+        },
+        "no_install": {
+          "type": "boolean",
+          "description": "do not add jest, Testing Library and lynkeus-headless to the project"
+        }
+      }
+    }
+  },
+  "mcp/tool/init": {
+    "name": "init",
+    "description": "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token\n\nReact Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "no_install": {
+          "type": "boolean",
+          "description": "do not add lynkeus-agent to the app; mount it only"
+        }
+      }
+    }
+  },
+  "mcp/tool/map_plan": {
+    "name": "map_plan",
+    "description": "Directions from one route to another: which buttons to press, screen by screen",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "starting route"
+        },
+        "to": {
+          "type": "string",
+          "description": "destination route"
+        }
+      }
+    }
+  },
+  "mcp/tool/map_show": {
+    "name": "map_show",
+    "description": "testIDs and navigations a screen is likely to have, from source",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "route": {
+          "type": "string",
+          "description": "e.g. Settings.Main"
+        }
+      },
+      "required": [
+        "route"
+      ]
+    }
+  },
+  "mcp/tool/os_deeplink": {
+    "name": "os_deeplink",
+    "description": "Open a URL in the app, as the OS would hand it over",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "myapp://pay/abc or https://…"
+        }
+      },
+      "required": [
+        "url"
+      ]
+    }
+  },
+  "mcp/tool/press": {
+    "name": "press",
+    "description": "A finger on an element",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "#testId | \"text\" | 12 (index) | 100,200"
+        },
+        "in": {
+          "type": "string",
+          "description": "the match nearest this target"
+        },
+        "settle": {
+          "type": "boolean",
+          "description": "wait for the app to stop committing, then print the screen"
+        }
+      },
+      "required": [
+        "target"
+      ]
+    }
+  },
+  "mcp/tool/screen": {
+    "name": "screen",
+    "description": "Route, path and every element on screen, in ms\n\nOne line per element: index, kind, #testId, label, value, state (!disabled ~covered ~inert). The header counts what is not presented.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "boolean",
+          "description": "also list what is not presented"
+        }
+      }
+    }
+  },
+  "mcp/tool/status": {
+    "name": "status",
+    "description": "What this project has of Lynkeus and what is missing: the agent, the token, a running app, cases, the reports key\n\nThe first thing to call in a project you do not know: each line that fails says what fixes it. `--offline` skips waiting for the app.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "offline": {
+          "type": "boolean",
+          "description": "check the files only; do not wait for a running app"
+        }
+      }
+    }
+  },
+  "mcp/tool/type": {
+    "name": "type",
+    "description": "Type into the focused input, or tap a target first",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "what to type"
+        },
+        "target": {
+          "type": "string",
+          "description": "tap this first: target"
+        },
+        "in": {
+          "type": "string",
+          "description": "the match nearest this target"
+        },
+        "submit": {
+          "type": "boolean",
+          "description": "then the return key (onSubmitEditing)"
+        },
+        "clear": {
+          "type": "boolean",
+          "description": "clear the field first"
+        }
+      },
+      "required": [
+        "text"
+      ]
+    }
+  },
+  "mcp/tool/wait": {
+    "name": "wait",
+    "description": "Until a route or element appears (or leaves), any of several targets appears, or a number of ms",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "what": {
+          "type": "string",
+          "description": "Route | route:index | target | 800 (ms)"
+        },
+        "in": {
+          "type": "string",
+          "description": "the match nearest this target"
+        },
+        "anyOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "accept any of these targets (repeatable)"
+        },
+        "gone": {
+          "type": "boolean",
+          "description": "until it leaves the screen"
+        },
+        "scroll": {
+          "type": "boolean",
+          "description": "scroll until it is in the window"
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed)"
+        },
+        "timeout": {
+          "type": "number",
+          "description": "give up after (default 10000)"
+        }
+      }
+    }
+  },
+  "mcp/tool/why": {
+    "name": "why",
+    "description": "Why the last thing failed: screen, requests and trace read as rules\n\nRuns by itself after a failed step.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "what was expected: Route | target"
+        }
+      }
+    }
+  },
+  "usage": "Lynkeus — drive a React Native app from the outside, through the agent inside it\n\nDrive — the app that is running, through the agent inside it\n  screen [--tree] [--record] [--all] [--frames] [--verbose]\n                                               Route, path and every element on screen, in ms\n  press <target> [--in <target>] [--nth <n>] [--hold <ms>] [--js] [--settle]\n                                               A finger on an element\n  type <text> [target] [--in <target>] [--nth <n>] [--paste] [--submit] [--clear]\n                                               Type into the focused input, or tap a target first\n  swipe [direction] [target] [--distance <pt>] [--from <x,y>] [--to <x,y>] [--duration <ms>]\n                                               A drag; on a target, drives its gesture (a slider, a sheet)\n  back                                         Pop the current route\n  nav <route> [params]                         Jump straight to a route (a teleport, not a user action)\n  wait [what] [--in <target>] [--nth <n>] [--anyOf <target>] [--gone] [--scroll] [--enabled] [--timeout <ms>] [--since <seq>]\n                                               Until a route or element appears (or leaves), any of several targets appears, or a number of ms\n  screenshot <file>                            What the screen looks like right now, written to a file\n  see <what> [--absent] [--within <ms>]        Assert a route or element is on screen now (exit 1 if not)\n  idle [--quiet <ms>] [--timeout <ms>] [--after <commit>]\n                                               Until the app stops committing: data arrived, animations done\n  requests [--last <n>]                        The HTTP requests the app made: method, path, status, ms\n  trace [--since <seq>] [--last <n>]           What happened, in order: routes, requests, store diffs, touches, commands\n  call <command> [params]                      An app command registered with qa.register (reset, busy, …)\n  hello                                        What the app said about itself: platform, native, registered commands\n  launch [bundleId] [--clean]                  Relaunch the app and wait for the agent\n  why [target] [--route <Route>]               Why the last thing failed: screen, requests and trace read as rules\n  lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]\n                                               Unlabeled controls, small targets, low-contrast text, untranslated keys, covered or clipped elements\n  perf [--since <seq>] [--last <n>]            Per screen: requests on arrival, time to quiet, errors, stalls, the slowest call\n  profile [action]                             What React spent rendering, per route, measured by the Profiler auto() mounts\n  init [--no-install]                          Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token\n  status [--offline]                           What this project has of Lynkeus and what is missing: the agent, the token, a running app, cases, the reports key\n\nos — what the outside world hands the app: links, clock, sensors, the network, the simulator\n  os deeplink <url>                            Open a URL in the app, as the OS would hand it over\n  os appstate <state> [--app <bundleId>]       AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real\n  os network <state>                           Headless: airplane mode (requests fail, open sockets drop, NetInfo listeners hear it)\n  os clock [--now <iso>] [--advance <ms>] [--reset] [--settle]\n                                               Headless and Lynkeus FastSim: what Date answers; --advance runs the timers that fall due; --settle runs what is pending without letting time pass\n  os biometrics [--available <kind>] [--next <success,fail,cancel>] [--fallback <outcome>]\n                                               The sensor and what the next prompts answer; on a simulator, --available enrolls Face ID or Touch ID or not\n  os scan <value> [--type <qr|ean13|…>]        Headless: the open camera's code scanner receives a value\n  os gallery [uri] [--cancel] [--name <name>] [--mime <type>]\n                                               Headless: what the next image picker answers\n  mock 'GET /path' [--status 500] [--body <json>] [--delay <ms>] [--times <n>] [--sticky] [--lost] | mock 'GET /path' --hold [--times <n>] [--sticky] | mock --release ['GET /path'] | --clear | --list\n                                               Answer a request before the network, or hold it until you release it (--hold, --release): a host stands in for the network, on a device the agent does it in the app (--sticky survives a host reset)\n  os permissions <action> <service>            Simulator: grant, revoke or reset a permission for the app\n  os push <payload>                            Simulator: deliver a push notification to the app\n  os appearance <mode>                         Simulator: light or dark\n  os location <where>                          Simulator: where the device is\n  os language [tag]                            Simulator: relaunch the app in a locale\n\nmap — what Lynkeus knows before touching anything, from the app's source and from walks\n  map build [--as-base]                        Read the source once: routes, testIDs, navigations → .lynkeus/graph.json\n  map screens                                  Every route in the graph, and every route a run has actually opened\n  map show <route>                             testIDs and navigations a screen is likely to have, from source\n  map paths <route>                            What leads to a route: observed edges first, then static\n  map plan [--from <Route>] [--to <Route>]     Directions from one route to another: which buttons to press, screen by screen\n  map impact <file>… [--depth <n>] [--direct]  Screens a change can reach, nearest first\n  map ci [--force] [--depth <n>]               Write a GitHub workflow that comments on each pull request which screens its diff reaches\n  map check [--base <ref>] [--graph-base <file>] [--depth <n>]\n                                               A branch from the app's side: screens its diff reaches, routes/navigations/testIDs that changed\n  map changes [--last <n>]                     testIDs that appeared, disappeared or moved on a recorded screen since it was last read\n\nRuns — flows, smokes, crawls and recordings\n  run <flow.json> [--var <k=v>] [--screenshots] [--diff] [--events]\n                                               Replay a flow with variables; per-step timing, route and errors\n  events [--run <dir>] [--name <regex>]        What the app told its analytics: live, or step by step in a run\n  events diff <before> <after>                 The same flow on two builds: events that appeared, disappeared or changed shape\n  funnel check <name> [--run <dir>]            Did a run produce a funnel: every step, in order, with the properties it needs\n  funnel report [--last <n>]                   Across the recorded runs: which funnel steps some run produces, and which none does\n  flake <flow.json> [--times <n>] [--var <k=v>]\n                                               The same flow n times: how often it passes, and the step and error it dies on\n  smoke [Route.Prefix]… [--params <file>] [--screenshots] [--overlay-when <target>] [--overlay-flow <flow.json>]\n                                               Open every parameter-free route (or the prefixes given) and record what renders\n  crawl [Route] [--depth <n>] [--max <n>] [--to <Route>] [--fresh] [--overlay-when <target>] [--overlay-flow <flow.json>] [--login-flow <a.json,b.json>] [--var <k=v>] [--var-cmd <name='cmd'>] [--press-anything] [--verbose]\n                                               Press every control it finds, learn where each leads (feeds map paths and plan)\n  record [--out <flow.json>] [--so-far] [--screenshots]\n                                               Watch what a person does in the app; Ctrl-C writes a flow with what each step caused\n  snapshot <name> [--update] [--pixels] [--tolerance <ratio>] [--no-freeze]\n                                               A baseline for a screen: its tree (diffed like code) and, on a simulator, its pixels\n  case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]\n                                               Run cases: setup through fixtures, steps against the app, the evidence when one fails\n  case status [dir]                            Where a run of cases is: how many are done, what each job is running and in which section, and the time left\n  case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]\n                                               Run the setup of cases ahead of them, so each starts at its first step\n  case init [--force]                          Write an example case, the reference of the format and a fixtures server to start from\n  case coverage [--route <Route>] [--seen <dir>]\n                                               Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has\n  case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]\n                                               The cases a branch’s changes reach, to run only those, and the reached screens no case covers\n  case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]\n                                               Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write\n  case here <id> [--title <text>] [--write] [--host]\n                                               Draft a case from the screen the app shows now, with checks that pass as it is\n  ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]\n                                               Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down\n  fixtures describe [--fresh]                  List what the project’s fixtures server can do: each command, what it makes or reads, its parameters\n  fixtures check                               Tell whether the project’s fixtures server keeps the fixtures protocol\n  report prune [dir] [--older <age>] [--dry-run]\n                                               Delete the runs `case run --out` left in a folder that ended more than a while ago\n  report push <dir> [--project <name>]         Upload a run to the reports service and print the report’s address\n  report list [--limit <n>]                    List the organization’s reports, newest first\n  report plan [--upgrade] [--manage]           Show the organization’s plan, or open the page that changes it\n  report flakes [--project <name>] [--runs <n>]\n                                               List the cases that do not always pass at the first try, across the project’s last runs\n  report history <case> [--project <name>] [--runs <n>]\n                                               Show how one case came out in each of the project’s last runs\n  relay [--cloud <url>] [--backend <url>] [--prefix <path>] [--ttl <seconds>]\n                                               Expose a loopback backend to one app session through a short-lived outbound WSS relay\n  fastsim install [--version <version>] [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--force] [--no-browser]\n                                               Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key\n  fastsim grant [--platform <ios|android>] [--variant <name>] [--cloud <url>] [--print]\n                                               Print a fresh grant a Lynkeus FastSim host needs to start, fetched from lynkeus.io (cached for an hour)\n  login [--cloud <url>] [--no-browser]         Sign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key\n  logout [--cloud <url>]                       Remove the saved sign-in for a lynkeus.io service from this machine\n\nheadless — the app hosted in Node under jest, no simulator\n  headless start [--entry <file>]              Host the app in Node (jest + RNTL) and wait for a driver; same protocol, no simulator\n  headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]\n                                               Write the headless entry: default mocks, a local-backend guard, your App\n  headless doctor [--entry <file>] [--fix] [--explain <text>]\n                                               What Lynkeus mocks, and which native modules still need one\n\nGlobal: --root <dir>  --device <udid|name>  --app <bundleId>  --launch  --attach-timeout <ms>  --json  --help\n`lynkeus help <command>` for details; `lynkeus session` runs many commands on one connection; `lynkeus mcp` serves the core of them to an AI harness (`--full`: all)."
+}

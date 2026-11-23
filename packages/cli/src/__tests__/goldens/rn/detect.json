@@ -1,0 +1,930 @@
+{
+  "empty/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "empty/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": []
+  },
+  "empty/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "empty/runtime": "react-native",
+  "empty/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "expo app/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless, jest-expo; `lynkeus headless init` installs them."
+  },
+  "expo app/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "app.json",
+      "package.json"
+    ]
+  },
+  "expo app/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "expo app/runtime": "react-native",
+  "expo app/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "node package, no react-native/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "node package, no react-native/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json"
+    ]
+  },
+  "node package, no react-native/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "node package, no react-native/runtime": "react-native",
+  "node package, no react-native/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml app beside a broken package.json/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml app beside a broken package.json/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json",
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml app beside a broken package.json/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml app beside a broken package.json/runtime": "react-native",
+  "pubspec.yaml app beside a broken package.json/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml app beside a package.json without react-native/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml app beside a package.json without react-native/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json",
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml app beside a package.json without react-native/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml app beside a package.json without react-native/runtime": "react-native",
+  "pubspec.yaml app beside a package.json without react-native/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml app with a tsconfig/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml app with a tsconfig/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "pubspec.yaml",
+      "tsconfig.json"
+    ]
+  },
+  "pubspec.yaml app with a tsconfig/runtime": "react-native",
+  "pubspec.yaml app with a tsconfig/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml app, inline sdk/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml app, inline sdk/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml app, inline sdk/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml app, inline sdk/runtime": "react-native",
+  "pubspec.yaml app, inline sdk/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml app/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml app/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml app/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml app/runtime": "react-native",
+  "pubspec.yaml app/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml package without an sdk/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml package without an sdk/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml package without an sdk/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml package without an sdk/runtime": "react-native",
+  "pubspec.yaml package without an sdk/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "pubspec.yaml with an sdk only under dev_dependencies/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "pubspec.yaml with an sdk only under dev_dependencies/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "pubspec.yaml"
+    ]
+  },
+  "pubspec.yaml with an sdk only under dev_dependencies/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "pubspec.yaml with an sdk only under dev_dependencies/runtime": "react-native",
+  "pubspec.yaml with an sdk only under dev_dependencies/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native beside a pubspec.yaml app, inline sdk/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native beside a pubspec.yaml app, inline sdk/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json",
+      "pubspec.yaml"
+    ]
+  },
+  "react-native beside a pubspec.yaml app, inline sdk/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "react-native beside a pubspec.yaml app, inline sdk/runtime": "react-native",
+  "react-native beside a pubspec.yaml app, inline sdk/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native beside a pubspec.yaml app/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native beside a pubspec.yaml app/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json",
+      "pubspec.yaml"
+    ]
+  },
+  "react-native beside a pubspec.yaml app/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "react-native beside a pubspec.yaml app/runtime": "react-native",
+  "react-native beside a pubspec.yaml app/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native dependency/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native dependency/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json"
+    ]
+  },
+  "react-native dependency/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "react-native dependency/runtime": "react-native",
+  "react-native dependency/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native dev dependency/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native dev dependency/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json"
+    ]
+  },
+  "react-native dev dependency/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "react-native dev dependency/runtime": "react-native",
+  "react-native dev dependency/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native peer dependency/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native peer dependency/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json"
+    ]
+  },
+  "react-native peer dependency/map build": {
+    "code": 1,
+    "text": "No tsconfig.json under <root>: run this inside a React Native app (or pass --root)."
+  },
+  "react-native peer dependency/runtime": "react-native",
+  "react-native peer dependency/status": {
+    "code": 0,
+    "text": "✗ a package.json here — run this from the app’s folder (or pass --root)\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "a package.json here",
+        "ok": false,
+        "fix": "run this from the app’s folder (or pass --root)"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  },
+  "react-native with tsconfig/headless start": {
+    "code": 1,
+    "text": "lynkeus headless runs the app under jest and needs jest, @testing-library/react-native, lynkeus-headless; `lynkeus headless init` installs them."
+  },
+  "react-native with tsconfig/init": {
+    "code": 0,
+    "text": "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })\nnext: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches\n      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute",
+    "json": [
+      "no index.js to add the auto mount to; add it yourself: import { auto } from 'lynkeus-agent/auto'; auto({ token: process.env.LYNKEUS_TOKEN })",
+      "next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches",
+      "      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute"
+    ],
+    "files": [
+      "package.json",
+      "tsconfig.json"
+    ]
+  },
+  "react-native with tsconfig/runtime": "react-native",
+  "react-native with tsconfig/status": {
+    "code": 0,
+    "text": "✗ lynkeus-agent is a dependency — `lynkeus init` installs it\n✗ the app mounts the agent — `lynkeus init` adds it to the entry\n✗ babel.config.js has lynkeus-agent/babel — `lynkeus init` adds it\n✗ the project has a token — `lynkeus init` makes one in .lynkeus/token\n✗ the app can run headless, in Node with no simulator — `lynkeus headless init` installs what it needs and writes its entry; optional\n✗ cases to run — `lynkeus case init` writes an example and the format\n✗ runs can be pushed to the reports service — set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional\n✓ Lynkeus FastSim is not installed",
+    "json": [
+      {
+        "what": "lynkeus-agent is a dependency",
+        "ok": false,
+        "fix": "`lynkeus init` installs it"
+      },
+      {
+        "what": "the app mounts the agent",
+        "ok": false,
+        "fix": "`lynkeus init` adds it to the entry"
+      },
+      {
+        "what": "babel.config.js has lynkeus-agent/babel",
+        "ok": false,
+        "fix": "`lynkeus init` adds it"
+      },
+      {
+        "what": "the project has a token",
+        "ok": false,
+        "fix": "`lynkeus init` makes one in .lynkeus/token"
+      },
+      {
+        "what": "the app can run headless, in Node with no simulator",
+        "ok": false,
+        "fix": "`lynkeus headless init` installs what it needs and writes its entry; optional"
+      },
+      {
+        "what": "cases to run",
+        "ok": false,
+        "fix": "`lynkeus case init` writes an example and the format"
+      },
+      {
+        "what": "runs can be pushed to the reports service",
+        "ok": false,
+        "fix": "set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional"
+      },
+      {
+        "what": "Lynkeus FastSim is not installed",
+        "ok": true
+      }
+    ]
+  }
+}
