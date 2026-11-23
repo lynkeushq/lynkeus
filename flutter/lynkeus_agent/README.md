@@ -21,6 +21,9 @@ What it reads, and from where:
   the `material_ui` and `cupertino_ui` packages read the same.
 - `covered` is Flutter's own hit test at the element's center; `hidden: behind-modal` is everything under the topmost
   modal route's barrier; `inert` is under an `IgnorePointer` or `AbsorbPointer`.
+- Requests made through dart:io's `HttpClient` (package:http's `IOClient`, dio's default adapter) are wrapped through
+  `HttpOverrides.global`: recorded for `requests` and `trace` with secrets redacted by the same rules as the React
+  Native agent, counted in flight for `idle`, and answered, held or lost by the driver's `netmock` rules.
 
 ## Routes
 

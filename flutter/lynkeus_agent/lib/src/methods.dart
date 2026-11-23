@@ -11,6 +11,7 @@ import 'package:flutter/widgets.dart';
 import 'item.dart';
 import 'link.dart';
 import 'matching.dart';
+import 'network.dart';
 import 'routes.dart';
 import 'snapshot.dart';
 import 'touch.dart' as touch;
@@ -66,8 +67,8 @@ class Methods {
 
   final commands = <String, Command>{};
 
-  /// Requests the app has in flight; the network layer sets it.
-  int Function() inFlight = () => 0;
+  /// The app's requests, once the agent wraps its HttpClient.
+  Network? network;
 
   LynkeusRoutes? _routes;
 
@@ -138,7 +139,7 @@ class Methods {
   List<Item> _elements() => _snapshot().elements;
 
   Future<bool> _busy() async {
-    if (inFlight() > 0) return true;
+    if ((network?.inFlight ?? 0) > 0) return true;
     final custom = commands['busy'];
     if (custom == null) return false;
     try {
@@ -204,6 +205,8 @@ class Methods {
       case 'dismissKeyboard':
         touch.dismissKeyboard();
         return true;
+      case 'requests':
+        return network?.requests(_int(p['since'])) ?? {'inFlight': 0, 'requests': const <Object?>[]};
       case 'trace':
         final since = _int(p['since']);
         return {
