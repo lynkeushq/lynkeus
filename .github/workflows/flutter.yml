@@ -71,7 +71,9 @@ jobs:
           CHECK_FORMAT: ${{ matrix.format }}
         run: |
           set -e
-          for package in lynkeus_agent lynkeus_headless sample; do
+          # lynkeus_plugins joins when its folder exists, so this file works before and after it lands.
+          for package in lynkeus_agent lynkeus_headless lynkeus_plugins sample; do
+            [ -d "flutter/$package" ] || continue
             echo "::group::$package"
             (
               cd "flutter/$package"
