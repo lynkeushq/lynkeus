@@ -108,8 +108,33 @@ class _Record {
   };
 }
 
+// A picture or any other binary body is told by its size and type: as text it is noise, and the redaction, made for
+// text, fails on it.
+String _shown(Map<String, String> headers, List<int> body) {
+  final type = (headers['content-type'] ?? headers['Content-Type'] ?? '').toLowerCase();
+  final textual = type.isEmpty
+      ? _decodes(body)
+      : type.startsWith('text/') || ['json', 'xml', 'javascript', 'x-www-form-urlencoded'].any(type.contains);
+  final described = '[${body.length} bytes${type.isEmpty ? '' : ', ${type.split(';').first}'}]';
+  if (!textual) return described;
+  try {
+    return redactText(utf8.decode(body, allowMalformed: true));
+  } on Object {
+    return described;
+  }
+}
+
+bool _decodes(List<int> body) {
+  try {
+    utf8.decode(body);
+    return true;
+  } on FormatException {
+    return false;
+  }
+}
+
 Map<String, Object?> _exchange(Map<String, String> headers, List<int>? body) {
-  final text = body == null || body.isEmpty ? null : redactText(utf8.decode(body, allowMalformed: true));
+  final text = body == null || body.isEmpty ? null : _shown(headers, body);
   return {
     if (headers.isNotEmpty) 'headers': redactHeaders(headers),
     if (text != null) 'body': text.length > _most ? text.substring(0, _most) : text,

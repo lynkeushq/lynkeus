@@ -64,6 +64,31 @@ void main() {
     expect(network.requests(all.first['id']! as int)['requests'], hasLength(1));
   });
 
+  test('a picture\'s body is told by its size, and the request still ends', () async {
+    final picture = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    // Bytes a text redaction trips on: a real image's.
+    final bytes = [137, 80, 78, 71, 13, 10, 26, 10, for (var i = 0; i < 4000; i++) (i * 37 + 11) % 256];
+    picture.listen((r) {
+      r.response
+        ..headers.contentType = ContentType('image', 'png')
+        ..add(bytes);
+      r.response.close();
+    });
+    network.commands['networkBodies']!({'on': true});
+    final client = HttpClient();
+    try {
+      final response = await (await client.getUrl(Uri.parse('http://127.0.0.1:${picture.port}/a.png'))).close();
+      expect((await response.toList()).expand((c) => c).length, bytes.length);
+    } finally {
+      client.close();
+      await picture.close(force: true);
+    }
+    expect(network.inFlight, 0);
+    final record = records().single;
+    expect(record['status'], 200);
+    expect((record['response']! as Map)['body'], '[${bytes.length} bytes, image/png]');
+  });
+
   test('keeps headers and bodies, secrets replaced, while networkBodies is on', () async {
     network.commands['networkBodies']!({'on': true});
     await fetch('POST', '/login', body: jsonEncode({'user': 'ana', 'password': 'hunter2'}));
