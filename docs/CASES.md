@@ -195,7 +195,7 @@ everything torn down, failure or not. Lynkeus knows no backend; the config says 
 
 ```json
 "ci": {
-  "backend": { "up": "../qa-tools/ci/env.sh up", "down": "../qa-tools/ci/env.sh down", "ready": "http://127.0.0.1:3100/up" },
+  "backend": { "up": "../backend/ci/env.sh up", "down": "../backend/ci/env.sh down", "ready": "http://127.0.0.1:3100/up" },
   "hosts": { "count": 4 },
   "push": true
 }

@@ -68,7 +68,7 @@ export type CasesConfig = {
   /**
    * What the backend told its own analytics while a step ran, for a report: after each app step the fixture is
    * asked with `{ since }` (the step's start, ISO) and answers `{ events: [{ name | event, props | payload,
-   * provider? }] }`. `provider` names the service when the fixture does not (an Olympus that sends to Mixpanel).
+   * provider? }] }`. `provider` names the service when the fixture does not (a backend that sends to Mixpanel).
    */
   serverEvents?: { fixture: string; provider?: string };
   /** The service the app's own event list feeds (its `events` command), so a report names it instead of "App". */

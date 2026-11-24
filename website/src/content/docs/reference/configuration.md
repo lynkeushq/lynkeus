@@ -233,7 +233,7 @@ The fixture answers `{ "events": [{ "name": "…", "props": { … }, "provider":
 read as `name` and `props`.
 
 ```json
-"serverEvents": { "fixture": "olympus_events", "provider": "mixpanel" }
+"serverEvents": { "fixture": "backend_events", "provider": "mixpanel" }
 ```
 
 | Key | Type | Meaning |

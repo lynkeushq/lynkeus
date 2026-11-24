@@ -18,7 +18,7 @@ test('a run that asks for nothing launches with nothing', () => {
 });
 
 test('a value that cannot be used stops the run with what to write instead', () => {
-  assert.match(resolveLaunch({ 'time-zone': 'Mars/Olympus' }, {}, {}) as string, /not an IANA time zone/);
+  assert.match(resolveLaunch({ 'time-zone': 'Mars/Tharsis' }, {}, {}) as string, /not an IANA time zone/);
   assert.match(resolveLaunch({ locale: 'es_AR' }, {}, {}) as string, /not a language tag/);
   assert.match(resolveLaunch({ epoch: 'tomorrow' }, {}, {}) as string, /not an instant/);
 });

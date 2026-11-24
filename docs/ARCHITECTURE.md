@@ -138,7 +138,7 @@ A case prepares state through fixtures. A team picks the cheapest way that reach
 | Record and replay | nothing: one recorded run against the real backend | anything the backend answered once, offline and exact; edited answers reach rare states |
 | HTTP fixtures | a map from fixture to a request on the backend's own API | what that API can create |
 | SQL fixtures | a local database URL and statements | anything in the database, guarded to local only |
-| A fixtures server | a server speaking the fixtures protocol (qa-tools is one, for Rails) | everything, by name, with `describe` for authors and models |
+| A fixtures server | a server speaking the fixtures protocol (for example a Rails or Node script) | everything, by name, with `describe` for authors and models |
 
 `lynkeus case init` writes a small fixtures server to start from, and `lynkeus fixtures check` tells whether a server
 keeps the protocol. `lynkeus fixtures init` (planned) would write the skeleton for the backend's stack (the JSON-lines

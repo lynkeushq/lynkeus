@@ -436,11 +436,11 @@ test('each app step gets what the backend told its analytics while it ran', asyn
   } as unknown as typeof fixtures;
   const report = await runCase(c, {
     base,
-    config: { ...config, serverEvents: { fixture: 'olympus_events', provider: 'mixpanel' } },
+    config: { ...config, serverEvents: { fixture: 'backend_events', provider: 'mixpanel' } },
     fixtures: server,
     events: true,
   });
-  assert.equal(asked[0]?.name, 'olympus_events');
+  assert.equal(asked[0]?.name, 'backend_events');
   assert.equal(typeof asked[0]?.since, 'string');
   assert.deepEqual(report.steps.at(-1)?.sent, [{ provider: 'mixpanel', name: 'AuthAttemptResolved', props: { outcome: 'ok' }, via: 'server' }]);
 });

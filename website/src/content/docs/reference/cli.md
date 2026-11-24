@@ -1109,7 +1109,7 @@ A long run says where it is, in three places.
 
 #### Launch facts
 
-A run can pin four facts the app would otherwise take from the machine it runs on: a `seed` for random values, the `locale`, the `time zone`, and the `epoch`, the instant the app's clock starts at. Each one comes from its flag, else from `launch` in [`lynkeus.config.json`](/reference/configuration/#launch), else from its environment variable. A value that cannot be used (`--time-zone Mars/Olympus`) stops the run before it starts, with exit code `2`.
+A run can pin four facts the app would otherwise take from the machine it runs on: a `seed` for random values, the `locale`, the `time zone`, and the `epoch`, the instant the app's clock starts at. Each one comes from its flag, else from `launch` in [`lynkeus.config.json`](/reference/configuration/#launch), else from its environment variable. A value that cannot be used (`--time-zone Mars/Tharsis`) stops the run before it starts, with exit code `2`.
 
 What each host does with them:
 

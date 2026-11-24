@@ -409,7 +409,7 @@ const browserPage = (cloud: Awaited<ReturnType<typeof fakeCloud>>, answer: (url:
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 50));
-const who = { organization: { id: 'org-1', name: 'Ugly Cash' }, account: { email: 'ana@example.test' } };
+const who = { organization: { id: 'org-1', name: 'Acme' }, account: { email: 'ana@example.test' } };
 
 test('the success page names the organization and the account, with the command and the security headers', async () => {
   isolate();
@@ -417,11 +417,11 @@ test('the success page names the organization and the account, with the command 
   const b = browserPage(cloud, goodAnswer);
   const saved = await login({ cloud: cloud.url, open: b.open, command: 'lynkeus fastsim install --platform android' });
   await settle();
-  assert.equal(saved.organization?.name, 'Ugly Cash');
+  assert.equal(saved.organization?.name, 'Acme');
   assert.equal(savedLogin(cloud.url)?.account?.email, 'ana@example.test');
   assert.equal(savedLogin(cloud.url)?.organization?.id, 'org-1');
   assert.match(b.page.html, /You're signed in/);
-  assert.match(b.page.html, /signed in to <b>Ugly Cash<\/b> as <b>ana@example\.test<\/b>\. Go back to your terminal: it carries on from here\./);
+  assert.match(b.page.html, /signed in to <b>Acme<\/b> as <b>ana@example\.test<\/b>\. Go back to your terminal: it carries on from here\./);
   assert.match(b.page.html, /<code>lynkeus fastsim install --platform android<\/code>/);
   assert.ok(b.page.html.includes(`<a href="${cloud.url}/#members">Members</a> on 127.0.0.1:`));
   const h = b.page.response!.headers;
@@ -476,7 +476,7 @@ test('lynkeus login prints who it signed in as and never a token', async () => {
   isolate();
   const cloud = await fakeCloud({ who });
   const result = await runLogin(cloud);
-  assert.equal(result.text, `signed in to ${cloud.url} as ana@example.test in Ugly Cash (fastsim:download); saved in ${credentialsPath()}`);
+  assert.equal(result.text, `signed in to ${cloud.url} as ana@example.test in Acme (fastsim:download); saved in ${credentialsPath()}`);
   assert.ok(!JSON.stringify(result).includes('lka_') && !JSON.stringify(result).includes('lkr_'));
   cloud.close();
 });

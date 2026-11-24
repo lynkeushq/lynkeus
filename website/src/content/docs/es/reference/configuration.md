@@ -252,7 +252,7 @@ El fixture responde `{ "events": [{ "name": "…", "props": { … }, "provider":
 como `name` y `props`.
 
 ```json
-"serverEvents": { "fixture": "olympus_events", "provider": "mixpanel" }
+"serverEvents": { "fixture": "backend_events", "provider": "mixpanel" }
 ```
 
 | Clave | Tipo | Qué es |

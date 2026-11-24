@@ -2,7 +2,7 @@
 
 How a case prepares and reads a backend. Lynkeus knows nothing about any backend: a project writes a **fixtures
 server** in whatever language its backend speaks, and Lynkeus talks to it through the contract on this page.
-qa-tools (Rails, for one product) is one such server; `lynkeus case init` writes a small one to start from.
+A Rails app's fixtures server is one example; `lynkeus case init` writes a small one to start from.
 
 Protocol version: **1** (`FIXTURES_PROTOCOL` in `lynkeus-protocol`, with the types below).
 
@@ -75,8 +75,7 @@ answer is ignored; a server that does not know it may answer anything.
 ## Safety
 
 A fixtures server changes a database. It must refuse anything that is not a local, disposable one: check the
-database's host and name before the first command, and refuse to run inside a web server or a console. qa-tools
-does this in `commands/lib/qa.rb`.
+database's host and name before the first command, and refuse to run inside a web server or a console.
 
 ## Checking a server
 

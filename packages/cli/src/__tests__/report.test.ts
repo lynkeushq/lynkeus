@@ -53,7 +53,7 @@ const freeService = () => {
 
 test('a run goes up as its run file, its cases and the files they name, and a film the plan refuses is said so', async () => {
   const { fake, asked } = freeService();
-  const pushed = await pushRun(runDir(), { url: 'https://reports.test/', key: 'lk_1', project: 'hermes', fetch: fake });
+  const pushed = await pushRun(runDir(), { url: 'https://reports.test/', key: 'lk_1', project: 'example-app', fetch: fake });
   assert.equal(pushed.url, 'https://reports.test/r/abc');
   assert.equal(pushed.files, 1);
   assert.deepEqual(pushed.refused, ['home/video.mp4']);
@@ -261,7 +261,9 @@ const billingService = () => {
     const reply = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
     if (url.pathname === '/v1/runs')
       return reply({
-        runs: [{ project: 'hermes', platform: 'ios', totals: { cases: 6, passed: 5 }, createdAt: '2026-10-11T01:00:00Z', url: 'https://reports.test/r/abc' }],
+        runs: [
+          { project: 'example-app', platform: 'ios', totals: { cases: 6, passed: 5 }, createdAt: '2026-10-11T01:00:00Z', url: 'https://reports.test/r/abc' },
+        ],
       });
     if (url.pathname === '/v1/billing') return reply({ name: 'Acme', plan: 'free', days: 7, projects: 1, film: false });
     if (url.pathname === '/v1/billing/checkout') return reply({ url: 'https://checkout.stripe.test/c' });
@@ -319,10 +321,10 @@ test('a live report is made when the run starts, gets each attempt as it ends, a
     return new Response('{}');
   }) as typeof fetch;
   const dir = runDir();
-  const live = await startLiveRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'hermes', planned: 2, fetch: fake });
+  const live = await startLiveRun(dir, { url: 'https://reports.test', key: 'lk_1', project: 'example-app', planned: 2, fetch: fake });
   assert.equal(live.url, 'https://reports.test/r/abc');
   const created = JSON.parse(asked[0]!.body!) as { project: string; live: boolean; planned: number; run: { schema: number } };
-  assert.deepEqual([created.project, created.live, created.planned, created.run.schema], ['hermes', true, 2, 1]);
+  assert.deepEqual([created.project, created.live, created.planned, created.run.schema], ['example-app', true, 2, 1]);
   live.add({ steps: [{ screenshot: 'home/01-app-login.png' }], video: 'home/video.mp4' });
   live.add({ steps: [] });
   const pushed = await live.finish({ schema: 1, startedAt: '2026-10-10T00:00:00Z', finishedAt: '2026-10-10T00:05:00Z' });
