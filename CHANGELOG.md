@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A host that `--host-command` starts for a case is seeded with the run's seed and the case's id (`<seed>:<case id>`, plus `:<attempt>` on a retry), in `LYNKEUS_SEED` and `{seed}`. With the run's seed alone every case drew the same `Math.random` values, so an id the app keeps for its install repeated from case to case, and a backend that ties accounts to that id saw every case's user on one phone; a Simulator or emulator installs afresh for each case and draws a new one. Each case still draws the same values on every run with the same seed. `run.json` keeps recording the run's seed. A kept host (`--keep-hosts`) and `--host` still use the run's seed for every case.
 - A control that holds more than one piece of text (a card with a name next to a balance) now lists each piece and its frame in an optional `texts` field of its element (`Element.texts` in `lynkeus-protocol`). The pieces are not elements, so `see`, `find`, reports and MCP answers match what they matched before; the field only lets a comparison find where each text sits. A control with one text has no `texts`.
 
 ## 0.7.5

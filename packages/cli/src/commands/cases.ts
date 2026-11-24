@@ -5,7 +5,7 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
-import { fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../cases/launch.js';
+import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../cases/launch.js';
 import type { RunLaunch } from 'lynkeus-protocol';
 import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
@@ -240,7 +240,7 @@ const prepareAhead = async (cases: Case[], o: PrepareOptions): Promise<{ made: n
   return { made, skipped };
 };
 
-/** A host for one case, started by the project's own command: `{port}` is where it dials the driver; `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` are the run's launch facts (also in the environment). */
+/** A host for one case, started by the project's own command: `{port}` is where it dials the driver; `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` are the launch facts (also in the environment), with the seed made the case's own by `caseLaunch`. */
 const spawnHost = (command: string, port: number, job: number, cwd: string, env: NodeJS.ProcessEnv, launch?: RunLaunch): ChildProcess =>
   spawn('/bin/sh', ['-c', fillLaunch(command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job)), launch)], {
     cwd,
@@ -704,7 +704,10 @@ export const caseCommands = [
                 const attempt = async (n: number, prepared?: Prepared) => {
                   await hostUp(log);
                   if (keepHosts && port !== undefined) await keptUp(index, port, log);
-                  const host = hostCommand && port !== undefined && !keepHosts ? spawnHost(hostCommand, port, index, ctx.root, hostEnv, launch) : undefined;
+                  const host =
+                    hostCommand && port !== undefined && !keepHosts
+                      ? spawnHost(hostCommand, port, index, ctx.root, hostEnv, caseLaunch(launch, c.id, n))
+                      : undefined;
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({

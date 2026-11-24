@@ -146,7 +146,9 @@ different ones from the case beside it: what comparing two runs' screens needs.
 
 `--seed`, `--locale`, `--time-zone` and `--epoch` (or `launch` in the config) pin
 the facts the app would take from the machine. A host the run starts receives
-them in its environment; a run records them as `launch` in `run.json`, and lists
+them in its environment (a host `--host-command` starts for a case gets the seed
+made the case's own, `<seed>:<case id>`, so `Math.random` in the app draws
+differently in each case, as a fresh install would); a run records them as `launch` in `run.json`, and lists
 under `launch.unsupported` the ones an attached Simulator or emulator could not
 apply.
 
