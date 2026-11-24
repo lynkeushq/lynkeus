@@ -116,7 +116,7 @@ Use it when you compare the screens of two runs: the names and numbers on them a
 LYNKEUS_SEED=1 lynkeus case run --out run --screenshots
 ```
 
-`--seed` and `launch.seed` in `lynkeus.config.json` win over the variable. A host the run starts also receives it, and the headless host then makes `Math.random` repeat: see [Launch facts](/reference/cli/#launch-facts).
+`--seed` and `launch.seed` in `lynkeus.config.json` win over the variable. A host the run starts also receives it, and the headless host then makes `Math.random` repeat. A host that `--host-command` starts for a case gets the seed with the case's id (`<seed>:<case id>`), so each case draws its own values, as a fresh install on a phone does, and an id the app keeps for its install does not repeat from case to case. See [Launch facts](/reference/cli/#launch-facts).
 
 :::note[Since 0.3.0]
 `LYNKEUS_SEED` arrived in version 0.3.0.

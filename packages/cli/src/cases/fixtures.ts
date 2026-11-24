@@ -8,6 +8,9 @@
  * — and one line out, the step's answer: any JSON object, `"ok": false` and an
  * `error` when it failed. `params` is the step as written; `env` is the same
  * flattened to upper-case strings, for a server that hands them to a script.
+ * A step of a case also says which (`"case": "<case id>"`): one connection
+ * serves case after case, and a server that derives values from what it was
+ * asked before can start each case afresh, as a connection opened per case would.
  *
  * Before the first case lynkeus asks what the server can do —
  *
@@ -131,10 +134,10 @@ export class Fixtures {
     return child;
   }
 
-  async call(command: string, params: Record<string, unknown>): Promise<Answer> {
+  async call(command: string, params: Record<string, unknown>, caseId?: string): Promise<Answer> {
     if (this.#broken) throw new Error(`${command}: ${this.#broken}`);
     const child = this.#start();
-    child.stdin.write(`${JSON.stringify({ command, params, env: envOf(params) })}\n`);
+    child.stdin.write(`${JSON.stringify({ command, params, env: envOf(params), ...(caseId ? { case: caseId } : {}) })}\n`);
     const timeoutMs = this.#config.timeoutMs ?? 120_000;
     const line = await new Promise<string | null>((resolve, reject) => {
       const ready = this.#lines.shift();

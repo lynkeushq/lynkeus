@@ -162,7 +162,7 @@ Sin la variable, esos valores son nuevos cada vez. Con ella definida con cualqui
 LYNKEUS_SEED=1 npx lynkeus case run --out run --screenshots
 ```
 
-La opción `--seed` y la clave `launch.seed` de `lynkeus.config.json` tienen prioridad sobre la variable. Los hosts que arranca la ejecución también la reciben, y el host sin pantalla hace que `Math.random` se repita: ver [Datos de arranque](/es/reference/cli/#datos-de-arranque).
+La opción `--seed` y la clave `launch.seed` de `lynkeus.config.json` tienen prioridad sobre la variable. Los hosts que arranca la ejecución también la reciben, y el host sin pantalla hace que `Math.random` se repita. El host que `--host-command` arranca para cada caso recibe la semilla junto con el id del caso (`<semilla>:<id del caso>`): así cada caso saca sus propios valores, como una app recién instalada en un teléfono, y un id que la app guarda para su instalación no se repite de un caso a otro: ver [Datos de arranque](/es/reference/cli/#datos-de-arranque).
 
 ### `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` y `LYNKEUS_EPOCH`
 
