@@ -560,7 +560,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const given = value && typeof value === 'object' && !Array.isArray(value) ? { ...(value as Record<string, unknown>) } : {};
     const as = typeof given.as === 'string' ? given.as : undefined;
     delete given.as;
-    const answer = await options.fixtures.call(name, withRefs(given));
+    const answer = await options.fixtures.call(name, withRefs(given), c.id);
     if (as) scope[as] = answer;
     for (const field of Object.values(config.refs ?? {})) if (answer[field] !== undefined) latest[field] = answer[field];
   };
@@ -580,7 +580,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const key = JSON.stringify(ask);
     let answer = inspected.get(key);
     if (!answer) {
-      answer = await options.fixtures.call(config.inspect ?? 'inspect', ask);
+      answer = await options.fixtures.call(config.inspect ?? 'inspect', ask, c.id);
       inspected.set(key, answer);
     }
     const got = dig(answer, params.path);
@@ -1143,7 +1143,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (startedAt !== undefined) report.videoS = startedAt;
     if (config.serverEvents && options.fixtures) {
       const { fixture: name, provider } = config.serverEvents;
-      const answer = await options.fixtures.call(name, { since: new Date(begunMs).toISOString() }).catch(() => undefined);
+      const answer = await options.fixtures.call(name, { since: new Date(begunMs).toISOString() }, c.id).catch(() => undefined);
       const list = Array.isArray(answer?.events) ? (answer.events as Record<string, unknown>[]) : [];
       const server = list.flatMap((e) => {
         const named = typeof e?.name === 'string' ? e.name : typeof e?.event === 'string' ? e.event : undefined;

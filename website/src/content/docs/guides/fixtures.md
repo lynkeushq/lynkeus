@@ -174,6 +174,7 @@ Lynkeus starts your command once and writes one JSON line per step to its stdin.
 - `command` is the step's name.
 - `params` is the step's value as written, after `as` is removed and `refs` are resolved.
 - `env` is the same parameters flattened to upper-case strings, for a server that hands them to a script as environment variables. `userId` becomes `USER_ID`.
+- `case` is the id of the case the step belongs to. A run keeps one connection from case to case, so a server that counts or seeds from what it was asked before can start over when `case` changes; the case then gets the same values whether it runs alone or after others.
 - The answer is any JSON object. On failure, answer `"ok": false` and an `error`; the step fails with that message.
 
 Only lines that start with `{` are read as answers, so your command may log other text to stdout. What it writes to stderr is quoted if the command ends unexpectedly.

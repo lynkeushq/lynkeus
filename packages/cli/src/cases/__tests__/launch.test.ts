@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
+import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
 
 test('flags win over the config, the config over the environment', () => {
   const launch = resolveLaunch(
@@ -43,4 +43,13 @@ test('an attached app keeps its own locale, time zone and clock, and the manifes
   const launch = { seed: '7', locale: 'es-AR', epoch: '2026-03-01T09:00:00.000Z' };
   assert.deepEqual(recordLaunch(launch, false), { ...launch, unsupported: ['locale', 'epoch'] });
   assert.deepEqual(recordLaunch({ seed: '7' }, false), { seed: '7' });
+});
+
+test('a host started for a case draws its own values, the same on every run', () => {
+  const launch = { seed: '7', locale: 'es-AR' };
+  assert.deepEqual(caseLaunch(launch, 'login-sign-up'), { seed: '7:login-sign-up', locale: 'es-AR' });
+  assert.equal(caseLaunch(launch, 'login-sign-up', 2)?.seed, '7:login-sign-up:2');
+  assert.notEqual(caseLaunch(launch, 'login-sign-up')?.seed, caseLaunch(launch, 'onboarding-kyc')?.seed);
+  assert.deepEqual(caseLaunch({ locale: 'es-AR' }, 'login-sign-up'), { locale: 'es-AR' });
+  assert.equal(caseLaunch(undefined, 'login-sign-up'), undefined);
 });

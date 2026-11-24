@@ -128,6 +128,7 @@ Es una conversación por la entrada y la salida estándar, una línea cada vez.
 - `command` es el nombre del paso.
 - `params` es el paso tal como está escrito en el caso, sin `as`.
 - `env` son los mismos parámetros aplanados a texto y en mayúsculas (`userId` llega como `USER_ID`). Sirve para un servidor que se los pasa a un script de shell.
+- `case` es el id del caso al que pertenece el paso. Una ejecución usa la misma conexión para todos sus casos: si tu servidor cuenta lo que ya le pidieron o arma una semilla con eso, puede volver a empezar cuando cambia `case`, y el caso recibe los mismos valores corra solo o después de otros.
 - La respuesta es cualquier objeto JSON. Para decir que falló, responde `"ok": false` con un `error`: ese texto es el mensaje del paso fallido.
 
 El comando se inicia una vez por ejecución y se mantiene vivo; cuando hay varios trabajos en paralelo, cada uno abre su propia conexión. Lynkeus ignora las líneas de la salida que no empiezan con `{`, así que un mensaje suelto no rompe la conversación, pero los registros van mejor por la salida de error.

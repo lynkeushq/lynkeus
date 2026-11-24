@@ -24,12 +24,15 @@ may print anything to stderr. Lynkeus closes stdin when the run ends; the server
 Every step a case writes that is not Lynkeus's own (`app.*`, `assert`, `exec`, a macro) goes to the server:
 
 ```
-→ {"command": "create_user", "params": {"country": "ar", "as": "u"}, "env": {"COUNTRY": "ar", "AS": "u"}}
+→ {"command": "create_user", "params": {"country": "ar", "as": "u"}, "env": {"COUNTRY": "ar", "AS": "u"}, "case": "sign-up"}
 ← {"ok": true, "user_id": "u_1", "phone": "+5491100000000"}
 ```
 
 - `params`: the step as the case wrote it, after `{{alias.field}}` and `{{env.X}}` are filled in. `env`: the same,
   flattened to upper-case strings, for a server that hands them to a script as environment variables.
+- `case`: the id of the case the step belongs to. One connection serves case after case (with `--jobs`, one per job),
+  so a server that derives values from what it was asked before (the third user made, a seed from the step) can start
+  each case afresh when `case` changes, and give a case the same values whether it runs alone or after others.
 - The answer is any JSON object. `as: u` in the case keeps it, and later steps read `{{u.user_id}}`.
 - A failure answers `"ok": false` and an `error`; the step and the case fail with that error.
 - `inspect` is the command `assert` calls (`cases.inspect` renames it): it answers the state an assertion reads.

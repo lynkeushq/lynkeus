@@ -53,6 +53,16 @@ export const launchEnv = (launch: RunLaunch | undefined): Record<string, string>
   ...(launch?.epoch ? { LYNKEUS_EPOCH: launch.epoch } : {}),
 });
 
+/**
+ * The launch facts of the host started for one attempt at one case. A host seeded with the run's seed alone would draw
+ * the same values in every case, so an id the app keeps for its install (sent to the backend as the device's identity)
+ * would repeat, and the backend would see every case's user on one phone; a simulator or emulator installs afresh
+ * per case and draws a new one. The case's id (and the attempt, after the first) keeps each case repeatable from run
+ * to run while making cases differ, as `{{random.*}}` does.
+ */
+export const caseLaunch = (launch: RunLaunch | undefined, caseId: string, attempt = 1): RunLaunch | undefined =>
+  launch?.seed ? { ...launch, seed: `${launch.seed}:${caseId}${attempt > 1 ? `:${attempt}` : ''}` } : launch;
+
 /** `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` in a `--host-command`, empty when the run did not set them. */
 export const fillLaunch = (command: string, launch: RunLaunch | undefined): string =>
   command
