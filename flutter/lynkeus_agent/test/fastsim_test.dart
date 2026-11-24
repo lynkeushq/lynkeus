@@ -156,7 +156,7 @@ void main() {
     MethodCall mode(String m) => MethodCall('SystemChrome.setEnabledSystemUIMode', 'SystemUiMode.$m');
 
     expect(bars.sides(pixel, pixelHidden), pixel);
-    // flutter_deer's main: manual, with no overlays.
+    // An app whose main sets the bars by hand, with no overlays.
     expect(bars.follow(overlays([])), isTrue);
     expect(bars.sides(pixel, pixelHidden), [54.095238, 0.0, 0.0, 0.0]);
     expect(bars.follow(overlays(['SystemUiOverlay.top', 'SystemUiOverlay.bottom'])), isTrue);

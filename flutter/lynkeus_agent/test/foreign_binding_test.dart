@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lynkeus_agent/src/capture.dart';
 import 'package:lynkeus_agent/src/methods.dart';
 
-// An app's own binding the agent cannot mix into (mhabit's FixedIos26FlutterBinding, made before the agent started):
+// An app's own binding the agent cannot mix into (for example one that filters a phantom iOS 26 tap, made before the agent started):
 // here the test binding, with nothing of the agent's in it.
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();

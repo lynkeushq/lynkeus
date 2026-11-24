@@ -7,6 +7,6 @@ void main() {
       'packages/cupertino_icons/CupertinoIcons',
       'CupertinoIcons',
     ]);
-    expect(familyNames('HabitSortIcons'), ['HabitSortIcons']);
+    expect(familyNames('SortIcons'), ['SortIcons']);
   });
 }

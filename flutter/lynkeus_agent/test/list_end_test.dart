@@ -33,7 +33,7 @@ void main() {
     methods = Methods()..capture = binding;
   });
 
-  // flutter_deer's orders: scrolled to the end of a list, a row above that is no longer built is looked for by going on
+  // An order list: scrolled to the end of a list, a row above that is no longer built is looked for by going on
   // down first. The end is known at once when nothing could bring more, and the search turns back.
   for (final loading in [false, true]) {
     testWidgets('scroll-to-find turns back at a list\'s end at once unless more is coming (loading: $loading)', (

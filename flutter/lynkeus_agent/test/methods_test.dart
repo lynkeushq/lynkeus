@@ -699,7 +699,7 @@ class _PagesState extends State<Pages> {
       }
       return false;
     },
-    // A pull at the top starts the list over, as flutter_deer's order list does.
+    // A pull at the top starts the list over, as an order list's does.
     child: RefreshIndicator(
       onRefresh: () => Future<void>.delayed(const Duration(seconds: 2), () => setState(() => rows = 20)),
       child: ListView.builder(

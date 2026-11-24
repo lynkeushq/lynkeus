@@ -7,7 +7,6 @@
 - `lynkeus_headless/`: hosts the app inside `flutter test`, with no simulator: `lynkeus case run --host` in a Flutter
   project.
 - `sample/`: a small app (iOS and Android) that passes the runtime conformance cases in `../conformance/cases/`.
-- `validation/`: cases for real open-source apps (flutter_deer, mhabit, Rain), and what running them found ([VALIDATION.md](VALIDATION.md)).
 
 ## Supported Flutter versions
 

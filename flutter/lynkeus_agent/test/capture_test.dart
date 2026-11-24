@@ -297,7 +297,7 @@ class _Vsync implements TickerProvider {
   Ticker createTicker(TickerCallback onTick) => Ticker(onTick);
 }
 
-/// A splash that moves on to its guide after a timer, as flutter_deer's does.
+/// A splash that moves on to its guide after a timer, as a real app's can.
 class _Splash extends StatefulWidget {
   const _Splash({super.key, this.after = const Duration(milliseconds: 1500)});
   final Duration after;

@@ -55,7 +55,7 @@ void main() {
     methods = Methods()..capture = binding;
   });
 
-  // flutter_deer's goods page loads its list 2 s after it opens. A host's driver idles once before a case's first
+  // A page that loads its list 2 s after it opens. A host's driver idles once before a case's first
   // step and a device's does not: the page's timer must be waited for either way.
   for (final idledFirst in [false, true]) {
     testWidgets('a page that loads 2 s after it opens is caught loaded (driver idled first: $idledFirst)', (
@@ -188,7 +188,7 @@ void main() {
     tester.takeException();
   });
 
-  // mhabit's undo: the snackbar's close needs frames, and a step that waits for it to go polls only `screen`.
+  // An undo snackbar: its close needs frames, and a step that waits for it to go polls only `screen`.
   testWidgets('a held capture frame lets go at the next read: a closing snackbar is seen gone', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: _Closing()));
     await _drive(tester, methods, 'press', {'text': 'Undo'});
@@ -205,7 +205,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  // mhabit's archive: `back`, then a press 158 ms later. The pop sets the navigator absorbing pointers until its next
+  // An archive flow: `back`, then a press 158 ms later. The pop sets the navigator absorbing pointers until its next
   // frame; with frames held since the last idle, a press sent before that frame reached nothing. A request that lets
   // the hold go runs once a frame has been drawn.
   testWidgets('a request after a hold acts only once a frame has been drawn', (tester) async {
@@ -237,7 +237,7 @@ void main() {
   });
 }
 
-/// A page that opens another, which loads its content after a delay, as flutter_deer's goods list does.
+/// A page that opens another, which loads its content after a delay, as a real app's list can.
 class _Opener extends StatelessWidget {
   const _Opener({this.loadAfter = const Duration(seconds: 2)});
   final Duration loadAfter;
@@ -343,7 +343,7 @@ class _FaderState extends State<_Fader> with SingleTickerProviderStateMixin {
   );
 }
 
-/// A list whose pull to refresh takes 2 s, as flutter_deer's orders do.
+/// A list whose pull to refresh takes 2 s.
 class _Refreshing extends StatefulWidget {
   const _Refreshing();
   @override

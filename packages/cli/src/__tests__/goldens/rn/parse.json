@@ -897,183 +897,6 @@
       ]
     }
   ],
-  "corpus/flutter_deer-05-settings.md": [
-    {
-      "id": "deer-settings",
-      "title": "flutter_deer: a theme setting, three levels deep and back, a confirmation dialog",
-      "meta": {
-        "id": "deer-settings",
-        "title": "flutter_deer: a theme setting, three levels deep and back, a confirmation dialog",
-        "description": "Turns night mode on and off, goes to account management and the change-password form (obscured fields, a button that waits for both), back twice, then opens and cancels the sign-out dialog.\n"
-      },
-      "setup": [],
-      "steps": [
-        {
-          "verb": "app.deeplink",
-          "value": "/setting"
-        },
-        {
-          "verb": "app.press",
-          "value": "夜间模式"
-        },
-        {
-          "verb": "app.press",
-          "value": "开启"
-        },
-        {
-          "verb": "app.back",
-          "value": null
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "夜间模式 开启"
-          }
-        },
-        {
-          "verb": "app.press",
-          "value": "夜间模式"
-        },
-        {
-          "verb": "app.press",
-          "value": "关闭"
-        },
-        {
-          "verb": "app.back",
-          "value": null
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "夜间模式 关闭"
-          }
-        },
-        {
-          "verb": "app.press",
-          "value": "账号管理"
-        },
-        {
-          "verb": "app.press",
-          "value": "修改密码"
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "重置登录密码"
-          }
-        },
-        {
-          "verb": "app.wait",
-          "value": {
-            "target": "确认",
-            "enabled": false
-          }
-        },
-        {
-          "verb": "app.type",
-          "value": {
-            "target": "6",
-            "text": "222222"
-          }
-        },
-        {
-          "verb": "app.type",
-          "value": {
-            "target": "3",
-            "text": "111111"
-          }
-        },
-        {
-          "verb": "app.wait",
-          "value": {
-            "target": "确认",
-            "enabled": true
-          }
-        },
-        {
-          "verb": "app.back",
-          "value": null
-        },
-        {
-          "verb": "app.back",
-          "value": null
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "退出当前账号"
-          }
-        },
-        {
-          "verb": "app.press",
-          "value": "退出当前账号"
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "您确定要退出登录吗？"
-          }
-        },
-        {
-          "verb": "app.press",
-          "value": "取消"
-        },
-        {
-          "verb": "app.wait",
-          "value": {
-            "target": "您确定要退出登录吗？",
-            "gone": true
-          }
-        }
-      ],
-      "teardown": [],
-      "sections": [
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null
-      ],
-      "argv": [
-        "app.deeplink → [\"os\",\"deeplink\",\"/setting\"]",
-        "app.press → [\"press\",\"夜间模式\"]",
-        "app.press → [\"press\",\"开启\"]",
-        "app.back → [\"back\"]",
-        "app.press → [\"press\",\"夜间模式\"]",
-        "app.press → [\"press\",\"关闭\"]",
-        "app.back → [\"back\"]",
-        "app.press → [\"press\",\"账号管理\"]",
-        "app.press → [\"press\",\"修改密码\"]",
-        "app.wait → [\"wait\",\"确认\"]",
-        "app.type → [\"type\",\"222222\",\"6\"]",
-        "app.type → [\"type\",\"111111\",\"3\"]",
-        "app.wait → [\"wait\",\"确认\",\"--enabled\"]",
-        "app.back → [\"back\"]",
-        "app.back → [\"back\"]",
-        "app.press → [\"press\",\"退出当前账号\"]",
-        "app.press → [\"press\",\"取消\"]",
-        "app.wait → [\"wait\",\"您确定要退出登录吗？\",\"--gone\"]"
-      ]
-    }
-  ],
   "corpus/list-and-dialog.md": [
     {
       "id": "flutter-list-and-dialog",
@@ -1404,14 +1227,130 @@
       ]
     }
   ],
-  "corpus/mhabit-05-groups-sorting.md": [
+  "corpus/minimal.md": [
     {
-      "id": "mhabit-groups-sorting",
-      "title": "mhabit: a group from settings, a habit put in it, the list sorted by name, a delete undone",
+      "id": "minimal",
+      "title": "An id from the file name",
       "meta": {
-        "id": "mhabit-groups-sorting",
-        "title": "mhabit: a group from settings, a habit put in it, the list sorted by name, a delete undone",
-        "description": "Creates a group in Manage Groups (a sheet with a name), creates a habit in that group and one outside it, sorts the table by name and back to the user's order, deletes a habit and takes it back from the snackbar, and removes what it made.\n"
+        "title": "An id from the file name"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.back",
+          "value": null
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null
+      ],
+      "argv": [
+        "app.back → [\"back\"]"
+      ]
+    }
+  ],
+  "corpus/no-frontmatter.md": {
+    "error": "<root>/no-frontmatter.md: no frontmatter (a case starts with --- and its id)"
+  },
+  "corpus/resend-code.md": [
+    {
+      "id": "flutter-resend-code",
+      "title": "Counter and resend countdown in a Flutter app",
+      "meta": {
+        "id": "flutter-resend-code",
+        "title": "Counter and resend countdown in a Flutter app",
+        "description": "Presses the counter twice, types a name and asks for a code. The code can be asked for again after a three second countdown, which the case waits for.\n"
+      },
+      "setup": [],
+      "steps": [
+        {
+          "verb": "app.call",
+          "value": {
+            "command": "reset"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 0"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#increment"
+        },
+        {
+          "verb": "app.press",
+          "value": "#increment"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Count: 2"
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "#name",
+            "text": "Ana"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "#send"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Code sent to Ana"
+          }
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "Resend in 3"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "Resend now",
+            "timeoutMs": 6000
+          }
+        }
+      ],
+      "teardown": [],
+      "sections": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "argv": [
+        "app.press → [\"press\",\"#increment\"]",
+        "app.press → [\"press\",\"#increment\"]",
+        "app.type → [\"type\",\"Ana\",\"#name\"]",
+        "app.press → [\"press\",\"#send\"]",
+        "app.wait → [\"wait\",\"Resend now\",\"--timeout\",\"6000\"]"
+      ]
+    }
+  ],
+  "corpus/sample-groups-sorting.md": [
+    {
+      "id": "sample-groups-sorting",
+      "title": "A group from settings, an item put in it, the list sorted by name, a delete undone",
+      "meta": {
+        "id": "sample-groups-sorting",
+        "title": "A group from settings, an item put in it, the list sorted by name, a delete undone",
+        "description": "Creates a group in Manage Groups (a sheet with a name), creates an item in that group and one outside it, sorts the list by name and back to the user's order, deletes an item and takes it back from the snackbar, and removes what it made.\n"
       },
       "setup": [],
       "steps": [
@@ -1461,7 +1400,7 @@
         },
         {
           "verb": "app.type",
-          "value": "Health"
+          "value": "Home"
         },
         {
           "verb": "app.press",
@@ -1470,7 +1409,7 @@
         {
           "verb": "app.wait",
           "value": {
-            "target": "\"Health\""
+            "target": "\"Home\""
           }
         },
         {
@@ -1483,7 +1422,7 @@
         },
         {
           "verb": "app.press",
-          "value": "New Habit"
+          "value": "New Item"
         },
         {
           "verb": "app.wait",
@@ -1491,7 +1430,7 @@
         },
         {
           "verb": "app.type",
-          "value": "Yoga"
+          "value": "Groceries"
         },
         {
           "verb": "app.press",
@@ -1499,19 +1438,19 @@
         },
         {
           "verb": "app.press",
-          "value": "Health"
+          "value": "Home"
         },
         {
           "verb": "app.press",
-          "value": "#habit-edit.save-visibility"
+          "value": "#item-edit.save"
         },
         {
           "verb": "app.wait",
-          "value": "\"Yoga\""
+          "value": "\"Groceries\""
         },
         {
           "verb": "app.press",
-          "value": "New Habit"
+          "value": "New Item"
         },
         {
           "verb": "app.wait",
@@ -1519,15 +1458,15 @@
         },
         {
           "verb": "app.type",
-          "value": "Archery"
+          "value": "Laundry"
         },
         {
           "verb": "app.press",
-          "value": "#habit-edit.save-visibility"
+          "value": "#item-edit.save"
         },
         {
           "verb": "app.wait",
-          "value": "\"Archery\""
+          "value": "\"Laundry\""
         },
         {
           "verb": "app.press",
@@ -1546,7 +1485,7 @@
         },
         {
           "verb": "app.wait",
-          "value": "Health 1"
+          "value": "Home 1"
         },
         {
           "verb": "app.see",
@@ -1618,7 +1557,7 @@
         {
           "verb": "app.wait",
           "value": {
-            "target": "Health 1",
+            "target": "Home 1",
             "gone": true
           }
         },
@@ -1653,7 +1592,7 @@
         },
         {
           "verb": "app.press",
-          "value": "\"Archery\""
+          "value": "\"Laundry\""
         },
         {
           "verb": "app.press",
@@ -1673,7 +1612,7 @@
         {
           "verb": "app.see",
           "value": {
-            "text": "Deleted habit"
+            "text": "Item deleted"
           }
         },
         {
@@ -1683,19 +1622,19 @@
         {
           "verb": "app.see",
           "value": {
-            "text": "Deleted habit",
+            "text": "Item deleted",
             "absent": true
           }
         },
         {
           "verb": "app.wait",
-          "value": "\"Archery\""
+          "value": "\"Laundry\""
         }
       ],
       "teardown": [
         {
           "verb": "app.press",
-          "value": "\"Archery\""
+          "value": "\"Laundry\""
         },
         {
           "verb": "app.press",
@@ -1715,7 +1654,7 @@
         {
           "verb": "app.see",
           "value": {
-            "text": "Deleted habit"
+            "text": "Item deleted"
           }
         },
         {
@@ -1727,7 +1666,7 @@
         },
         {
           "verb": "app.press",
-          "value": "\"Yoga\""
+          "value": "\"Groceries\""
         },
         {
           "verb": "app.press",
@@ -1747,7 +1686,7 @@
         {
           "verb": "app.see",
           "value": {
-            "text": "Deleted habit"
+            "text": "Item deleted"
           }
         },
         {
@@ -1804,7 +1743,7 @@
         {
           "verb": "app.see",
           "value": {
-            "text": "Habits in this group will become uncategorized."
+            "text": "Items in this group will have no group."
           }
         },
         {
@@ -1821,7 +1760,7 @@
         {
           "verb": "app.wait",
           "value": {
-            "target": "\"Health\"",
+            "target": "\"Home\"",
             "gone": true
           }
         },
@@ -1835,7 +1774,7 @@
         },
         {
           "verb": "app.wait",
-          "value": "New Habit"
+          "value": "New Item"
         }
       ],
       "sections": [
@@ -1905,27 +1844,27 @@
         "app.press → [\"press\",\"Create group\"]",
         "app.press → [\"press\",\"5\"]",
         "app.wait → [\"wait\",\"#adaptive-modal-confirm\"]",
-        "app.type → [\"type\",\"Health\"]",
+        "app.type → [\"type\",\"Home\"]",
         "app.press → [\"press\",\"#adaptive-modal-confirm\"]",
-        "app.wait → [\"wait\",\"\\\"Health\\\"\"]",
+        "app.wait → [\"wait\",\"\\\"Home\\\"\"]",
         "app.back → [\"back\"]",
         "app.back → [\"back\"]",
-        "app.press → [\"press\",\"New Habit\"]",
+        "app.press → [\"press\",\"New Item\"]",
         "app.wait → [\"wait\",\"No Group\"]",
-        "app.type → [\"type\",\"Yoga\"]",
+        "app.type → [\"type\",\"Groceries\"]",
         "app.press → [\"press\",\"No Group\"]",
-        "app.press → [\"press\",\"Health\"]",
-        "app.press → [\"press\",\"#habit-edit.save-visibility\"]",
-        "app.wait → [\"wait\",\"\\\"Yoga\\\"\"]",
-        "app.press → [\"press\",\"New Habit\"]",
+        "app.press → [\"press\",\"Home\"]",
+        "app.press → [\"press\",\"#item-edit.save\"]",
+        "app.wait → [\"wait\",\"\\\"Groceries\\\"\"]",
+        "app.press → [\"press\",\"New Item\"]",
         "app.wait → [\"wait\",\"No Group\"]",
-        "app.type → [\"type\",\"Archery\"]",
-        "app.press → [\"press\",\"#habit-edit.save-visibility\"]",
-        "app.wait → [\"wait\",\"\\\"Archery\\\"\"]",
+        "app.type → [\"type\",\"Laundry\"]",
+        "app.press → [\"press\",\"#item-edit.save\"]",
+        "app.wait → [\"wait\",\"\\\"Laundry\\\"\"]",
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.press → [\"press\",\"Group Sort Flat\"]",
         "app.press → [\"press\",\"By Name\"]",
-        "app.wait → [\"wait\",\"Health 1\"]",
+        "app.wait → [\"wait\",\"Home 1\"]",
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.press → [\"press\",\"Sort My order\"]",
         "app.press → [\"press\",\"By Name\"]",
@@ -1937,53 +1876,27 @@
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.press → [\"press\",\"Group Sort By Name (Asc)\"]",
         "app.press → [\"press\",\"Flat\"]",
-        "app.wait → [\"wait\",\"Health 1\",\"--gone\"]",
+        "app.wait → [\"wait\",\"Home 1\",\"--gone\"]",
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.wait → [\"wait\",\"\\\"Display Filter\\\"\",\"--gone\"]",
-        "app.press → [\"press\",\"\\\"Archery\\\"\"]",
+        "app.press → [\"press\",\"\\\"Laundry\\\"\"]",
         "app.press → [\"press\",\"Show menu\",\"--nth\",\"0\"]",
         "app.press → [\"press\",\"Delete\"]",
         "app.press → [\"press\",\"confirm\"]",
         "app.press → [\"press\",\"UNDO\"]",
-        "app.wait → [\"wait\",\"\\\"Archery\\\"\"]"
+        "app.wait → [\"wait\",\"\\\"Laundry\\\"\"]"
       ]
     }
   ],
-  "corpus/minimal.md": [
+  "corpus/sample-location-permission.md": [
     {
-      "id": "minimal",
-      "title": "An id from the file name",
+      "id": "sample-location-permission",
+      "title": "The location button with the permission denied, then allowed when asked",
       "meta": {
-        "title": "An id from the file name"
-      },
-      "setup": [],
-      "steps": [
-        {
-          "verb": "app.back",
-          "value": null
-        }
-      ],
-      "teardown": [],
-      "sections": [
-        null
-      ],
-      "argv": [
-        "app.back → [\"back\"]"
-      ]
-    }
-  ],
-  "corpus/no-frontmatter.md": {
-    "error": "<root>/no-frontmatter.md: no frontmatter (a case starts with --- and its id)"
-  },
-  "corpus/rain-02-location-permission.md": [
-    {
-      "id": "rain-location-permission",
-      "title": "Rain: the location button with the permission denied, then allowed when asked",
-      "meta": {
-        "id": "rain-location-permission",
-        "title": "Rain: the location button with the permission denied, then allowed when asked",
-        "description": "On the city picker, the location button asks geolocator for the phone's position. With the permission denied (a host's location stand-in), the app says it cannot get the location and leaves the form empty. Allowed when asked, the position of the Simulator's or the emulator's default place fills the form, named by OpenStreetMap's Nominatim (the system geocoder of geocoding 5 has no stand-in), and Done shows that place's weather.\n"
+        "id": "sample-location-permission",
+        "title": "The location button with the permission denied, then allowed when asked",
+        "description": "On the place picker, the location button asks for the phone's position. With the permission denied (a host's location stand-in), the app says it cannot get the location and leaves the form empty. Allowed when asked, the position of the Simulator's or the emulator's default place fills the form, and Done shows that place.\n"
       },
       "setup": [],
       "steps": [
@@ -1997,7 +1910,7 @@
         },
         {
           "verb": "app.wait",
-          "value": "\"Find your city\""
+          "value": "\"Pick a place\""
         },
         {
           "verb": "app.call",
@@ -2016,7 +1929,7 @@
         },
         {
           "verb": "app.wait",
-          "value": "\"Enable the location service to get weather data for the current location.\"",
+          "value": "\"Turn on the location service to use your current place.\"",
           "on": "has:location"
         },
         {
@@ -2146,9 +2059,9 @@
       "argv": [
         "app.wait → [\"wait\",\"\\\"Skip\\\"\"]",
         "app.press → [\"press\",\"Skip\"]",
-        "app.wait → [\"wait\",\"\\\"Find your city\\\"\"]",
+        "app.wait → [\"wait\",\"\\\"Pick a place\\\"\"]",
         "app.press → [\"press\",\"#locate\"]",
-        "app.wait → [\"wait\",\"\\\"Enable the location service to get weather data for the current location.\\\"\"]",
+        "app.wait → [\"wait\",\"\\\"Turn on the location service to use your current place.\\\"\"]",
         "app.press → [\"press\",\"#locate\"]",
         "app.press → [\"press\",\"Done\"]",
         "app.wait → [\"wait\",\"route:/\"]",
@@ -2157,71 +2070,132 @@
       ]
     }
   ],
-  "corpus/resend-code.md": [
+  "corpus/sample-settings-dialog.md": [
     {
-      "id": "flutter-resend-code",
-      "title": "Counter and resend countdown in a Flutter app",
+      "id": "sample-settings-dialog",
+      "title": "A theme setting, three levels deep and back, a confirmation dialog",
       "meta": {
-        "id": "flutter-resend-code",
-        "title": "Counter and resend countdown in a Flutter app",
-        "description": "Presses the counter twice, types a name and asks for a code. The code can be asked for again after a three second countdown, which the case waits for.\n"
+        "id": "sample-settings-dialog",
+        "title": "A theme setting, three levels deep and back, a confirmation dialog",
+        "description": "Turns night mode on and off, goes to account management and the change-password form (obscured fields, a button that waits for both), back twice, then opens and cancels the sign-out dialog.\n"
       },
       "setup": [],
       "steps": [
         {
-          "verb": "app.call",
-          "value": {
-            "command": "reset"
-          }
+          "verb": "app.deeplink",
+          "value": "/settings"
+        },
+        {
+          "verb": "app.press",
+          "value": "深色模式"
+        },
+        {
+          "verb": "app.press",
+          "value": "开启"
+        },
+        {
+          "verb": "app.back",
+          "value": null
         },
         {
           "verb": "app.see",
           "value": {
-            "text": "Count: 0"
+            "text": "深色模式 开启"
           }
         },
         {
           "verb": "app.press",
-          "value": "#increment"
+          "value": "深色模式"
         },
         {
           "verb": "app.press",
-          "value": "#increment"
+          "value": "关闭"
+        },
+        {
+          "verb": "app.back",
+          "value": null
         },
         {
           "verb": "app.see",
           "value": {
-            "text": "Count: 2"
-          }
-        },
-        {
-          "verb": "app.type",
-          "value": {
-            "target": "#name",
-            "text": "Ana"
+            "text": "深色模式 关闭"
           }
         },
         {
           "verb": "app.press",
-          "value": "#send"
+          "value": "账户"
+        },
+        {
+          "verb": "app.press",
+          "value": "更改密码"
         },
         {
           "verb": "app.see",
           "value": {
-            "text": "Code sent to Ana"
-          }
-        },
-        {
-          "verb": "app.see",
-          "value": {
-            "text": "Resend in 3"
+            "text": "设置新密码"
           }
         },
         {
           "verb": "app.wait",
           "value": {
-            "target": "Resend now",
-            "timeoutMs": 6000
+            "target": "保存",
+            "enabled": false
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "6",
+            "text": "222222"
+          }
+        },
+        {
+          "verb": "app.type",
+          "value": {
+            "target": "3",
+            "text": "111111"
+          }
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "保存",
+            "enabled": true
+          }
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.back",
+          "value": null
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "退出登录"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "退出登录"
+        },
+        {
+          "verb": "app.see",
+          "value": {
+            "text": "确定要退出吗？"
+          }
+        },
+        {
+          "verb": "app.press",
+          "value": "取消"
+        },
+        {
+          "verb": "app.wait",
+          "value": {
+            "target": "确定要退出吗？",
+            "gone": true
           }
         }
       ],
@@ -2236,14 +2210,40 @@
         null,
         null,
         null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
         null
       ],
       "argv": [
-        "app.press → [\"press\",\"#increment\"]",
-        "app.press → [\"press\",\"#increment\"]",
-        "app.type → [\"type\",\"Ana\",\"#name\"]",
-        "app.press → [\"press\",\"#send\"]",
-        "app.wait → [\"wait\",\"Resend now\",\"--timeout\",\"6000\"]"
+        "app.deeplink → [\"os\",\"deeplink\",\"/settings\"]",
+        "app.press → [\"press\",\"深色模式\"]",
+        "app.press → [\"press\",\"开启\"]",
+        "app.back → [\"back\"]",
+        "app.press → [\"press\",\"深色模式\"]",
+        "app.press → [\"press\",\"关闭\"]",
+        "app.back → [\"back\"]",
+        "app.press → [\"press\",\"账户\"]",
+        "app.press → [\"press\",\"更改密码\"]",
+        "app.wait → [\"wait\",\"保存\"]",
+        "app.type → [\"type\",\"222222\",\"6\"]",
+        "app.type → [\"type\",\"111111\",\"3\"]",
+        "app.wait → [\"wait\",\"保存\",\"--enabled\"]",
+        "app.back → [\"back\"]",
+        "app.back → [\"back\"]",
+        "app.press → [\"press\",\"退出登录\"]",
+        "app.press → [\"press\",\"取消\"]",
+        "app.wait → [\"wait\",\"确定要退出吗？\",\"--gone\"]"
       ]
     }
   ],
