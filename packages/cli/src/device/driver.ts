@@ -8,8 +8,23 @@ import type { CoreMethods, Screen, TraceEvent } from 'lynkeus-protocol';
 
 import { portFromEnv, readToken } from '../config.js';
 import { withoutHost } from '../knowledge/problems.js';
+import { viaOf, type Walk } from '../knowledge/walk.js';
 import type { DeviceInfo } from './devices.js';
 import { lifecycleFor, type PlatformLifecycle } from './platform.js';
+
+const OBSERVING = new Set([
+  'events',
+  'logs',
+  'analytics',
+  'networkBodies',
+  'traceContext',
+  'record',
+  'screenshot',
+  'still',
+  'nativeValues',
+  'netmock',
+  'nativeMocks',
+]);
 
 export class Device {
   info: DeviceInfo;
@@ -18,6 +33,7 @@ export class Device {
   #lifecycle: PlatformLifecycle;
   #appId: string | null;
   #resolving?: Promise<DeviceInfo>;
+  #walk?: Walk;
 
   constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo> } = {}) {
     this.info = info;
@@ -41,7 +57,26 @@ export class Device {
     return this.#appId;
   }
 
+  /** Learns where presses lead from what this connection reads anyway (see knowledge/walk.ts). */
+  learn(walk: Walk): void {
+    this.#walk = walk;
+    this.server.on('navigation', (event: { route?: string }) => this.#walk?.routed(event.route));
+  }
+
+  /** Drives the app without learning from it, for a caller that records what it learns itself (a crawl). */
+  async unlearned<T>(fn: () => Promise<T>): Promise<T> {
+    const walk = this.#walk;
+    this.#walk = undefined;
+    try {
+      return await fn();
+    } finally {
+      walk?.forget();
+      this.#walk = walk;
+    }
+  }
+
   async stop(): Promise<void> {
+    this.#walk?.settle();
     await this.server.close();
   }
 
@@ -53,6 +88,7 @@ export class Device {
   }
 
   async openUrl(url: string): Promise<void> {
+    this.#walk?.acted(true);
     await this.server.call('deepLink', { url });
   }
 
@@ -70,33 +106,51 @@ export class Device {
     await this.#lifecycle.screenshot((await this.resolved()).id, destination);
   }
 
-  screen(): Promise<Screen> {
-    return this.server.call('screen');
+  async screen(): Promise<Screen> {
+    const screen = await this.server.call<Screen>('screen');
+    this.#walk?.saw(screen);
+    return screen;
   }
 
-  press(params: CoreMethods['press']['params']): Promise<CoreMethods['press']['result']> {
-    return this.server.call('press', params);
+  async press(params: CoreMethods['press']['params']): Promise<CoreMethods['press']['result']> {
+    this.#walk?.pressing();
+    try {
+      const result = await this.server.call<CoreMethods['press']['result']>('press', params);
+      this.#walk?.pressed(viaOf(result.element) ?? ('testId' in params || 'text' in params ? viaOf(params) : undefined));
+      return result;
+    } catch (error) {
+      this.#walk?.pressed(undefined);
+      throw error;
+    }
   }
 
   type(params: CoreMethods['type']['params']): Promise<CoreMethods['type']['result']> {
+    this.#walk?.acted(false);
     return this.server.call('type', params);
   }
 
   swipe(params: CoreMethods['swipe']['params']): Promise<CoreMethods['swipe']['result']> {
+    this.#walk?.acted(true);
     return this.server.call('swipe', params);
   }
 
-  back(): Promise<CoreMethods['back']['result']> {
-    return this.server.call('back');
+  async back(): Promise<CoreMethods['back']['result']> {
+    this.#walk?.acted(true);
+    const result = await this.server.call<CoreMethods['back']['result']>('back');
+    this.#walk?.routed(result?.route);
+    return result;
   }
 
   async navigate(name: string, params?: object): Promise<void> {
+    this.#walk?.acted(true);
     await this.server.call('navigate', { name, params });
   }
 
   // The agent's own timeout governs; the transport waits a little longer so it hears the agent's answer.
-  waitFor(params: CoreMethods['waitFor']['params']): Promise<CoreMethods['waitFor']['result']> {
-    return this.server.call('waitFor', params, (params.timeoutMs ?? 5000) + 2000);
+  async waitFor(params: CoreMethods['waitFor']['params']): Promise<CoreMethods['waitFor']['result']> {
+    const result = await this.server.call<CoreMethods['waitFor']['result']>('waitFor', params, (params.timeoutMs ?? 5000) + 2000);
+    if (!result?.passed) this.#walk?.routed(result?.route);
+    return result;
   }
 
   idle(params?: CoreMethods['idle']['params']): Promise<CoreMethods['idle']['result']> {
@@ -113,6 +167,8 @@ export class Device {
 
   /** A command the app registered with `qa.register`. */
   command<T = unknown>(name: string, params?: unknown): Promise<T> {
+    // An app's own command may move it anywhere (a reset, a sign-in); Lynkeus's own observers move nothing.
+    if (!OBSERVING.has(name)) this.#walk?.acted(true);
     return this.server.call<T>(name, params);
   }
 }

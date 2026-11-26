@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The route map learns from normal use. A press made by `case run`, `run`, `press` (over MCP and in a session) that lands on another route, or raises or closes a sheet or modal, is recorded in `.lynkeus/edges.jsonl` the way `crawl` records it, so `map plan`, `map paths`, `case coverage` and `case new` know the way next time. Nothing extra is asked of the app: both ends come from screens the commands read anyway, from a wait's answer and from the route the agent announces when it changes, and a press whose ends are not both known is left out rather than guessed. Runs side by side (FastSim jobs, a crawl beside a suite) each append to a part file of their own under `.lynkeus/edges.jsonl.parts/` and fold it into `edges.jsonl` under a lock when they end; readers merge the parts, so a run killed halfway loses nothing.
+
 ## 0.7.6
 
 - `press` over MCP and in a session waits, as a case's press does, for a control a screen is still sliding over (up to 3 s), but not for one only the keyboard covers. Pressed right after a `wait` for the new route, the tap landed during the transition and was lost, and the next `wait` timed out.

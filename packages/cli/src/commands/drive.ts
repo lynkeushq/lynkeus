@@ -201,13 +201,13 @@ export const driveCommands = [
       };
       if (ctx.flags.from || ctx.flags.to) {
         if (!ctx.flags.from || !ctx.flags.to) throw new Error('--from and --to go together');
-        return { json: await device.server.call('swipe', { from: point('from'), to: point('to'), durationMs }) };
+        return { json: await device.swipe({ from: point('from'), to: point('to'), durationMs }) };
       }
       const direction = ctx.args[0] as 'up' | 'down' | 'left' | 'right';
       if (!['up', 'down', 'left', 'right'].includes(direction)) throw new Error('swipe needs a direction (up, down, left or right), or --from and --to');
       if (ctx.args[1]) {
         const distance = ctx.flags.distance as number | undefined;
-        return { json: await device.server.call('swipe', { direction, target: parseTarget(ctx.args[1]), distance, durationMs }) };
+        return { json: await device.swipe({ direction, target: parseTarget(ctx.args[1]), distance, durationMs }) };
       }
       await device.swipe({ direction });
       return { json: { direction } };

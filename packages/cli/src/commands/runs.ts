@@ -284,47 +284,50 @@ export const runsCommands = [
       const graph = loadGraph(ctx.root);
       const rules = ctx.config.crawl;
       try {
-        const { transitions, states } = await crawl({
-          device,
-          outDir,
-          depth: ctx.flags.depth as number,
-          maxActions: ctx.flags.max as number,
-          neverPress: anyOf(rules?.never),
-          closers: anyOf(rules?.close),
-          backs: anyOf(rules?.back),
-          errorCopy: anyOf(ctx.config.errorCopy),
-          safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
-          appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
-          overlay: overlayOf(ctx.flags),
-          login: loginFlow
-            ? {
-                flows: loginFlow.split(',').map((f) => readJson<Flow>(f.trim())),
-                vars: varsOf(ctx.flags),
-                varCommands: pairs(ctx.flags['var-cmd'] as string[] | undefined),
+        // The crawl records its own transitions, from screens it reads itself; the connection learning too would count each twice.
+        const { transitions, states } = await device.unlearned(() =>
+          crawl({
+            device,
+            outDir,
+            depth: ctx.flags.depth as number,
+            maxActions: ctx.flags.max as number,
+            neverPress: anyOf(rules?.never),
+            closers: anyOf(rules?.close),
+            backs: anyOf(rules?.back),
+            errorCopy: anyOf(ctx.config.errorCopy),
+            safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
+            appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
+            overlay: overlayOf(ctx.flags),
+            login: loginFlow
+              ? {
+                  flows: loginFlow.split(',').map((f) => readJson<Flow>(f.trim())),
+                  vars: varsOf(ctx.flags),
+                  varCommands: pairs(ctx.flags['var-cmd'] as string[] | undefined),
+                }
+              : undefined,
+            goal: ctx.flags.to as string | undefined,
+            memory,
+            directions: graph ? (from, to) => plan(graph, from, to, known.all()) : undefined,
+            log: (line) => ctx.flags.verbose && ctx.err(`    · ${line}`),
+            onTransition: (t) => {
+              const b = t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? '');
+              ctx.err(
+                `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${t.toRoute ?? '?'}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
+              );
+              // A press that opened a sheet went somewhere even though the route did not change: the layer is the destination.
+              if (t.fromRoute && t.toRoute && (t.fromRoute !== t.toRoute || t.fromLayer !== t.toLayer)) {
+                const added = known.record({
+                  from: t.fromRoute,
+                  to: t.toRoute,
+                  via: t.button.testId ?? `text:${t.button.text ?? ''}`,
+                  fromLayer: t.fromLayer,
+                  toLayer: t.toLayer,
+                });
+                learned[added ? 'added' : 'reinforced'] += 1;
               }
-            : undefined,
-          goal: ctx.flags.to as string | undefined,
-          memory,
-          directions: graph ? (from, to) => plan(graph, from, to, known.all()) : undefined,
-          log: (line) => ctx.flags.verbose && ctx.err(`    · ${line}`),
-          onTransition: (t) => {
-            const b = t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? '');
-            ctx.err(
-              `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${t.toRoute ?? '?'}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
-            );
-            // A press that opened a sheet went somewhere even though the route did not change: the layer is the destination.
-            if (t.fromRoute && t.toRoute && (t.fromRoute !== t.toRoute || t.fromLayer !== t.toLayer)) {
-              const added = known.record({
-                from: t.fromRoute,
-                to: t.toRoute,
-                via: t.button.testId ?? `text:${t.button.text ?? ''}`,
-                fromLayer: t.fromLayer,
-                toLayer: t.toLayer,
-              });
-              learned[added ? 'added' : 'reinforced'] += 1;
-            }
-          },
-        });
+            },
+          }),
+        );
         const bad = transitions.filter((t) => t.problems.length);
         const screens = Object.keys(states).length;
         return {

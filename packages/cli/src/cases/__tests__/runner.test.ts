@@ -63,6 +63,7 @@ const fakeApp = () => {
     },
     waitFor: async () => ({ waitedMs: 0 }),
     idle: async () => ({ settled: true }),
+    swipe: (params: never) => server.call('swipe', params),
     command: async (name: string) => (name === 'events' ? [{ name: 'points_viewed', properties: { points: 25 } }] : {}),
   } as unknown as Device;
   const base: Base = {
