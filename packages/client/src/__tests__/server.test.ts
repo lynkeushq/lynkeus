@@ -199,8 +199,11 @@ test('a call to an app that left fails as gone once it has had time to come back
     assert.match(e.message, /^the app is gone \(crashed or closed\): it disconnected [\d.]+ s ago and has not dialed back in$/);
     return true;
   });
-  // The short wait an app back in front gets to redial, never the call's 20 s.
-  assert.ok(Date.now() - t0 < 4000);
+  // What is left of the window the app had to come back, never the call's 20 s; once it is over, nothing.
+  assert.ok(Date.now() - t0 < 1000);
+  const t1 = Date.now();
+  await assert.rejects(server.call('screen', undefined, 20_000), /the app is gone \(crashed or closed\)/);
+  assert.ok(Date.now() - t1 < 50);
 });
 
 test('an app that left and dials back in within the window is used, and is no longer gone', async () => {

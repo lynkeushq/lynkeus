@@ -33,8 +33,6 @@ const MAX_CANDIDATES = 8;
 const CANDIDATE_MAX_FRAME = 64 * 1024;
 const MAX_FRAME = 32 * 1024 * 1024;
 const CANDIDATE_MS = 5000;
-// An app back in front redials within its longest backoff (1.5 s): a call after one already given up on waits that long.
-const RETURN_MS = 2500;
 const BACKGROUND = 'the app went to the background (another app is in front)';
 
 export type AgentServerOptions = {
@@ -177,11 +175,13 @@ export class AgentServer extends EventEmitter {
     const deadline = Date.now() + timeoutMs;
     let socket = this.#socket;
     if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) {
-      // An app that left gets a while to come back, not every call's whole timeout: a crashed one would otherwise
-      // cost each step of each case its full wait.
+      // An app that left gets one window to come back, not every call's whole timeout: a crashed one would otherwise
+      // cost each step of each case its full wait. What brings an app back on purpose (a relaunch, the OS putting it
+      // in front again) waits for its hello itself.
       const goneSince = this.#goneSince;
       if (goneSince !== null) {
-        const wait = Math.min(timeoutMs, Math.max(goneSince + this.#goneMs - Date.now(), RETURN_MS));
+        const wait = Math.min(timeoutMs, goneSince + this.#goneMs - Date.now());
+        if (wait <= 0) throw this.#goneError(goneSince);
         await this.waitForApp(wait).catch(() => {
           throw this.#goneError(goneSince);
         });
