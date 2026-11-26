@@ -129,8 +129,13 @@ success and the fallback paths:
 
 A native SDK that puts up its own screen (identity verification, a messenger) cannot run under jest. The cases
 config's `nativeMocks` stands in for it: the SDK's call puts up a page whose buttons (`#native-mock-<label>`) each
-resolve the call with a result, so a case presses Submit or Close as a person would. Sumsub's `launch` and
-Intercom's messenger have defaults.
+resolve the call with a result, so a case presses Submit or Close as a person would. Nothing stands in by default:
+the app lists its SDKs in `lynkeus.config.json`, for example
+
+```json
+{ "cases": { "nativeMocks": { "SNSMobileSDKModule.launch": { "screen": { "title": "Sumsub", "buttons": {
+  "Submit": { "success": true, "status": "Pending" }, "Close": { "success": false, "status": "Incomplete" } } } } } } }
+```
 
 The stand-in answers the SDK's native module, so the SDK's JavaScript has to be the real one. An app whose jest
 setup stubs the package whole for its unit tests can leave it real for a host: `lynkeus headless start` sets

@@ -10,12 +10,25 @@ import { reset } from '../runtime.js';
 type Launch = () => Promise<unknown>;
 const nativeMocks = (params: unknown) => (host.get('nativeMocks') as (p: unknown) => unknown)(params);
 
+const SUMSUB = {
+  screen: {
+    title: 'Sumsub',
+    subtitle: 'Identity verification',
+    buttons: { Submit: { success: true, status: 'Pending' }, Close: { success: false, status: 'Incomplete' } },
+  },
+};
+
 beforeAll(() => {
   installNativeMocks();
 });
 
 describe('nativeMocks', () => {
-  it('stands in for Sumsub with a page whose buttons answer the launch', async () => {
+  it('has no stand-in an app did not ask for', () => {
+    expect(NativeModules.SNSMobileSDKModule).toBeUndefined();
+  });
+
+  it('stands in for a configured SDK with a page whose buttons answer the launch', async () => {
+    nativeMocks({ replace: { 'SNSMobileSDKModule.launch': SUMSUB } });
     await render(createElement(NativeMockScreen));
     let launched: Promise<unknown> | undefined;
     await act(async () => {
@@ -29,14 +42,9 @@ describe('nativeMocks', () => {
     expect(screen.queryByTestId('native-mock')).toBeNull();
   });
 
-  it('answers a configured result at once, and a reset brings the defaults back', async () => {
+  it('answers a configured result at once', async () => {
     nativeMocks({ set: { 'SNSMobileSDKModule.launch': { result: { success: false, status: 'Failed' } } } });
     await expect((NativeModules.SNSMobileSDKModule!.launch as Launch)()).resolves.toEqual({ success: false, status: 'Failed' });
     reset();
-    await render(createElement(NativeMockScreen));
-    await act(async () => {
-      void (NativeModules.SNSMobileSDKModule!.launch as Launch)();
-    });
-    expect(screen.getByTestId('native-mock-close')).toBeTruthy();
   });
 });

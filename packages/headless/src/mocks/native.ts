@@ -1,8 +1,8 @@
-// The cases config's `nativeMocks`: what a native SDK the host cannot run (Sumsub, Intercom) answers, and the
+// The cases config's `nativeMocks`: what a native SDK the host cannot run (identity verification, a messenger) answers, and the
 // page it shows meanwhile. A mock keyed "Module.method" resolves the call with its `result`, or puts up a
 // stand-in page whose buttons each resolve it with a result of their own, pressable as `#native-mock-<label>`.
 // The page is drawn over the app's root, so a case sees and presses it like any other screen; fastsim's host
-// answers the same `nativeMocks` command with the same defaults.
+// answers the same `nativeMocks` command.
 import { qa } from 'lynkeus-agent';
 import { createElement, useSyncExternalStore, type ReactElement } from 'react';
 
@@ -13,24 +13,8 @@ type Screen = { title?: string; subtitle?: string; image?: string; buttons?: Rec
 type NativeMock = { result?: unknown; screen?: Screen } & NativeValueEntry;
 type Shown = { key: string; screen: Screen; resolve: (result: unknown) => void };
 
-// Without configuration, the SDK's own screen stands in as a titled page, and the answers are the ones its
-// library resolves with when the user finishes or backs out.
-const DEFAULTS: Record<string, NativeMock> = {
-  'SNSMobileSDKModule.launch': {
-    screen: {
-      title: 'Sumsub',
-      subtitle: 'Identity verification',
-      buttons: {
-        Submit: { success: true, status: 'Pending' },
-        Close: { success: false, status: 'Incomplete', errorType: 'Unknown' },
-      },
-    },
-  },
-  'IntercomModule.presentIntercom': { screen: { title: 'Intercom', subtitle: 'Messenger', buttons: { Close: true } } },
-  'IntercomModule.presentIntercomSpace': { screen: { title: 'Intercom', subtitle: 'Messenger', buttons: { Close: true } } },
-  'IntercomModule.presentContent': { screen: { title: 'Intercom', subtitle: 'Help content', buttons: { Close: true } } },
-  'IntercomModule.presentMessageComposer': { screen: { title: 'Intercom', subtitle: 'New message', buttons: { Close: true } } },
-};
+// Nothing by default: which SDK screens an app has, and what they answer, is the app's to say in `nativeMocks`.
+const DEFAULTS: Record<string, NativeMock> = {};
 
 let mocks: Record<string, NativeMock> = { ...DEFAULTS };
 let shown: Shown | null = null;
