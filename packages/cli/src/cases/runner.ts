@@ -797,7 +797,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // Covered or still moving is often for a moment (a screen or button sliding in, a sheet still
       // closing), and a press then lands on whatever covers it or where the control no longer is.
       const at = found ? JSON.stringify(found.frame) : undefined;
-      if (found?.enabled && !found.covered && at === was) break;
+      // A control the keyboard covers stays covered until the press: the agent closes the keyboard before it
+      // presses anything but a field, and measures again. Waiting for it to clear only ran out the deadline.
+      const underKeyboard = async (e: Element) => e.kind !== 'input' && (await d.screen()).elements.some((x) => x.focused);
+      if (found?.enabled && at === was && (!found.covered || (await underKeyboard(found)))) break;
       was = at;
       if (Date.now() > deadline && !(await d.screen()).busy) break;
       await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
