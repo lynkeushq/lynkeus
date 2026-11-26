@@ -57,7 +57,7 @@
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
-    "now": "ac2885cc69f36c20"
+    "now": "8458926e4a06a9a2"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -69,7 +69,7 @@
   },
   "wire/press-by-number": {
     "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
-    "now": "3c963fceed2d74f0"
+    "now": "c967c68bb87ee5e4"
   },
   "detect/empty/status": {
     "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
@@ -145,11 +145,11 @@
   },
   "report/file/cases.jsonl": {
     "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "779b8979fcf5c327"
+    "now": "e1ab20a0c6d1ef91"
   },
   "report/file/progress.ndjson": {
     "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "ad73813a53b53bda"
+    "now": "f50c437ac40925b5"
   },
   "surface/fails/status offline": {
     "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
@@ -165,7 +165,7 @@
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
-    "now": "268047cd81968b36"
+    "now": "de96f3f297f4f28a"
   },
   "wire/compare-run-frames": {
     "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
