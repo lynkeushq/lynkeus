@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.7.6
+
 - `press` over MCP and in a session waits, as a case's press does, for a control a screen is still sliding over (up to 3 s), but not for one only the keyboard covers. Pressed right after a `wait` for the new route, the tap landed during the transition and was lost, and the next `wait` timed out.
 - `lynkeus-agent` lets the host it runs in add its own commands: when the agent starts it calls `globalThis.__lynkeusHostControls({ qa, host, countHeldFrom, native })` once if the host defines it (`HostControls` is exported). A Lynkeus FastSim bundle made with a current `fastsim-bundle` uses it to give any app `screenshot`, `record`, `clock`, `still`, `alert`, `netmock` holds and the rest; before, only bundles made inside FastSim's own repository had them, so a customer's app ran with no frames, no film and no virtual clock. Nothing changes where no host defines it, and a hook that throws only logs a warning.
 - `lynkeus case run` no longer falls back to `simctl` or `adb` for a step's frame when the run started the host itself (`--host-command`, `--host`): the picture was of whatever Simulator or emulator happened to be booted. When `--screenshots` kept no frame, the summary now says so (as `--video` already did), and on a host the run started both warnings name the fix: `lynkeus-agent` 0.7.6 or newer and a bundle made again with a current `fastsim-bundle`.

@@ -51,7 +51,7 @@ La app espera este mensaje para presentarse: no envía `hello` por su cuenta al 
 {
   "event": "hello",
   "protocolVersion": 2,
-  "agentVersion": "0.7.5",
+  "agentVersion": "0.7.6",
   "platform": "ios",
   "native": true,
   "commands": ["busy", "events", "profile", "reset", "stores", "traceContext"],
