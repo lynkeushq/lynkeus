@@ -669,8 +669,8 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--video-scale <n>` | pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told) |
 | `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
 | `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
-| `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
-| `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
+| `--jobs <n>` | cases at once, each on its own host (default `1`) |
+| `--ports <list>` | the driver port of each job, comma-separated: where its host dials in (default: free ones) |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
 | `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
 | `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |

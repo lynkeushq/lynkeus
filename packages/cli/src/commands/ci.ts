@@ -7,7 +7,7 @@ import { readCases } from '../cases/format.js';
 import { readJson } from '../files.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { screensAffectedBy } from '../knowledge/query.js';
-import { portFromEnv } from '../config.js';
+import { DEFAULT_PORT, portFromEnv } from '../config.js';
 import { define } from '../registry.js';
 import { caseFiles } from './cases.js';
 import { runtimeAt } from '../runtimes/index.js';
@@ -102,7 +102,7 @@ export const ciCommands = [
           return { text: `no case to run: ${picked}`, json: { files } };
         }
       }
-      const first = portFromEnv(ctx.config) ?? 8123;
+      const first = portFromEnv(ctx.config) ?? DEFAULT_PORT;
       const ports = Array.from({ length: jobs }, (_, i) => first + i);
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
       // The run keeps one host per job and starts it again when it dies or runs short of heap.

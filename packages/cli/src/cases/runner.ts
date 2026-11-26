@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 
 import type { Element, RequestRecord, RunEdges, RunLooked, RunNativeValue, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
 
-import { type Device, describeScreen } from '../device/driver.js';
+import { type Device, describeScreen, NATIVE_COVER, nativeCover } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
@@ -1379,12 +1379,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       : undefined;
   // A failed `see` or `wait` for a target keeps the whole listing, the scrolls it made and what the target was
   // last seen as: enough to tell a button off the window from one not mounted yet or one covered.
+  let lookedScreen: Screen | undefined;
   const lookedAfter = async (step: Step): Promise<RunLooked | undefined> => {
     if (options.dry || !trail || (step.verb !== 'app.see' && step.verb !== 'app.wait')) return undefined;
     const d = await device().catch(() => undefined);
     if (!d?.server.connected || unreachable(d.server)) return undefined;
     const screen = await d.screen().catch(() => undefined);
     if (!screen) return undefined;
+    lookedScreen = screen;
     const params = (typeof step.value === 'string' ? { target: step.value } : (step.value ?? {})) as Record<string, unknown>;
     const wanted =
       step.verb === 'app.wait' ? (typeof params.what === 'string' || typeof params.target === 'string' ? targetOfWait(params) : undefined) : targetIn(params);
@@ -1397,6 +1399,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       scrollsTotal: trail.scrollsTotal,
       ...(wanted ? { target: { found: trail.found, ...(trail.last ? { last: trail.last } : {}), seen: trail.seen } } : {}),
     };
+  };
+  const coverNow = async (): Promise<string | undefined> => {
+    if (options.dry) return undefined;
+    const d = await device().catch(() => undefined);
+    return d?.server.connected ? d.screen().then(nativeCover, () => undefined) : undefined;
   };
   const targetOfWait = (params: Record<string, unknown>): Target | undefined => {
     const what = typeof params.what === 'string' ? params.what : typeof params.target === 'string' ? params.target : undefined;
@@ -1484,14 +1491,24 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       failed = true;
       if (index < setupLength) setupFailed = true;
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
+      lookedScreen = undefined;
       const looked = await lookedAfter(step);
+      // A see or wait has just read the screen; a press or a type reads it once more, only when it fails.
+      const cover = message.includes(NATIVE_COVER)
+        ? undefined
+        : lookedScreen
+          ? nativeCover(lookedScreen)
+          : step.verb === 'app.press' || step.verb === 'app.type'
+            ? await coverNow()
+            : undefined;
+      if (cover) broke.error = `${message} (${cover})`;
       if (looked) broke.looked = looked;
       if (step.verb === 'app.wait' && looked?.target) {
         const [first = '', ...more] = message.split('\n');
-        broke.error = [`${first}${sightingNote(trail)}`, ...more].join('\n');
+        broke.error = [`${first}${sightingNote(trail)}${cover ? ` (${cover})` : ''}`, ...more].join('\n');
       }
       steps.push(broke);
-      log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
+      log(`  ❌ ${text}  — ${(broke.error ?? message).split('\n')[0]}  (${Date.now() - t0}ms)`);
       ended('failed');
       await flush();
       if (evidence || capturing) await record(broke, steps.length, at, t0);

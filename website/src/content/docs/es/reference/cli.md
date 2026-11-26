@@ -405,7 +405,11 @@ Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependenc
 |---|---|
 | `--offline` | Revisa solo los archivos; no espera a que haya una app conectada. |
 
-Cada línea empieza con `✓` o con `✗`, y las `✗` terminan con la solución tras un guion largo. El host sin pantalla y la clave de reportes son opcionales: aparecen igual, pero un proyecto puede vivir sin ellos.
+Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o con `○` si falta algo opcional. Las `✗` y las `○` terminan con la solución tras un guion largo.
+
+Después viene **Where cases can run on this machine**: dónde pueden correr los casos en esta máquina. Muestra los simuladores de iOS encendidos, los emuladores y teléfonos Android que lista `adb devices`, si la app puede correr sin pantalla y si Lynkeus FastSim está instalado. La última línea recomienda qué usar en el día a día y qué usar en CI.
+
+Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` en cada emulador y teléfono Android, para que la app llegue a Lynkeus también por `localhost`. Y en una app con `expo-dev-client` marca como vista la pantalla de bienvenida del menú de desarrollo y oculta su botón flotante, en cada simulador y emulador donde la app está instalada: las dos son vistas nativas que tapan la app y ningún paso puede tocar. El cambio vale desde el próximo arranque de la app. Lo mismo pasa una vez cuando una app se conecta desde un simulador o un emulador.
 
 ## Sistema operativo (`os`)
 
@@ -1066,7 +1070,7 @@ Si mezclas opciones que dependen unas de otras, el comando lo dice y no ejecuta 
 
 - `--screenshots and --video keep what they take in the run directory: add --out <dir>`
 - `--push uploads the run directory: add --out <dir>`
-- `--jobs and --host-command need a driver port per job: --ports with <n>`
+- `--jobs and --host-command need a driver port per job: --ports with <n>`, cuando `--ports` trae menos puertos que `--jobs`. Sin `--ports`, el comando elige puertos libres.
 - `--progress x: json or none`, cuando `--progress` recibe otro valor.
 
 #### Seguir una ejecución larga

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { headlessMissing, init, installFailure, mountAgent, setupChecks } from '../commands/init.js';
+import { LYNKEUS_GITIGNORE } from '../config.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -90,7 +91,10 @@ test('an Expo Router app gets an entry that mounts the agent, then the router, a
   // The token is made once, kept out of git, and handed to Expo the only way it takes one.
   const token = fs.readFileSync(path.join(root, '.lynkeus', 'token'), 'utf8').trim();
   assert.match(token, /^[0-9a-f]{48}$/);
-  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8'), 'token\n');
+  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8'), LYNKEUS_GITIGNORE);
+  // The app had no .gitignore: the token's env file is kept out of git all the same.
+  assert.match(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), /^\.env\*\.local$/m);
+  assert.ok(notes.some((n) => n.includes('added .env*.local to .gitignore')));
   assert.equal(fs.readFileSync(path.join(root, '.env.local'), 'utf8'), `EXPO_PUBLIC_LYNKEUS_TOKEN=${token}\n`);
   assert.ok(notes.some((n) => n.includes('made a token')));
   // A second run changes nothing.

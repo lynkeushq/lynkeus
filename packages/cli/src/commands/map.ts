@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { edgesFile, frontierFile, graphFile, lynkeusDir } from '../config.js';
+import { CLI_VERSION } from '../device/agentVersion.js';
 import { readJson, writeJson } from '../files.js';
 import * as edges from '../knowledge/edges.js';
 import * as frontier from '../knowledge/frontier.js';
@@ -270,7 +271,8 @@ export const mapCommands = [
   }),
 ];
 
-export const mapCheckWorkflow = (depth: number): string => `name: lynkeus map check
+// Pinned to the CLI that wrote it: an unpinned npx takes whatever is latest on the day CI runs, which can read the map differently.
+export const mapCheckWorkflow = (depth: number, version = CLI_VERSION): string => `name: lynkeus map check
 on:
   pull_request:
 
@@ -290,8 +292,8 @@ jobs:
           node-version: 22
       - name: Build the map and check the diff
         run: |
-          npx --yes lynkeus map build > /dev/null
-          npx --yes lynkeus map check --base origin/\${{ github.base_ref }} --depth ${depth} > map-check.txt
+          npx --yes lynkeus@${version} map build > /dev/null
+          npx --yes lynkeus@${version} map check --base origin/\${{ github.base_ref }} --depth ${depth} > map-check.txt
       - name: Comment on the pull request
         env:
           GH_TOKEN: \${{ github.token }}

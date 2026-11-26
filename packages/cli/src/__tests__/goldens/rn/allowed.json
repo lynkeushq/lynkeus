@@ -70,5 +70,101 @@
   "wire/press-by-number": {
     "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
     "now": "27f33b157d1b274f"
+  },
+  "detect/empty/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/expo app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "6695166aeae6fb74"
+  },
+  "detect/node package, no react-native/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/pubspec.yaml app beside a broken package.json/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app beside a package.json without react-native/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/pubspec.yaml app with a tsconfig/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app, inline sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml package without an sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml with an sdk only under dev_dependencies/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/react-native beside a pubspec.yaml app, inline sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native beside a pubspec.yaml app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native dev dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native peer dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/react-native with tsconfig/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "devices/reverse/no adb": {
+    "why": "the adb reverse of the driver's port now covers emulators too and answers the serials it reversed (none without adb), so status can say which devices can reach the port.",
+    "now": "97974b25e3ad0e5a"
+  },
+  "devices/reverse/phones only": {
+    "why": "every adb device and emulator gets `adb reverse` of the driver's port, not only phones: an emulator whose 10.0.2.2 is blocked attached to nothing until it was reversed by hand.",
+    "now": "f2d22b677976ddbe"
+  },
+  "report/file/cases.jsonl": {
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
+    "now": "779b8979fcf5c327"
+  },
+  "report/file/progress.ndjson": {
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
+    "now": "ad73813a53b53bda"
+  },
+  "surface/fails/status offline": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "surface/help/case run": {
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
+    "now": "868f9d0eb9e70a5f"
+  },
+  "surface/mcp/tool/case_run": {
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
+    "now": "e9d76baeeea7ff57"
+  },
+  "wire/failure-stops-and-tears-down": {
+    "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
+    "now": "268047cd81968b36"
   }
 }

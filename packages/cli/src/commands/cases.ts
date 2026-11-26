@@ -11,8 +11,8 @@ import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
-import { claimPorts } from '../cases/portClaim.js';
-import { configFile, portFromEnv } from '../config.js';
+import { claimPorts, freePorts } from '../cases/portClaim.js';
+import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
@@ -266,15 +266,50 @@ const spawnHost = (command: string, port: number, job: number, cwd: string, env:
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
 // A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
-export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; screenshots?: boolean; ownHost?: boolean }): string[] => {
+// The packages whose calls the agent and the hosts keep (lynkeus-agent's sdks.ts, lynkeus-headless's analytics mocks).
+const ANALYTICS_PACKAGES = [
+  'mixpanel-react-native',
+  'react-native-appsflyer',
+  '@react-native-firebase/analytics',
+  '@react-native-firebase/crashlytics',
+  '@datadog/mobile-react-native',
+  '@sentry/react-native',
+  '@intercom/intercom-react-native',
+  '@amplitude/analytics-react-native',
+  '@amplitude/react-native',
+  '@braze/react-native-sdk',
+  'react-native-branch',
+  'react-native-adjust',
+  '@bugsnag/react-native',
+  'clevertap-react-native',
+  'react-native-onesignal',
+  'react-native-fbsdk-next',
+  '@iterable/react-native-sdk',
+];
+
+/** The analytics, crash and support SDKs among the app's dependencies that Lynkeus keeps the calls of. */
+export const analyticsSdksOf = (root: string): string[] => {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    return ANALYTICS_PACKAGES.filter((name) => manifest.dependencies?.[name] ?? manifest.devDependencies?.[name]);
+  } catch {
+    return [];
+  }
+};
+
+/** `sdks`: the analytics SDKs the app depends on; an app with none sends no event, and that is nothing to warn about. */
+export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; sdks: string[]; screenshots?: boolean; ownHost?: boolean }): string[] => {
   if (reports.length === 0) return [];
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
   return [
-    ...(fromApp
+    ...(fromApp || asked.sdks.length === 0
       ? []
       : [
-          '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
+          `⚠ no case kept an analytics event from the app, which depends on ${asked.sdks.join(', ')} (the agent and the hosts keep the calls that reach them; on a simulator or emulator only where the SDK’s module can be wrapped).`,
         ]),
     ...(asked.screenshots && !steps.some((s) => s.screenshot)
       ? [
@@ -417,8 +452,8 @@ export const caseCommands = [
       'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told)', value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
-      jobs: { type: 'number', help: 'cases at once, each on its own host (needs --ports)', value: 'n', default: 1 },
-      ports: { type: 'string', help: 'the driver port of each job, comma-separated: where its host dials in', value: 'list' },
+      jobs: { type: 'number', help: 'cases at once, each on its own host', value: 'n', default: 1 },
+      ports: { type: 'string', help: 'the driver port of each job, comma-separated: where its host dials in (default: free ones)', value: 'list' },
       'host-command': {
         type: 'string',
         help: 'starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job',
@@ -512,20 +547,19 @@ export const caseCommands = [
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
       // A run file files each event under its step, so it needs them collected.
       const events = typeof ctx.flags.events === 'string' || (out !== undefined && !ctx.flags['no-app-events']);
+      const jobsAsked = Math.max(1, Number(ctx.flags.jobs ?? 1));
+      // Hosts side by side need a port each; with none given, free ones are picked, past the one an attached app dials.
+      const runPorts =
+        typeof ctx.flags.ports === 'string'
+          ? ctx.flags.ports.split(',').map(Number)
+          : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string') && !dry
+            ? await freePorts(jobsAsked, portFromEnv(ctx.config) ?? DEFAULT_PORT)
+            : undefined;
+      if (runPorts && typeof ctx.flags.ports !== 'string') ctx.err(`driver ports: ${runPorts.join(', ')} (picked free; --ports chooses them)`);
       const runLabel = `${cases.length === 1 ? cases[0]!.id : `${cases.length} cases (${cases[0]?.id ?? 'none'}…)`}, started ${new Date().toLocaleTimeString()}${out ? `, out ${out.directory}` : ''}`;
       const claimed = dry
         ? undefined
-        : claimPorts(
-            typeof ctx.flags.ports === 'string'
-              ? ctx.flags.ports
-                  .split(',')
-                  .map(Number)
-                  .filter(Number.isInteger)
-                  .slice(0, Math.max(1, Number(ctx.flags.jobs ?? 1)))
-              : [portFromEnv(ctx.config) ?? 8123],
-            undefined,
-            runLabel,
-          );
+        : claimPorts(runPorts ? runPorts.filter(Number.isInteger).slice(0, jobsAsked) : [portFromEnv(ctx.config) ?? DEFAULT_PORT], undefined, runLabel);
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
       // Stopped by the caller giving up (an MCP client cancelling the call), by `case stop`, or not at all.
       const halt = new AbortController();
@@ -672,7 +706,7 @@ export const caseCommands = [
           if (missing.length > 0) return { text: [...missing, `the fixtures command answers: ${described.commands.join(', ')}`].join('\n'), code: 1 };
         }
         const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
-        const ports = typeof ctx.flags.ports === 'string' ? ctx.flags.ports.split(',').map(Number) : [];
+        const ports = runPorts ?? [];
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         const keepHosts = !!ctx.flags['keep-hosts'] && hostCommand !== undefined;
         // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
@@ -981,6 +1015,7 @@ export const caseCommands = [
           ? missingEvidence(reports, {
               video: !!ctx.flags.video,
               screenshots: !!ctx.flags.screenshots,
+              sdks: analyticsSdksOf(ctx.root),
               ownHost: typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host,
             })
           : []),

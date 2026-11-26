@@ -86,8 +86,10 @@ test('flake runs are summarized by the step and error they died on', () => {
 });
 
 test('the map check workflow diffs against the pull request base and keeps one comment', () => {
-  const yml = mapCheckWorkflow(2);
-  assert.match(yml, /lynkeus map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 2/);
+  const yml = mapCheckWorkflow(2, '0.7.5');
+  assert.match(yml, /lynkeus@0\.7\.5 map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 2/);
+  // Pinned: an unpinned npx would run whatever is latest the day CI runs.
+  assert.doesNotMatch(yml, /npx --yes lynkeus /);
   assert.match(yml, /--edit-last/);
   assert.match(yml, /pull-requests: write/);
 });

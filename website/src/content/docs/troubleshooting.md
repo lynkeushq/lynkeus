@@ -359,9 +359,9 @@ give_points is not a step Lynkeus has, and the project declares no fixtures (cas
 
 ### `--jobs and --host-command need a driver port per job`
 
-**Why.** Each job drives its own host, and each host dials its own port.
+**Why.** Each job drives its own host, and each host dials its own port. `--ports` named fewer ports than `--jobs` asks for, or one that is not a number.
 
-**Fix.** Pass one port per job: `--jobs 2 --ports 8123,8124`.
+**Fix.** Leave `--ports` out and Lynkeus picks free ports past the one an attached app dials, or pass one port per job: `--jobs 2 --ports 8124,8125`.
 
 ## The headless host
 

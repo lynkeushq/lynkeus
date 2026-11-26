@@ -307,7 +307,8 @@ and a histogram of where it died and with what.
   and the like, or `--component <path>`); an Expo Router app has none, so it
   runs on a simulator or an emulator and not on the headless host.
 - **Physical devices**: an Android phone on USB works as an emulator does. The
-  CLI runs `adb reverse` for each phone it finds when it starts listening, and
+  CLI runs `adb reverse` for each device and emulator it finds when it starts
+  listening (and on `lynkeus status`), and
   an agent with no `host` set tries 10.0.2.2 and then localhost until one
   answers, so nothing needs setting up; the phone's logcat is kept as an
   emulator's is. An iPhone is not supported: simctl drives only simulators, so

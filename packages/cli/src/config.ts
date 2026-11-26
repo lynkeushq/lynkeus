@@ -26,6 +26,35 @@ export const readToken = (root?: string): string | undefined => {
   }
 };
 
+/**
+ * What `.lynkeus/.gitignore` says: everything Lynkeus writes there stays out of git (the token, runs, FastSim
+ * bundles that inline the token, jest caches, the flake ledger, the route map, recorded screens) except what a
+ * team reviews and shares: snapshot baselines, funnels and lint baselines.
+ */
+export const LYNKEUS_GITIGNORE = `# Written by lynkeus. Everything here is per machine or made again (the token, runs, FastSim bundles,
+# caches, the route map); only what a team reviews is committed.
+/*
+!/.gitignore
+!/snapshots/
+!/funnels/
+!/lint/
+!/lint.json
+`;
+
+/**
+ * Keeps `.lynkeus` out of git but for what a team shares. A file that ignores only the token, as Lynkeus wrote it
+ * before, is replaced; one the project changed itself is only made sure to keep the token out.
+ */
+export const ensureLynkeusIgnore = (root?: string): void => {
+  const ignore = path.join(lynkeusDir(root), '.gitignore');
+  const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
+  if (ignored === LYNKEUS_GITIGNORE) return;
+  fs.mkdirSync(lynkeusDir(root), { recursive: true });
+  if (!ignored.trim() || ignored.trim() === 'token') fs.writeFileSync(ignore, LYNKEUS_GITIGNORE);
+  else if (!ignored.split('\n').some((line) => ['token', '/token', '*', '/*'].includes(line.trim())))
+    fs.writeFileSync(ignore, `${ignored}${ignored.endsWith('\n') ? '' : '\n'}token\n`);
+};
+
 /** Makes the project's token if it has none, and keeps it out of git: `.lynkeus` also holds what a team commits. */
 export const ensureToken = (root?: string): { token: string; made: boolean } => {
   const had = readToken(root);
@@ -33,9 +62,7 @@ export const ensureToken = (root?: string): { token: string; made: boolean } => 
   const token = crypto.randomBytes(24).toString('hex');
   fs.mkdirSync(lynkeusDir(root), { recursive: true });
   fs.writeFileSync(tokenFile(root), `${token}\n`, { mode: 0o600 });
-  const ignore = path.join(lynkeusDir(root), '.gitignore');
-  const ignored = fs.existsSync(ignore) ? fs.readFileSync(ignore, 'utf8') : '';
-  if (!ignored.split('\n').includes('token')) fs.writeFileSync(ignore, `${ignored}${ignored && !ignored.endsWith('\n') ? '\n' : ''}token\n`);
+  ensureLynkeusIgnore(root);
   return { token, made: true };
 };
 
@@ -145,6 +172,9 @@ export type CiConfig = {
   /** Extra `case run` flags, as on the command line. */
   run?: string[];
 };
+
+/** Where the driver listens and the agent dials when nothing says otherwise. */
+export const DEFAULT_PORT = 8123;
 
 export const portFromEnv = (config: LynkeusConfig = {}): number | undefined => (process.env.LYNKEUS_PORT ? Number(process.env.LYNKEUS_PORT) : config.port);
 
