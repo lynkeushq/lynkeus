@@ -88,7 +88,7 @@ In a project you do not know, call status first: it lists what is set up, where 
 
 To set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
 
-Where to run: a dev build on a Simulator or emulator runs every case, picks up saved JS through Fast Refresh and is free: use it while writing cases. The headless host (no device, Node) and Lynkeus FastSim start a fresh app per case and run cases side by side: use them for whole suites and CI, FastSim when the organization has it (frames, film, pixel-stable runs), headless otherwise.
+Where to run: a dev build on a Simulator or emulator runs every case, picks up saved JS through Fast Refresh and is free: use it while writing cases. The headless host (no device, Node) and Lynkeus FastSim start a fresh app per case and run cases side by side: use them for whole suites and CI, FastSim when the organization has it (frames, film, pixel-stable runs), headless otherwise. Lynkeus never boots or closes a device: when you are done, shut down the Simulators and emulators you booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running when you started.
 
 To write cases, spend tokens in this order and stop as soon as you know enough:
 1. case_coverage: the app's screens and which ones no case reaches yet.
