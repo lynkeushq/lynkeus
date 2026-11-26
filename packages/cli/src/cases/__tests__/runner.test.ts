@@ -942,3 +942,38 @@ test('a step that passes keeps no listing', async () => {
     [undefined, undefined],
   );
 });
+
+// A field with focus and the keyboard over the button: the agent closes it before the press, so the runner does not wait.
+const keyboardOver = async (focused: boolean) => {
+  const { base, calls } = fakeApp();
+  const device = (await base.device()) as unknown as {
+    server: { call: (method: string, params: { testId?: string }) => Promise<unknown> };
+    screen: () => Promise<{ elements: unknown[] }>;
+  };
+  const call = device.server.call;
+  const listed = device.screen;
+  device.server.call = async (method, params) => {
+    const found = await call(method, params);
+    return method === 'find' && params.testId === 'refresh' && found ? { ...(found as object), covered: true } : found;
+  };
+  device.screen = async () => {
+    const screen = await listed();
+    screen.elements.push({ i: 5, kind: 'input', testId: 'email', focused, enabled: true, depth: 0, frame: { x: 0, y: 100, w: 300, h: 40 } });
+    return screen;
+  };
+  return { base, calls };
+};
+
+test('a press under the keyboard of a focused field goes ahead at once; a covered one without it waits its timeout', async () => {
+  const c = parseCase('---\nid: kb\n---\nsteps:\n  - app.press: { target: "#refresh", timeoutMs: 400 }\n', 'kb.md');
+  const typing = await keyboardOver(true);
+  let started = Date.now();
+  assert.equal((await runCase(c, { base: typing.base, config, fixtures })).result, 'passed');
+  assert.ok(Date.now() - started < 300, `waited ${Date.now() - started} ms`);
+  assert.ok(typing.calls.some((call) => call.method === 'press'));
+
+  const covered = await keyboardOver(false);
+  started = Date.now();
+  await runCase(c, { base: covered.base, config, fixtures });
+  assert.ok(Date.now() - started >= 400, `waited ${Date.now() - started} ms`);
+});
