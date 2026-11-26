@@ -87,8 +87,10 @@ export const mapCommands = [
         `  took       ${summary.seconds.toFixed(1)}s`,
         `  wrote      ${summary.wrote}`,
         ...(dropped ? [`  collected  ${dropped} rows for screens that are gone`] : []),
+        ...graph.warnings.slice(0, 5).map((w) => `  warning    ${w}`),
+        ...(graph.warnings.length > 5 ? [`  …          ${graph.warnings.length - 5} more warnings (--json)`] : []),
       ];
-      return { text: text.join('\n'), json: { ...summary, dropped } };
+      return { text: text.join('\n'), json: { ...summary, dropped, warnings: graph.warnings }, ...(routes.size ? {} : { code: 1 }) };
     },
   }),
   define({
