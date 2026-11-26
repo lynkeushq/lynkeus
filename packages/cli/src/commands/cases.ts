@@ -111,6 +111,15 @@ export const hostLost = async (
   return 'is running but its app is not attached';
 };
 
+/**
+ * A case that found no app while the host it started still runs: the host loaded the app, and the app's agent never
+ * dialed in. That is a bundle with the agent off or left out, which the client's own hint (a dev build) does not name.
+ */
+export const agentSilent = (report: Pick<CaseReport, 'result' | 'steps'>, host: ChildProcess | undefined): string | undefined =>
+  report.result === 'failed' && host && !exited(host) && report.steps.some((s) => s.error?.startsWith('No app attached'))
+    ? 'is running the app, but no Lynkeus agent dialed in: the bundle has the agent off (auto() or <Lynkeus> with enabled false; before lynkeus-agent 0.7.6 a FastSim bundle, a release build, left it off unless enabled said otherwise) or was made without it'
+    : undefined;
+
 export type HostMemory = { heapUsedMb?: number; heapLimitMb?: number };
 
 /**
@@ -743,8 +752,11 @@ export const caseCommands = [
                       nativeLogs: native,
                       onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
-                    const mine = keepHosts ? kept[index] : runHost;
-                    const lost = report.result === 'failed' && mine ? await hostLost(mine, mine === runHost ? await server() : undefined) : undefined;
+                    const mine = keepHosts ? kept[index] : (host ?? runHost);
+                    const lost =
+                      report.result === 'failed' && mine
+                        ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine))
+                        : undefined;
                     if (lost) {
                       report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
                       report.evidence = {

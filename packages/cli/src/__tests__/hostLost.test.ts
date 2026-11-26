@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-import { heapPast, hostLost } from '../commands/cases.js';
+import { agentSilent, heapPast, hostLost } from '../commands/cases.js';
 
 const server = (connected: boolean, attachesWithin?: number) => ({
   connected,
@@ -41,4 +41,23 @@ test('a host past a share of its heap limit is named with how full it is', () =>
   // Nothing measured, nothing to say.
   assert.equal(heapPast(undefined, 60), undefined);
   assert.equal(heapPast({}, 60), undefined);
+});
+
+test('a running host whose app never attached names the agent, not a dev build', async () => {
+  const unattached = {
+    result: 'failed' as const,
+    steps: [{ step: 'app.press #go', status: 'failed' as const, ms: 1, error: 'No app attached on 127.0.0.1:9301 within 15000ms.' }],
+  };
+  const host = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 10_000)']);
+  try {
+    assert.match(agentSilent(unattached, host) ?? '', /no Lynkeus agent dialed in/);
+    // A case that failed on its own checks says nothing about the agent.
+    assert.equal(agentSilent({ result: 'failed', steps: [{ step: 'app.see Hi', status: 'failed', ms: 1, error: 'not on screen' }] }, host), undefined);
+    assert.equal(agentSilent(unattached, undefined), undefined);
+  } finally {
+    host.kill();
+  }
+  await once(host, 'exit');
+  // A host that exited has its own words (hostLost); this is only for one still running.
+  assert.equal(agentSilent(unattached, host), undefined);
 });

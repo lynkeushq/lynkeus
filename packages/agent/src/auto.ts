@@ -11,7 +11,7 @@
 import { Component, type ComponentType, createElement, Profiler, type ReactNode } from 'react';
 import { AppRegistry, View } from 'react-native';
 
-import { Lynkeus, type LynkeusProps } from './Lynkeus';
+import { enabledByDefault, Lynkeus, type LynkeusProps } from './Lynkeus';
 import { type ContainerRef, type NavigationAdapter, reactNavigationAdapter } from './navigation';
 import { recordCommit } from './profile';
 import { record } from './trace';
@@ -102,7 +102,7 @@ export type AutoOptions = Omit<LynkeusProps, 'navigation'> & {
 let wrapper: Root | undefined;
 
 export const auto = (options: AutoOptions = {}): void => {
-  const enabled = options.enabled ?? __DEV__;
+  const enabled = options.enabled ?? enabledByDefault();
   if (!enabled || wrapper) return;
   const { discoverEveryMs = 250, ...agentProps } = options;
   const navigation = lazyAdapter();
