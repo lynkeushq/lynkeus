@@ -162,6 +162,34 @@ export const loadConfig = (root?: string): LynkeusConfig => {
   return { ...own, ...extra };
 };
 
+/**
+ * A reader of the configuration that stays current: it parses again only when a config file's modification time
+ * changes, so a long-lived process (the MCP server) sees what the agent wrote after it started, at the cost of a stat.
+ */
+export const configReader = (root?: string): (() => LynkeusConfig) => {
+  const stamp = () =>
+    [configFile(root), process.env.LYNKEUS_CONFIG ? path.resolve(process.env.LYNKEUS_CONFIG) : undefined]
+      .map((file) => {
+        if (!file) return '-';
+        try {
+          return String(fs.statSync(file).mtimeMs);
+        } catch {
+          return 'missing';
+        }
+      })
+      .join('|');
+  let seen: string | undefined;
+  let config: LynkeusConfig = {};
+  return () => {
+    const now = stamp();
+    if (now !== seen) {
+      config = loadConfig(root);
+      seen = now;
+    }
+    return config;
+  };
+};
+
 export type CiConfig = {
   /** Shell commands that bring the project's backend up and down, and a URL that answers once it can serve. */
   backend?: { up: string; down?: string; ready?: string; timeoutMs?: number };

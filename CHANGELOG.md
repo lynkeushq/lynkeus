@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus mcp` read `lynkeus.config.json` once, when it started, so `macros`, `cases.start`, `launch` and anything else the agent added later were ignored until the server restarted. Every tool call now sees the file as it is: it is parsed again when its modification time changes (and `LYNKEUS_CONFIG`'s, when set), which costs a `stat` per call.
+
 ## 0.7.6
 
 - `press` over MCP and in a session waits, as a case's press does, for a control a screen is still sliding over (up to 3 s), but not for one only the keyboard covers. Pressed right after a `wait` for the new route, the tap landed during the transition and was lost, and the next `wait` timed out.
