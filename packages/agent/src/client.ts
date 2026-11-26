@@ -1,10 +1,11 @@
-import { LogBox, NativeModules, Platform } from 'react-native';
+import { AppState, LogBox, NativeModules, Platform } from 'react-native';
 
 import type { Backend } from './backend';
 import { fabricBackend } from './backends/fabric';
 import { createHandlers, dispatch } from './handlers';
 import type { NavigationAdapter } from './navigation';
 import { hmacSha256Hex, sameHex } from './hmac';
+import { installHostControls } from './hostControls';
 import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response, type VerifiedEvent } from './protocol';
 import { addDefault, host } from './registry';
 import { trackRequests } from './requests';
@@ -66,6 +67,15 @@ const randomHex = (): string => {
 };
 
 /** The app end of the link: dials the driver, retries quietly while nobody listens, serves requests. Returns a stop function. */
+// Hermes resolves Intl's default locale from the device's settings: what a case drafted from the screen reads in.
+const deviceLocale = (): string | undefined => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const start = (options: ClientOptions): (() => void) => {
   // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
   if (!options.token && options.allowUnauthenticated !== true) {
@@ -73,6 +83,8 @@ export const start = (options: ClientOptions): (() => void) => {
     return () => undefined;
   }
   trackRequests();
+  // Before `hello`, which lists the commands: the host's own (FastSim's screenshots and clock) are among them.
+  installHostControls();
   // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,
   // from the SDKs' own modules.
   if (tapSdks(NativeModules as Record<string, Record<string, unknown> | undefined>) > 0) addDefault('analytics', readSdkCalls);
@@ -106,6 +118,8 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
+    ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
+    locale: deviceLocale(),
     ...proof,
   });
 
@@ -231,12 +245,16 @@ export const start = (options: ClientOptions): (() => void) => {
     trace({ kind: 'route', route, path: navigation.path() });
     send({ event: 'navigation', route });
   });
+  // Said before the OS suspends the app: afterwards its socket stays open on a phone and answers nothing, and the
+  // driver could only wait out each call.
+  const appState = AppState.addEventListener?.('change', (state) => send({ event: 'appstate', state: String(state) }));
   connect();
 
   return () => {
     stopped = true;
     if (timer) clearTimeout(timer);
     unsubscribe();
+    appState?.remove();
     socket?.close();
   };
 };

@@ -1,9 +1,10 @@
-import { beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { host } from 'lynkeus-agent';
 import { NativeModules, Platform } from 'react-native';
 
 import { installNativeMocks } from '../mocks/native.js';
 import { applyNativeValues, installNativeValues, resolveNativeValue, type NativeValueRead } from '../mocks/nativeValues.js';
+import { owners } from '../mocks/owners.js';
 
 const nativeMocks = (params: unknown) => (host.get('nativeMocks') as (p: unknown) => unknown)(params);
 const report = () => (host.get('nativeValues') as () => NativeValueRead[])();
@@ -39,15 +40,13 @@ describe('resolveNativeValue', () => {
 });
 
 describe('unknown native reads', () => {
-  it('lists a property no module answers, once, and a module the host does not have', () => {
+  it('lists a property no module answers, once', () => {
     expect(modules.DeviceInfo?.isTablet).toBeUndefined();
     expect(modules.DeviceInfo?.isTablet).toBeUndefined();
-    expect(modules.RNMissing).toBeUndefined();
     const list = report();
     expect(list.filter((r) => r.module === 'DeviceInfo' && r.property === 'isTablet')).toEqual([
       { module: 'DeviceInfo', property: 'isTablet', platform: Platform.OS, host: 'headless', readAs: 'undefined' },
     ]);
-    expect(list).toContainEqual({ module: 'RNMissing', platform: Platform.OS, host: 'headless', readAs: 'undefined' });
   });
 
   it('does not list the probes of promises, JSON and event emitters', () => {
@@ -56,6 +55,51 @@ describe('unknown native reads', () => {
     void probe.toJSON;
     void probe.addListener;
     expect(report().some((r) => ['then', 'toJSON', 'addListener'].includes(r.property ?? ''))).toBe(false);
+  });
+});
+
+describe('the fallback for a module nothing provides', () => {
+  // These reads come from a test file, which has no native side to define a module: pretend it does.
+  const owns = owners.owns;
+  beforeAll(() => {
+    owners.owns = (_reader, module) => module !== 'RNSomeoneElses';
+  });
+  afterAll(() => {
+    owners.owns = owns;
+  });
+
+  it('leaves a module the reader does not define undefined: an optional one it checks for', () => {
+    expect(modules.RNSomeoneElses).toBeUndefined();
+    expect(report()).toContainEqual({ module: 'RNSomeoneElses', platform: Platform.OS, host: 'headless', readAs: 'undefined' });
+  });
+
+  it('answers it empty and says so: the module, and each method read, called or not', async () => {
+    const missing = modules.RNMissing as Record<string, (...args: unknown[]) => unknown>;
+    expect(missing).toBeDefined();
+    await expect(missing.load!('x')).resolves.toBeUndefined();
+    void missing.isTablet;
+    expect(missing.getConstants!()).toEqual({});
+    expect(missing.then).toBeUndefined();
+    const list = report().filter((r) => r.module === 'RNMissing');
+    expect(list).toEqual([
+      { module: 'RNMissing', platform: Platform.OS, host: 'headless', readAs: 'empty' },
+      { module: 'RNMissing', property: 'load', platform: Platform.OS, host: 'headless', readAs: 'function', called: true },
+      { module: 'RNMissing', property: 'isTablet', platform: Platform.OS, host: 'headless', readAs: 'function', called: false },
+    ]);
+  });
+
+  it('stands in where TurboModuleRegistry.getEnforcing would throw, and leaves get optional', () => {
+    const { TurboModuleRegistry } = require('react-native') as { TurboModuleRegistry: { get: (n: string) => unknown; getEnforcing: (n: string) => unknown } };
+    expect(TurboModuleRegistry.get('RNOptional')).toBeNull();
+    expect(report().some((r) => r.module === 'RNOptional' && r.readAs === 'empty')).toBe(false);
+    expect(TurboModuleRegistry.getEnforcing('RNRequired')).toBeDefined();
+    expect(report().some((r) => r.module === 'RNRequired' && r.readAs === 'empty')).toBe(true);
+  });
+
+  it('lets nativeMocks answer a method of a module the fallback made', async () => {
+    void modules.RNLater;
+    nativeMocks({ set: { 'RNLater.fetch': { result: { ok: true } } } });
+    await expect((modules.RNLater!.fetch as () => Promise<unknown>)()).resolves.toEqual({ ok: true });
   });
 });
 

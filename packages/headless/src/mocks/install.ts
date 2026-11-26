@@ -5,33 +5,35 @@ import { installNativeValues } from './nativeValues.js';
 import { connectivityControls, installControls, netControls, pathOf } from './controls.js';
 import {
   asyncStorage,
-  biometrics,
   deviceInfo,
-  fastImage,
-  imagePicker,
-  inAppReview,
   keychain,
   localize,
   mmkv,
   pagerView,
   safeAreaContext,
-  vectorIconsNative,
-  video,
-  visionCamera,
   webView,
   worklets,
   type DeviceVersion,
   type LocaleDefault,
   type MockFactory,
 } from './factories.js';
+import { shippedMocks } from './shipped.js';
 
 // jest injects `jest` as a module-scoped local, not onto globalThis.
-declare const jest: { doMock(name: string, factory: () => unknown): void; requireMock(name: string): Record<string, unknown> };
+declare const jest: {
+  doMock(name: string, factory: () => unknown): void;
+  requireMock(name: string): Record<string, unknown>;
+  requireActual(name: string): unknown;
+};
 
 export type InstallOptions = {
   /** Modules to leave alone, to mock yourself. */
   skip?: string[];
-  /** Module name → factory. Wins over the default and applies even when the module is not installed. */
+  /**
+   * Module name → factory: the app's own mocks, and the opt-in ones this package ships (`biometrics`, `visionCamera`,
+   * `imagePicker`, `video`, `fastImage`, `inAppReview`, `vectorIconsNative` from 'lynkeus-headless/mocks'). Wins over
+   * every default and applies even when the module is not installed.
+   */
   overrides?: Record<string, MockFactory>;
   /** 'real' swaps jest's banned fetch for Node's own, fenced by `networkHosts`. */
   network?: 'real' | 'banned';
@@ -193,11 +195,15 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
   };
   const send: Fetch = (input, init) => {
     const url = typeof input === 'string' ? input : ((input as { url?: string } | null)?.url ?? String(input));
+    const method = String((init as { method?: string } | undefined)?.method ?? (input as { method?: string } | null)?.method ?? 'GET').toUpperCase();
+    const rule = connectivityControls.offline() ? undefined : netControls.match(method, url);
+    // A request a case answers never leaves the process, so the fence has nothing to keep it from: an app whose API is
+    // a third party's (a public feed) is still driven through its mocked answers.
+    if (rule && !rule.lost)
+      return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
     const refused = refuse(url);
     if (refused) return Promise.reject(new Error(`lynkeus headless: network to ${refused} is off (networkHosts)`));
     if (connectivityControls.offline()) return Promise.reject(new TypeError('Network request failed'));
-    const method = String((init as { method?: string } | undefined)?.method ?? (input as { method?: string } | null)?.method ?? 'GET').toUpperCase();
-    const rule = netControls.match(method, url);
     if (rule?.lost) {
       const lost = (response?: unknown) => {
         log(`network: lost the answer to ${method} ${url} (${(response as { status?: number } | undefined)?.status ?? 'no answer'})`);
@@ -206,7 +212,6 @@ const fencedFetch = (fetchImpl: Fetch, hosts: string[]): Fetch => {
       };
       return fetchImpl(input, init).then(lost, () => lost());
     }
-    if (rule) return netControls.respond(rule, (globalThis as unknown as { Response: Parameters<typeof netControls.respond>[1] }).Response).then(ownErrors);
     const guarded = followAllowed(fetchImpl, refuse, input, init as RequestInit | undefined, url, method);
     const result = guarded.then(ownErrors, told(url));
     if (!netControls.recording()) return result;
@@ -418,6 +423,28 @@ const deferAnimationCompletions = () => {
   if (typeof mock.withSequence === 'function') mock.withSequence = (...animations: unknown[]) => animations.at(-1) ?? 0;
 };
 
+// jest-expo answers expo-constants' manifest with an empty object where a device build embeds the app config: an app
+// that builds a deep link (`Linking.createURL`) then throws for want of its scheme. `headless start` reads the config
+// (LYNKEUS_EXPO_CONFIG).
+const installExpoConfig = () => {
+  const env = process.env;
+  const text = env.LYNKEUS_EXPO_CONFIG;
+  if (!text || !resolvable('expo-modules-core')) return;
+  // jest-expo's expo-modules-core hands out a copy of the module on every require; the copies are made from this one.
+  const core = jest.requireActual('expo-modules-core') as { NativeModulesProxy?: Record<string, Record<string, unknown> | undefined> };
+  const constants = core.NativeModulesProxy?.ExponentConstants;
+  const current = constants?.manifest;
+  if (!constants || (typeof current === 'object' && current !== null && Object.keys(current).length > 0)) return;
+  try {
+    constants.manifest = JSON.parse(text);
+    // A development build, which is what Lynkeus drives on a device; jest-expo says 'mock', which no code path expects.
+    if (!['bare', 'standalone', 'storeClient'].includes(String(constants.executionEnvironment))) constants.executionEnvironment = 'bare';
+    log('expo: expo-constants reads the app config, as a development build');
+  } catch {
+    log('expo: LYNKEUS_EXPO_CONFIG is not JSON; expo-constants keeps an empty manifest');
+  }
+};
+
 // Call at the top of the headless entry, before the app is required. Returns the modules it mocked.
 export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   if (typeof jest === 'undefined') throw new Error('installDefaultMocks must run under jest (lynkeus headless).');
@@ -426,9 +453,11 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   const overrides = options.overrides ?? {};
   const hosts = options.networkHosts ?? LOCAL_HOSTS;
 
-  // Applied only when the module resolves in the project. Reanimated and
-  // gesture-handler are left out: their jest story is a babel plugin and a
-  // setup file, and reanimated's mock lacks newer APIs.
+  // Applied only when the module resolves in the project, and only for libraries most apps have whose generic answer
+  // breaks them: storage that must keep what was written, a client version above any server gate, insets that
+  // arrive, the launch locale, pages and web views the case commands drive. Anything else native gets the library's
+  // own jest mock when it ships one, then the generic fallback (nativeValues.ts). Reanimated and gesture-handler are
+  // left out here: gesture-handler's jest story is a setup file it ships (run below), reanimated's a babel plugin.
   const defaults: Record<string, MockFactory> = {
     'react-native-mmkv': mmkv,
     'react-native-keychain': keychain,
@@ -438,14 +467,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     '@react-native-async-storage/async-storage': asyncStorage,
     'react-native-worklets': worklets,
     'react-native-pager-view': pagerView,
-    'react-native-video': video,
-    'react-native-fast-image': fastImage,
-    'react-native-biometrics': biometrics,
-    'react-native-in-app-review': inAppReview,
     'react-native-webview': webView,
-    'react-native-vision-camera': visionCamera,
-    'react-native-image-picker': imagePicker,
-    'react-native-vector-icons/lib/NativeRNVectorIcons': vectorIconsNative,
   };
 
   const installed: string[] = [];
@@ -456,6 +478,9 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     jest.doMock(name, factory);
     installed.push(name);
   }
+  const { factories: shipped, setups } = shippedMocks(new Set([...installed, ...skip]));
+  for (const [name, factory] of Object.entries(shipped)) jest.doMock(name, factory);
+  for (const file of Object.values(setups)) require(file);
 
   if (options.network === 'real') installRealNetwork(hosts);
   installControls(options.initialUrl ?? null);
@@ -464,9 +489,12 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   installNativeValues();
   if ((options.animations ?? 'deferred') === 'deferred') deferAnimationCompletions();
   installNetInfo();
+  installExpoConfig();
   installWebSocket(options.websocket ?? 'stub', hosts);
 
   log(`mocked: ${installed.sort().join(', ') || '(none detected)'}`);
+  if (Object.keys(shipped).length) log(`their own jest mocks: ${Object.keys(shipped).sort().join(', ')}`);
+  if (Object.keys(setups).length) log(`their own jest setup: ${Object.keys(setups).sort().join(', ')}`);
   if (recorders.length) log(`analytics: recorded per SDK (${recorders.length} native modules)`);
-  return installed;
+  return [...installed, ...Object.keys(shipped), ...Object.keys(setups)];
 };

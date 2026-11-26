@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { Element, Screen, Target } from 'lynkeus-protocol';
 import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
-import { describeScreen, describeTrace } from '../device/driver.js';
+import { type Device, describeScreen, describeTrace, nativeCover } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
@@ -13,13 +14,79 @@ import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { define } from '../registry.js';
-import { whyFor } from '../runtime.js';
+import { whyFor, whyScope } from '../runtime.js';
 import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
 const SCOPE_FLAGS = {
   in: { type: 'string' as const, help: 'the match nearest this target', value: 'target' },
   nth: { type: 'number' as const, help: 'the nth match, from 0', value: 'n' },
+};
+
+const coverOf = (device: Device): Promise<string | undefined> => device.screen().then(nativeCover, () => undefined);
+
+/** A press that failed while a native view covers the app says so: the agent alone only reads every control as covered. */
+const withCover = async (device: Device, error: unknown): Promise<unknown> => {
+  const cover = error instanceof Error ? await coverOf(device) : undefined;
+  if (cover && error instanceof Error) error.message = `${error.message} (${cover})`;
+  return error;
+};
+
+// The looks below go through the app (`idle`), so a host with a clock of its own moves on between them.
+const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutMs: ms * 2 }).catch(() => undefined);
+
+/**
+ * A control still under what covers it (a screen sliding in, the app coming back from a reset) takes no tap: a press
+ * is lost and typing finds no focused input. Waited for as a case's steps wait: there, then not covered.
+ */
+export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
+  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does).
+  const underKeyboard = async (e: Element) => e.kind !== 'input' && (await device.screen()).elements.some((x) => x.focused);
+  let found = await find();
+  if (!found) {
+    await device.waitFor({ target, timeoutMs }).catch(() => undefined);
+    found = await find();
+  }
+  while (found?.covered && Date.now() < deadline && !(await underKeyboard(found))) {
+    await look(device, 50);
+    found = await find();
+  }
+};
+
+const coveredShape = (screen: Screen) =>
+  screen.elements
+    .filter((e) => e.covered && !e.hidden)
+    .map((e) => `${e.i}@${Math.round(e.frame.x)},${Math.round(e.frame.y)}`)
+    .join('|');
+
+// Longer than a platform's screen transition: covered controls that stay so this long are covered for good (a header
+// over a scrolled list), not by a screen still moving.
+const STEADY_COVER_MS = 600;
+
+/**
+ * The screen once the app is quiet and done moving. A native transition changes no React state, so a quiet app can
+ * still be sliding the next screen in, every control on it reading as covered until it lands: the screen is read
+ * again until what is covered clears or stops changing.
+ */
+export const settledScreen = async (device: Device, timeoutMs = 3000): Promise<Screen> => {
+  await device.idle({ quietMs: 200, timeoutMs }).catch(() => undefined);
+  let screen = await device.screen();
+  let shape = coveredShape(screen);
+  let since = Date.now();
+  const deadline = Date.now() + timeoutMs;
+  while (shape && Date.now() < deadline && Date.now() - since < STEADY_COVER_MS) {
+    // A host on a clock of its own answers a look at once: the steady time is still the wall's.
+    await Promise.all([look(device, 100), new Promise((r) => setTimeout(r, 50))]);
+    screen = await device.screen();
+    const now = coveredShape(screen);
+    if (now !== shape) {
+      shape = now;
+      since = Date.now();
+    }
+  }
+  return screen;
 };
 
 export const driveCommands = [
@@ -66,14 +133,19 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const device = await ctx.device();
-      const result = await device.press({
-        ...scopedTarget(ctx.args[0]!, ctx.flags),
-        holdMs: ctx.flags.hold as number | undefined,
-        mode: ctx.flags.js ? 'js' : undefined,
-      });
+      // A control a screen is still sliding over takes no tap: waited for as a case's press waits.
+      if (!ctx.waited) await untilUncovered(device, scopedTarget(ctx.args[0]!, ctx.flags));
+      const result = await device
+        .press({
+          ...scopedTarget(ctx.args[0]!, ctx.flags),
+          holdMs: ctx.flags.hold as number | undefined,
+          mode: ctx.flags.js ? 'js' : undefined,
+        })
+        .catch(async (error: unknown) => {
+          throw await withCover(device, error);
+        });
       if (!ctx.flags.settle) return { json: result };
-      await device.idle({ quietMs: 200, timeoutMs: 3000 }).catch(() => undefined);
-      return { text: describeScreen(await device.screen()), json: result };
+      return { text: describeScreen(await settledScreen(device)), json: result };
     },
   }),
   define({
@@ -93,15 +165,14 @@ export const driveCommands = [
       clear: { type: 'boolean', help: 'clear the field first' },
     },
     needs: 'app',
-    run: async (ctx) => ({
-      json: await (await ctx.device()).type({
-        text: ctx.args[0]!,
-        target: ctx.args[1] ? scopedTarget(ctx.args[1], ctx.flags) : undefined,
-        paste: !!ctx.flags.paste,
-        clear: !!ctx.flags.clear,
-        submit: !!ctx.flags.submit,
-      }),
-    }),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      const target = ctx.args[1] ? scopedTarget(ctx.args[1], ctx.flags) : undefined;
+      if (target) await untilUncovered(device, target);
+      return {
+        json: await device.type({ text: ctx.args[0]!, target, paste: !!ctx.flags.paste, clear: !!ctx.flags.clear, submit: !!ctx.flags.submit }),
+      };
+    },
   }),
   define({
     name: 'swipe',
@@ -147,6 +218,7 @@ export const driveCommands = [
     group: 'drive',
     summary: 'Pop the current route',
     needs: 'app',
+    mcp: 'core',
     run: async (ctx) => ({ json: await (await ctx.device()).back() }),
   }),
   define({
@@ -241,7 +313,8 @@ export const driveCommands = [
         });
         return { text: `${ctx.flags.absent ? 'gone' : 'on screen'}: ${raw}`, json: result };
       } catch {
-        return { text: `${ctx.flags.absent ? 'still on screen' : 'not on screen'}: ${raw}`, json: { ok: false }, code: 1 };
+        const cover = ctx.flags.absent ? undefined : await coverOf(device);
+        return { text: `${ctx.flags.absent ? 'still on screen' : 'not on screen'}: ${raw}${cover ? ` (${cover})` : ''}`, json: { ok: false }, code: 1 };
       }
     },
   }),
@@ -354,7 +427,11 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const expected = { ...expectedOf(ctx.args[0]), ...(ctx.flags.route ? { route: ctx.flags.route as string } : {}) };
-      return (await whyFor(ctx, Object.keys(expected).length ? expected : undefined)) || '(no evidence available)';
+      // About the last case or command run on this app, not whatever failed before it.
+      const scope = whyScope((await ctx.device()).server.port);
+      const read = await whyFor(ctx, Object.keys(expected).length ? expected : undefined, scope?.at, scope?.since);
+      const failed = scope?.failed ? `the last ${scope.case ? `case (${scope.case})` : 'command'} failed at ${scope.failed}` : undefined;
+      return [failed, read].filter(Boolean).join('\n') || '(no evidence available)';
     },
   }),
   define({

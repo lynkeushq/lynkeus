@@ -163,6 +163,7 @@ export const osCommands = [
     mcpDetails:
       'Answer a request from a rule instead of the server (status, body, delay, times, lost), or hold requests with `hold` and let them go with `release`: for a loading state that must stay on screen while you look at it. Held requests wait before any rule or the network sees them; `release` (optionally with a route) sends them on, `clear` drops everything and lets them go. `list` shows what is held.',
     positionals: [{ name: 'route', help: "'GET /path' (a bare path matches any method)" }],
+    mcp: 'core',
     flags: {
       status: { type: 'number', help: 'HTTP status to answer', default: 200, value: 'code' },
       body: { type: 'string', help: 'JSON body', value: 'json' },
@@ -261,6 +262,7 @@ export const osCommands = [
     name: 'os language',
     group: 'os',
     summary: 'Simulator: relaunch the app in a locale',
+    mcp: 'core',
     positionals: [{ name: 'tag', help: 'de-DE, en-US, … (default: the locale in lynkeus.config.json)' }],
     needs: 'app',
     run: async (ctx) => {

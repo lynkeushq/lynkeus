@@ -21,10 +21,11 @@ const RULES: Rule[] = [
     fix: (m) => `if ${m[1]} is a path alias, add it to jest moduleNameMapper; if it is an optional native package, jest.mock it in the headless entry.`,
   },
   {
-    re: /lynkeus headless only drives a local backend; API_URL is "([^"]*)"/,
-    cause: (m) => `API_URL is "${m[1] || '(empty)'}", not a local backend`,
-    fix: () =>
-      `export API_URL=http://127.0.0.1:<port>/ before \`lynkeus headless start\`; if the app inlines env at build time, clear its jest transform cache too.`,
+    // Entries written before 0.8 refuse a non-local API address themselves; newer ones rely on the network fence.
+    re: /lynkeus headless only drives a local backend; (\w+) is "([^"]*)"/,
+    cause: (m) => `${m[1]} is "${m[2] || '(empty)'}", not a local backend, and the entry refuses it`,
+    fix: (m) =>
+      `point ${m[1]} at the local backend (http://127.0.0.1:<port>/), or drop the check from the entry: the host refuses hosts outside networkHosts anyway.`,
   },
   {
     re: /(\w+)\.(\w+) is not a function/,

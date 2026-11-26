@@ -73,13 +73,16 @@ test('MCP serves a small core by default and everything else on request', () => 
   const all = [...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...headlessCommands];
   const core = all.filter((c) => c.mcp === 'core').map((c) => c.name);
   assert.deepEqual(core.sort(), [
+    'back',
     'call',
     'headless doctor',
     'headless init',
     'init',
     'map plan',
     'map show',
+    'mock',
     'os deeplink',
+    'os language',
     'press',
     'screen',
     'status',

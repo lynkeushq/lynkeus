@@ -63,17 +63,17 @@ who never opened the file knows what they are looking at.
 | \`app.press\` | target, or \`{ target, within?, nth?, optional?, hold?, timeoutMs? }\` | Waits for the control to be there and enabled. \`optional\` presses only if it is on screen. |
 | \`app.type\` | \`{ text, target?, submit?, clear?, timeoutMs? }\` | \`target\` is tapped first, once it is there (\`timeoutMs\` is how long that may take); \`submit\` ends with the return key. |
 | \`app.swipe\` | \`{ direction, target?, distance? }\` or \`{ from, to }\` | |
-| \`app.wait\` | route, target, ms, \`{ target, scroll? }\`, \`{ anyOf: [target, ...] }\` or \`{ request, status? }\` | \`scroll\` swipes until the target is in the window. \`anyOf\` accepts the first target present. A \`request\` is \`METHOD /path\`. |
-| \`app.see\` | target, or \`{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }\` | An assertion on what the app shows or did. Everything named must hold. |
+| \`app.wait\` | route, target, ms, \`{ target, scroll? }\`, \`{ anyOf: [target, ...] }\` or \`{ request, status? }\` | \`scroll\` swipes until the target is in the window. \`anyOf\` accepts the first target present. A \`request\` is \`METHOD /path\`, and is waited for until it answers 2xx unless \`status\` names another (\`status: 500\`). |
+| \`app.see\` | target, or \`{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }\` | An assertion on what the app shows or did. Everything named must hold. A \`text\` matches whatever its case, so one drawn in capitals (\`textTransform\`) is found by the words the source writes. |
 | \`app.nav\` | route, or \`{ route, params }\` | A teleport, for getting to where the case starts. |
 | \`app.back\` | | |
 | \`app.requests\` | \`mark\` | A \`request\` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered with \`qa.register\`. |
+| \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered: \`qa.register('reset', async (params) => { … })\`, with \`qa\` from \`lynkeus-agent\`. What the function returns is what \`expect\` and \`as\` read. A command the app did not register fails, naming those it did. |
 | \`app.run\` | \`{ flow, vars? }\` | A Lynkeus flow, from the flows folder. |
 | \`app.events\` / \`app.event\` | \`clear\` / \`{ name, props?, absent? }\` | What the app told its analytics. |
 | \`app.<command>\` | its arguments by name | Any other Lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |
 
-A target is \`#testId\`, a text, an index or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A text inside quotes of its own (\`'"Next"'\`) is always a text, where \`app.wait: Next\` would wait for a route called \`Next\`.
+A target is \`#testId\`, a text (a field's placeholder too), an index or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A text inside quotes of its own (\`'"Next"'\`) is always a text, where \`app.wait: Next\` would wait for a route called \`Next\`.
 
 ## Sections
 
@@ -90,6 +90,12 @@ the server; with \`lost: true\` the request reaches the server and its answer is
 lost, as a dropped connection would. A request a mock answered is marked
 \`(mocked)\` in the evidence, and a failure is never blamed on the backend for an
 answer the case made.
+
+Every case starts with no mocks: Lynkeus clears the app's rules and holds before
+the first step and again after the last, so a mock never answers for another case
+or for the app driven by hand. \`app.mock: { clear: true }\` drops them in the
+middle of a case; \`app.mock: { route: "GET /path", hold: true }\` keeps matching
+requests waiting until \`app.mock: { release: true }\`.
 
 A case that runs over several inputs declares \`matrix: { locale: [en, fr] }\`
 in its frontmatter and runs once per combination; \`{{matrix.locale}}\` is that

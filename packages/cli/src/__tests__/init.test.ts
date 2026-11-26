@@ -5,6 +5,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import { headlessMissing, init, installFailure, mountAgent, setupChecks } from '../commands/init.js';
+import { LYNKEUS_GITIGNORE } from '../config.js';
 import { explainError } from '../knowledge/errors.js';
 
 const tmpApp = () => {
@@ -19,13 +20,15 @@ const tmpApp = () => {
   return root;
 };
 
-test('init writes an entry that requires the app and refuses non-local backends', () => {
+test('init writes an entry that runs the app’s own entry and takes the component it registers', () => {
   const root = tmpApp();
   const notes = init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: false, force: false });
   const entry = fs.readFileSync(path.join(root, 'qa/headless.tsx'), 'utf8');
-  assert.match(entry, /require\('\.\.\/app\/App'\)/);
-  assert.match(entry, /process\.env\.API_URL/);
-  assert.match(entry, /installDefaultMocks/);
+  assert.match(entry, /const App = registeredApp\(\(\) => require\('\.\.\/index'\)\)/);
+  assert.match(entry, /\/\/ {3}const \{ default: App \} = require\('\.\.\/app\/App'\)/);
+  assert.match(entry, /import \{ installDefaultMocks, registeredApp \} from 'lynkeus-headless\/mocks'/);
+  // No backend is assumed: the host's network fence keeps a hosted app off non-local hosts.
+  assert.doesNotMatch(entry, /process\.env\.API_URL|only drives a local backend/);
   assert.ok(notes.some((n) => n.includes('wrote qa/headless.tsx')));
   // Second run leaves it alone.
   const again = init(root, { entry: 'qa/headless.tsx', apiEnv: 'API_URL', auto: false, force: false });
@@ -90,7 +93,10 @@ test('an Expo Router app gets an entry that mounts the agent, then the router, a
   // The token is made once, kept out of git, and handed to Expo the only way it takes one.
   const token = fs.readFileSync(path.join(root, '.lynkeus', 'token'), 'utf8').trim();
   assert.match(token, /^[0-9a-f]{48}$/);
-  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8'), 'token\n');
+  assert.equal(fs.readFileSync(path.join(root, '.lynkeus', '.gitignore'), 'utf8'), LYNKEUS_GITIGNORE);
+  // The app had no .gitignore: the token's env file is kept out of git all the same.
+  assert.match(fs.readFileSync(path.join(root, '.gitignore'), 'utf8'), /^\.env\*\.local$/m);
+  assert.ok(notes.some((n) => n.includes('added .env*.local to .gitignore')));
   assert.equal(fs.readFileSync(path.join(root, '.env.local'), 'utf8'), `EXPO_PUBLIC_LYNKEUS_TOKEN=${token}\n`);
   assert.ok(notes.some((n) => n.includes('made a token')));
   // A second run changes nothing.

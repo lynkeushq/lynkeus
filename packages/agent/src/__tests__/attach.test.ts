@@ -2,6 +2,8 @@ import { createHmac } from 'node:crypto';
 
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
+import { AppState } from 'react-native';
+
 import type { Backend } from '../backend';
 import { type Socket, start } from '../client';
 import { noNavigation } from '../navigation';
@@ -161,6 +163,26 @@ describe('hello', () => {
     const { version } = jest.requireActual<{ version: string }>('../../package.json');
     expect(JSON.parse(link.sent[0]!)).toMatchObject({ event: 'hello', agentVersion: version });
     stop();
+  });
+});
+
+describe('the app going to the background', () => {
+  it('tells the driver, so a call to a suspended app is not just a timeout', () => {
+    const listeners: ((state: string) => void)[] = [];
+    const remove = jest.fn();
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+      listeners.push(listener as (state: string) => void);
+      return { remove };
+    });
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    for (const listener of listeners) listener('background');
+    expect(link.sent.map((line) => JSON.parse(line))).toContainEqual({ event: 'appstate', state: 'background' });
+    stop();
+    expect(remove).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

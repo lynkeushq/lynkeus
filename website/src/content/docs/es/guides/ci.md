@@ -49,7 +49,7 @@ npx lynkeus headless init
 npx lynkeus headless doctor
 ```
 
-`headless init` escribe `qa/headless.tsx`: los dobles de prueba predeterminados, un control que verifica que la app apunte a un backend local, y tu componente `App`. `headless doctor` lista qué módulos nativos simula Lynkeus y cuáles todavía necesitan un doble tuyo; `--fix` escribe esos dobles.
+`headless init` escribe la entrada del host, junto a tus casos (`cases/headless.tsx`): los dobles de prueba predeterminados y la entrada propia de tu app. La barrera de red del host la mantiene lejos de los hosts que no son locales. `headless doctor` lista qué módulos nativos simula Lynkeus y cuáles todavía necesitan un doble tuyo; `--fix` escribe esos dobles.
 
 Comprueba que arranca antes de llevarlo a CI:
 

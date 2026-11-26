@@ -84,15 +84,23 @@ const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
 // a test for this" need nothing more from the person asking.
 const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
 
-In a project you do not know, call status first: it lists what is set up and, for what is not, the one thing that fixes it.
+In a project you do not know, call status first: it lists what is set up, where cases can run on this machine, and, for what is not set up, the one thing that fixes it.
 
 To set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
 
-To write a test: call case_init once if the project has no cases, and read the README.md it writes for the format. Go to the screen with press, type and wait, calling screen to see what is there (press with settle: true answers with the screen once the app has settled; a screen read right after a press can still be the one it left); prefer testIDs (#id) over text. Write the case as a markdown file in the cases folder, then call case_run with that file. A failed step comes back with the screen it failed on: fix the case or report the app's bug, do not weaken the check.
+Where to run: a dev build on a Simulator or emulator runs every case, picks up saved JS through Fast Refresh and is free: use it while writing cases. The headless host (no device, Node) and Lynkeus FastSim start a fresh app per case and run cases side by side: use them for whole suites and CI, FastSim when the organization has it (frames, film, pixel-stable runs), headless otherwise. Lynkeus never boots or closes a device: when you are done, shut down the Simulators and emulators you booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running when you started.
 
-To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json.
+To write cases, spend tokens in this order and stop as soon as you know enough:
+1. case_coverage: the app's screens and which ones no case reaches yet.
+2. case_new with the screen: a draft with the way there (from the route map), the backend setup to pick from and the checks left to write. map_plan answers the way between two screens. On the screen already, case_here drafts from what is shown.
+3. Only then drive the app (press, type, wait; press with settle: true answers with the screen once the app has settled) and call screen to fill what the draft could not know. Prefer testIDs (#id) over text, and short texts over paragraphs. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
+4. Write the case as a markdown file in the cases folder (case_init writes the folder and a README.md with the format, once) and call case_run with that file. A failed step comes back with its error and the screen it failed on: fix the case or report the app's bug, never weaken the check.
 
-To test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing; use it when the person asks for it or their organization already has it, otherwise the headless host and the Simulator or emulator are free and cover the same cases): fastsim_install with platform ios or android (the sign-in a member with a seat saved by running "lynkeus login" in a terminal, which you cannot do for them: when there is none, tell the person to run it; or, in CI, LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with "May download Lynkeus FastSim"), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. iOS matches the simulator only on a Mac. When the service refuses (no FastSim in the organization's plan, no seat, a key without "May download Lynkeus FastSim"), tell the person what the refusal says and where to get it (an owner subscribes at https://lynkeus.io/pricing, or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.
+After changing the app's code, or to review a branch: case_impact with base (the branch's base) lists the cases the changes reach; run those with case_run, then fix what broke. In CI, \`lynkeus ci --affected\` does the same on every pull request, and \`lynkeus map ci\` writes a workflow that comments the screens a pull request reaches.
+
+To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json. A native module the app uses and nobody provides is answered empty by default, and the run lists each one: tell the person, and when an empty answer changes what the app shows, give it a real one where the list says (the person decides).
+
+To test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing; use it when the person asks for it or their organization already has it, otherwise the headless host and the Simulator or emulator are free and cover the same cases): fastsim_install with platform ios or android (the sign-in a member with a seat saved by running "lynkeus login" in a terminal, which you cannot do for them: when there is none, tell the person to run it; or, in CI, LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with "May download Lynkeus FastSim"), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. To look around the app on FastSim before writing a case, fastsim_start with that bundle folder attaches this server to a host of its own (screen, press and type then drive it) until fastsim_stop. iOS matches the simulator only on a Mac. When the service refuses (no FastSim in the organization's plan, no seat, a key without "May download Lynkeus FastSim"), tell the person what the refusal says and where to get it (an owner subscribes at https://lynkeus.io/pricing, or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.
 
 To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
 
@@ -101,7 +109,7 @@ For a run with everything (frames, film, requests, analytics, backend): case_run
 A case that changes something outside the app (a face enrolled on a shared Simulator) puts it back in \`teardown:\`, a list of steps with the same syntax as \`steps\`: it runs after them whether they passed, failed or were skipped, a failing teardown step is only a warning, and a run cut by a timeout never reaches it.
 A long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.
 
-For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.
+For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications. A client may move a long case_run to the background: follow it with case_status, and stop it with case_stop (cancelling the call stops it too). One case_run at a time drives an app: a second one on the same port is refused until the first ends or is stopped.
 
 For a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.
 
@@ -159,15 +167,19 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
       return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
     // A client that passed a progress token hears how a long command (a case run) goes while it runs.
     const token = request.params._meta?.progressToken;
-    const ctx =
-      token === undefined
-        ? session.ctx
+    // A client that cancels the call (notifications/cancelled) stops a long command with it: a case run ends its
+    // case, stops its hosts and lets go of its port instead of running on unseen.
+    const ctx = {
+      ...session.ctx,
+      signal: extra.signal,
+      ...(token === undefined
+        ? {}
         : {
-            ...session.ctx,
             progress: progressNotifier((params) => {
               void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
             }),
-          };
+          }),
+    };
     const r = await execute(argvFor(c, input), ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));

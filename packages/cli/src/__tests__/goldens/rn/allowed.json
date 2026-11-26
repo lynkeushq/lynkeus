@@ -1,1 +1,226 @@
-{}
+{
+  "surface/help/back": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "84d0aaaaa77e859f"
+  },
+  "surface/help/mock": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "f374b38ef79785b0"
+  },
+  "surface/help/os language": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "253ddb33db343fd5"
+  },
+  "surface/mcp/instructions": {
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text.",
+    "now": "4a19231e51c54c57"
+  },
+  "surface/mcp/tool/back": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "3b22d5060ad7f230"
+  },
+  "surface/mcp/tool/mock": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "531cd80fd32f9adc"
+  },
+  "surface/mcp/tool/os_language": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "8685c9122536c4f8"
+  },
+  "surface/commands": {
+    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
+    "now": "1a81dab195ee463b"
+  },
+  "surface/help/fastsim start": {
+    "why": "new command: starts a FastSim host on the session's driver port",
+    "now": "8b0563dd8a253230"
+  },
+  "surface/help/fastsim stop": {
+    "why": "new command: stops the host fastsim start started",
+    "now": "5186ac9dfb138829"
+  },
+  "surface/mcp/full": {
+    "why": "fastsim_start and fastsim_stop are served over MCP",
+    "now": "fc91aa1f80ae07f4"
+  },
+  "surface/mcp/tool/fastsim_start": {
+    "why": "new tool: explore the app on a FastSim host",
+    "now": "3ddc9af3a0b1586b"
+  },
+  "surface/mcp/tool/fastsim_stop": {
+    "why": "new tool: stops the host fastsim_start started",
+    "now": "ad9c9cf2a470a8a1"
+  },
+  "surface/usage": {
+    "why": "the usage lists fastsim start and fastsim stop",
+    "now": "f7ecf6f889d15a4b"
+  },
+  "report/answer": {
+    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
+    "now": "8458926e4a06a9a2"
+  },
+  "surface/help/case stop": {
+    "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
+    "now": "55dc59d4708a09b0"
+  },
+  "surface/mcp/tool/case_stop": {
+    "why": "case_stop is a new MCP tool, so a model can stop a case_run its client moved to the background.",
+    "now": "87d4605d6f7ddbc9"
+  },
+  "wire/press-by-number": {
+    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
+    "now": "c967c68bb87ee5e4"
+  },
+  "detect/empty/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/expo app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "6695166aeae6fb74"
+  },
+  "detect/node package, no react-native/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/pubspec.yaml app beside a broken package.json/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app beside a package.json without react-native/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/pubspec.yaml app with a tsconfig/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app, inline sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml package without an sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/pubspec.yaml with an sdk only under dev_dependencies/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/react-native beside a pubspec.yaml app, inline sdk/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native beside a pubspec.yaml app/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native dev dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "detect/react-native peer dependency/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "57bfc37534bfc49a"
+  },
+  "detect/react-native with tsconfig/status": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "devices/reverse/no adb": {
+    "why": "the adb reverse of the driver's port now covers emulators too and answers the serials it reversed (none without adb), so status can say which devices can reach the port.",
+    "now": "97974b25e3ad0e5a"
+  },
+  "devices/reverse/phones only": {
+    "why": "every adb device and emulator gets `adb reverse` of the driver's port, not only phones: an emulator whose 10.0.2.2 is blocked attached to nothing until it was reversed by hand.",
+    "now": "f2d22b677976ddbe"
+  },
+  "report/file/cases.jsonl": {
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
+    "now": "e1ab20a0c6d1ef91"
+  },
+  "report/file/progress.ndjson": {
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
+    "now": "f50c437ac40925b5"
+  },
+  "surface/fails/status offline": {
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
+    "now": "2432312394237059"
+  },
+  "surface/help/case run": {
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
+    "now": "868f9d0eb9e70a5f"
+  },
+  "surface/mcp/tool/case_run": {
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
+    "now": "e9d76baeeea7ff57"
+  },
+  "wire/failure-stops-and-tears-down": {
+    "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
+    "now": "de96f3f297f4f28a"
+  },
+  "wire/compare-run-frames": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
+    "now": "60583c0bc20eb7a3"
+  },
+  "wire/counter-name-and-countdown": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "ebcf2212c36c4144"
+  },
+  "wire/events": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "d363e69a85ec0a16"
+  },
+  "wire/every-wait": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "7f2754e1df91d9c1"
+  },
+  "wire/failure-evidence-and-continue": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "de8e55b02842d403"
+  },
+  "wire/interruptions": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "aea231d90b0a9802"
+  },
+  "wire/list-back-and-dialog": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "9bfb78881d182c35"
+  },
+  "wire/macros-blocks-and-commands": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "cdb41b0060c163c2"
+  },
+  "wire/native-window-scrolls": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "ebd35f1d65aae5b1"
+  },
+  "wire/retries-until-enabled-and-listed": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "75662c85c309bd73"
+  },
+  "wire/screenshots-each-step": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
+    "now": "162773e89fd5f0c6"
+  },
+  "wire/unsupported-command": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "81e072ad46a07ef4"
+  },
+  "surface/help/headless init": {
+    "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
+    "now": "a88d858460672de3"
+  },
+  "surface/mcp/tool/headless_init": {
+    "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
+    "now": "f07d7c562f25d929"
+  }
+}

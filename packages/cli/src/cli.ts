@@ -21,7 +21,8 @@ import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
 import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
-import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reversePhones } from './device/devices.js';
+import { devMenuOnAttach } from './device/devMenu.js';
+import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reverseAndroid } from './device/devices.js';
 import { Device } from './device/driver.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
@@ -105,7 +106,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     // Asking the OS which simulators are up takes longer than the app takes to dial in, so listen first.
     picking.catch(() => undefined);
     await server.listen();
-    if (!ownHost) void reversePhones(server.port);
+    if (!ownHost) void reverseAndroid(server.port);
     const hello = await server
       .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? config.attachTimeout ?? 15000))
       .catch(async (error) => {
@@ -123,6 +124,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const resolving = headless || ownHost ? undefined : info.platform === 'android' ? pickAndroidDevice(wantedDevice) : picking;
     const d = new Device(info, { appId: appId ?? null, server, resolving });
     attachedIn(d);
+    if (resolving) void resolving.then((on) => devMenuOnAttach(root, appId, on, err)).catch(() => undefined);
     return d;
   };
 
@@ -137,7 +139,11 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       return graph;
     },
     device: () => {
-      device ??= connect();
+      // A connection that failed (no app yet) is tried again on the next command: a session outlives an app that was late.
+      device ??= connect().catch((error: unknown) => {
+        device = undefined;
+        throw error;
+      });
       return device;
     },
     forPort: (other) => {

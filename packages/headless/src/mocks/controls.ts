@@ -558,6 +558,10 @@ const installDevices = () => {
     if (p.available !== undefined) sensor.available = p.available === 'none' || p.available === null ? null : (p.available as typeof sensor.available);
     if (p.next) sensor.queue.push(...([] as BiometricOutcome[]).concat(p.next));
     if (p.fallback) sensor.fallback = p.fallback;
+    if (!sensor.mocked)
+      log(
+        "biometrics: no biometrics mock loaded; pass `biometrics` from 'lynkeus-headless/mocks' in installDefaultMocks({ overrides: { 'react-native-biometrics': biometrics } })",
+      );
     return { available: sensor.available, queue: [...sensor.queue], fallback: sensor.fallback, prompts: sensor.prompts };
   });
   qa.register('webview', (params) => {
@@ -584,7 +588,10 @@ const installDevices = () => {
     const p = (params ?? {}) as { value?: string; type?: string };
     if (!p.value) throw new Error('scan needs { value }');
     const camera = cameras[cameras.length - 1];
-    if (!camera) throw new Error('scan: no camera mounted (is the scanner open?)');
+    if (!camera)
+      throw new Error(
+        "scan: no camera mounted (is the scanner open? react-native-vision-camera needs the opt-in mock: installDefaultMocks({ overrides: { 'react-native-vision-camera': visionCamera } }))",
+      );
     const scanner = camera.props.codeScanner;
     if (!scanner?.onCodeScanned) throw new Error('scan: the mounted camera has no codeScanner');
     const type = p.type ?? 'qr';

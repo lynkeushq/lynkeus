@@ -13,6 +13,16 @@ const el = (over: Partial<Element>): Element => ({
 });
 
 describe('score', () => {
+  it('finds a field by its placeholder, and only a field', () => {
+    expect(score(el({ kind: 'input', placeholder: 'Email address' }), { text: 'email address' })).toBe(4);
+    expect(score(el({ kind: 'input', placeholder: 'Email address', value: 'ana@x.io' }), { text: 'Email' })).toBe(2);
+    expect(score(el({ kind: 'text', placeholder: 'Email address' }), { text: 'Email address' })).toBe(0);
+  });
+
+  it('finds a text drawn in capitals by the words as the source writes them', () => {
+    expect(score(el({ kind: 'button', text: 'TAP TO LOG IN!' }), { text: 'Tap to log in!' })).toBe(4);
+  });
+
   it('matches testId exactly', () => {
     expect(score(el({ testId: 'a' }), { testId: 'a' })).toBe(4);
     expect(score(el({ testId: 'ab' }), { testId: 'a' })).toBe(0);

@@ -23,15 +23,20 @@ import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
 import { listenerCounts, setSettleProbe } from './mocks/controls.js';
 import { NativeMockScreen } from './mocks/native.js';
+import { discoveredNavigation, entryNavigation } from './navigation.js';
 import { installRuntime, log, onReset, reset } from './runtime.js';
-import type { ReactTestInstance } from './tree.js';
+import { type Fiber, hostRoot, type ReactTestInstance } from './tree.js';
 
 // The host test imports this package before the app's entry.
 installRuntime();
 
 export type HostOptions = Omit<ClientOptions, 'navigation' | 'backend' | 'createSocket'> & {
-  /** Built after render, when the app's navigation ref exists. */
-  navigation?: () => NavigationAdapter;
+  /**
+   * What the entry exports as `navigation`: a function that builds an adapter after render (when the app's ref
+   * exists), an adapter, or a React Navigation container ref. Without one, a React Navigation container (Expo Router
+   * included) is found in the rendered tree.
+   */
+  navigation?: unknown;
   window?: { w: number; h: number };
   /** Composites whose string `value` prop is what they draw (default /qr|barcode/i), listed as the element's value. */
   valueComponents?: RegExp;
@@ -42,6 +47,18 @@ export type HostOptions = Omit<ClientOptions, 'navigation' | 'backend' | 'create
 };
 
 const FOREVER = 2_147_483_647;
+
+const NO_NAVIGATION =
+  'no navigation: the rendered tree has no React Navigation container (Expo Router included), and the headless entry exports no `navigation` (an adapter, a function returning one, or the container ref)';
+const withoutNavigation: NavigationAdapter = {
+  ...noNavigation,
+  navigate: () => {
+    throw new Error(NO_NAVIGATION);
+  },
+  goBack: () => {
+    throw new Error(NO_NAVIGATION);
+  },
+};
 const FORGET_MOCK_CALLS_MS = 10_000;
 
 /**
@@ -86,8 +103,19 @@ const recordCrash = (what: string, error: unknown, where = '') => {
 
 // Without it one screen that throws unmounts the whole tree, and the driver
 // reads an empty screen with no route and no clue why.
+// The boundary is the root of what the host renders; its fiber is where the app's navigation container is looked for.
+let mountedRoot: CrashBoundary | undefined;
+
 class CrashBoundary extends Component<{ children?: ReactNode }, { crashed: boolean }> {
   state = { crashed: false };
+
+  componentDidMount() {
+    mountedRoot = this;
+  }
+
+  componentWillUnmount() {
+    if (mountedRoot === this) mountedRoot = undefined;
+  }
 
   static getDerivedStateFromError() {
     return { crashed: true };
@@ -128,7 +156,9 @@ const nodeSocket = (url: string): Socket => {
   ws.on('message', (data) => socket.onmessage?.({ data: String(data) }));
   ws.on('close', () => socket.onclose?.());
   ws.on('error', (error) => {
-    if (!/ECONNREFUSED/.test(String(error))) log(`socket error: ${String(error)}`);
+    // Node tries IPv4 and IPv6 in turn and reports a driver that is not up yet as an AggregateError of refusals.
+    const codes = [error, ...((error as { errors?: unknown[] }).errors ?? [])].map((e) => (e as { code?: string }).code);
+    if (!codes.includes('ECONNREFUSED') && !/ECONNREFUSED/.test(String(error))) log(`socket error: ${String(error)}`);
     socket.onerror?.();
   });
   return socket;
@@ -244,10 +274,12 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
     collect();
     const m = process.memoryUsage();
     // One fiber root per live tree; more than one after resets is a leak.
-    const hook = (globalThis as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: { renderers: Map<number, unknown>; getFiberRoots: (id: number) => Set<unknown> } })
+    const hook = (globalThis as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: { renderers?: unknown; getFiberRoots?: (id: number) => Set<unknown> } })
       .__REACT_DEVTOOLS_GLOBAL_HOOK__;
+    // React's own hook keeps a Map; the stand-in an app's dev tools (or jest-expo) install may keep an object or nothing.
+    const renderers = hook?.renderers instanceof Map ? [...hook.renderers.keys()] : Object.keys(hook?.renderers ?? {}).map(Number);
     let roots = 0;
-    if (hook) for (const id of hook.renderers.keys()) roots += hook.getFiberRoots(id).size;
+    for (const id of renderers) roots += hook?.getFiberRoots?.(id)?.size ?? 0;
     return {
       heapUsedMb: Math.round(m.heapUsed / 1048576),
       heapTotalMb: Math.round(m.heapTotal / 1048576),
@@ -268,13 +300,20 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
     log(`heap snapshot: ${file}`);
     return { file };
   });
-  log(
-    `rendered; navigation adapter ${host.navigation() ? 'registered by <Lynkeus>' : 'missing'}; dialing ws://${options.host ?? '127.0.0.1'}:${options.port ?? 8123}`,
-  );
+  const fromEntry = entryNavigation(options.navigation);
+  const discovered = discoveredNavigation(() => (mountedRoot as unknown as { _reactInternals?: Fiber } | undefined)?._reactInternals ?? null);
+  const navigationSource = fromEntry
+    ? 'the entry'
+    : host.navigation()
+      ? '<Lynkeus>'
+      : discovered()
+        ? 'the React Navigation container in the tree'
+        : 'none yet (no navigation container found; `app.nav` waits for one)';
+  log(`rendered; navigation from ${navigationSource}; dialing ws://${options.host ?? '127.0.0.1'}:${options.port ?? 8123}`);
   const yoga = await loadYoga(log);
   log(yoga ? 'layout: Yoga loaded (approximate real coordinates)' : 'layout: none (synthetic frames)');
   const blank = { type: 'View', props: {}, children: [], parent: null } as unknown as ReactTestInstance;
-  const backend = headlessBackend(() => (remounting ? blank : (rendered.container as unknown as ReactTestInstance)), {
+  const backend = headlessBackend(() => (remounting ? blank : hostRoot(rendered)), {
     window: options.window,
     yoga,
     valueComponents: options.valueComponents,
@@ -282,7 +321,7 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   });
   setSettleProbe({ commits: () => backend.commitCount(), inFlight: requestsInFlight, held: requestsHeld });
   // A remount registers a new adapter (a new navigation ref): resolve it on every call.
-  const current = (): NavigationAdapter => options.navigation?.() ?? host.navigation() ?? noNavigation;
+  const current = (): NavigationAdapter => fromEntry?.() ?? host.navigation() ?? discovered() ?? withoutNavigation;
   const navigation: NavigationAdapter = {
     isReady: () => current().isReady(),
     currentRoute: () => current().currentRoute(),

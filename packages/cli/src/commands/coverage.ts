@@ -158,14 +158,17 @@ export const coverageCommands = [
       if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) return { text: `${id}: an id is lower case letters, digits, dots, dashes and underscores`, code: 2 };
       // Over MCP no shell keeps a host running: --host brings one up for the read, as `case run --host` does for a run.
       const host = ctx.flags.host ? await startHost(ctx.root, ctx.err) : undefined;
+      let locale: string | undefined;
       const screen = await (async () => {
         try {
-          return await (await ctx.device()).screen();
+          const device = await ctx.device();
+          locale = device.server.hello?.locale;
+          return await device.screen();
         } finally {
           if (host) await stopHost(host);
         }
       })();
-      const text = hereCase(id, screen, ctx.flags.title as string | undefined);
+      const text = hereCase(id, screen, ctx.flags.title as string | undefined, { locale, language: ctx.config.language });
       return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text } };
     },
   }),

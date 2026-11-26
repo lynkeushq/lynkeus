@@ -35,7 +35,9 @@ type DeviceInfo = { id: string; name: string; platform: string; type: string; co
 type Devices = {
   pickAgentDevice: (wanted?: string) => Promise<DeviceInfo>;
   pickAndroidDevice: (wanted?: string) => Promise<DeviceInfo>;
-  reversePhones: (port: number) => Promise<void>;
+  // Main's name for it, which reversed phones only; now every adb device and emulator.
+  reversePhones?: (port: number) => Promise<void>;
+  reverseAndroid?: (port: number) => Promise<unknown>;
 };
 type Lifecycle = {
   lifecycleFor: (platform: 'ios' | 'android') => {
@@ -136,8 +138,9 @@ export const probeDevices = async (): Promise<Entries> => {
     ['LYNKEUS_DEVICE', { adb: ADB_DEVICES, env: 'R58M123ABC' }],
   ];
   for (const [name, machine, wanted] of android) out[`android/${name}`] = await onMachine(machine, () => d.pickAndroidDevice(wanted));
-  out['reverse/phones only'] = await onMachine({ adb: ADB_DEVICES }, () => d.reversePhones(8123));
-  out['reverse/no adb'] = await onMachine({}, () => d.reversePhones(8123));
+  const reverse = (port: number) => (d.reverseAndroid ?? d.reversePhones)!(port);
+  out['reverse/phones only'] = await onMachine({ adb: ADB_DEVICES }, () => reverse(8123));
+  out['reverse/no adb'] = await onMachine({}, () => reverse(8123));
   for (const platform of ['ios', 'android'] as const) {
     const id = platform === 'ios' ? 'AAAA-1111' : 'emulator-5554';
     const tools = { xcrun: SIMULATORS, adb: ADB_DEVICES };

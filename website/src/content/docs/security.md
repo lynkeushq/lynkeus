@@ -134,9 +134,9 @@ The headless host runs your app's JavaScript in Node, usually against a real bac
 
 - **It refuses to start without a token.** `lynkeus headless start` stops with an error unless `LYNKEUS_TOKEN` is set or the project has `.lynkeus/token`.
 - **It refuses hosts that are not local.** With `network: 'real'`, the host lets the app reach only the hosts in `networkHosts`, which defaults to loopback. A request to anything else is refused at once.
-- **It checks the API address before the app renders.** The entry that `lynkeus headless init` writes reads the variable named by `apiEnv` (default `API_URL`) and throws unless it points at `localhost`, `127.0.0.1` or `10.0.2.2`.
+- **The fence also covers the API address.** The generated entry does not check the app's API address itself. If the app reads a non-local one, its requests are refused at once, like any other non-local host. Requests that a `lynkeus mock` rule answers are the one exception: they never leave the process, so they are answered even for hosts outside `networkHosts`.
 
-An automated test pointed at production by accident is exactly what the last two prevent. If you edit the generated entry, keep the guard.
+An automated test pointed at production by accident is exactly what this prevents. If you widen `networkHosts`, you widen what the host can reach.
 
 ## Tests that act on their own
 

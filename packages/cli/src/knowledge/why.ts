@@ -48,6 +48,13 @@ const similar = (a: string, b: string): boolean => {
   return distance(a, b) <= Math.max(2, Math.floor(Math.max(a.length, b.length) * 0.25));
 };
 
+const isTarget = (el: Element, { testId, text }: NonNullable<Evidence['target']>): boolean =>
+  !!((testId && el.testId === testId) || (text && (el.text === text || el.accessibilityLabel === text)));
+
+const refusedByHost = (r: RequestRecord) => r.status === 0 && !!r.error && /networkHosts|is off/.test(r.error);
+
+const describeRequest = (r: RequestRecord) => `${r.method} ${pathOf(r.url)} ${r.status ? r.status : (r.error ?? 'failed')}${r.mocked ? ' (mocked)' : ''}`;
+
 export const explain = (e: Evidence): Finding[] => {
   const out: Finding[] = [];
   const els = e.screen.elements;
@@ -110,27 +117,29 @@ export const explain = (e: Evidence): Finding[] => {
       message: `the host broke a render loop${stall.component ? ` in ${stall.component}` : ''} (${stall.renders} updates in ${stall.windowMs}ms): the screen is dead until a reset. A component whose effect and store feed each other.`,
     });
 
+  const sought = e.target ? els.find((el) => isTarget(el, e.target!)) : undefined;
+  const missing = !sought || (sought.hidden !== undefined && sought.hidden !== 'inert');
+  const target = e.target?.testId ? `#${e.target.testId}` : e.target?.text !== undefined ? JSON.stringify(e.target.text) : undefined;
+
   if (e.target) {
     const { testId, text, route } = e.target;
-    const match = (el: Element) => (testId && el.testId === testId) || (text && (el.text === text || el.accessibilityLabel === text));
-    const found = els.find(match);
-    if (found?.hidden) {
+    if (sought?.hidden) {
       out.push({
         rule: 'hidden',
-        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${found.hidden}): it belongs to a screen the app is not showing. Close what is open, or target something inside it.`,
+        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${sought.hidden}): it belongs to a screen the app is not showing. Close what is open, or target something inside it.`,
       });
     }
-    if (found?.covered)
+    if (sought?.covered)
       out.push({
         rule: 'covered',
         message: `${testId ? `#${testId}` : JSON.stringify(text)} is on the screen but covered: a sheet or overlay is over it. Close it, or press what covers it.`,
       });
-    if (found && !found.enabled)
+    if (sought && !sought.enabled)
       out.push({
         rule: 'disabled',
         message: `${testId ? `#${testId}` : JSON.stringify(text)} is on the screen but disabled: a form is not valid yet, or a request it depends on is in flight.`,
       });
-    if (!found && text) {
+    if (!sought && text) {
       const want = fold(text);
       const near = els
         .map((el) => el.text ?? el.accessibilityLabel)
@@ -144,6 +153,21 @@ export const explain = (e: Evidence): Finding[] => {
         out.push({
           rule: 'capped-list',
           message: `the list shows ${listed.length} near matches and yours is not among them: the data has accumulated look-alikes and the list is capped. Search by something unique, or reset the data.`,
+        });
+    }
+    // A screen shows its empty or error state when its data did not come: a missing row next to a failed request is
+    // that request's doing, whoever answered it.
+    if (missing && target) {
+      const failed = done.filter((r) => (r.status ?? 0) >= 400 || (r.error && !refusedByHost(r)));
+      if (failed.length)
+        out.push({
+          rule: 'request-failed',
+          message: `${target} is not on screen and ${failed
+            .slice(-3)
+            .map(describeRequest)
+            .join(
+              ', ',
+            )} failed: the screen is likely showing its empty or error state instead.${failed.some((r) => r.mocked) ? ' A mocked answer is the case’s own (app.mock): check the case wants it here.' : ''}`,
         });
     }
     if (route && e.screen.route && e.screen.route !== route) {
@@ -182,7 +206,7 @@ export const explain = (e: Evidence): Finding[] => {
     });
 
   // Hosts the sandbox refuses are usually third parties nobody needs: named only when nothing else explains it.
-  const refused = done.filter((r) => r.status === 0 && r.error && /networkHosts|is off/.test(r.error));
+  const refused = done.filter(refusedByHost);
   if (refused.length && e.target && out.length === 0)
     out.push({
       rule: 'host-refused',
@@ -195,6 +219,19 @@ export const explain = (e: Evidence): Finding[] => {
     .find((t) => t.kind === 'command' && t.error);
   if (lastCommand && lastCommand.kind === 'command' && out.length === 0)
     out.push({ rule: 'last-error', message: `the last command that failed was ${lastCommand.method}: ${lastCommand.error}` });
+
+  // Said only when nothing else is: that the data came is worth knowing, and no reason by itself.
+  const answered = served.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 400);
+  if (out.length === 0 && target && missing && answered.length && e.inFlight === 0)
+    out.push({
+      rule: 'requests-ok',
+      message: `${target} is not on screen, though the screen's requests answered (${answered
+        .slice(-3)
+        .map(describeRequest)
+        .join(
+          ', ',
+        )}${answered.length > 3 ? `, ${answered.length - 3} more` : ''}): the data came, so look at what the screen made of it (an empty list from the backend, a filter, a wording).`,
+    });
 
   return out;
 };

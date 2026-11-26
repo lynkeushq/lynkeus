@@ -45,11 +45,13 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 npx lynkeus headless init --auto
 ```
 
-Esto escribe `qa/headless.tsx`, el archivo de entrada del host. Es el único lugar que conoce tu app: instala los mocks por defecto, comprueba que el backend sea local e importa tu componente `App`. Con `--auto` monta además el agente como lo hace `lynkeus init`: agrega el plugin `lynkeus-agent/babel` a `babel.config.js` y la llamada a `auto()` en `index.js`, si todavía no estaba.
+Esto escribe el archivo de entrada del host. Es el único lugar que conoce tu app: instala los mocks por defecto y ejecuta la entrada propia de tu app (`registerRootComponent` o `AppRegistry`). React Navigation lo encuentra solo. El archivo queda junto a tus casos, en `<cases.dir>/headless.tsx`; si ya tienes un `qa/headless.tsx`, se respeta. `entry` en la configuración o `--entry` eligen otra ruta. Con `--auto` monta además el agente como lo hace `lynkeus init`: agrega el plugin `lynkeus-agent/babel` a `babel.config.js` y la llamada a `auto()` en `index.js`, si todavía no estaba.
 
-El comando busca tu componente `App` en los lugares habituales (`App.tsx`, `src/App.tsx`, `app/App.tsx` y sus variantes en JavaScript). Si está en otro lado, indícalo con `--component <archivo>`.
+El comando encuentra tu componente `App` leyendo la entrada de la app, la que lo registra. Si no lo logra, indícalo con `--component <archivo>`.
 
-Al terminar imprime qué escribió y dos recordatorios. Uno de ellos importa: la configuración de Jest de tu proyecto tiene que dejar pasar los paquetes `lynkeus-*` en `transformIgnorePatterns`, igual que hace con `react-native`.
+La variable de la que tu app lee la dirección de su API también se detecta en el código. Si la app no lee ninguna, no se supone ninguna. Para fijarla tú, usa `--api-env <NOMBRE>`.
+
+Al terminar imprime qué escribió y dos recordatorios. Uno de ellos importa: si tu proyecto ya tiene configuración de Jest, tiene que dejar pasar los paquetes `lynkeus-*` en `transformIgnorePatterns`, igual que hace con `react-native`. Sin configuración propia, el host detecta qué paquetes debe transpilar Jest; no usa una lista fija.
 
 ### 2. Revisa qué falta simular
 
@@ -57,7 +59,7 @@ Al terminar imprime qué escribió y dos recordatorios. Uno de ellos importa: la
 npx lynkeus headless doctor
 ```
 
-`doctor` lista qué módulos nativos va a simular Lynkeus y cuáles usa tu app sin que nadie los cubra. Para estos últimos, `--fix` escribe mocks vacíos en el archivo de entrada, que después puedes completar:
+`doctor` lista qué módulos nativos va a simular Lynkeus y cuáles usa tu app sin que nadie los cubra. Un módulo nativo que nadie provee recibe una respuesta vacía por defecto; cada ejecución y `doctor` los listan y dicen cómo dar una respuesta real. También comprueba la versión de React Native Testing Library (se admiten la 12, la 13 y la 14). Para los módulos sin cubrir, `--fix` escribe mocks vacíos en el archivo de entrada, que después puedes completar:
 
 ```bash
 npx lynkeus headless doctor --fix
@@ -78,7 +80,7 @@ hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 Dos cosas intervienen:
 
 - El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.
-- `API_URL` es la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto; se lo indicas a Lynkeus con `--api-env <NOMBRE>` en el paso 1 o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. El archivo de entrada se niega a renderizar la app si esa dirección está definida y no es local (`localhost`, `127.0.0.1` o `10.0.2.2`); una variable sin definir se deja pasar, y la red queda limitada a los hosts locales.
+- `API_URL` es aquí la variable de la que tu app lee la dirección de su API. El nombre es el de tu proyecto: Lynkeus lo detecta, y puedes fijarlo con `--api-env <NOMBRE>` o con la clave `apiEnv` en `lynkeus.config.json`. Si la variable no está definida, el host usa `apiUrl` de `lynkeus.config.json`, que sirve cuando un agente de IA arranca el host y no puede exportar variables. La entrada no rechaza una dirección que no sea local: de eso se encarga la barrera de red del host, que deja a la app solo con los hosts de `networkHosts` (por defecto, los locales). Las peticiones que responde una regla de `lynkeus mock` se contestan siempre, incluso para hosts fuera de esa lista, porque no salen del proceso.
 
 ### 4. Maneja la app
 
@@ -106,7 +108,7 @@ Si el host muere a mitad de la ejecución (se queda sin memoria, un fallo), o es
 
 El archivo exporta `App` y, opcionalmente, un adaptador `navigation`. Su forma es esta:
 
-```tsx title="qa/headless.tsx"
+```tsx title="cases/headless.tsx"
 import { installDefaultMocks } from 'lynkeus-headless/mocks';
 
 // Solo lo que lynkeus no puede adivinar: tus propios módulos nativos.
@@ -122,7 +124,17 @@ const { default: App } = require('../app/App');
 export { App };
 ```
 
-`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view, video, fast-image, biometría, in-app-review, webview, vision-camera, image-picker y la parte nativa de vector-icons (un ícono convertido en imagen recibe la ruta de un archivo).
+`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view y webview. Si una biblioteca trae su propio mock de jest o su archivo de setup para jest, se usa solo.
+
+Los mocks de biometría, in-app-review, vision-camera, image-picker, video, fast-image y de la parte nativa de vector-icons hay que pedirlos. Se pasan en `overrides`:
+
+```tsx
+import { installDefaultMocks, biometrics } from 'lynkeus-headless/mocks';
+
+installDefaultMocks({ overrides: { 'react-native-biometrics': biometrics } });
+```
+
+Las pantallas de SDK nativos que jest no puede ejecutar (verificación de identidad, mensajería) se sustituyen solo si las declaras en `cases.nativeMocks`. Tampoco hace falta nada para `XMLHttpRequest`, la configuración de Expo ni la URL del script de Metro: el host los provee, y por eso axios, Reactotron y expo-linking funcionan. El archivo del host vive en `.lynkeus/host/` y nunca se ejecuta en el jest de tu app. El host recupera los mocks de tests unitarios del setup de jest de tu app, salvo que ese setup lea `LYNKEUS_HEADLESS`.
 
 Reanimated y gesture-handler quedan intactos a propósito: su soporte para Jest es un plugin de Babel, no un `jest.mock`. Si tu app los quiere simulados, pásalos en `overrides`.
 

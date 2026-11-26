@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { ensureToken, packageName, readToken } from '../config.js';
+import { ensureLynkeusIgnore, ensureToken, packageName, readToken } from '../config.js';
+import { CLI_VERSION } from '../device/agentVersion.js';
+import { exactCase, exportOf, findAppComponent } from './appEntry.js';
 
 const APP_CANDIDATES = ['App.tsx', 'App.jsx', 'App.js', 'app/App.tsx', 'src/App.tsx', 'src/App.jsx', 'src/App.js'];
 const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
@@ -11,7 +13,8 @@ const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
 export type InitOptions = {
   entry: string;
   app?: string;
-  apiEnv: string;
+  /** The env var the app reads its API address from, when it reads one. */
+  apiEnv?: string;
   auto: boolean;
   force: boolean;
   locale?: { languageTag?: string; country?: string; language?: string };
@@ -53,13 +56,19 @@ const routesOf = (root: string): string | undefined => {
 };
 
 /** How the entry gets the App: the root component, or, for Expo Router, the router over the app's route files. */
-type AppSource = { component: string } | { routes: string; dir: string };
+type AppSource = { component: string; exportName: string; entry?: string } | { routes: string; dir: string };
 
 const appBlock = (source: AppSource): string =>
   'component' in source
-    ? `// Whatever the app's index runs before rendering (polyfills, i18n, services):
+    ? source.entry
+      ? `// The app's own entry runs as on a device (polyfills, services, the agent and its
+// commands); the component it registers is the App. To skip the entry, require the
+// component itself instead:
+//   const { ${source.exportName === 'App' ? 'App' : `${source.exportName}: App`} } = require('${source.component}')
+const App = registeredApp(() => require('${source.entry}'))`
+      : `// Whatever the app's entry runs before rendering (polyfills, i18n, services):
 // require it here too, then the App.
-const { default: App } = require('${source.component}')`
+const { ${source.exportName === 'App' ? 'App' : `${source.exportName}: App`} } = require('${source.component}')`
     : `// An Expo Router app has no root component: the router is the app, over the route
 // files in ${source.dir}, read here as the bundler would read them. Whatever the
 // app's root layout does not run before rendering (polyfills, i18n), require it first.
@@ -74,32 +83,25 @@ const routes = getMockContext(require('path').resolve(__dirname, '${source.route
 require('lynkeus-agent/auto').auto({ token: process.env.LYNKEUS_TOKEN })
 const App = () => React.createElement(ExpoRoot, { context: routes })`;
 
-const entryTemplate = (source: AppSource, apiEnv: string, appName: string, locale?: InitOptions['locale']): string => {
+const entryTemplate = (source: AppSource, appName: string, locale?: InitOptions['locale']): string => {
   const LOCALE =
     locale?.languageTag || locale?.country || locale?.language
       ? `\n  // The locale this app is built for, from lynkeus.config.json.\n  locale: ${JSON.stringify({ country: locale.country, languageTag: locale.languageTag, languageCode: locale.language })},`
       : "\n  // locale: { country: 'DE', languageTag: 'de-DE', languageCode: 'de' },";
   return `// Entry for \`lynkeus headless start\`: the whole app, hosted under jest so an agent can
-// drive it in Node against a real local backend. Nothing here runs in the app
-// itself. lynkeus mocks the common native modules (storage, keychain,
-// device-info, safe-area, localize, ...); only ${appName}-specific pieces go here.
-import { installDefaultMocks } from 'lynkeus-headless/mocks'
-
-// Real network plus a hosted app is exactly what would let a driver act
-// against production if ${apiEnv} ever pointed there. Refuse anything not local.
-// Unset is an app with no backend of its own: the network stays fenced to local hosts.
-const apiUrl = process.env.${apiEnv} ?? ''
-if (apiUrl && !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2)(:\\d+)?(\\/|$)/.test(apiUrl)) {
-  throw new Error(\`lynkeus headless only drives a local backend; ${apiEnv} is "\${apiUrl}"\`)
-}
+// drive it in Node, with no simulator. Nothing here runs in the app itself. A native module gets the library's own jest mock when it ships one, else
+// an empty answer the run reports; only ${appName}-specific pieces go here.
+import { installDefaultMocks${'entry' in source && source.entry ? ', registeredApp' : ''} } from 'lynkeus-headless/mocks'
 
 installDefaultMocks({
+  // Real requests, to local hosts only (add others with networkHosts): a hosted app
+  // never reaches production, whatever its API address says.
   network: 'real',${LOCALE}
 })
 
-// App-specific mocks go here, before the app is required. \`lynkeus headless doctor\`
-// lists the native modules the app references that nothing covers yet:
-//   jest.mock('some-native-package', () => ({ method: () => undefined }))
+// The app's own mocks go here, before the app is required: where a module answered
+// empty by default needs a better answer (\`lynkeus headless doctor\` and each run list them):
+//   jest.mock('some-native-package', () => ({ method: async () => 'what a device answers' }))
 
 ${appBlock(source)}
 
@@ -120,8 +122,23 @@ const readManifest = (root: string): Manifest => {
 /** Expo inlines only the variables that start with EXPO_PUBLIC_; anything else is undefined in the app. */
 const tokenIn = (expo: boolean): string => (expo ? 'process.env.EXPO_PUBLIC_LYNKEUS_TOKEN' : 'process.env.LYNKEUS_TOKEN');
 
-const mountLines = (expo: boolean): string =>
-  `import { auto } from 'lynkeus-agent/auto'\n// Dev-only QA agent; a release build never evaluates the client.\nauto({ token: ${tokenIn(expo)} })\n`;
+// Up to the module's name: an import written over several lines (`import {\n  a,\n} from 'x'`) ends there, not at its first line.
+const IMPORT = /^import\b[^'"]*?(['"])[^'"\n]*\1(;?)[^\n]*$/gm;
+
+/** How a file writes its imports: the quote most of them use, and whether they end with a semicolon. */
+export const importStyle = (text: string): { quote: "'" | '"'; semi: boolean } => {
+  const imports = [...text.matchAll(IMPORT)];
+  if (!imports.length) return { quote: "'", semi: /;\s*$/m.test(text) };
+  const double = imports.filter((m) => m[1] === '"').length;
+  const semis = imports.filter((m) => m[2] === ';').length;
+  return { quote: double > imports.length / 2 ? '"' : "'", semi: semis > imports.length / 2 };
+};
+
+const mountLines = (expo: boolean, style: { quote: "'" | '"'; semi: boolean } = { quote: "'", semi: false }): string => {
+  const q = style.quote;
+  const end = style.semi ? ';' : '';
+  return `import { auto } from ${q}lynkeus-agent/auto${q}${end}\n// Dev-only QA agent; a release build never evaluates the client.\nauto({ token: ${tokenIn(expo)} })${end}\n`;
+};
 
 const BABEL_CANDIDATES = ['babel.config.js', 'babel.config.cjs'];
 const TOKEN_PLUGIN = 'lynkeus-agent/babel';
@@ -150,13 +167,42 @@ const addTokenPlugin = (root: string): string => {
 const EXPO_ENV = '.env.local';
 const EXPO_TOKEN = 'EXPO_PUBLIC_LYNKEUS_TOKEN';
 
-/** Expo passes the app only variables that start with EXPO_PUBLIC_, and reads them from `.env.local`, which its template keeps out of git. */
-const giveExpoTheToken = (root: string, token: string): string => {
+/** Whether a .gitignore line keeps `.env.local` out: the exact name, or a glob over it (`.env*.local`, `.env*`, `*.local`). */
+const ignoresEnvLocal = (text: string): boolean =>
+  text
+    .split('\n')
+    .map((line) => line.trim().replace(/^\//, ''))
+    .some((line) => {
+      if (!line || line.startsWith('#') || line.startsWith('!')) return false;
+      const pattern = new RegExp(
+        `^${line
+          .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+          .replace(/\*/g, '[^/]*')
+          .replace(/\?/g, '[^/]')}$`,
+      );
+      return pattern.test(EXPO_ENV);
+    });
+
+/**
+ * The token in `.env.local` must stay out of git. Expo's own template ignores `.env*.local`, but templates built
+ * on it (Ignite) and older apps do not: the line is added when the app's .gitignore lacks it.
+ */
+const keepEnvOutOfGit = (root: string): string => {
+  const file = path.join(root, '.gitignore');
+  const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (ignoresEnvLocal(text)) return `.gitignore already keeps ${EXPO_ENV} out of git`;
+  fs.writeFileSync(file, `${text}${text && !text.endsWith('\n') ? '\n' : ''}\n# local env files (the Lynkeus token)\n.env*.local\n`);
+  return `added .env*.local to .gitignore, so the token in ${EXPO_ENV} stays out of git`;
+};
+
+/** Expo passes the app only variables that start with EXPO_PUBLIC_, and reads them from `.env.local`. */
+const giveExpoTheToken = (root: string, token: string): string[] => {
   const file = path.join(root, EXPO_ENV);
   const text = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
-  if (new RegExp(`^${EXPO_TOKEN}=`, 'm').test(text)) return `${EXPO_ENV} already sets ${EXPO_TOKEN}`;
+  const ignored = keepEnvOutOfGit(root);
+  if (new RegExp(`^${EXPO_TOKEN}=`, 'm').test(text)) return [`${EXPO_ENV} already sets ${EXPO_TOKEN}`, ignored];
   fs.writeFileSync(file, `${text}${text && !text.endsWith('\n') ? '\n' : ''}${EXPO_TOKEN}=${token}\n`);
-  return `wrote ${EXPO_TOKEN} to ${EXPO_ENV} (check it is in .gitignore: Expo's template ignores .env*.local)`;
+  return [`wrote ${EXPO_TOKEN} to ${EXPO_ENV}`, ignored];
 };
 
 /**
@@ -187,19 +233,21 @@ export const mountAgent = (root: string): string[] => {
     const indexPath = path.join(root, index);
     const text = fs.readFileSync(indexPath, 'utf8');
     // After the last import, so the app's own polyfills still run first.
-    const imports = [...text.matchAll(/^import .*$/gm)];
+    const imports = [...text.matchAll(IMPORT)];
     const at = imports.length ? imports[imports.length - 1]!.index! + imports[imports.length - 1]![0].length + 1 : 0;
-    fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo) + text.slice(at));
+    fs.writeFileSync(indexPath, text.slice(0, at) + mountLines(expo, importStyle(text)) + text.slice(at));
     notes.push(`added auto() to ${index}`);
   }
   const { token, made } = ensureToken(root);
   if (made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
+  // A project set up before .lynkeus/.gitignore covered runs and bundles gets the fuller one.
+  else ensureLynkeusIgnore(root);
   if (!expo) {
     notes.push(addTokenPlugin(root));
     notes.push('restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file');
   }
   if (expo) {
-    notes.push(giveExpoTheToken(root, token));
+    notes.push(...giveExpoTheToken(root, token));
     notes.push('Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go');
     notes.push('Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file');
   }
@@ -209,7 +257,10 @@ export const mountAgent = (root: string): string[] => {
 export const init = (root: string, opts: InitOptions): string[] => {
   const notes: string[] = [];
   const entryPath = path.join(root, opts.entry);
-  const app = opts.app ?? findFirst(root, APP_CANDIDATES);
+  const given = opts.app ? exactCase(root, opts.app) : undefined;
+  if (opts.app && !given) throw new Error(`no ${opts.app} in ${root} (the path must match the file's case: jest's resolver is case-sensitive)`);
+  const found = given ? { file: given, exportName: exportOf(root, given) } : findAppComponent(root, readManifest(root).main);
+  const app = found?.file;
   const routes = app ? undefined : routesOf(root);
   if (!app && !routes) throw new Error(`no App component found (${APP_CANDIDATES.join(', ')}) and no Expo Router routes; pass --component <path>`);
   if (fs.existsSync(entryPath) && !opts.force) {
@@ -217,10 +268,17 @@ export const init = (root: string, opts: InitOptions): string[] => {
   } else {
     fs.mkdirSync(path.dirname(entryPath), { recursive: true });
     const source: AppSource = app
-      ? { component: relImport(entryPath, path.join(root, app)) }
+      ? {
+          component: relImport(entryPath, path.join(root, app)),
+          exportName: found!.exportName,
+          ...(found!.entry ? { entry: relImport(entryPath, path.join(root, found!.entry)) } : {}),
+        }
       : { routes: path.relative(path.dirname(entryPath), path.join(root, routes!)).replace(/\\/g, '/'), dir: routes! };
-    fs.writeFileSync(entryPath, entryTemplate(source, opts.apiEnv, packageName(root), opts.locale));
-    notes.push(`wrote ${opts.entry} (${app ? `app: ${app}` : `Expo Router, routes in ${routes}`})`);
+    fs.writeFileSync(entryPath, entryTemplate(source, packageName(root), opts.locale));
+    const component = app ? `${found!.exportName === 'default' ? 'the default export' : found!.exportName} of ${app}` : '';
+    notes.push(
+      `wrote ${opts.entry} (${app ? (found!.entry ? `runs ${found!.entry}, which registers ${component}` : `app: ${component}`) : `Expo Router, routes in ${routes}`})`,
+    );
   }
   if (opts.auto) notes.push(...mountAgent(root));
   // `headless start` refuses to run without one, and an app tested only headless never runs `lynkeus init`.
@@ -229,7 +287,7 @@ export const init = (root: string, opts: InitOptions): string[] => {
     "jest: when the app has no jest configuration, `headless start` passes the preset it needs (jest-expo for Expo, React Native's otherwise) and the packages to transpile; an app that sets its own lets 'lynkeus-[^/]+' through, next to react-native",
   );
   notes.push(
-    `next: lynkeus headless start  (with ${opts.apiEnv}=http://127.0.0.1:3000/, or "apiUrl" in lynkeus.config.json, when the app has a local backend; the token is the project's, in .lynkeus/token)`,
+    `next: lynkeus headless start${opts.apiEnv ? `  (the app reads its API address from ${opts.apiEnv}: set it, or "apiUrl" in lynkeus.config.json, to your local backend)` : ''}; the token is the project's, in .lynkeus/token`,
   );
   notes.push(
     '      or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)',
@@ -239,24 +297,104 @@ export const init = (root: string, opts: InitOptions): string[] => {
 
 const AGENT = 'lynkeus-agent';
 
-/** How this project adds a package: Expo's own installer picks the version its SDK wants; otherwise the manager whose lockfile is there. */
 type Manager = 'bun' | 'pnpm' | 'yarn' | 'npm';
 
-/** The package manager whose lockfile is in the app's folder or above it: an app in a monorepo has it at the top. */
-const managerOf = (root: string): Manager => {
+/** The package manager whose lockfile is in the app's folder or above it (an app in a monorepo has it at the top), and that folder. */
+const lockfileOf = (root: string): { manager: Manager; dir: string } => {
   for (let dir = path.resolve(root); ; dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, 'bun.lockb')) || fs.existsSync(path.join(dir, 'bun.lock'))) return 'bun';
-    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
-    if (fs.existsSync(path.join(dir, 'yarn.lock'))) return 'yarn';
-    if (fs.existsSync(path.join(dir, 'package-lock.json')) || fs.existsSync(path.join(dir, '.git')) || path.dirname(dir) === dir) return 'npm';
+    if (fs.existsSync(path.join(dir, 'bun.lockb')) || fs.existsSync(path.join(dir, 'bun.lock'))) return { manager: 'bun', dir };
+    if (fs.existsSync(path.join(dir, 'pnpm-lock.yaml'))) return { manager: 'pnpm', dir };
+    if (fs.existsSync(path.join(dir, 'yarn.lock'))) return { manager: 'yarn', dir };
+    if (fs.existsSync(path.join(dir, 'package-lock.json')) || fs.existsSync(path.join(dir, '.git')) || path.dirname(dir) === dir)
+      return { manager: 'npm', dir };
   }
 };
 
-const installCommand = (root: string, expo: boolean): string[] => {
-  if (expo) return ['npx', 'expo', 'install', AGENT];
-  const manager = managerOf(root);
-  return manager === 'npm' ? ['npm', 'install', AGENT] : [manager, 'add', AGENT];
+const managerOf = (root: string): Manager => lockfileOf(root).manager;
+
+/** The pnpm that laid out node_modules, as it wrote itself into node_modules/.modules.yaml (`packageManager: pnpm@9.15.9`). */
+export const pnpmThatInstalled = (root: string): string | undefined => {
+  const top = lockfileOf(root).dir;
+  for (let dir = path.resolve(root); ; dir = path.dirname(dir)) {
+    try {
+      const found = /^packageManager:\s*['"]?pnpm@([^\s'"]+)/m.exec(fs.readFileSync(path.join(dir, 'node_modules', '.modules.yaml'), 'utf8'));
+      if (found) return found[1];
+    } catch {}
+    if (dir === top || path.dirname(dir) === dir) return undefined;
+  }
 };
+
+const declaresManager = (root: string): boolean =>
+  [root, lockfileOf(root).dir].some((dir) => {
+    try {
+      return !!(JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { packageManager?: string }).packageManager;
+    } catch {
+      return false;
+    }
+  });
+
+/** Every executable with this name on PATH, in order. */
+const onPath = (name: string): string[] =>
+  (process.env.PATH ?? '').split(path.delimiter).flatMap((dir) => {
+    const file = path.join(dir, name);
+    try {
+      fs.accessSync(file, fs.constants.X_OK);
+      return [file];
+    } catch {
+      return [];
+    }
+  });
+
+export type PathProbe = { pnpms: () => { file: string; corepack: boolean; version?: string }[]; corepack: () => boolean };
+
+const pathProbe: PathProbe = {
+  pnpms: () =>
+    onPath('pnpm').map((file) => {
+      let real = file;
+      try {
+        real = fs.realpathSync(file);
+      } catch {}
+      // Corepack's shim is not asked its version: with no packageManager in package.json that alone fetches the latest pnpm.
+      if (/corepack/.test(real)) return { file, corepack: true };
+      const ran = spawnSync(file, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+      return { file, corepack: false, version: ran.status === 0 ? ran.stdout.trim() : undefined };
+    }),
+  corepack: () => onPath('corepack').length > 0,
+};
+
+const major = (version: string | undefined): string | undefined => version?.split('.')[0];
+
+/**
+ * How to run the project's package manager. A pnpm project whose package.json names no packageManager is run with
+ * the pnpm that made its node_modules: corepack's shim would fetch the latest pnpm, and a pnpm of another major
+ * refuses node_modules laid out by the old one (ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF).
+ */
+export const managerCommand = (root: string, probe: PathProbe = pathProbe): string[] => {
+  const manager = managerOf(root);
+  if (manager !== 'pnpm' || declaresManager(root)) return [manager];
+  const wanted = pnpmThatInstalled(root);
+  if (!wanted) return ['pnpm'];
+  const own = probe.pnpms().find((p) => !p.corepack && major(p.version) === major(wanted));
+  if (own) return [own.file];
+  return probe.corepack() ? ['corepack', `pnpm@${wanted}`] : ['npx', '--yes', `pnpm@${wanted}`];
+};
+
+/** Corepack asks before it downloads, and may write packageManager into package.json: neither is ours to do. */
+const managerEnv = (): NodeJS.ProcessEnv => ({ ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0', COREPACK_ENABLE_AUTO_PIN: '0' });
+
+const addCommand = (root: string, names: string[], dev: boolean, probe?: PathProbe): string[] => {
+  const run = managerCommand(root, probe);
+  const manager = managerOf(root);
+  const verb = manager === 'npm' ? ['install', ...(dev ? ['--save-dev'] : [])] : ['add', ...(dev ? [manager === 'bun' ? '-d' : '-D'] : [])];
+  return [...run, ...verb, ...names];
+};
+
+/**
+ * The command that adds lynkeus-agent: the project's own package manager, at this CLI's version (the two are
+ * released together and misread each other across releases). Not Expo's installer: lynkeus-agent is not in its
+ * SDK's list, so it only passes the package on to the package manager, at its latest.
+ */
+export const agentInstallCommand = (root: string, probe?: PathProbe): string[] => addCommand(root, [`${AGENT}@${CLI_VERSION}`], false, probe);
 
 /**
  * What a failed install said, short enough for one line. npm ends its errors with where its logs are, so
@@ -275,17 +413,20 @@ export const installFailure = (ran: { stderr?: string | null; error?: Error }): 
 const hasAgent = (manifest: Manifest): boolean => !!(manifest.dependencies?.[AGENT] ?? manifest.devDependencies?.[AGENT]);
 
 /** Adds lynkeus-agent to the app when it is not a dependency yet. It has native code, so the app is built again after. */
-export const installAgent = (root: string): string => {
-  const manifest = readManifest(root);
-  if (hasAgent(manifest)) return `${AGENT} is already a dependency`;
-  const command = installCommand(root, !!(manifest.dependencies?.expo ?? manifest.devDependencies?.expo));
-  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
-  if (ran.status === 0) return `installed ${AGENT} (${command.join(' ')}); it has native code, so build the app again`;
+export const installAgent = (root: string): { text: string; ok: boolean } => {
+  if (hasAgent(readManifest(root))) return { text: `${AGENT} is already a dependency`, ok: true };
+  const command = agentInstallCommand(root);
+  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000, env: managerEnv() });
+  if (ran.status === 0) return { text: `installed ${AGENT} (${command.join(' ')}); it has native code, so build the app again`, ok: true };
   const said = installFailure(ran);
-  return `could not install ${AGENT} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself, then \`lynkeus init\` again`;
+  return {
+    text: `could not install ${AGENT} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself, then \`lynkeus init\` again (the agent is not mounted until it is installed: the app would not build)`,
+    ok: false,
+  };
 };
 
-export type SetupCheck = { what: string; ok: boolean; fix?: string };
+/** `optional`: a line that is not a fault when it fails (shown ○, not ✗). `group`: where status puts it. */
+export type SetupCheck = { what: string; ok: boolean; fix?: string; optional?: boolean; group?: 'runs-on' | 'advice' };
 
 /** What a project has of lynkeus and what it still lacks, each with the one thing that fixes it. Reads files only. */
 export const setupChecks = (root: string): SetupCheck[] => {
@@ -373,37 +514,46 @@ export const headlessMissing = (root: string): string[] =>
 /** The preset \`headless start\` gives jest when the app's own configuration names none. */
 export const jestPreset = (root: string): string => (resolvable(root, JEST_EXPO) ? JEST_EXPO : resolvable(root, JEST_PRESET) ? JEST_PRESET : 'react-native');
 
-const devInstallCommand = (root: string, names: string[]): string[] =>
-  ({ bun: ['bun', 'add', '-d'], pnpm: ['pnpm', 'add', '-D'], yarn: ['yarn', 'add', '-D'], npm: ['npm', 'install', '--save-dev'] })[managerOf(root)].concat(
-    names,
-  );
+const devInstallCommand = (root: string, names: string[]): string[] => addCommand(root, names, true);
 
 const install = (root: string, command: string[], names: string[]): string => {
-  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000 });
+  const ran = spawnSync(command[0]!, command.slice(1), { cwd: root, encoding: 'utf8', timeout: 300_000, env: managerEnv() });
   if (ran.status === 0) return `installed ${names.join(', ')} (${command.join(' ')})`;
   const said = installFailure(ran);
   return `could not install ${names.join(', ')} with \`${command.join(' ')}\`${said ? `: ${said}` : ''}; run it yourself`;
 };
 
 /** Adds what the headless host needs as development dependencies; a line saying what happened. */
+/** The jest-expo range the app's Expo SDK names in its list of the versions it was tested with. */
+const jestExpoRange = (root: string): string | undefined => {
+  try {
+    const file = createRequire(path.join(root, 'package.json')).resolve('expo/bundledNativeModules.json');
+    return (JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, string>)[JEST_EXPO];
+  } catch {
+    return undefined;
+  }
+};
+
+/** The version each missing package is added at: Lynkeus's own at this CLI's, React Native's preset at React Native's, jest-expo at the SDK's. */
+export const headlessSpecs = (root: string, names: string[]): string[] =>
+  names.map((name) => {
+    if (name === 'lynkeus-headless') return `${name}@${CLI_VERSION}`;
+    // The React Native preset is released with React Native, version for version.
+    if (name === JEST_PRESET) return `${name}@${reactNativeVersion(root)}`;
+    const range = name === JEST_EXPO ? jestExpoRange(root) : undefined;
+    return range ? `${name}@${range}` : name;
+  });
+
+/** Adds what the headless host needs as development dependencies; a line saying what happened. */
 export const installHeadless = (root: string): string => {
   const missing = headlessMissing(root);
   if (!missing.length) return `jest, Testing Library, lynkeus-headless and the ${jestPreset(root)} preset are installed`;
   const lines: string[] = [];
-  const plain = missing.filter((name) => name !== JEST_EXPO);
-  // The React Native preset is released with React Native, version for version.
-  if (plain.length)
-    lines.push(
-      install(
-        root,
-        devInstallCommand(
-          root,
-          plain.map((name) => (name === JEST_PRESET ? `${name}@${reactNativeVersion(root)}` : name)),
-        ),
-        plain,
-      ),
-    );
-  // Expo's installer picks the jest-expo of the app's SDK.
-  if (missing.includes(JEST_EXPO)) lines.push(install(root, ['npx', 'expo', 'install', JEST_EXPO, '--', '--save-dev'], [JEST_EXPO]));
+  // Expo's installer is only for a jest-expo whose range the SDK's list does not give: it runs the package manager
+  // on its own terms, which is the corepack trap the project's manager avoids.
+  const byExpo = missing.includes(JEST_EXPO) && !jestExpoRange(root);
+  const plain = missing.filter((name) => !(byExpo && name === JEST_EXPO));
+  if (plain.length) lines.push(install(root, devInstallCommand(root, headlessSpecs(root, plain)), plain));
+  if (byExpo) lines.push(install(root, ['npx', 'expo', 'install', JEST_EXPO, '--', '--save-dev'], [JEST_EXPO]));
   return lines.join('\n');
 };

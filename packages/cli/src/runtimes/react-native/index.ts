@@ -7,7 +7,10 @@ import { headlessMissing, installAgent, mountAgent, reactNativeExtractor, readRo
 export const reactNative: RuntimeAdapter = {
   id: 'react-native',
   init: (root, { install }) => {
-    const lines = [...(install ? [installAgent(root)] : []), ...mountAgent(root)];
+    const installed = install ? installAgent(root) : undefined;
+    // An app that imports a package it does not have does not build: the mount waits for the install.
+    if (installed && !installed.ok) return [installed.text];
+    const lines = [...(installed ? [installed.text] : []), ...mountAgent(root)];
     lines.push('next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches');
     lines.push('      or, with no native build at all: `lynkeus headless init` runs the app in Node in a minute');
     return lines;

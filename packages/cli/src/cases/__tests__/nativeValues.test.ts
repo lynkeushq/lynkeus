@@ -88,3 +88,37 @@ test('the run file keeps the list', () => {
   bare.finish({ nativeValues: [] });
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'bare', 'run.json'), 'utf8')).nativeValues, undefined);
 });
+
+test('what the headless fallback answered is told once, grouped by module, with where a better answer goes', () => {
+  const headless = (over: Partial<RunNativeValue>): RunNativeValue => ({
+    module: 'KeyboardController',
+    platform: 'ios',
+    host: 'headless',
+    readAs: 'function',
+    ...over,
+  });
+  const reads = mergeNativeValues([
+    [
+      headless({ readAs: 'empty', package: 'react-native-keyboard-controller' }),
+      headless({ property: 'setInputMode', called: true }),
+      headless({ property: 'isVisible', called: false }),
+    ],
+    [headless({ property: 'setInputMode', called: true }), { module: 'RNOther', property: 'x', platform: 'ios', host: 'headless', readAs: 'undefined' }],
+  ]);
+  const lines = describeNativeValues(reads, { entry: 'cases/headless.tsx' });
+  const text = lines.join('\n');
+  assert.match(text, /^answered empty by default \(1 native module with no mock/);
+  assert.match(text, /• KeyboardController \(react-native-keyboard-controller\): called setInputMode; read, never called: isVisible/);
+  assert.match(text, /a better answer goes in cases\/headless\.tsx, where the app keeps its own mocks:/);
+  assert.match(text, /jest\.mock\('react-native-keyboard-controller', \(\) => \(\{/);
+  assert.match(text, /"nativeMocks": \{ "KeyboardController\.setInputMode": \{ "result": <what it resolves> \} \}/);
+  // Said once per run, and the fallback's reads are not listed again as unknown constants.
+  assert.equal(lines.filter((l) => l.includes('KeyboardController (')).length, 1);
+  assert.doesNotMatch(text, /KeyboardController\.isVisible on ios/);
+  assert.match(text, /RNOther\.x on ios, which headless does not know/);
+  // Few lines, for an agent that reads them after every run.
+  assert.equal(
+    lines.findIndex((l) => l.startsWith('native values')),
+    5,
+  );
+});

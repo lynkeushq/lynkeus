@@ -359,9 +359,9 @@ give_points is not a step Lynkeus has, and the project declares no fixtures (cas
 
 ### `--jobs and --host-command need a driver port per job`
 
-**Why.** Each job drives its own host, and each host dials its own port.
+**Why.** Each job drives its own host, and each host dials its own port. `--ports` named fewer ports than `--jobs` asks for, or one that is not a number.
 
-**Fix.** Pass one port per job: `--jobs 2 --ports 8123,8124`.
+**Fix.** Leave `--ports` out and Lynkeus picks free ports past the one an attached app dials, or pass one port per job: `--jobs 2 --ports 8124,8125`.
 
 ## The headless host
 
@@ -377,9 +377,9 @@ lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or s
 
 **Fix.** Run `lynkeus headless init` or `lynkeus init`, which make the project's token in `.lynkeus/token`. In CI, where that file does not exist, set `LYNKEUS_TOKEN` for the host and for the driver, to the same value.
 
-### `No qa/headless.tsx in …`
+### `No … in …` (the headless entry is missing)
 
-**Why.** The host needs an entry file that exports your `App`.
+**Why.** The host needs an entry file that exports your `App`. Without `entry` or `--entry`, Lynkeus uses `qa/headless.tsx` when it exists, and otherwise `<cases.dir>/headless.tsx` (`cases/headless.tsx` by default).
 
 **Fix.** `lynkeus headless init` writes one. If yours lives elsewhere, pass `--entry` or set `entry` in `lynkeus.config.json`.
 
@@ -387,7 +387,7 @@ lynkeus headless needs a token (`lynkeus init` makes one in .lynkeus/token, or s
 
 **Why.** Usually one of two things:
 
-- A native module that Lynkeus does not mock.
+- A native module that nothing provides. Lynkeus answers it empty, and each run and `lynkeus headless doctor` list it.
 - Node resolving `localhost` to IPv6 while your backend listens on IPv4 only.
 
 **Fix.** Run `lynkeus headless doctor` to list the native modules that still need a mock, and mock them in your entry (`--fix` writes stubs). Use `127.0.0.1` instead of `localhost` in the API address.
@@ -409,7 +409,7 @@ The errors it recognizes:
 | `TurboModuleRegistry.getEnforcing(...): 'X' could not be found` | The native module `X` does not exist under jest. | Mock the package that owns it in the headless entry with `jest.mock`. `lynkeus headless doctor` lists where it is referenced. |
 | `"X" was not found in the UIManager` | The native view `X` has no jest counterpart. | Mock the library that renders it with a plain `View`. |
 | `Cannot find module 'X' from 'Y'` | `Y` imports `X`, which jest cannot resolve. | If `X` is a path alias, add it to jest's `moduleNameMapper`. If it is an optional native package, mock it in the entry. |
-| `lynkeus headless only drives a local backend; API_URL is "…"` | The API variable does not point at a local backend. | Export it as `http://127.0.0.1:<port>/` before `headless start`. If the app inlines the environment at build time, clear jest's transform cache too. |
+| `lynkeus headless only drives a local backend; API_URL is "…"` | An entry written by an older Lynkeus checks the API variable and it does not point at a local backend. | Export it as `http://127.0.0.1:<port>/` before `headless start`, or run `headless init --force` for an entry without the check (the network fence keeps the app off non-local hosts anyway). If the app inlines the environment at build time, clear jest's transform cache too. |
 | `X.y is not a function` | Usually a mock that does not implement a method the app calls. | Extend the mock for `X` with `y`. The defaults can be overridden per key with `installDefaultMocks({ overrides })`. |
 | `Cannot read properties of undefined (reading 'x')` | Something the app expected to exist is undefined. | Look one frame up the stack for the module: a mock that returns `{}` instead of the shape the app reads, or a store that was not initialized because a service failed earlier. |
 | `Jest did not exit one second after the test run has completed` | The host finished but something kept the event loop alive. | Harmless for a host that is meant to stay up. Otherwise, look for an open socket or timer from a mock. |

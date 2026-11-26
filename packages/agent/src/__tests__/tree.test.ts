@@ -286,6 +286,108 @@ describe('snapshotElements', () => {
     expect(byId['page-3']?.hidden).toBe('inert');
     expect(byId['on-tab']?.hidden).toBeUndefined();
   });
+
+  it('keeps a long text whole, so a check that names all of it matches', () => {
+    const long = 'A paragraph that goes on. '.repeat(11).trim();
+    expect(long.length).toBeGreaterThan(200);
+    install(composite([host('RCTText', { testID: 'terms' }, [10, 10, 380, 200], [text(long)])]));
+    expect(snapshotElements().elements[0]?.text).toBe(long);
+  });
+
+  it('reads a text as textTransform draws it, nested texts inheriting it unless they set their own', () => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    install(
+      composite([
+        host('RCTText', { testID: 'cta', style: [{ fontSize: 16 }, { textTransform: 'uppercase' }] }, [10, 10, 200, 20], [text('Tap to log in!')]),
+        host(
+          'RCTText',
+          { testID: 'mixed', style: { textTransform: 'lowercase' } },
+          [10, 40, 200, 20],
+          [text('ONE '), host('RCTVirtualText', { style: { textTransform: 'none' } }, [0, 0, 0, 0], [text('TWO ')]), text('THREE')],
+        ),
+        host('RCTText', { testID: 'title', style: { textTransform: 'capitalize' } }, [10, 70, 200, 20], [text('hello wORLD')]),
+        host(
+          'RCTView',
+          { testID: 'go', onClick: () => null },
+          [10, 100, 200, 40],
+          [host('RCTText', { style: { textTransform: 'uppercase' } }, [12, 110, 90, 20], [text('Next')])],
+        ),
+      ]),
+    );
+    const byId = byTestId(snapshotElements().elements);
+    expect(byId.cta?.text).toBe('TAP TO LOG IN!');
+    expect(byId.mixed?.text).toBe('one TWO three');
+    expect(byId.title?.text).toBe('Hello World');
+    expect(byId.go?.text).toBe('NEXT');
+  });
+
+  it('capitalizes as Android does: the first letter of each word, the rest as written', () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    install(composite([host('RCTText', { testID: 'title', style: { textTransform: 'capitalize' } }, [10, 10, 200, 20], [text("hello wORLD it's")])]));
+    expect(snapshotElements().elements[0]?.text).toBe("Hello WORLD It's");
+  });
+
+  // react-native-drawer-layout hides the closed drawer through Reanimated's useAnimatedProps. Reanimated applies later
+  // values on the UI thread only, so React's props keep `accessibilityElementsHidden: true` from the first render.
+  it('reads accessibility props Reanimated animates as they are now, not as React first rendered them', () => {
+    const progress = { value: 0 };
+    const drawerHidden = () => ({ accessibilityElementsHidden: progress.value < 1 });
+    const contentHidden = () => ({ accessibilityElementsHidden: progress.value >= 1 });
+    const animated = (updater: () => Record<string, unknown>, child: FakeFiber): FakeFiber => {
+      // The AnimatedComponent keeps the handle; the View it renders gets the first value as a plain prop.
+      const view = link({ tag: 11, type: {}, stateNode: null, memoizedProps: { ...updater() }, child: null, sibling: null, return: null }, [child]);
+      return link(
+        {
+          tag: 1,
+          type: class AnimatedComponent {},
+          stateNode: {},
+          memoizedProps: { animatedProps: { viewDescriptors: {}, initial: { value: updater(), updater } } },
+          child: null,
+          sibling: null,
+          return: null,
+        },
+        [view],
+      );
+    };
+    const content = animated(
+      contentHidden,
+      host('RCTView', { ...contentHidden() }, [0, 0, 400, 800], [host('RCTView', { testID: 'menu-button', onClick: () => null }, [10, 10, 40, 40])]),
+    );
+    const drawer = animated(
+      drawerHidden,
+      host('RCTView', { ...drawerHidden() }, [0, 0, 300, 800], [host('RCTView', { testID: 'drawer-item', onClick: () => null }, [10, 100, 200, 40])]),
+    );
+    install(composite([host('RCTView', {}, [0, 0, 400, 800], [content, drawer])]));
+
+    expect(byTestId(snapshotElements().elements)['drawer-item']?.hidden).toBe('a11y');
+    progress.value = 1;
+    const open = byTestId(snapshotElements().elements);
+    expect(open['drawer-item']?.hidden).toBeUndefined();
+    expect(open['menu-button']?.hidden).toBe('a11y');
+  });
+
+  it('keeps React props when an animated updater cannot run here', () => {
+    const updater = () => {
+      throw new Error('UI thread only');
+    };
+    const view = link({ tag: 11, type: {}, stateNode: null, memoizedProps: {}, child: null, sibling: null, return: null }, [
+      host('RCTView', { accessibilityElementsHidden: true }, [0, 0, 300, 800], [host('RCTView', { testID: 'item', onClick: () => null }, [10, 10, 100, 40])]),
+    ]);
+    const owner = link(
+      {
+        tag: 1,
+        type: {},
+        stateNode: {},
+        memoizedProps: { animatedProps: { viewDescriptors: {}, initial: { value: { accessibilityElementsHidden: true }, updater } } },
+        child: null,
+        sibling: null,
+        return: null,
+      },
+      [view],
+    );
+    install(composite([owner]));
+    expect(snapshotElements().elements.find((e) => e.testId === 'item')?.hidden).toBe('a11y');
+  });
 });
 
 describe('moveToViews', () => {

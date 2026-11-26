@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+import { textTransformOf, transformText, type TextTransform } from 'lynkeus-agent/presentation';
+
 // The host-only tree React Native Testing Library 14 renders, typed
 // structurally so the package does not depend on the renderer's types.
 export type ReactTestInstance = {
@@ -27,13 +30,17 @@ export const fiberName = (fiber: Fiber): string => {
   return t.displayName || t.name || t.render?.displayName || t.render?.name || t.type?.displayName || t.type?.name || 'anonymous';
 };
 
+// As the device walker reads it: a nested text inherits the `textTransform` around it unless it sets its own.
 export const textOf = (node: ReactTestInstance): string => {
   const parts: string[] = [];
-  const visit = (n: ReactTestInstance | string) => {
-    if (typeof n === 'string') parts.push(n);
-    else for (const child of n.children) visit(child);
+  const visit = (n: ReactTestInstance | string, transform: TextTransform | 'none' | undefined) => {
+    if (typeof n === 'string') parts.push(transformText(n, transform, Platform.OS));
+    else {
+      const own = textTransformOf(n.props) ?? transform;
+      for (const child of n.children) visit(child, own);
+    }
   };
-  visit(node);
+  visit(node, undefined);
   return parts.join('').replace(/\s+/g, ' ').trim();
 };
 
@@ -46,3 +53,81 @@ export const topScreenChild = (container: ReactTestInstance): ReactTestInstance 
   }
   return top;
 };
+
+// What React Native Testing Library 12 and 13 hand out: react-test-renderer's instances, composites included.
+type RendererInstance = {
+  readonly type: unknown;
+  readonly props: Record<string, unknown>;
+  readonly parent: RendererInstance | null;
+  readonly children: (RendererInstance | string)[];
+  readonly _fiber?: Fiber;
+  _currentFiber?: () => Fiber | null;
+};
+
+const originals = new WeakMap<object, RendererInstance>();
+
+const isRendererInstance = (value: unknown): value is RendererInstance => typeof value === 'object' && value !== null && '_fiber' in value;
+
+const hostChildren = (instance: RendererInstance): (RendererInstance | string)[] =>
+  instance.children.flatMap((child) => (typeof child === 'string' || typeof child.type === 'string' ? [child] : hostChildren(child)));
+
+const containers = new WeakMap<RendererInstance, ReactTestInstance>();
+
+// The host-only view of a react-test-renderer tree, shaped as RNTL 14's: the backend walks hosts and strings, and a
+// parent chain that ends at a typeless container. Read live on every access, since the tree under it changes.
+const hostView = (root: RendererInstance): ReactTestInstance => {
+  const cached = containers.get(root);
+  if (cached) return cached;
+  const wrappers = new WeakMap<RendererInstance, ReactTestInstance>();
+  const wrap = (instance: RendererInstance): ReactTestInstance => {
+    const known = wrappers.get(instance);
+    if (known) return known;
+    const node: ReactTestInstance = {
+      get type() {
+        return instance.type as string;
+      },
+      get props() {
+        return instance.props;
+      },
+      get parent() {
+        let up = instance.parent;
+        while (up && typeof up.type !== 'string') up = up.parent;
+        return up ? wrap(up) : container;
+      },
+      get children() {
+        return hostChildren(instance).map((child) => (typeof child === 'string' ? child : wrap(child)));
+      },
+      get unstable_fiber() {
+        // The instance keeps the fiber it was made from, which can be the stale alternate of the one on screen.
+        return instance._currentFiber?.() ?? instance._fiber ?? null;
+      },
+    };
+    wrappers.set(instance, node);
+    originals.set(node, instance);
+    return node;
+  };
+  const container: ReactTestInstance = {
+    type: '',
+    props: {},
+    parent: null,
+    get children() {
+      return hostChildren(root).map((child) => (typeof child === 'string' ? child : wrap(child)));
+    },
+    unstable_fiber: null,
+  };
+  containers.set(root, container);
+  return container;
+};
+
+/**
+ * The rendered tree as hosts only, whichever Testing Library rendered it: 14 hands out such a tree as `container`;
+ * 12 and 13 renamed `container` to `UNSAFE_root` (reading it throws) and hand out react-test-renderer's composite tree.
+ */
+export const hostRoot = (rendered: object): ReactTestInstance => {
+  const r = rendered as { UNSAFE_root?: unknown; container?: unknown };
+  if ('UNSAFE_root' in r && isRendererInstance(r.UNSAFE_root)) return hostView(r.UNSAFE_root);
+  return isRendererInstance(r.container) ? hostView(r.container) : (r.container as ReactTestInstance);
+};
+
+/** What Testing Library's fireEvent expects for a node of `hostRoot`'s tree: it walks composites for handlers. */
+export const rendererNode = (node: ReactTestInstance): object => originals.get(node) ?? node;

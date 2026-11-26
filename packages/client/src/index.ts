@@ -25,7 +25,7 @@ const sameToken = (given: unknown, expected: string): boolean => {
 
 // What a proven app may tell the driver; anything else (an `error` event above all, which EventEmitter throws on
 // when nobody listens) is not emitted.
-const APP_EVENTS = new Set(['navigation']);
+const APP_EVENTS = new Set(['navigation', 'appstate']);
 // Connections still proving the token: a few at once, each for a few seconds, so a local flood holds no memory.
 const MAX_CANDIDATES = 8;
 // What any local process may send before it has proved the token: a hello is well under a kilobyte. The proven app's
@@ -33,6 +33,7 @@ const MAX_CANDIDATES = 8;
 const CANDIDATE_MAX_FRAME = 64 * 1024;
 const MAX_FRAME = 32 * 1024 * 1024;
 const CANDIDATE_MS = 5000;
+const BACKGROUND = 'the app went to the background (another app is in front)';
 
 export type AgentServerOptions = {
   port?: number;
@@ -41,6 +42,11 @@ export type AgentServerOptions = {
   token?: string;
   /** How long in-flight calls wait for the app to reconnect before failing (default 2500 ms). */
   reconnectGraceMs?: number;
+  /**
+   * How long calls wait for an app that was attached and disconnected to dial back in, counted from when it left,
+   * before they fail as gone (default 10000 ms). A reload redials within moments; a crashed app never does.
+   */
+  goneMs?: number;
 };
 
 type Pending = {
@@ -73,7 +79,13 @@ export class AgentServer extends EventEmitter {
   #hello: HelloEvent | null = null;
   #graceTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectGraceMs: number;
+  #goneMs: number;
   #candidates = 0;
+  /** When the attached app disconnected; null while one is attached, or before any was. */
+  #goneSince: number | null = null;
+  #appState: string | undefined;
+  /** Frames heard from the attached app, counted: a call that heard none while it waited heard nothing at all. */
+  #heard = 0;
 
   constructor(options: AgentServerOptions = {}) {
     super();
@@ -81,6 +93,7 @@ export class AgentServer extends EventEmitter {
     this.host = options.host ?? '127.0.0.1';
     this.#token = options.token;
     this.#reconnectGraceMs = options.reconnectGraceMs ?? 2500;
+    this.#goneMs = options.goneMs ?? 10_000;
   }
 
   get connected(): boolean {
@@ -90,6 +103,16 @@ export class AgentServer extends EventEmitter {
   /** What the app said about itself when it attached. */
   get hello(): HelloEvent | null {
     return this.#hello;
+  }
+
+  /** An app was attached and has disconnected without dialing back in: it crashed, was closed, or is reloading. */
+  get gone(): boolean {
+    return this.#goneSince !== null && !this.connected;
+  }
+
+  /** The app's AppState as it last said (`active`, `background`…); undefined from an agent that does not say. */
+  get appState(): string | undefined {
+    return this.#appState;
   }
 
   async listen(): Promise<void> {
@@ -119,6 +142,7 @@ export class AgentServer extends EventEmitter {
     this.#socket?.close();
     this.#socket = null;
     this.#hello = null;
+    this.#goneSince = null;
     await new Promise<void>((resolve) => (this.#server ? this.#server.close(() => resolve()) : resolve()));
     this.#server = null;
   }
@@ -151,17 +175,28 @@ export class AgentServer extends EventEmitter {
     const deadline = Date.now() + timeoutMs;
     let socket = this.#socket;
     if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) {
-      await this.waitForApp(timeoutMs);
+      // An app that left gets one window to come back, not every call's whole timeout: a crashed one would otherwise
+      // cost each step of each case its full wait. What brings an app back on purpose (a relaunch, the OS putting it
+      // in front again) waits for its hello itself.
+      const goneSince = this.#goneSince;
+      if (goneSince !== null) {
+        const wait = Math.min(timeoutMs, goneSince + this.#goneMs - Date.now());
+        if (wait <= 0) throw this.#goneError(goneSince);
+        await this.waitForApp(wait).catch(() => {
+          throw this.#goneError(goneSince);
+        });
+      } else await this.waitForApp(timeoutMs);
       socket = this.#socket;
       if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
     }
     const id = this.#nextId++;
     const request = JSON.stringify({ id, method, params });
     const result = new Promise<unknown>((resolve, reject) => {
+      const heardBefore = this.#heard;
       const timer = setTimeout(
         () => {
           this.#pending.delete(id);
-          reject(new AgentError(`${method} timed out after ${timeoutMs}ms`, 'timeout'));
+          reject(new AgentError(`${method} timed out after ${timeoutMs}ms${this.#silenceNote(heardBefore)}`, 'timeout'));
         },
         Math.max(1, deadline - Date.now()),
       );
@@ -169,6 +204,20 @@ export class AgentServer extends EventEmitter {
     });
     socket.send(request);
     return result;
+  }
+
+  #goneError(since: number): AgentError {
+    const left = `it disconnected ${((Date.now() - since) / 1000).toFixed(1)} s ago and has not dialed back in`;
+    return this.#appState === 'background'
+      ? new AgentError(`${BACKGROUND} and let go of the driver: ${left}`, 'background')
+      : new AgentError(`the app is gone (crashed or closed): ${left}`, 'gone');
+  }
+
+  // Why a call got no answer, when the app says or its silence does.
+  #silenceNote(heardBefore: number): string {
+    if (this.#appState === 'background') return `: ${BACKGROUND}`;
+    if (this.#heard === heardBefore) return ': nothing at all came from the app meanwhile (another app in front, or its JS thread stuck)';
+    return '';
   }
 
   #cancelGrace(): void {
@@ -257,6 +306,9 @@ export class AgentServer extends EventEmitter {
           this.#cancelGrace();
           this.#hello = safe as HelloEvent;
           this.#unanswered = false;
+          this.#goneSince = null;
+          this.#appState = typeof this.#hello.appState === 'string' ? this.#hello.appState : undefined;
+          this.#heard++;
           socket.send(
             JSON.stringify(
               this.#token !== undefined && typeof nonce === 'string'
@@ -269,10 +321,15 @@ export class AgentServer extends EventEmitter {
           this.emit('hello', this.#hello);
           return;
         }
-        if (this.#socket === socket && this.#hello && APP_EVENTS.has(message.event)) this.emit(message.event, message);
+        if (this.#socket === socket && this.#hello && APP_EVENTS.has(message.event)) {
+          this.#heard++;
+          if (message.event === 'appstate') this.#appState = message.state;
+          this.emit(message.event, message);
+        }
         return;
       }
       if (this.#socket !== socket || !this.#hello) return;
+      this.#heard++;
       const pending = this.#pending.get(message.id);
       if (!pending) return;
       this.#pending.delete(message.id);
@@ -285,12 +342,15 @@ export class AgentServer extends EventEmitter {
       if (this.#socket !== socket) return;
       this.#socket = null;
       this.#hello = null;
+      const since = Date.now();
+      this.#goneSince = since;
       this.emit('disconnected');
       // Dev builds redial within moments: hold in-flight calls for the next hello to resend.
       if (this.#pending.size === 0) return;
       this.#graceTimer = setTimeout(() => {
         this.#graceTimer = null;
-        this.#failPending(new AgentError('App disconnected mid-call', 'disconnected'));
+        const gone = this.#goneError(since);
+        this.#failPending(new AgentError(`App disconnected mid-call: ${gone.message}`, 'disconnected'));
       }, this.#reconnectGraceMs);
     });
   }

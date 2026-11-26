@@ -439,9 +439,9 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 LYNKEUS_TOKEN=secreto npx lynkeus headless start
 ```
 
-### `No qa/headless.tsx in …`
+### `No … in …` (falta la entrada del host)
 
-**Por qué pasa.** El host necesita un archivo de entrada que exporte tu componente `App`, y no lo encuentra.
+**Por qué pasa.** El host necesita un archivo de entrada que exporte tu componente `App`, y no lo encuentra. Sin `entry` ni `--entry`, busca `qa/headless.tsx` si existe y, si no, `<cases.dir>/headless.tsx` (`cases/headless.tsx` por defecto).
 
 **Cómo se arregla.** `npx lynkeus headless init` lo escribe. Si lo tienes en otra ruta, indícala con `--entry` o con `entry` en la configuración.
 
@@ -462,7 +462,7 @@ Estas son las causas que reconoce:
 | `TurboModuleRegistry.getEnforcing(...): 'X' could not be found` | El módulo nativo `X` no existe bajo jest. | Simula el paquete dueño de `X` en la entrada, con `jest.mock('<paquete>', () => ({ … }))`. `lynkeus headless doctor` dice dónde se usa. |
 | `"X" was not found in the UIManager` | La vista nativa `X` no tiene equivalente en jest. | Simula la biblioteca que la renderiza con un `View` común. |
 | `Cannot find module 'X' from 'Y'` | `Y` importa `X`, y jest no lo resuelve. | Si `X` es un alias de ruta, agrégalo a `moduleNameMapper`. Si es un paquete nativo opcional, simúlalo en la entrada. |
-| `lynkeus headless only drives a local backend; API_URL is "…"` | La variable de la API no apunta a un backend local. | Exporta `API_URL=http://127.0.0.1:<puerto>/` antes de arrancar. Si la app incorpora las variables al compilar, borra también la caché de transformaciones de jest. |
+| `lynkeus headless only drives a local backend; API_URL is "…"` | Una entrada escrita por una versión anterior de Lynkeus comprueba la variable de la API, y no apunta a un backend local. | Exporta la variable como `http://127.0.0.1:<puerto>/` antes de arrancar, o ejecuta `headless init --force` para una entrada sin esa comprobación (la barrera de red ya mantiene a la app lejos de los hosts que no son locales). Si la app incorpora las variables al compilar, borra también la caché de transformaciones de jest. |
 | `X.y is not a function` | Un mock no implementa un método que la app llama. | Amplía el mock de `X` con `y`. Los mocks por defecto se pueden reemplazar clave por clave con `installDefaultMocks({ overrides })`. |
 | `Cannot read properties of undefined (reading 'x')` | Algo que la app daba por existente no está definido. | Busca el módulo un cuadro más arriba en la traza: un mock que devuelve `{}` en lugar de la forma que la app lee, o un store sin inicializar porque un servicio falló antes. |
 | `ECONNREFUSED 127.0.0.1:3000` | Nadie escucha en esa dirección. | Arranca el backend, o el driver si es la conexión del agente, y revisa el puerto. |

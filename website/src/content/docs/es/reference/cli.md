@@ -405,7 +405,11 @@ Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependenc
 |---|---|
 | `--offline` | Revisa solo los archivos; no espera a que haya una app conectada. |
 
-Cada línea empieza con `✓` o con `✗`, y las `✗` terminan con la solución tras un guion largo. El host sin pantalla y la clave de reportes son opcionales: aparecen igual, pero un proyecto puede vivir sin ellos.
+Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o con `○` si falta algo opcional. Las `✗` y las `○` terminan con la solución tras un guion largo.
+
+Después viene **Where cases can run on this machine**: dónde pueden correr los casos en esta máquina. Muestra los simuladores de iOS encendidos, los emuladores y teléfonos Android que lista `adb devices`, si la app puede correr sin pantalla y si Lynkeus FastSim está instalado. La última línea recomienda qué usar en el día a día y qué usar en CI.
+
+Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` en cada emulador y teléfono Android, para que la app llegue a Lynkeus también por `localhost`. Y en una app con `expo-dev-client` marca como vista la pantalla de bienvenida del menú de desarrollo y oculta su botón flotante, en cada simulador y emulador donde la app está instalada: las dos son vistas nativas que tapan la app y ningún paso puede tocar. El cambio vale desde el próximo arranque de la app. Lo mismo pasa una vez cuando una app se conecta desde un simulador o un emulador.
 
 ## Sistema operativo (`os`)
 
@@ -1066,7 +1070,7 @@ Si mezclas opciones que dependen unas de otras, el comando lo dice y no ejecuta 
 
 - `--screenshots and --video keep what they take in the run directory: add --out <dir>`
 - `--push uploads the run directory: add --out <dir>`
-- `--jobs and --host-command need a driver port per job: --ports with <n>`
+- `--jobs and --host-command need a driver port per job: --ports with <n>`, cuando `--ports` trae menos puertos que `--jobs`. Sin `--ports`, el comando elige puertos libres.
 - `--progress x: json or none`, cuando `--progress` recibe otro valor.
 
 #### Seguir una ejecución larga
@@ -1496,6 +1500,27 @@ Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants
 | `--print` | no | Muestra el token también en una terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 
+### `lynkeus fastsim start`
+
+```bash
+lynkeus fastsim start <bundle> [--kit <carpeta>] [--timeout <ms>]
+```
+
+Arranca un host de Lynkeus FastSim sobre un bundle hecho con el `bin/fastsim-bundle` del paquete y le conecta la sesión, para recorrer la app en FastSim antes de escribir un caso: desde ese momento [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` y los demás comandos la manejan a ella. Está pensado para un cliente MCP (`fastsim_start`) o una [`lynkeus session`](#lynkeus-session); desde una terminal, arranca tú `bin/fastsim-run <bundle> <puerto>`. El host se conecta al puerto del driver de la sesión y reemplaza a la app que estuviera conectada; cierra antes la app del Simulator, o vuelve a conectarse. Usa el FastSim instalado más reciente que dibuja la plataforma del bundle, salvo que `--kit` indique otro; pide el permiso igual que [`lynkeus case run`](#lynkeus-case-run) y espera hasta `--timeout` a que la app se conecte. La respuesta indica el log del host (`<bundle>/hosts/<puerto>.err`) y avisa si el bundle es más viejo que el código de la app o si su app no ofrece capturas, video ni reloj (un bundle anterior a que `fastsim-bundle` agregara los controles de FastSim, o `lynkeus-agent` anterior a 0.7.6).
+
+| Opción | Por defecto | Qué hace |
+|---|---|---|
+| `--kit <carpeta>` | el más reciente instalado para la plataforma del bundle | La carpeta de Lynkeus FastSim cuyo `bin/fastsim-run` arranca el host. |
+| `--timeout <ms>` | `60000` | Cuánto esperar a que la app se conecte. |
+
+### `lynkeus fastsim stop`
+
+```bash
+lynkeus fastsim stop
+```
+
+Detiene el host que arrancó [`lynkeus fastsim start`](#lynkeus-fastsim-start). El host también se detiene cuando termina la sesión o el servidor MCP.
+
 ## Host sin pantalla (`headless`)
 
 El host sin pantalla ejecuta la app en Node, bajo jest, sin simulador. Habla el mismo protocolo que un dispositivo, así que todos los comandos de [Manejar la app](#manejar-la-app) funcionan igual. Lo específico de este host está en [Host sin pantalla](/es/platforms/headless/).
@@ -1508,13 +1533,13 @@ lynkeus headless start [--entry <file>] [-- <argumentos de jest>]
 
 Aloja la app en Node (jest y React Native Testing Library) y espera a que se conecte un driver. Forma corta: `lynkeus headless`.
 
-Necesita el token del proyecto: el que `lynkeus init` (o `headless init`) escribió en `.lynkeus/token`, o `LYNKEUS_TOKEN` en el entorno, que gana sobre el archivo. Sin ninguno de los dos se niega a arrancar. La dirección de la API de la app sale de la variable de entorno que nombra `apiEnv` (por defecto `API_URL`) y, si no está definida, de `apiUrl` en `lynkeus.config.json`. `LYNKEUS_PORT` mueve juntos al host y a su driver. `LYNKEUS_HOST` indica dónde escucha el driver cuando el host no está en la misma máquina, por ejemplo un contenedor que se conecta hacia afuera. Lo que escribas después de `--` se le pasa a jest.
+Necesita el token del proyecto: el que `lynkeus init` (o `headless init`) escribió en `.lynkeus/token`, o `LYNKEUS_TOKEN` en el entorno, que gana sobre el archivo. Sin ninguno de los dos se niega a arrancar. La dirección de la API de la app sale de la variable de entorno de la que la app la lee (Lynkeus detecta el nombre; `apiEnv` en `lynkeus.config.json` lo fija) y, si no está definida, de `apiUrl` en `lynkeus.config.json`. Si la app no lee ninguna, no se supone ninguna. El archivo del host vive en `.lynkeus/host/` y nunca se ejecuta en el jest de la app, y recupera los mocks de tests unitarios del setup de jest de la app, salvo que ese setup lea `LYNKEUS_HEADLESS`. `LYNKEUS_PORT` mueve juntos al host y a su driver. `LYNKEUS_HOST` indica dónde escucha el driver cuando el host no está en la misma máquina, por ejemplo un contenedor que se conecta hacia afuera. Lo que escribas después de `--` se le pasa a jest.
 
 Cuando el host se cae, las últimas líneas dicen qué suele significar el error y cómo se arregla.
 
 | Opción | Qué hace |
 |---|---|
-| `--entry <file>` | El archivo de entrada del host. Si no la das, se usa `entry` de la configuración y, si tampoco está, `qa/headless.tsx`. |
+| `--entry <file>` | El archivo de entrada del host. Si no la das, se usa `entry` de la configuración; si tampoco está, un `qa/headless.tsx` que ya exista y, si no, `<cases.dir>/headless.tsx`. |
 
 ```bash
 API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
@@ -1526,13 +1551,13 @@ API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
 lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]
 ```
 
-Escribe el archivo de entrada del host: los mocks por defecto, una comprobación de que el backend es local y tu componente `App`.
+Escribe el archivo de entrada del host: los mocks por defecto y la entrada propia de tu app (`registerRootComponent` o `AppRegistry`). La barrera de red del host, no la entrada, mantiene a la app lejos de los hosts que no son locales.
 
 | Opción | Qué hace |
 |---|---|
-| `--entry <file>` | Dónde escribir la entrada. Por defecto, `entry` de la configuración o `qa/headless.tsx`. |
-| `--component <App.tsx>` | El archivo del componente `App`. Si está en un lugar habitual, se encuentra solo. |
-| `--api-env <NAME>` | La variable de entorno de la que la app lee la dirección de su API. Por defecto, `apiEnv` de la configuración o `API_URL`. |
+| `--entry <file>` | Dónde escribir la entrada. Por defecto, `entry` de la configuración; si no, un `qa/headless.tsx` que ya exista y, si no, `<cases.dir>/headless.tsx`. |
+| `--component <App.tsx>` | El archivo del componente `App`. Se encuentra solo a partir de la entrada de la app. |
+| `--api-env <NAME>` | La variable de entorno de la que la app lee la dirección de su API. Por defecto, `apiEnv` de la configuración o la variable que lee el código de la app; si no hay ninguna, no se supone ninguna. |
 | `--auto` | Además monta el agente como lo hace [`lynkeus init`](#lynkeus-init): agrega `auto()` al punto de entrada y, en una app de React Native, el plugin `lynkeus-agent/babel` a `babel.config.js`. |
 | `--force` | Sobrescribe una entrada existente. |
 | `--no-install` | No agrega `jest`, Testing Library ni `lynkeus-headless` al proyecto. Por defecto los instala. |
@@ -1545,7 +1570,7 @@ Si el proyecto todavía no tiene token, lo crea en `.lynkeus/token`, porque `hea
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Dice qué módulos nativos simula Lynkeus y cuáles todavía necesitan un mock.
+Dice qué módulos nativos simula Lynkeus y cuáles nadie provee (reciben una respuesta vacía), y cómo dar a cada uno una respuesta real. Comprueba también que la versión de React Native Testing Library sea una que `lynkeus-headless` admite (12, 13 o 14).
 
 | Opción | Qué hace |
 |---|---|

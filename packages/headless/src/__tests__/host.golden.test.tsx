@@ -99,6 +99,7 @@ const stable = (value: unknown, key = ''): unknown => {
   if (typeof value === 'number' && TIMING.test(key)) return '<time>';
   if (typeof value === 'string' && (key === 'nonce' || key === 'proof')) return '<hex>';
   if (key === 'agentVersion') return '<version>';
+  if (key === 'locale' && typeof value === 'string') return '<locale>';
   return value;
 };
 

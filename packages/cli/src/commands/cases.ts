@@ -11,16 +11,18 @@ import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
-import { claimPorts } from '../cases/portClaim.js';
-import { configFile, portFromEnv } from '../config.js';
+import { claimPorts, freePorts } from '../cases/portClaim.js';
+import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
-import { Flakes } from '../cases/flakes.js';
+import { caseVersion, Flakes } from '../cases/flakes.js';
+import { headlessEntryOf } from './appEntry.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { staleBundleWarning } from '../cases/staleBundle.js';
 import { hostGrantEnv } from './fastsim.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
@@ -60,8 +62,9 @@ export const startHost = async (root: string, err: (line: string) => void, launc
         .split('\n')
         .map((line) => line.trim())
         .join(' · ');
-    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message.
-    const thrown = plain.match(/Test suite failed to run\s*\n\s*\n?\s*(\S.*)$/m)?.[1]?.trim();
+    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message, which
+    // can run over several lines ("doesn't seem to be linked. Make sure: …"): all of it, up to the stack or code frame.
+    const thrown = thrownMessage(plain);
     return thrown ?? plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
   };
   await new Promise<void>((resolve, reject) => {
@@ -87,6 +90,19 @@ export const startHost = async (root: string, err: (line: string) => void, launc
   return host;
 };
 
+/** The whole message of the error a suite threw while loading, as one line; undefined when jest printed none. */
+export const thrownMessage = (output: string): string | undefined => {
+  const after = output.split(/Test suite failed to run\s*\n/)[1];
+  if (!after) return undefined;
+  const lines: string[] = [];
+  for (const line of after.split('\n')) {
+    if (/^\s*at\s|^\s*>?\s*\d+\s*\||^\s*(Details|Test Suites):/.test(line)) break;
+    if (line.trim()) lines.push(line.trim());
+    if (lines.length === 12) break;
+  }
+  return lines.length ? lines.join(' ') : undefined;
+};
+
 const exited = (host: ChildProcess) => host.exitCode !== null || host.signalCode !== null;
 
 /**
@@ -110,6 +126,15 @@ export const hostLost = async (
     return undefined;
   return 'is running but its app is not attached';
 };
+
+/**
+ * A case that found no app while the host it started still runs: the host loaded the app, and the app's agent never
+ * dialed in. That is a bundle with the agent off or left out, which the client's own hint (a dev build) does not name.
+ */
+export const agentSilent = (report: Pick<CaseReport, 'result' | 'steps'>, host: ChildProcess | undefined): string | undefined =>
+  report.result === 'failed' && host && !exited(host) && report.steps.some((s) => s.error?.startsWith('No app attached'))
+    ? 'is running the app, but no Lynkeus agent dialed in: the bundle has the agent off (auto() or <Lynkeus> with enabled false; before lynkeus-agent 0.7.6 a FastSim bundle, a release build, left it off unless enabled said otherwise) or was made without it'
+    : undefined;
 
 export type HostMemory = { heapUsedMb?: number; heapLimitMb?: number };
 
@@ -147,13 +172,17 @@ export const stopHost = async (host: ChildProcess): Promise<void> => {
   clearTimeout(late);
 };
 
-const describe = (report: CaseReport): string => {
+export const describe = (report: CaseReport): string => {
   const counts = { passed: 0, failed: 0, skipped: 0, unsupported: 0 };
   for (const s of report.steps) counts[s.status] += 1;
   const headline = { passed: '✅ PASSED', failed: '❌ FAILED', unsupported: '🚫 NOT ON THIS HOST' }[report.result];
   const lines = [
     `${headline}  ✅ ${counts.passed}${counts.failed ? `  ❌ ${counts.failed}` : ''}${counts.unsupported ? `  🚫 ${counts.unsupported}` : ''}${counts.skipped ? `  ⏭️ ${counts.skipped}` : ''}  — ${(report.ms / 1000).toFixed(1)}s`,
   ];
+  // The step's own error first: the evidence after it is read from the app, and may say nothing about it.
+  for (const s of report.steps)
+    if (s.status === 'failed' || s.status === 'unsupported')
+      lines.push(`— failed at: ${s.step}`, ...(s.error ?? 'no error was given').split('\n').map((l) => `    ${l}`));
   if (report.evidence?.screen) lines.push('— screen at the failure:', ...report.evidence.screen.split('\n').map((l) => `    ${l}`));
   if (report.evidence?.requests?.length) lines.push('— requests:', ...report.evidence.requests.map((l) => `    ${l}`));
   if (report.evidence?.why) lines.push('— why:', ...report.evidence.why.split('\n').map((l) => `    ${l}`));
@@ -252,18 +281,64 @@ const spawnHost = (command: string, port: number, job: number, cwd: string, env:
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
 // A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
-export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }): string[] => {
+// The packages whose calls the agent and the hosts keep (lynkeus-agent's sdks.ts, lynkeus-headless's analytics mocks).
+const ANALYTICS_PACKAGES = [
+  'mixpanel-react-native',
+  'react-native-appsflyer',
+  '@react-native-firebase/analytics',
+  '@react-native-firebase/crashlytics',
+  '@datadog/mobile-react-native',
+  '@sentry/react-native',
+  '@intercom/intercom-react-native',
+  '@amplitude/analytics-react-native',
+  '@amplitude/react-native',
+  '@braze/react-native-sdk',
+  'react-native-branch',
+  'react-native-adjust',
+  '@bugsnag/react-native',
+  'clevertap-react-native',
+  'react-native-onesignal',
+  'react-native-fbsdk-next',
+  '@iterable/react-native-sdk',
+];
+
+/** The analytics, crash and support SDKs among the app's dependencies that Lynkeus keeps the calls of. */
+export const analyticsSdksOf = (root: string): string[] => {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    };
+    return ANALYTICS_PACKAGES.filter((name) => manifest.dependencies?.[name] ?? manifest.devDependencies?.[name]);
+  } catch {
+    return [];
+  }
+};
+
+/** `sdks`: the analytics SDKs the app depends on; an app with none sends no event, and that is nothing to warn about. */
+export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; sdks: string[]; screenshots?: boolean; ownHost?: boolean }): string[] => {
   if (reports.length === 0) return [];
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
   return [
-    ...(fromApp
+    ...(fromApp || asked.sdks.length === 0
       ? []
       : [
-          '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
+          `⚠ no case kept an analytics event from the app, which depends on ${asked.sdks.join(', ')} (the agent and the hosts keep the calls that reach them; on a simulator or emulator only where the SDK’s module can be wrapped).`,
         ]),
+    ...(asked.screenshots && !steps.some((s) => s.screenshot)
+      ? [
+          asked.ownHost
+            ? '⚠ --screenshots kept no frame: the host this run started does not take them. On Lynkeus FastSim the app needs lynkeus-agent 0.7.6 or newer and a bundle made by a fastsim-bundle that adds the host’s controls: update both and bundle again. The headless host draws nothing.'
+            : '⚠ --screenshots kept no frame: neither the app nor the simulator or emulator gave one.',
+        ]
+      : []),
     ...(asked.video && !reports.some((r) => r.video)
-      ? ['⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).']
+      ? [
+          asked.ownHost
+            ? '⚠ --video kept no film: the host this run started does not film. Lynkeus FastSim films when its bundle has the host’s controls (lynkeus-agent 0.7.6 or newer, bundled again with a current fastsim-bundle); headless keeps nothing.'
+            : '⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).',
+        ]
       : []),
   ];
 };
@@ -302,6 +377,12 @@ export const keptOrDeleted = (dir: string, afterPush: 'keep' | 'delete', complet
   }
   return `run folder: ${megabytes(bytes)} on disk${afterPush === 'delete' ? ', kept because some files were not taken' : ''} · \`lynkeus report prune ${path.dirname(dir)} --older 7d\` frees old ones`;
 };
+
+/** The case runs going in this process, for `case stop`: each stops with a reason and says when it has let go. */
+type ActiveRun = { label: string; progress?: string; stop: (why: string) => void; done: Promise<void> };
+const active = new Set<ActiveRun>();
+
+const STOP_POLL_MS = 500;
 
 export const caseCommands = [
   define({
@@ -386,8 +467,8 @@ export const caseCommands = [
       'video-scale': { type: 'number', help: 'pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told)', value: 'n' },
       flakes: { type: 'string', help: 'the ledger of how each case did across runs (default .lynkeus/flakes.json)', value: 'file' },
       prepared: { type: 'string', help: 'where `case prepare` leaves setups made ahead; a case found there skips its setup', value: 'dir' },
-      jobs: { type: 'number', help: 'cases at once, each on its own host (needs --ports)', value: 'n', default: 1 },
-      ports: { type: 'string', help: 'the driver port of each job, comma-separated: where its host dials in', value: 'list' },
+      jobs: { type: 'number', help: 'cases at once, each on its own host', value: 'n', default: 1 },
+      ports: { type: 'string', help: 'the driver port of each job, comma-separated: where its host dials in (default: free ones)', value: 'list' },
       'host-command': {
         type: 'string',
         help: 'starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job',
@@ -481,19 +562,40 @@ export const caseCommands = [
       const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
       // A run file files each event under its step, so it needs them collected.
       const events = typeof ctx.flags.events === 'string' || (out !== undefined && !ctx.flags['no-app-events']);
+      const jobsAsked = Math.max(1, Number(ctx.flags.jobs ?? 1));
+      // Hosts side by side need a port each; with none given, free ones are picked, past the one an attached app dials.
+      const runPorts =
+        typeof ctx.flags.ports === 'string'
+          ? ctx.flags.ports.split(',').map(Number)
+          : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string') && !dry
+            ? await freePorts(jobsAsked, portFromEnv(ctx.config) ?? DEFAULT_PORT)
+            : undefined;
+      if (runPorts && typeof ctx.flags.ports !== 'string') ctx.err(`driver ports: ${runPorts.join(', ')} (picked free; --ports chooses them)`);
+      const runLabel = `${cases.length === 1 ? cases[0]!.id : `${cases.length} cases (${cases[0]?.id ?? 'none'}…)`}, started ${new Date().toLocaleTimeString()}${out ? `, out ${out.directory}` : ''}`;
       const claimed = dry
         ? undefined
-        : claimPorts(
-            typeof ctx.flags.ports === 'string'
-              ? ctx.flags.ports
-                  .split(',')
-                  .map(Number)
-                  .filter(Number.isInteger)
-                  .slice(0, Math.max(1, Number(ctx.flags.jobs ?? 1)))
-              : [portFromEnv(ctx.config) ?? 8123],
-          );
+        : claimPorts(runPorts ? runPorts.filter(Number.isInteger).slice(0, jobsAsked) : [portFromEnv(ctx.config) ?? DEFAULT_PORT], undefined, runLabel);
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
-      let runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
+      // Stopped by the caller giving up (an MCP client cancelling the call), by `case stop`, or not at all.
+      const halt = new AbortController();
+      const stopWith = (why: string) => {
+        if (!halt.signal.aborted) halt.abort(why);
+      };
+      const cancelled = () => stopWith('the caller cancelled case run');
+      if (ctx.signal?.aborted) cancelled();
+      ctx.signal?.addEventListener('abort', cancelled, { once: true });
+      // A port claim left behind would refuse every later run of this process on that port.
+      const letGo = () => {
+        claimed?.release();
+        ctx.signal?.removeEventListener('abort', cancelled);
+      };
+      let runHost: ChildProcess | undefined;
+      try {
+        runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
+      } catch (error) {
+        letGo();
+        throw error;
+      }
       // With --keep-hosts, each job's own long-lived host, by job.
       const kept: (ChildProcess | undefined)[] = [];
       const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
@@ -503,6 +605,8 @@ export const caseCommands = [
           await traces.start();
         } catch (error) {
           fixtures?.close();
+          if (runHost?.pid) stopGroup(runHost.pid);
+          letGo();
           return { text: `--traces could not listen on port ${traces.port}: ${(error as Error).message}`, code: 2 };
         }
         ctx.err(`backend traces: listening on http://localhost:${traces.port} (the backend's OTEL_EXPORTER_OTLP_ENDPOINT)`);
@@ -510,15 +614,33 @@ export const caseCommands = [
       // Where the run stands, as events: in the run directory (or the project's .lynkeus when there is none), on
       // stdout with --progress json, to an MCP caller, and on the live line in a terminal.
       const progressFile = dry ? undefined : out ? path.join(out.directory, PROGRESS_FILE) : path.join(ctx.root, '.lynkeus', `last-run.${PROGRESS_FILE}`);
+      // `case stop` from another process leaves this file; the run looks for it between its own steps' waits.
+      const stopFile = progressFile ? `${progressFile}.stop` : undefined;
       if (progressFile) {
         fs.mkdirSync(path.dirname(progressFile), { recursive: true });
         fs.writeFileSync(progressFile, '');
+        if (stopFile) fs.rmSync(stopFile, { force: true });
         fs.mkdirSync(path.dirname(lastRunFile(ctx.root)), { recursive: true });
-        fs.writeFileSync(lastRunFile(ctx.root), `${JSON.stringify({ progress: progressFile, pid: process.pid, startedAt: new Date().toISOString() })}\n`);
+        fs.writeFileSync(
+          lastRunFile(ctx.root),
+          `${JSON.stringify({ progress: progressFile, pid: process.pid, startedAt: new Date().toISOString(), stop: stopFile })}\n`,
+        );
       }
+      const watching = stopFile
+        ? setInterval(() => {
+            if (!fs.existsSync(stopFile)) return;
+            fs.rmSync(stopFile, { force: true });
+            stopWith('stopped with case stop');
+          }, STOP_POLL_MS)
+        : undefined;
+      watching?.unref();
       const state = new RunState();
       let live: LiveLine | undefined;
+      // A stopped run says it ended once; a case still finishing its step after that is not news.
+      let ended = false;
       const emit = (e: ProgressEvent) => {
+        if (ended) return;
+        if (e.type === 'run-end') ended = true;
         state.apply(e);
         if (progressFile) fs.appendFileSync(progressFile, `${JSON.stringify(e)}\n`);
         if (jsonProgress) process.stdout.write(`${JSON.stringify(e)}\n`);
@@ -527,13 +649,20 @@ export const caseCommands = [
       };
       const now = () => new Date().toISOString();
       let liveRun: LiveRun | undefined;
+      // The hosts started for one case (--host-command), so a stopped run stops them too.
+      const perCase = new Set<ChildProcess>();
       const stop = () => {
         live?.stop();
         traces?.close();
-        claimed?.release();
+        letGo();
         fixtures?.close();
         if (runHost?.pid) stopGroup(runHost.pid);
         for (const h of kept) if (h?.pid) stopGroup(h.pid);
+        for (const h of perCase) if (h.pid) stopGroup(h.pid);
+        if (watching) clearInterval(watching);
+        // An MCP server runs many case runs: one's handlers left behind would end the server for a run long over.
+        process.off('SIGINT', interrupted);
+        process.off('SIGTERM', interrupted);
       };
       const interrupted = () => {
         stop();
@@ -541,6 +670,16 @@ export const caseCommands = [
       };
       process.once('SIGINT', interrupted);
       process.once('SIGTERM', interrupted);
+      let settle: () => void = () => undefined;
+      const registered: ActiveRun = {
+        label: runLabel,
+        progress: progressFile,
+        stop: stopWith,
+        done: new Promise<void>((resolve) => {
+          settle = resolve;
+        }),
+      };
+      if (!dry) active.add(registered);
       // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
       // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
       // starts on a host started again. A host whose heap is near its limit would die in the middle of the next case,
@@ -550,7 +689,7 @@ export const caseCommands = [
       let reviving: Promise<void> | undefined;
       const hostUp = (log: (line: string) => void): Promise<void> => {
         reviving ??= (async () => {
-          if (!runHost) return;
+          if (!runHost || halt.signal.aborted) return;
           const dead = await hostLost(runHost, await server(), 5000);
           const memory = dead ? undefined : await (await ctx.device().catch(() => undefined))?.command<HostMemory>('memory').catch(() => undefined);
           if (memory?.heapUsedMb) log(`host: heap ${memory.heapUsedMb} MB of ${memory.heapLimitMb ?? '?'} MB`);
@@ -571,6 +710,8 @@ export const caseCommands = [
         return reviving;
       };
       const reports: (CaseReport & { retried?: boolean })[] = [];
+      // Said again with the summary: over MCP the summary is all the caller reads.
+      let stale: string | undefined;
       try {
         // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
         const described = await fixtures?.describe();
@@ -580,13 +721,15 @@ export const caseCommands = [
           if (missing.length > 0) return { text: [...missing, `the fixtures command answers: ${described.commands.join(', ')}`].join('\n'), code: 1 };
         }
         const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
-        const ports = typeof ctx.flags.ports === 'string' ? ctx.flags.ports.split(',').map(Number) : [];
+        const ports = runPorts ?? [];
         const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
         const keepHosts = !!ctx.flags['keep-hosts'] && hostCommand !== undefined;
         // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
         // which finds nothing when lynkeus itself runs from the npx cache.
         let hostEnv: NodeJS.ProcessEnv = process.env;
         if (hostCommand) {
+          stale = staleBundleWarning(hostCommand, ctx.root, [path.resolve(home, config.dir ?? 'cases')]);
+          if (stale) ctx.err(stale);
           const granted = await hostGrantEnv(ctx, hostCommand);
           if ('failed' in granted) return granted.failed;
           hostEnv = granted.env;
@@ -597,6 +740,7 @@ export const caseCommands = [
         // A job's kept host serves case after case; one that died, lost its app or is about to run out of heap
         // would fail every case after it, so it is checked before each case and started again.
         const keptUp = async (index: number, port: number, log: (line: string) => void): Promise<void> => {
+          if (halt.signal.aborted) return;
           const host = kept[index];
           if (host && !exited(host)) {
             const probe = ctx.forPort!(port);
@@ -613,7 +757,7 @@ export const caseCommands = [
           const started = spawnHost(hostCommand!, port, index, ctx.root, hostEnv, launch);
           kept[index] = started;
           const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
-          while (!exited(started) && Date.now() < until) {
+          while (!exited(started) && Date.now() < until && !halt.signal.aborted) {
             const probe = ctx.forPort!(port);
             const attached = await probe.base.device().then(
               () => true,
@@ -622,6 +766,7 @@ export const caseCommands = [
             await probe.stop();
             if (attached) return;
           }
+          if (halt.signal.aborted) return void (await stopHost(started));
           log(`host on port ${port}: ${exited(started) ? `exited (${started.exitCode ?? started.signalCode})` : 'did not attach in time'}`);
         };
         if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
@@ -692,7 +837,7 @@ export const caseCommands = [
           const own = index === 0 ? fixtures : declared && !dry ? new Fixtures(declared, home) : undefined;
           const port = ports[index];
           try {
-            for (let c = cases[next++]; c; c = cases[next++]) {
+            for (let c = cases[next++]; c && !halt.signal.aborted; c = cases[next++]) {
               const lines: string[] = [];
               // With several jobs a case's lines are held and printed together, not interleaved.
               const log = jobs > 1 ? (line: string) => lines.push(line) : ctx.err;
@@ -705,9 +850,10 @@ export const caseCommands = [
                   await hostUp(log);
                   if (keepHosts && port !== undefined) await keptUp(index, port, log);
                   const host =
-                    hostCommand && port !== undefined && !keepHosts
+                    hostCommand && port !== undefined && !keepHosts && !halt.signal.aborted
                       ? spawnHost(hostCommand, port, index, ctx.root, hostEnv, caseLaunch(launch, c.id, n))
                       : undefined;
+                  if (host) perCase.add(host);
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({
@@ -741,10 +887,15 @@ export const caseCommands = [
                       routes: seenDir ? (host ? 'fresh' : true) : false,
                       traces,
                       nativeLogs: native,
+                      ownHost: !!hostCommand || !!runHost,
+                      signal: halt.signal,
                       onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
-                    const mine = keepHosts ? kept[index] : runHost;
-                    const lost = report.result === 'failed' && mine ? await hostLost(mine, mine === runHost ? await server() : undefined) : undefined;
+                    const mine = keepHosts ? kept[index] : (host ?? runHost);
+                    const lost =
+                      report.result === 'failed' && mine
+                        ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine))
+                        : undefined;
                     if (lost) {
                       report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
                       report.evidence = {
@@ -758,7 +909,10 @@ export const caseCommands = [
                     }
                     return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
                   } finally {
-                    if (host) await stopHost(host);
+                    if (host) {
+                      await stopHost(host);
+                      perCase.delete(host);
+                    }
                     await scoped.stop();
                   }
                 };
@@ -770,6 +924,8 @@ export const caseCommands = [
                   1,
                   store?.take(c),
                 );
+                // What a stopped case did after the stop is not a result: it ran only until its step ended.
+                if (halt.signal.aborted) break;
                 seen ??= hello;
                 const retry = report.result === 'failed' && !ctx.flags.once && !dry;
                 emit({
@@ -788,6 +944,7 @@ export const caseCommands = [
                 if (retry) {
                   log(`  retrying ${c.id} once`);
                   const again = await attempt(2);
+                  if (halt.signal.aborted) break;
                   report = { ...again.report, retried: true };
                   startedAt = again.startedAt;
                   emit({ type: 'case-end', at: now(), id: c.id, job: index, attempt: 2, result: report.result, ms: report.ms });
@@ -796,7 +953,7 @@ export const caseCommands = [
                   if (second) liveRun?.add(second);
                 }
                 if (jobs > 1) ctx.err(lines.join('\n'));
-                ledger?.note(report);
+                ledger?.note(report, new Date(), caseVersion(c));
                 if (typeof ctx.flags.events === 'string' && report.events) {
                   const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
                   fs.mkdirSync(dir, { recursive: true });
@@ -813,17 +970,27 @@ export const caseCommands = [
           }
         };
         let seen: { platform?: string; native?: boolean } | undefined;
-        await Promise.all(Array.from({ length: jobs }, (_, i) => job(i)));
-        await preparing;
+        // A stop does not wait for the case on the app to reach the end of its step: the hosts and ports are let go
+        // now, and that case ends on its own, starting no other step.
+        const halted = new Promise<void>((resolve) => {
+          if (halt.signal.aborted) resolve();
+          halt.signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        await Promise.race([Promise.all(Array.from({ length: jobs }, (_, i) => job(i))), halted]);
+        if (!halt.signal.aborted) await preparing;
         if (out) out.finish({ platform: seen?.platform, native: seen?.native, nativeValues: mergeNativeValues(reports.map((r) => r.nativeValues)) });
         native?.stop();
       } finally {
         stop();
+        active.delete(registered);
+        settle();
       }
+      const stoppedBy = halt.signal.aborted ? String(halt.signal.reason) : undefined;
       const count = (result: CaseReport['result']) => reports.filter((r) => r.result === result).length;
       const unsupported = count('unsupported');
+      // A stopped run's report is finished with what ran; one that was to be uploaded at the end is not.
       const uploaded =
-        reportsTo && out
+        reportsTo && out && (!stoppedBy || liveRun)
           ? await pushed(
               path.resolve(ctx.flags.out as string),
               reportsTo,
@@ -841,6 +1008,7 @@ export const caseCommands = [
         unsupported,
         ms: state.status().elapsedMs,
         ...(uploaded?.url ? { report: uploaded.url } : {}),
+        ...(stoppedBy ? { stopped: stoppedBy } : {}),
       });
       const summary = [
         ...reports.map(
@@ -850,16 +1018,29 @@ export const caseCommands = [
             (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
+        ...(stoppedBy
+          ? [
+              `⏹ stopped (${stoppedBy}) after ${reports.length} of ${cases.length} cases; no step starts after it, any host it started is stopped and its ports are let go`,
+            ]
+          : []),
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
-        ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
-        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues))),
+        ...(stale ? [stale] : []),
+        ...(out
+          ? missingEvidence(reports, {
+              video: !!ctx.flags.video,
+              screenshots: !!ctx.flags.screenshots,
+              sdks: analyticsSdksOf(ctx.root),
+              ownHost: typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host,
+            })
+          : []),
+        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), { entry: headlessEntryOf(ctx.root, ctx.config) }),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(uploaded ? [uploaded.text] : []),
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.
-      const code = count('failed') === 0 ? 0 : 1;
+      const code = stoppedBy ? 130 : count('failed') === 0 ? 0 : 1;
       // stdout holds the events alone: the summary goes where the run's lines went.
       if (jsonProgress) {
         ctx.err(summary);
@@ -899,7 +1080,64 @@ export const caseCommands = [
           code: 1,
         };
       const status = statusOf(file);
-      return { text: describeStatus(status, file), json: status };
+      const text = describeStatus(status, file);
+      return { text: status.state === 'running' ? `${text}\nto stop it: \`lynkeus case stop\` (case_stop over MCP)` : text, json: status };
+    },
+  }),
+  define({
+    name: 'case stop',
+    group: 'runs',
+    summary: 'Stop a case run that is going: no step starts after the current one, the hosts it started stop and its ports are let go',
+    details: `Without a directory: every run of this Lynkeus (an MCP server or a session) at once, else the last run of this project, from any process. A run in another process stops when it next looks (within a second); this waits for it to say so. A run stopped this way ends with what it ran, and \`case status\` says it was stopped.`,
+    positionals: [
+      { name: 'dir', help: `the run directory (case run --out), or its ${PROGRESS_FILE}; default: the runs of this Lynkeus, else the last run here` },
+    ],
+    needs: 'nothing',
+    session: false,
+    mcp: 'core',
+    mcpDetails:
+      "Stops a case_run that is still going (one a client moved to the background, or another from a terminal): no step starts after the current one, the hosts it started stop and its port is let go. Give the run's out directory, or nothing for the runs of this server, else the project's last run.",
+    run: async (ctx) => {
+      const given = ctx.args[0];
+      const progressOf = (dir: string) => {
+        const full = path.resolve(dir);
+        return fs.existsSync(full) && fs.statSync(full).isDirectory() ? path.join(full, PROGRESS_FILE) : full;
+      };
+      const wanted = given ? progressOf(given) : undefined;
+      const here = [...active].filter((r) => !wanted || r.progress === wanted);
+      if (here.length > 0) {
+        for (const r of here) r.stop('stopped with case stop');
+        let timer: NodeJS.Timeout | undefined;
+        await Promise.race([Promise.all(here.map((r) => r.done)), new Promise((resolve) => (timer = setTimeout(resolve, 10_000)))]);
+        clearTimeout(timer);
+        return here.map((r) => `stopped: ${r.label}`).join('\n');
+      }
+      let file = wanted;
+      let stopFile: string | undefined;
+      if (!file) {
+        try {
+          const last = JSON.parse(fs.readFileSync(lastRunFile(ctx.root), 'utf8')) as { progress?: string; stop?: string };
+          file = last.progress;
+          stopFile = last.stop;
+        } catch {
+          file = undefined;
+        }
+      }
+      if (!file || !fs.existsSync(file))
+        return { text: given ? `no ${PROGRESS_FILE} at ${given}: is it a directory \`case run --out\` wrote?` : 'no run here to stop', code: 1 };
+      const before = statusOf(file);
+      if (before.state !== 'running') return { text: `nothing to stop: the last run is ${describeStatus(before).split('\n')[0]}` };
+      fs.writeFileSync(stopFile ?? `${file}.stop`, '');
+      const until = Date.now() + 10_000;
+      while (Date.now() < until) {
+        await new Promise((resolve) => setTimeout(resolve, STOP_POLL_MS));
+        const now = statusOf(file);
+        if (now.state !== 'running') return describeStatus(now, file);
+      }
+      return {
+        text: `asked the run (pid ${before.pid ?? '?'}) to stop, and it has not said it did: a Lynkeus before case stop does not look for it; end that process instead`,
+        code: 1,
+      };
     },
   }),
   define({

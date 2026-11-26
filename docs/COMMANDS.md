@@ -669,8 +669,8 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--video-scale <n>` | pixels per point of the film, where the host takes one (FastSim: 1 to 3, 2 unless told) |
 | `--flakes <file>` | the ledger of how each case did across runs (default .lynkeus/flakes.json) |
 | `--prepared <dir>` | where `case prepare` leaves setups made ahead; a case found there skips its setup |
-| `--jobs <n>` | cases at once, each on its own host (needs --ports) (default `1`) |
-| `--ports <list>` | the driver port of each job, comma-separated: where its host dials in |
+| `--jobs <n>` | cases at once, each on its own host (default `1`) |
+| `--ports <list>` | the driver port of each job, comma-separated: where its host dials in (default: free ones) |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
 | `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
 | `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |
@@ -689,6 +689,16 @@ Reads progress.ndjson, which `case run` writes as it goes: in the run directory 
 | Argument | |
 |---|---|
 | `dir` | the run directory (case run --out), or its progress.ndjson; default: the last run here (optional) |
+
+### `lynkeus case stop [dir]`
+
+Stop a case run that is going: no step starts after the current one, the hosts it started stop and its ports are let go
+
+Without a directory: every run of this Lynkeus (an MCP server or a session) at once, else the last run of this project, from any process. A run in another process stops when it next looks (within a second); this waits for it to say so. A run stopped this way ends with what it ran, and `case status` says it was stopped.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory (case run --out), or its progress.ndjson; default: the runs of this Lynkeus, else the last run here (optional) |
 
 ### `lynkeus case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]`
 
@@ -920,6 +930,25 @@ Asks lynkeus.io for a grant for the build this machine runs (--platform ios unle
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--print` | print the token even at a terminal (it is printed anyway when stdout is a pipe) |
 
+### `lynkeus fastsim start <bundle> [--kit <dir>] [--timeout <ms>]`
+
+Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type
+
+Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.
+
+| Argument | |
+|---|---|
+| `bundle` | the folder fastsim-bundle made |
+
+| Flag | |
+|---|---|
+| `--kit <dir>` | the Lynkeus FastSim folder (default: the newest installed for the bundle's platform) |
+| `--timeout <ms>` | how long to wait for the app to attach (default `60000`) |
+
+### `lynkeus fastsim stop`
+
+Stop the Lynkeus FastSim host fastsim start started for this session
+
 ### `lynkeus login [--cloud <url>] [--no-browser]`
 
 Sign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key
@@ -959,7 +988,7 @@ Also accepted: `headless`.
 
 ### `lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]`
 
-Write the headless entry: default mocks, a local-backend guard, your App
+Write the headless entry: default mocks and the app's own entry
 
 | Flag | |
 |---|---|

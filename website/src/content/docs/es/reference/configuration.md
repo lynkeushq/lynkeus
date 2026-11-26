@@ -39,8 +39,8 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
   "app": "com.example.myapp",
   "attachTimeout": 15000,
 
-  "entry": "qa/headless.tsx",
-  "apiEnv": "API_URL",
+  "entry": "cases/headless.tsx",
+  "apiEnv": "EXPO_PUBLIC_API_URL",
   "strictMode": false,
 
   "language": "es",
@@ -119,8 +119,8 @@ Si no nombras ningún dispositivo y no hay ningún simulador encendido, Lynkeus 
 
 | Clave | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `entry` | texto | `qa/headless.tsx` | El archivo de entrada del host sin pantalla. Lo reemplaza `--entry`. |
-| `apiEnv` | texto | `API_URL` | La variable de entorno de la que la app lee la dirección de su API. La entrada que genera `headless init` comprueba que esa variable apunte a un backend local y, si no, se niega a renderizar la app. Lo reemplaza `--api-env`. |
+| `entry` | texto | un `qa/headless.tsx` que ya exista; si no, `<cases.dir>/headless.tsx` | El archivo de entrada del host sin pantalla. Lo reemplaza `--entry`. |
+| `apiEnv` | texto | se detecta | La variable de entorno de la que la app lee la dirección de su API. Lynkeus la encuentra leyendo el código; fíjala solo para cambiar lo que encontró. Si la app no lee ninguna, no se supone ninguna. Lo reemplaza `--api-env`. |
 | `apiUrl` | texto | ninguno | El backend local que `headless start` le pasa a la app en la variable de `apiEnv` cuando el entorno no la define. Sirve cuando un agente de IA arranca el host por MCP, porque no puede exportar variables. Desde 0.4.0. |
 | `strictMode` | booleano | `false` | Conserva `React.StrictMode` en el host. Está apagado por defecto porque producción no lo tiene, y sus renders dobles duplican cada petición, cada commit y cada milisegundo que el host mide. |
 | `live` | lista de textos | ninguno | Expresiones regulares para los `testID` de controles cuyo contenido cambia solo: un reloj, una cuenta regresiva. Su texto deja de contar como commit. Sin esto, `idle` agotaría todo su tiempo de espera en cada pantalla que muestre uno. |

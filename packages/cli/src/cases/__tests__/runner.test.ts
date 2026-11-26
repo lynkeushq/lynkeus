@@ -942,3 +942,124 @@ test('a step that passes keeps no listing', async () => {
     [undefined, undefined],
   );
 });
+
+// A field with focus and the keyboard over the button: the agent closes it before the press, so the runner does not wait.
+const keyboardOver = async (focused: boolean) => {
+  const { base, calls } = fakeApp();
+  const device = (await base.device()) as unknown as {
+    server: { call: (method: string, params: { testId?: string }) => Promise<unknown> };
+    screen: () => Promise<{ elements: unknown[] }>;
+  };
+  const call = device.server.call;
+  const listed = device.screen;
+  device.server.call = async (method, params) => {
+    const found = await call(method, params);
+    return method === 'find' && params.testId === 'refresh' && found ? { ...(found as object), covered: true } : found;
+  };
+  device.screen = async () => {
+    const screen = await listed();
+    screen.elements.push({ i: 5, kind: 'input', testId: 'email', focused, enabled: true, depth: 0, frame: { x: 0, y: 100, w: 300, h: 40 } });
+    return screen;
+  };
+  return { base, calls };
+};
+
+test('a press under the keyboard of a focused field goes ahead at once; a covered one without it waits its timeout', async () => {
+  const c = parseCase('---\nid: kb\n---\nsteps:\n  - app.press: { target: "#refresh", timeoutMs: 400 }\n', 'kb.md');
+  const typing = await keyboardOver(true);
+  let started = Date.now();
+  assert.equal((await runCase(c, { base: typing.base, config, fixtures })).result, 'passed');
+  assert.ok(Date.now() - started < 300, `waited ${Date.now() - started} ms`);
+  assert.ok(typing.calls.some((call) => call.method === 'press'));
+
+  const covered = await keyboardOver(false);
+  started = Date.now();
+  await runCase(c, { base: covered.base, config, fixtures });
+  assert.ok(Date.now() - started >= 400, `waited ${Date.now() - started} ms`);
+});
+
+test('a case starts with no mocks, and one that set a mock leaves none behind', async () => {
+  for (const sets of [false, true]) {
+    const steps = sets ? '  - app.mock: { route: "GET /api/points", status: 500 }\n  - app.see: { text: "Hello" }\n' : '  - app.see: { text: "Hello" }\n';
+    const c = parseCase(`---\nid: mocks\n---\nsteps:\n${steps}`, 'mocks.md');
+    const { base } = fakeApp();
+    const device = await base.device();
+    const asked: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: { action?: string }) => {
+      asked.push(`${name}:${params?.action ?? ''}`);
+      return {};
+    };
+    const report = await runCase(c, { base, config, fixtures });
+    assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+    assert.equal(asked[0], 'netmock:clear');
+    assert.deepEqual(asked.slice(1), sets ? ['netmock:add', 'netmock:clear'] : []);
+  }
+});
+
+test('a frame after a press waits for the commit the press caused, not only for a quiet app', async () => {
+  const c = parseCase('---\nid: frame\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n', 'frame.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const idles: unknown[] = [];
+  device.idle = async (params) => {
+    idles.push(params);
+    return { commit: params?.after === undefined ? 1 : 2, idle: true };
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-frame-'));
+  await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, settleMs: 150, frames: 'png' } });
+  // The screen read before the press was at commit 1; the frame's wait is for a commit past it. A look takes none.
+  assert.deepEqual(
+    idles.filter((p) => (p as { quietMs?: number }).quietMs === 150),
+    [
+      { quietMs: 150, timeoutMs: 1000, after: 1 },
+      { quietMs: 150, timeoutMs: 1000 },
+    ],
+  );
+});
+
+test('a frame after a press that rendered nothing is of the quiet screen', async () => {
+  const c = parseCase('---\nid: nothing\n---\nsteps:\n  - app.press: "#refresh"\n', 'nothing.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const idles: unknown[] = [];
+  device.idle = async (params) => {
+    idles.push(params);
+    // Nothing past commit 1 ever arrives.
+    return { commit: 1, idle: params?.after === undefined };
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-nothing-'));
+  await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, settleMs: 150, frames: 'png' } });
+  assert.deepEqual(
+    idles.filter((p) => (p as { quietMs?: number }).quietMs === 150),
+    [
+      { quietMs: 150, timeoutMs: 1000, after: 1 },
+      { quietMs: 150, timeoutMs: 1000 },
+    ],
+  );
+});
+
+test('a wait for a request says it wants a 2xx, and what the request answered instead', async () => {
+  const c = parseCase('---\nid: request\n---\nsteps:\n  - app.wait: { request: "GET /api/orders", timeoutMs: 100 }\n', 'request.md');
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  const requestsOf = device.requests;
+  let asked = 0;
+  // Sent after the step began, which is where a wait for a request starts counting.
+  device.requests = async (since) => {
+    if (++asked > 1 && !requests.some((r) => r.url.endsWith('/orders')))
+      requests.push({ id: requests.length + 1, method: 'GET', url: 'http://x/api/orders', status: 500, startedAt: 0 });
+    return requestsOf(since);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.match(report.steps[0]?.error ?? '', /^no 2xx GET \/api\/orders within 100 ms; it answered 500 — .*pass status/);
+});
+
+test('a text check finds a text drawn in capitals by the words the source writes', async () => {
+  const c = parseCase('---\nid: caps\n---\nsteps:\n  - app.see: { text: "hello" }\n  - app.see: { text: "HELLO", absent: true, timeoutMs: 50 }\n', 'caps.md');
+  const { base } = fakeApp();
+  const report = await runCase(c, { base, config, fixtures });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'failed'],
+  );
+});

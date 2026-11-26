@@ -5,9 +5,12 @@
  */
 import fs from 'node:fs';
 
+import type { AgentServer } from 'lynkeus-client';
+
 import { UsageError } from './args.js';
 import { graphFile } from './config.js';
-import { writeJson } from './files.js';
+import { readJson, writeJson } from './files.js';
+import type { ScreenGraph } from './knowledge/types.js';
 import { describeWhy, explain } from './knowledge/why.js';
 import { type Base, helpFor, parseFor, resolve } from './registry.js';
 import { runtimeAt } from './runtimes/index.js';
@@ -15,12 +18,43 @@ import { type Expected, expectedOf } from './targets.js';
 
 export type Outcome = { text?: string; json?: unknown; code: number; error?: string; why?: string };
 
-/** The screen, requests and trace after a failure, read as rules; empty when there is nothing to read. */
-export const whyFor = async (base: Base, expected?: Expected, startedAt?: number): Promise<string> => {
+/**
+ * Why the app cannot answer now, worded to stand alone: gone, or a phone's app behind another one (suspended, its
+ * socket open and silent); undefined when it can. A host keeps answering in the background, so only a phone counts.
+ */
+export const unreachable = (server: Partial<Pick<AgentServer, 'gone' | 'appState' | 'hello'>> | undefined): string | undefined => {
+  if (server?.gone) return 'the app is gone (crashed or closed)';
+  const hello = server?.hello;
+  if (server?.appState === 'background' && hello?.native && !hello.commands?.includes('clock'))
+    return 'the app went to the background (another app is in front)';
+  return undefined;
+};
+
+/**
+ * What `why` reads about on a port: the last case or command that ran there, so a failure from before it (a probe the
+ * app did not know, a step of an earlier case) is not given as its cause. `since` is the app's trace sequence at its
+ * start, where known; `failed` the step or command that failed, with its own error.
+ */
+export type WhyScope = { at: number; since?: number; case?: string; failed?: string };
+const scopes = new Map<number | undefined, WhyScope>();
+export const scopeWhy = (port: number | undefined, scope: WhyScope): void => {
+  scopes.set(port, scope);
+};
+export const whyScope = (port: number | undefined): WhyScope | undefined => scopes.get(port);
+
+/**
+ * The screen, requests and trace after a failure, read as rules; empty when there is nothing to read. Only what
+ * happened from `startedAt` on (from trace sequence `since` on, where given) counts.
+ */
+export const whyFor = async (base: Base, expected?: Expected, startedAt?: number, since?: number): Promise<string> => {
   try {
     const device = await base.device();
-    const [screen, requests, trace] = await Promise.all([device.screen(), device.requests(), device.trace()]);
+    // Each read would wait out its whole timeout.
+    const away = unreachable(device.server);
+    if (away) return `  • ${away}: nothing on its screen can be read`;
+    const [screen, requests, trace] = await Promise.all([device.screen(), device.requests(), device.trace(since)]);
     const during = duringCommand(requests.requests, startedAt);
+    const events = since === undefined ? fromStart(trace.events, startedAt, (e) => e.t) : trace.events;
     return describeWhy(
       explain({
         screen,
@@ -28,7 +62,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         inFlight: requests.inFlight,
         pending: requests.requests.filter((r) => r.status === undefined && !r.error),
         now: Date.now(),
-        trace: trace.events.slice(-40),
+        trace: events.slice(-40),
         target: expected,
         fetchedBefore: during.length < requests.requests.length,
       }),
@@ -43,24 +77,35 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
  * failed now. Only when the app's clock reads like this machine's (a simulator, an emulator); a host on a clock of
  * its own keeps them all.
  */
-export const duringCommand = <R extends { startedAt: number }>(requests: R[], startedAt: number | undefined, now = Date.now()): R[] => {
-  if (startedAt === undefined || requests.length === 0) return requests;
-  const latest = Math.max(...requests.map((r) => r.startedAt));
-  if (Math.abs(latest - now) > 10 * 60_000) return requests;
-  return requests.filter((r) => r.startedAt >= startedAt - 3000);
+export const duringCommand = <R extends { startedAt: number }>(requests: R[], startedAt: number | undefined, now = Date.now()): R[] =>
+  fromStart(requests, startedAt, (r) => r.startedAt, now);
+
+const fromStart = <T>(items: T[], startedAt: number | undefined, at: (item: T) => number, now = Date.now()): T[] => {
+  if (startedAt === undefined || items.length === 0) return items;
+  const latest = Math.max(...items.map(at));
+  if (Math.abs(latest - now) > 10 * 60_000) return items;
+  return items.filter((item) => at(item) >= startedAt - 3000);
 };
 
 const TARGET_ARG: Record<string, number> = { press: 0, see: 0, wait: 0, swipe: 1, nav: 0, type: 1 };
+
+const portOf = async (base: Base): Promise<number | undefined> => (await base.device().catch(() => undefined))?.server?.port;
 
 /**
  * A command that reads the route graph builds it the first time instead of failing: the first run of `case new` or
  * `smoke` in a new project needs no `map build` before it. Any runtime whose routes can be read here gets one.
  */
-const graphFirst = async (root: string): Promise<void> => {
-  if (fs.existsSync(graphFile(root))) return;
+const graphFirst = async (root: string, required: boolean): Promise<void> => {
+  const file = graphFile(root);
+  // A graph with no screen is read again: the navigators may have been added since, or found by a newer Lynkeus.
+  if (fs.existsSync(file) && Object.keys(readJson<ScreenGraph>(file).screens ?? {}).length > 0) return;
   const runtime = await runtimeAt(root);
   if (runtime.graphMissing(root)) return;
-  writeJson(graphFile(root), await runtime.buildGraph(root));
+  const graph = await runtime.buildGraph(root);
+  writeJson(file, graph);
+  // A command about screens on an empty map would answer as if the app had none: say why instead.
+  if (required && Object.keys(graph.screens).length === 0)
+    throw new Error(`the route map is empty: ${graph.warnings[0] ?? 'no screen was found in the source'}`);
 };
 
 export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
@@ -77,8 +122,9 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
   if (parsed.flags.help) return { code: 0, text: helpFor(command) };
   const startedAt = Date.now();
   try {
-    if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root);
+    if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root, command.needs === 'graph');
     const result = await command.run({ ...base, ...parsed });
+    if (TARGET_ARG[command.name] !== undefined) scopeWhy(await portOf(base), { at: startedAt });
     if (result === undefined) return { code: 0 };
     if (typeof result === 'string') return { code: 0, text: result };
     return { code: result.code ?? 0, text: result.text ?? (result.json === undefined ? undefined : JSON.stringify(result.json)), json: result.json };
@@ -86,6 +132,7 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
     const out: Outcome = { code: 1, error: error instanceof Error ? error.message : String(error) };
     const at = TARGET_ARG[command.name];
     if (at !== undefined) {
+      scopeWhy(await portOf(base), { at: startedAt, failed: `${argv.join(' ')}: ${out.error}` });
       const why = await whyFor(base, expectedOf(parsed.args[at]), startedAt);
       if (why) out.why = why;
     }

@@ -22,6 +22,7 @@ exports[`answers the scripted sequence as it did 1`] = `
         "traceContext",
       ],
       "event": "hello",
+      "locale": "<locale>",
       "native": false,
       "nonce": "<hex>",
       "platform": "ios",

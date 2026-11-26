@@ -86,3 +86,25 @@ test('what cannot be traced to one file stays on the module it was imported from
   assert.deepEqual(imports('Whole.tsx'), { imports: ['hooks/index.ts'], barrels: [] });
   assert.deepEqual(imports('Local.tsx'), { imports: ['hooks/index.ts'], barrels: [] });
 });
+
+test('navigators are found by what they declare, in any folder, and tests are left out', async () => {
+  const { extractScreenGraph } = await import('../extract.js');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-extract-'));
+  const write = (file: string, code: string) => {
+    fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    fs.writeFileSync(path.join(root, file), code);
+  };
+  write('tsconfig.json', JSON.stringify({ compilerOptions: { jsx: 'react-jsx', strict: false }, include: ['src'] }));
+  write(
+    'src/navigators/AppNavigator.tsx',
+    `import { LoginScreen } from '../screens/LoginScreen'\nconst Stack = createNativeStackNavigator()\nexport const AppNavigator = () => <Stack.Navigator><Stack.Screen name="Login" component={LoginScreen} /></Stack.Navigator>\n`,
+  );
+  write('src/screens/LoginScreen.tsx', `export const LoginScreen = () => <Text testID="login-heading">Log in</Text>\n`);
+  write('src/navigators/__tests__/AppNavigator.test.tsx', `const T = () => <Stack.Screen name="Fake" component={Fake} />\n`);
+  const graph = extractScreenGraph({ root });
+  assert.deepEqual(Object.keys(graph.screens), ['Login']);
+  fs.rmSync(root, { recursive: true, force: true });
+});

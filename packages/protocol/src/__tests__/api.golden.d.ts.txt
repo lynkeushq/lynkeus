@@ -352,12 +352,18 @@ export type HelloEvent = {
     commands: string[];
     route?: string;
     app?: Record<string, unknown>;
+    locale?: string;
     nonce?: string;
     proof?: string;
+    appState?: string;
 };
 export type NavigationEvent = {
     event: 'navigation';
     route?: string;
+};
+export type AppStateEvent = {
+    event: 'appstate';
+    state: string;
 };
 export type AuthEvent = {
     event: 'auth';
@@ -368,7 +374,7 @@ export type VerifiedEvent = {
     event: 'verified';
     proof?: string;
 };
-export type AgentEvent = HelloEvent | NavigationEvent;
+export type AgentEvent = HelloEvent | NavigationEvent | AppStateEvent;
 export * from './run.js';
 export * from './fixtures.js';
 
@@ -483,8 +489,9 @@ export type RunNativeValue = {
     property?: string;
     platform: 'ios' | 'android';
     host: 'fastsim' | 'headless';
-    readAs: 'function' | 'undefined';
+    readAs: 'function' | 'undefined' | 'empty';
     called?: boolean;
+    package?: string;
 };
 export type RunManifest = {
     schema: typeof RUN_SCHEMA;

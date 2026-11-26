@@ -36,7 +36,7 @@ auto({ token: process.env.LYNKEUS_TOKEN, host: '10.0.2.2', port: 8123 });
 
 Un teléfono Android conectado por USB (o por la red de `adb`) funciona como un emulador, sin configurar nada. Desde el teléfono, `10.0.2.2` no llega a tu máquina, así que el CLI hace dos cosas:
 
-- Al empezar a escuchar, ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` para cada teléfono que `adb devices` lista con un número de serie que no empieza con `emulator-`. Eso le da al teléfono el puerto del driver en su propio `localhost`. Sin `adb` o sin teléfonos, no hace nada.
+- Al empezar a escuchar, y cada vez que corres `lynkeus status`, ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` para cada teléfono y emulador que lista `adb devices`. Eso les da el puerto del driver en su propio `localhost`, que también sirve a un emulador donde `10.0.2.2` está bloqueado. Sin `adb` o sin dispositivos, no hace nada.
 - Una app Android que no recibió la opción `host` prueba primero `10.0.2.2` y después `localhost`, hasta que una responde. Con `host` explícito, usa ese.
 
 El registro nativo del teléfono (`logcat`) se guarda en la evidencia de un caso igual que el de un emulador. Hace falta un build de depuración, como siempre. Un iPhone físico, en cambio, no está soportado: `simctl` solo maneja simuladores.

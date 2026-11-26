@@ -73,6 +73,8 @@ export const host = {
     hostState.onReset = fn;
   },
   runReset: (): void | Promise<void> => hostState.onReset?.(),
+  /** A host that remounts the app on a reset resets it without the app's own `reset` command. */
+  resetsItself: (): boolean => hostState.onReset !== undefined,
   navigation: (): NavigationAdapter | undefined => navigation,
   get,
   commands,

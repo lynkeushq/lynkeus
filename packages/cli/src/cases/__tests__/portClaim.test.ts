@@ -34,3 +34,19 @@ test('a claim left by a run that is gone is taken over, and released at the end'
   claim.release();
   assert.equal(fs.existsSync(file), false);
 });
+
+test('a port another run of this same process drives is refused, naming that run, until it lets go', () => {
+  const at = dir();
+  const first = claimPorts([8125], at, 'login, started 10:00:00');
+  assert.ok('release' in first);
+  const second = claimPorts([8125], at, 'signup');
+  assert.ok('refused' in second);
+  assert.equal(
+    second.refused,
+    'port 8125 is driving the app for another case run of this Lynkeus, still going: login, started 10:00:00. Wait for it (case status), or stop it (case stop; case_stop over MCP), then run again',
+  );
+  first.release();
+  const third = claimPorts([8125], at, 'signup');
+  assert.ok('release' in third);
+  third.release();
+});

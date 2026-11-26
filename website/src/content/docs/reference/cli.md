@@ -444,15 +444,19 @@ Running it again changes only what is missing: it answers that the entry already
 lynkeus status [--offline]
 ```
 
-Says what the project has of Lynkeus and what is missing. It is the first command to run in a project you do not know. Each line starts with `✓` or `✗`, and each `✗` says what fixes it:
+Says what the project has of Lynkeus and what is missing, and where cases can run on this machine. It is the first command to run in a project you do not know. Each line starts with `✓` when it holds, `✗` when something needed is missing, or `○` when something optional is missing; each `✗` and `○` says what fixes it:
 
 - `lynkeus-agent` is a dependency and is installed.
 - The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
 - The project has a token, and in an Expo app Expo is given it.
-- An app is attached. This is the only check that waits, and it runs only when everything above holds.
-- The app can run headless: jest, Testing Library and `lynkeus-headless` are installed, and the entry exists. Optional.
+- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds.
 - There are cases to run. `lynkeus case init` writes an example.
 - Runs can be pushed to the report service: `LYNKEUS_REPORTS_KEY` is set. Optional.
+
+Then, under **Where cases can run on this machine**: the booted iOS Simulators, the Android emulators and phones `adb devices` lists, whether the app can run headless (jest, Testing Library and `lynkeus-headless` installed and the entry written), and whether Lynkeus FastSim is installed. The last line recommends one for day-to-day work and one for CI. Without `--offline`, `status` also:
+
+- runs `adb reverse tcp:<port> tcp:<port>` on every Android emulator and phone, so the app reaches Lynkeus at `localhost` as well as at `10.0.2.2`, and says which it reversed;
+- in an app with `expo-dev-client`, marks the dev menu's onboarding sheet as seen and hides its floating button on each booted simulator and emulator where the app is installed. Both are native views over the app that no step can press through. They take effect at the app's next launch. The same happens once when an app attaches on a simulator or emulator.
 
 | Flag | Meaning |
 |---|---|
@@ -1494,6 +1498,27 @@ A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim
 | `--print` | off | Print the token even at a terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 
+### `lynkeus fastsim start`
+
+```bash
+lynkeus fastsim start <bundle> [--kit <dir>] [--timeout <ms>]
+```
+
+Starts a Lynkeus FastSim host on a bundle made with the package's `bin/fastsim-bundle` and attaches the session to it, so you can explore the app on FastSim before writing a case: [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` and the other commands drive it from then on. It is meant for an MCP client (`fastsim_start`) or a [`lynkeus session`](#lynkeus-session); from a shell, start `bin/fastsim-run <bundle> <port>` yourself. The host listens on the session's driver port and replaces any app attached before; close a Simulator's app first, or it dials back in. It uses the newest installed FastSim that draws the bundle's platform unless `--kit` names one, gets its grant as [`lynkeus case run`](#lynkeus-case-run) does, and waits up to `--timeout` for the app to attach. The answer gives the host's log (`<bundle>/hosts/<port>.err`), and warns when the bundle is older than the app's code or when its app offers no screenshot, film or clock (a bundle made before `fastsim-bundle` added FastSim's controls, or `lynkeus-agent` older than 0.7.6).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--kit <dir>` | newest installed for the bundle's platform | The Lynkeus FastSim folder whose `bin/fastsim-run` starts the host. |
+| `--timeout <ms>` | `60000` | How long to wait for the app to attach. |
+
+### `lynkeus fastsim stop`
+
+```bash
+lynkeus fastsim stop
+```
+
+Stops the host [`lynkeus fastsim start`](#lynkeus-fastsim-start) started. The host also stops when the session or the MCP server ends.
+
 ## headless
 
 Commands for the headless host: the app hosted in Node under jest, with no simulator. See [Headless](/platforms/headless/).
@@ -1506,11 +1531,11 @@ lynkeus headless start [--entry <file>] [-- <jest arguments>]
 
 Hosts the app in Node (jest and React Native Testing Library) and waits for a driver. It speaks the same protocol as a device. Alias: `headless`.
 
-It needs the project's token and refuses to start without it: the one `lynkeus init` or `lynkeus headless init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` in the environment, which wins. The app's API base comes from the environment variable that `apiEnv` names (default `API_URL`), or else from `apiUrl` in `lynkeus.config.json`. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
+It needs the project's token and refuses to start without it: the one `lynkeus init` or `lynkeus headless init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` in the environment, which wins. The app's API base comes from the environment variable the app reads it from (Lynkeus detects the name; `apiEnv` in `lynkeus.config.json` overrides it), or else from `apiUrl` in `lynkeus.config.json`. An app that reads no address gets none. The host's own test file lives in `.lynkeus/host/`, so it never runs in the app's own jest. It takes back the unit-test mocks of the app's jest setup, unless that setup reads `LYNKEUS_HEADLESS`. Each run lists the native modules nobody provides, which are answered empty. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
 
 ```bash
 lynkeus headless start
@@ -1523,15 +1548,15 @@ API_URL=http://127.0.0.1:3000/ lynkeus headless start
 lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]
 ```
 
-Writes the headless entry: the default mocks, a guard that refuses a backend that is not local, and your `App`. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
+Writes the headless entry: the default mocks and your app's own entry (`registerRootComponent` or `AppRegistry`), so the root component runs as on a device. React Navigation is found by itself. The network fence, not the entry, keeps the app off hosts that are not local. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
 
-It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app has none, so it cannot run on the headless host.
+It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app gets an entry of its own that renders its routes.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
-| `--component <App.tsx>` | | The file of the `App` component. It is found by itself when it sits in a standard place. |
-| `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else `API_URL` | The environment variable the app reads its API base from. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
+| `--component <App.tsx>` | | The file of the `App` component. It is found through the app's own entry when it can be. |
+| `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else the variable the app's source reads | The environment variable the app reads its API base from. With none found, none is assumed. |
 | `--auto` | | Also mount the agent from `index.js` with `auto()`, as [`lynkeus init`](#lynkeus-init) does. |
 | `--force` | | Overwrite an existing entry. |
 | `--no-install` | | Do not add jest, Testing Library and `lynkeus-headless` to the project. |
@@ -1542,11 +1567,11 @@ It stops with `no App component found` when it finds no root component and `--co
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Lists what Lynkeus mocks, and which native modules of the app still need a mock.
+Lists what Lynkeus mocks, which native modules of the app nobody provides (they are answered empty) and how to give each a real answer, and whether the installed React Native Testing Library is one `lynkeus-headless` supports (12, 13 or 14).
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
 | `--fix` | | Write stubs for the uncovered modules into the entry. |
 | `--explain <text>` | | Turn a jest error into its usual cause and fix. Paste the first line of the error, not the stack. |
 

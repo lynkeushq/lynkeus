@@ -119,6 +119,10 @@ export class Device {
 
 const quote = (value: string) => JSON.stringify(value);
 
+// The agent sends a text whole, so a check can name all of it; a listing only needs enough to recognize it.
+const PRINTED_TEXT = 200;
+const shortened = (text: string) => (text.length > PRINTED_TEXT ? `${text.slice(0, PRINTED_TEXT - 1)}…` : text);
+
 export const describeTrace = (events: TraceEvent[]): string => {
   if (events.length === 0) return '(no events)';
   const t0 = events[0]!.t;
@@ -151,6 +155,19 @@ type DescribeOptions = {
   frames?: boolean;
   /** The commit count and the read's cost in the header. */
   verbose?: boolean;
+};
+
+export const NATIVE_COVER =
+  'a native view outside React Native covers the app (the Expo dev menu’s sheet, a system alert, a permission prompt): every control reads ~covered, and that view’s own buttons are not in the tree; close it on the device, or relaunch the app';
+
+/**
+ * Whether something outside the app's React tree is over it. The agent marks a control covered when a touch at its
+ * centre would land elsewhere; when every presented control is covered at once and the tree shows nothing on top,
+ * what is over them is a native view of its own (expo-dev-client's onboarding sheet on a first launch, say).
+ */
+export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting'>): string | undefined => {
+  const controls = screen.elements.filter((e) => !e.hidden && (e.kind === 'button' || e.kind === 'input'));
+  return !screen.presenting && controls.length > 0 && controls.every((e) => e.covered) ? NATIVE_COVER : undefined;
 };
 
 export const describeScreen = (screen: Screen, options: DescribeOptions = {}): string => {
@@ -195,8 +212,9 @@ export const describeScreen = (screen: Screen, options: DescribeOptions = {}): s
           : '';
     const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}`;
     const at = frames ? ` @${Math.round(e.frame.x + e.frame.w / 2)},${Math.round(e.frame.y + e.frame.h / 2)}` : '';
-    return `${index}${e.kind}${id}${label ? ` ${quote(label)}` : ''}${value}${state}${at}`;
+    return `${index}${e.kind}${id}${label ? ` ${quote(shortened(label))}` : ''}${value}${state}${at}`;
   });
   const rest = listed.length - lines.length;
-  return [header, ...lines, rest > 0 ? `… ${rest} more` : ''].filter(Boolean).join('\n');
+  const cover = nativeCover(screen);
+  return [header, cover ? `! ${cover}` : '', ...lines, rest > 0 ? `… ${rest} more` : ''].filter(Boolean).join('\n');
 };
