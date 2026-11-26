@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- On a Lynkeus FastSim host an app's commands were missing when the app registered them inside `if (__DEV__)`: FastSim runs a release bundle, where `__DEV__` is false, and the case failed with `Unknown method signIn` or `no command reset registered` and no reason. In a release bundle `lynkeus-agent` now adds why to that error (the release bundle, the `__DEV__` guard, and that `qa.register` is safe to call unconditionally), and `case run` shows it with the step. The Agent API, FastSim guide and MCP instructions say to register commands outside `if (__DEV__)`; registering stays inert in a production build (the handler is only kept in memory, nothing connects or reads the screen).
+
 ## 0.7.6
 
 - `press` over MCP and in a session waits, as a case's press does, for a control a screen is still sliding over (up to 3 s), but not for one only the keyboard covers. Pressed right after a `wait` for the new route, the tap landed during the transition and was lost, and the next `wait` timed out.

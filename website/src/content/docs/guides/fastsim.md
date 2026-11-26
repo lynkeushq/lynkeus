@@ -59,6 +59,8 @@ Bundle the app, again after each change to its JavaScript:
 
 Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle.
 
+The bundle is a release bundle: `__DEV__` is false in it. The agent turns itself on there anyway, but app code behind `if (__DEV__)` does not run. Register the app's commands (`reset`, a sign-in shortcut) with `qa.register` outside that check, as the [Agent API](/reference/agent-api/#qa) says; it is inert in a production build. If you pass `enabled` yourself, an expression that requires `__DEV__` turns the agent off on FastSim too.
+
 Then run the cases, one host per case:
 
 ```bash
@@ -90,6 +92,8 @@ How closely it matches a real device depends on the platform:
 Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
+
+**`Unknown method <name> (this is a release bundle, __DEV__ is false, ...)`** or **`no command reset registered; ... (this is a release bundle ...)`**. The app registers that command inside `if (__DEV__)`, which never runs in a FastSim bundle. Move the `qa.register` call out of the check and bundle the app again.
 
 **`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Exit code 2. The command found neither a sign-in nor a key. If you are a person at a terminal, run `lynkeus login` (or run the command again from a terminal: it signs you in). In CI, export `LYNKEUS_CLOUD_KEY` with an API key an owner made with **May download Lynkeus FastSim**, or put it under `[env]` in `mise.local.toml`. This code is what a script, CI or MCP gets when there is nothing to sign in with.
 

@@ -455,6 +455,16 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   return handlers;
 };
 
+// `__DEV__` is false in a release bundle, the kind Lynkeus FastSim runs: an app that registered its commands inside
+// `if (__DEV__)` has none there, and only this side can tell the driver why.
+const releaseBundle = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__ === false;
+
+/** What a command the app did not register is missing, said so that a release bundle's reason is in the error. */
+const unregistered = (head: string, method: string): string =>
+  releaseBundle()
+    ? `${head} (this is a release bundle, __DEV__ is false, as on Lynkeus FastSim: if the app registers ${method} inside if (__DEV__), that never ran here; call qa.register without the guard, it does nothing until Lynkeus connects)`
+    : head;
+
 /** Core methods first, then whatever the app registered. Unknown names fail loudly. */
 export const dispatch = async (handlers: Handlers, method: string, params: unknown, navigation?: NavigationAdapter): Promise<unknown> => {
   const core = (handlers as Record<string, (p: unknown) => unknown>)[method];
@@ -464,12 +474,13 @@ export const dispatch = async (handlers: Handlers, method: string, params: unkno
   // host's mocked native state and the navigation stack.
   if (method === 'reset') {
     // With nothing to reset the app's own state, an answer of null would read as a reset that happened.
-    if (!custom && !host.resetsItself()) throw new Error(`no command reset registered; registered: ${host.commands().join(', ') || 'none'}`);
+    if (!custom && !host.resetsItself())
+      throw new Error(unregistered(`no command reset registered; registered: ${host.commands().join(', ') || 'none'}`, 'reset'));
     const result = custom ? ((await custom(params)) ?? null) : null;
     await host.runReset();
     navigation?.resetToRoot?.();
     return result;
   }
   if (custom) return (await custom(params)) ?? null;
-  throw new Error(`Unknown method ${method}`);
+  throw new Error(unregistered(`Unknown method ${method}`, method));
 };

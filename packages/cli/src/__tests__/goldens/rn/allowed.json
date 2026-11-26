@@ -12,8 +12,8 @@
     "now": "253ddb33db343fd5"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text.",
-    "now": "4a19231e51c54c57"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim.",
+    "now": "99f9791fd1677871"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",

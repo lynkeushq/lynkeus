@@ -57,6 +57,8 @@ Empaqueta la app, y vuelve a hacerlo cada vez que cambie su JavaScript:
 
 Para un bundle de Android, escribe `android` en lugar de `ios`. Ejecútalo en una terminal que tenga el entorno de tu build de desarrollo, como las variables `EXPO_PUBLIC_` y la dirección del backend: quedan escritas dentro del bundle.
 
+Ese bundle es de release, así que en él `__DEV__` vale `false`. El agente se enciende igual, pero el código de la app que esté dentro de `if (__DEV__)` no se ejecuta. Por eso los comandos de la app (`reset`, un atajo para iniciar sesión) se registran con `qa.register` fuera de esa condición; en producción registrarlos no tiene efecto (más detalles en la [API del agente](/es/reference/agent-api/#qa)). Y si le pasas `enabled` al agente, una condición que exija `__DEV__` también lo apaga en FastSim.
+
 Después corre los casos, con un host por caso:
 
 ```bash
@@ -88,6 +90,8 @@ Cuánto se parece a un dispositivo real depende de la plataforma:
 Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
+
+**`Unknown method <nombre> (this is a release bundle, __DEV__ is false, ...)`** o **`no command reset registered; ... (this is a release bundle ...)`**. La app registra ese comando dentro de `if (__DEV__)`, y en un bundle de FastSim ese bloque no corre. Saca la llamada a `qa.register` de la condición y vuelve a empaquetar la app.
 
 **`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Código de salida 2. El comando no encontró ni una sesión ni una clave. Si eres una persona en una terminal, ejecuta `lynkeus login` (o vuelve a lanzar el comando desde una terminal: te hace iniciar sesión). En el CI, exporta `LYNKEUS_CLOUD_KEY` con una API key que un owner creó con **May download Lynkeus FastSim**, o ponla en `[env]` de `mise.local.toml`. Este código es lo que reciben un script, el CI o MCP cuando no hay con qué iniciar sesión.
 
