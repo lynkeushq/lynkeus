@@ -49,13 +49,15 @@ El plan Team incluye FastSim en 5 máquinas de desarrollo y 4 hosts de CI en par
 
 La app necesita sus dependencias instaladas y el agente de Lynkeus montado, igual que para un simulador. En la carpeta que mostró la instalación hay un `README.md` con los detalles. Hacen falta dos comandos.
 
-Empaqueta la app, y vuelve a hacerlo cada vez que cambie su JavaScript:
+Empaqueta la app una vez:
 
 ```bash
 <carpeta instalada>/bin/fastsim-bundle <carpeta de la app> <carpeta del bundle> ios
 ```
 
 Para un bundle de Android, escribe `android` en lugar de `ios`. Ejecútalo en una terminal que tenga el entorno de tu build de desarrollo, como las variables `EXPO_PUBLIC_` y la dirección del backend: quedan escritas dentro del bundle.
+
+Ese bundle es de release, así que en él `__DEV__` vale `false`. El agente se enciende igual, pero el código de la app que esté dentro de `if (__DEV__)` no se ejecuta. Por eso los comandos de la app (`reset`, un atajo para iniciar sesión) se registran con `qa.register` fuera de esa condición; en producción registrarlos no tiene efecto (más detalles en la [API del agente](/es/reference/agent-api/#qa)). Y si le pasas `enabled` al agente, una condición que exija `__DEV__` también lo apaga en FastSim.
 
 Después corre los casos, con un host por caso:
 
@@ -66,6 +68,8 @@ npx lynkeus case run <casos> --host-command "<carpeta instalada>/bin/fastsim-run
 Lynkeus levanta un host en un puerto libre para cada caso, espera a que la app se conecte y lo detiene cuando el caso termina. Con `--jobs <n>` corren `n` casos a la vez, cada uno en su propio host. `case run` también le da a cada host los [datos de arranque](/es/reference/cli/#datos-de-arranque) de la ejecución: `--seed`, `--locale`, `--time-zone` y `--epoch` le llegan como variables de entorno, y FastSim arranca con ese idioma, esa zona y ese reloj.
 
 La salida de cada host queda en `<carpeta del bundle>/hosts/<puerto>.out` y `.err`; los errores de JavaScript y las líneas de la consola están en el `.err`.
+
+Ninguna ejecución prueba código viejo. Antes de levantar los hosts, `case run` compara la fecha del bundle con la de los archivos de la app (sin contar `node_modules`, los proyectos nativos, los tests ni la carpeta de casos). Si alguno cambió después, vuelve a ejecutar el `fastsim-bundle` que está junto al `fastsim-run` del comando, con la misma app y plataforma del bundle, y lo indica en el resumen. Ese empaquetado toma el entorno del propio Lynkeus: arranca Lynkeus (o el servidor MCP) con las variables que necesita tu bundle. Si junto a `fastsim-run` no hay un `fastsim-bundle`, o el empaquetado falla, la ejecución se detiene antes de levantar ningún host y muestra el comando que tienes que ejecutar. `fastsim start` hace la misma comprobación.
 
 ## Desde un agente de IA por MCP
 
@@ -88,6 +92,10 @@ Cuánto se parece a un dispositivo real depende de la plataforma:
 Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
+
+**`the FastSim bundle at ... is older than ...`, seguido de un comando `fastsim-bundle`.** El código de la app cambió después de crear el bundle y Lynkeus no pudo volver a empaquetarlo: el comando del host no arranca `fastsim-run` desde una carpeta de FastSim instalada, o `fastsim-bundle` falló (debajo aparecen sus últimas líneas). Ejecuta el comando que muestra, corrige lo que indique y vuelve a correr los casos.
+
+**`Unknown method <nombre> (this is a release bundle, __DEV__ is false, ...)`** o **`no command reset registered; ... (this is a release bundle ...)`**. La app registra ese comando dentro de `if (__DEV__)`, y en un bundle de FastSim ese bloque no corre. Saca la llamada a `qa.register` de la condición; la próxima ejecución vuelve a empaquetar la app.
 
 **`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Código de salida 2. El comando no encontró ni una sesión ni una clave. Si eres una persona en una terminal, ejecuta `lynkeus login` (o vuelve a lanzar el comando desde una terminal: te hace iniciar sesión). En el CI, exporta `LYNKEUS_CLOUD_KEY` con una API key que un owner creó con **May download Lynkeus FastSim**, o ponla en `[env]` de `mise.local.toml`. Este código es lo que reciben un script, el CI o MCP cuando no hay con qué iniciar sesión.
 

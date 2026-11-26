@@ -437,6 +437,20 @@ steps:
   assert.equal(report.evidence, undefined);
 });
 
+test('an app command a release bundle never registered says why with the step', async () => {
+  const c = parseCase('---\nid: sign-in\n---\nsteps:\n  - app.call: { command: signIn }\n', 'sign-in.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const why =
+    '(this is a release bundle, __DEV__ is false, as on Lynkeus FastSim: if the app registers signIn inside if (__DEV__), that never ran here; call qa.register without the guard, it does nothing until Lynkeus connects)';
+  (device as unknown as { command: (n: string) => Promise<unknown> }).command = async (name) => {
+    throw new Error(`Unknown method ${name} ${why}`);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'unsupported');
+  assert.equal(report.steps[0]?.error, `this host has no signIn ${why}`);
+});
+
 test('the fixtures server says what it answers, and a case that names anything else is caught', async () => {
   const described = await fixtures.describe();
   assert.ok(described?.commands.includes('create_user'));

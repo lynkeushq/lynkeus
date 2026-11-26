@@ -141,7 +141,9 @@ The options are read once, when the component mounts. Changing `host`, `port` or
 import { qa } from 'lynkeus-agent';
 ```
 
-Call these at module level or during startup. They work whether or not the agent is enabled, so you do not need to guard them.
+Call these at module level or during startup, and do not put them inside `if (__DEV__)`. They work whether or not the agent is enabled, and they are safe in a production build: registering only keeps the function in memory. Nothing calls it, opens a connection or reads the screen unless the agent is enabled and a Lynkeus driver connects.
+
+[Lynkeus FastSim](/guides/fastsim/) runs a release bundle, where `__DEV__` is false. A command registered behind that check is missing there, and a case that calls it fails with `Unknown method <name>`, or `no command reset registered` for `reset`. The error then adds that the app runs from a release bundle.
 
 ### `qa.register(name, handler)`
 

@@ -36,6 +36,22 @@ describe('dispatch', () => {
     }
   });
 
+  it('says, in a release bundle, why a command the app registered behind __DEV__ is missing', async () => {
+    const g = globalThis as { __DEV__?: boolean };
+    const dev = g.__DEV__;
+    try {
+      g.__DEV__ = true;
+      await expect(dispatch(handlers, 'signIn', undefined)).rejects.toThrow(/^Unknown method signIn$/);
+      g.__DEV__ = false;
+      await expect(dispatch(handlers, 'signIn', undefined)).rejects.toThrow(
+        /^Unknown method signIn \(this is a release bundle, __DEV__ is false.*if \(__DEV__\)/,
+      );
+      await expect(dispatch(handlers, 'reset', undefined)).rejects.toThrow(/^no command reset registered; registered: .* \(this is a release bundle/);
+    } finally {
+      g.__DEV__ = dev;
+    }
+  });
+
   it('runs a batch in order and stops at the first error', async () => {
     const calls = [{ method: 'ping' }, { method: 'nope' }, { method: 'ping' }];
     await expect(dispatch(handlers, 'batch', { calls })).rejects.toThrow(/Unknown method/);

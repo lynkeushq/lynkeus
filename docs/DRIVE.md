@@ -214,6 +214,14 @@ registered. Two names are conventions every driver looks for:
 | `reset` | Log out, clear storage and caches. A driver calls it before each case (`lynkeus launch --clean` does too); a stale query cache is the most common cross-test bug. |
 | `busy` | `true` while the app is fetching. Lets a driver wait for data, not for a timer. |
 
+Register commands unconditionally, not inside `if (__DEV__)`. Lynkeus FastSim
+runs a release bundle (`__DEV__` is false), so a command behind that check does
+not exist there and a case calling it fails with `Unknown method <name>` (or
+`no command reset registered`); the agent adds why to the error when it runs in
+a release bundle. Registering is inert in a production build: the function is
+only kept in memory, and nothing can call it unless the agent is enabled and a
+Lynkeus driver connects.
+
 `qa.observe(name, store)` puts a store's changes in the trace, so a failure
 report says what the app believed at that moment, not just what it painted,
 and `lynkeus call stores '{"name":"session"}'` reads its state. A store is

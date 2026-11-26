@@ -51,13 +51,15 @@ The Team plan includes FastSim on 5 developer machines and 4 parallel CI hosts; 
 
 The app needs its dependencies installed and the Lynkeus agent mounted, as for a simulator. The folder the install printed has a `README.md` with the details. Two commands do the work.
 
-Bundle the app, again after each change to its JavaScript:
+Bundle the app once:
 
 ```bash
 <install folder>/bin/fastsim-bundle <app folder> <bundle folder> ios
 ```
 
 Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle.
+
+The bundle is a release bundle: `__DEV__` is false in it. The agent turns itself on there anyway, but app code behind `if (__DEV__)` does not run. Register the app's commands (`reset`, a sign-in shortcut) with `qa.register` outside that check, as the [Agent API](/reference/agent-api/#qa) says; it is inert in a production build. If you pass `enabled` yourself, an expression that requires `__DEV__` turns the agent off on FastSim too.
 
 Then run the cases, one host per case:
 
@@ -68,6 +70,8 @@ npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <b
 Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. `case run` also gives each host the run's [launch facts](/reference/cli/#launch-facts): `--seed`, `--locale`, `--time-zone` and `--epoch` reach it as environment variables, and FastSim starts with that language, zone and clock.
 
 A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
+
+A run never tests old code. Before it starts the hosts, `case run` compares the bundle with the app's source files (leaving out `node_modules`, the native projects, tests and the cases folder). When a file changed after the bundle was made, it runs the `fastsim-bundle` that sits next to the command's `fastsim-run` again, for the app and platform the bundle was made for, and says so in the summary. That bundling uses Lynkeus's own environment, so start Lynkeus (or the MCP server) with the variables your bundle needs. If there is no `fastsim-bundle` next to `fastsim-run`, or bundling fails, the run stops before any host starts and prints the command to run yourself. `fastsim start` does the same check.
 
 ## From an AI agent over MCP
 
@@ -90,6 +94,10 @@ How closely it matches a real device depends on the platform:
 Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
+
+**`the FastSim bundle at ... is older than ...`, followed by a `fastsim-bundle` command.** The app's code changed after the bundle was made and Lynkeus could not bundle it again: the host command does not start `fastsim-run` from an installed FastSim folder, or `fastsim-bundle` failed (its last lines follow). Run the command it prints, fix what it reports, and run the cases again.
+
+**`Unknown method <name> (this is a release bundle, __DEV__ is false, ...)`** or **`no command reset registered; ... (this is a release bundle ...)`**. The app registers that command inside `if (__DEV__)`, which never runs in a FastSim bundle. Move the `qa.register` call out of the check; the next run bundles the app again.
 
 **`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Exit code 2. The command found neither a sign-in nor a key. If you are a person at a terminal, run `lynkeus login` (or run the command again from a terminal: it signs you in). In CI, export `LYNKEUS_CLOUD_KEY` with an API key an owner made with **May download Lynkeus FastSim**, or put it under `[env]` in `mise.local.toml`. This code is what a script, CI or MCP gets when there is nothing to sign in with.
 

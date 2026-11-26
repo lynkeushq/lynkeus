@@ -1525,8 +1525,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (missing) {
         // Not the app's doing: the rest of the case would be standing on a step that never happened.
         unsupported = true;
-        steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: `this host has no ${missing}` });
-        log(`  🚫 ${text}  — this host has no ${missing}`);
+        // The agent says why when it can (a release bundle, where commands registered behind __DEV__ never ran).
+        const why = /Unknown method \S+ (\(.+\))$/.exec(message)?.[1];
+        const said = `this host has no ${missing}${why ? ` ${why}` : ''}`;
+        steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: said });
+        log(`  🚫 ${text}  — ${said}`);
         ended('unsupported');
         continue;
       }

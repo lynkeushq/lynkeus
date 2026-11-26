@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { staleBundleWarning } from '../cases/staleBundle.js';
+import { freshBundle } from '../cases/staleBundle.js';
 import { portFromEnv } from '../config.js';
 import type { Device } from '../device/driver.js';
 import { define, type Ctx, type Result } from '../registry.js';
@@ -492,9 +492,9 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     group: 'runs',
     summary: 'Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type',
     details:
-      "Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.",
+      "Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. A bundle older than the app's code is bundled again first with the kit's bin/fastsim-bundle (in this process's environment); when that fails, the host is not started and the answer gives the command to run.",
     mcpDetails:
-      "Starts a Lynkeus FastSim host on a bundle made with the kit's bin/fastsim-bundle (pass that folder as bundle) and attaches this server to it: screen, press, type, wait, screenshot and the rest then drive the app on FastSim, to explore it before writing a case. kit is the FastSim folder fastsim_install answered (default: the newest installed for the bundle's platform). fastsim_stop ends the host. Rebuild the bundle with fastsim-bundle after changing the app's code; the answer warns when it is older than the code.",
+      "Starts a Lynkeus FastSim host on a bundle made with the kit's bin/fastsim-bundle (pass that folder as bundle) and attaches this server to it: screen, press, type, wait, screenshot and the rest then drive the app on FastSim, to explore it before writing a case. kit is the FastSim folder fastsim_install answered (default: the newest installed for the bundle's platform). fastsim_stop ends the host. A bundle older than the app's code is bundled again before the host starts (the answer says so); when that fails, nothing starts and the answer gives the fastsim-bundle command to run.",
     positionals: [{ name: 'bundle', help: 'the folder fastsim-bundle made', required: true }],
     flags: {
       kit: { type: 'string', help: "the Lynkeus FastSim folder (default: the newest installed for the bundle's platform)", value: 'dir' },
@@ -523,6 +523,9 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       if (!fs.existsSync(run)) return { text: `${kit} has no bin/fastsim-run: is it a Lynkeus FastSim folder?`, code: 2 };
       const port = portFromEnv(ctx.config) ?? 8123;
       const command = `${JSON.stringify(run)} ${JSON.stringify(bundle)} ${port}`;
+      const cases = ctx.config.cases ?? {};
+      const fresh = await freshBundle(command, ctx.root, { skip: [path.resolve(cases.base ?? ctx.root, cases.dir ?? 'cases')], log: ctx.err });
+      if (!fresh.ok) return { text: fresh.text, code: 1 };
       const granted = await hostGrantEnv(ctx, command);
       if ('failed' in granted) return granted.failed;
       await stopExploring();
@@ -556,7 +559,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       const d = before ?? (await current);
       const offered = d.server.hello?.commands ?? [];
       const notes = [
-        staleBundleWarning(command, ctx.root),
+        fresh.note,
         offered.includes('screenshot')
           ? undefined
           : "⚠ this bundle's app offers no screenshot, film or clock: bundle it again with a current fastsim-bundle and lynkeus-agent 0.7.6 or newer",

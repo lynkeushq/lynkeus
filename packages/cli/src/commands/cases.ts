@@ -22,7 +22,7 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
-import { staleBundleWarning } from '../cases/staleBundle.js';
+import { freshBundle } from '../cases/staleBundle.js';
 import { hostGrantEnv } from './fastsim.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
@@ -711,7 +711,7 @@ export const caseCommands = [
       };
       const reports: (CaseReport & { retried?: boolean })[] = [];
       // Said again with the summary: over MCP the summary is all the caller reads.
-      let stale: string | undefined;
+      let rebundled: string | undefined;
       try {
         // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
         const described = await fixtures?.describe();
@@ -728,8 +728,11 @@ export const caseCommands = [
         // which finds nothing when lynkeus itself runs from the npx cache.
         let hostEnv: NodeJS.ProcessEnv = process.env;
         if (hostCommand) {
-          stale = staleBundleWarning(hostCommand, ctx.root, [path.resolve(home, config.dir ?? 'cases')]);
-          if (stale) ctx.err(stale);
+          // Never a run on a bundle older than the app's code: it would report on the app as it was.
+          const fresh = await freshBundle(hostCommand, ctx.root, { skip: [path.resolve(home, config.dir ?? 'cases')], log: ctx.err, signal: halt.signal });
+          if (!fresh.ok) return { text: fresh.text, code: 1 };
+          rebundled = fresh.note;
+          if (rebundled) ctx.err(rebundled);
           const granted = await hostGrantEnv(ctx, hostCommand);
           if ('failed' in granted) return granted.failed;
           hostEnv = granted.env;
@@ -1025,7 +1028,7 @@ export const caseCommands = [
           : []),
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
-        ...(stale ? [stale] : []),
+        ...(rebundled ? [rebundled] : []),
         ...(out
           ? missingEvidence(reports, {
               video: !!ctx.flags.video,

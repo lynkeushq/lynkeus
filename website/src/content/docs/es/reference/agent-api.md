@@ -155,6 +155,10 @@ Una app que llama a `auto()` y además renderiza `<Lynkeus>` sigue funcionando. 
 
 `qa` es lo que tu app le agrega al agente. Todo lo que registres con él queda disponible para quien maneje la app.
 
+No envuelvas los registros en `if (__DEV__)`. [Lynkeus FastSim](/es/guides/fastsim/) ejecuta un bundle de release, donde `__DEV__` vale `false`: lo que registres dentro de esa condición no existe ahí, y el caso que lo llama falla con `Unknown method <nombre>` (o con `no command reset registered`, si es `reset`). En ese caso el error explica además que la app corre desde un bundle de release.
+
+Registrar es seguro en un build de producción. La función solo queda guardada en memoria; nadie la llama, ni se abre una conexión, ni se lee la pantalla, salvo que el agente esté activo y un driver de Lynkeus se conecte.
+
 ### `qa.register(name, fn)`
 
 Registra un **comando de la app**: una función que solo tu app puede ejecutar y que un test necesita.
