@@ -57,7 +57,7 @@
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
-    "now": "9940b66e8d110154"
+    "now": "ac2885cc69f36c20"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -69,7 +69,7 @@
   },
   "wire/press-by-number": {
     "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
-    "now": "27f33b157d1b274f"
+    "now": "3c963fceed2d74f0"
   },
   "detect/empty/status": {
     "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
