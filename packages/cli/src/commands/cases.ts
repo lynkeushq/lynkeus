@@ -16,6 +16,7 @@ import { configFile, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { Flakes } from '../cases/flakes.js';
+import { headlessEntryOf } from './appEntry.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -60,8 +61,9 @@ export const startHost = async (root: string, err: (line: string) => void, launc
         .split('\n')
         .map((line) => line.trim())
         .join(' · ');
-    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message.
-    const thrown = plain.match(/Test suite failed to run\s*\n\s*\n?\s*(\S.*)$/m)?.[1]?.trim();
+    // Jest prints a suite that throws while loading as "● Test suite failed to run", then the thrown message, which
+    // can run over several lines ("doesn't seem to be linked. Make sure: …"): all of it, up to the stack or code frame.
+    const thrown = thrownMessage(plain);
     return thrown ?? plain.match(/^\s*(\w*Error\b.*|Cannot find module.*)$/m)?.[1]?.trim() ?? tail(3);
   };
   await new Promise<void>((resolve, reject) => {
@@ -85,6 +87,19 @@ export const startHost = async (root: string, err: (line: string) => void, launc
   err(`host: up (its log: ${logFile})`);
   lastWords.set(host, () => `exited (${host.exitCode ?? host.signalCode}): ${why()} (its log: ${logFile})`);
   return host;
+};
+
+/** The whole message of the error a suite threw while loading, as one line; undefined when jest printed none. */
+export const thrownMessage = (output: string): string | undefined => {
+  const after = output.split(/Test suite failed to run\s*\n/)[1];
+  if (!after) return undefined;
+  const lines: string[] = [];
+  for (const line of after.split('\n')) {
+    if (/^\s*at\s|^\s*>?\s*\d+\s*\||^\s*(Details|Test Suites):/.test(line)) break;
+    if (line.trim()) lines.push(line.trim());
+    if (lines.length === 12) break;
+  }
+  return lines.length ? lines.join(' ') : undefined;
 };
 
 const exited = (host: ChildProcess) => host.exitCode !== null || host.signalCode !== null;
@@ -865,7 +880,7 @@ export const caseCommands = [
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
         ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
-        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues))),
+        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), { entry: headlessEntryOf(ctx.root, ctx.config) }),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(uploaded ? [uploaded.text] : []),
       ].join('\n');

@@ -52,8 +52,14 @@ const HOST = { fastsim: 'Lynkeus FastSim', headless: 'headless' } as const;
  * `nativeMocks` to paste with the value left for the person (or an agent, from the library's native code) to fill.
  * A property FastSim answered with a function the app then called is a no-op call, not a constant: it is left out.
  */
-export const describeNativeValues = (reads: RunNativeValue[]): string[] => {
-  const shown = reads.filter((r) => !r.called);
+export const describeNativeValues = (reads: RunNativeValue[], options: { entry?: string } = {}): string[] => {
+  const fallback = new Set(reads.filter((r) => r.readAs === 'empty').map((r) => `${r.platform}:${r.module}`));
+  const answered = describeFallbacks(
+    reads.filter((r) => fallback.has(`${r.platform}:${r.module}`)),
+    options.entry,
+  );
+  const shown = reads.filter((r) => !r.called && !fallback.has(`${r.platform}:${r.module}`));
+  if (shown.length === 0) return answered;
   if (shown.length === 0) return [];
   const lines = shown.map((r) => {
     const what = r.property === undefined ? `the native module ${r.module}` : `${r.module}.${r.property}`;
@@ -76,5 +82,37 @@ export const describeNativeValues = (reads: RunNativeValue[]): string[] => {
             .join('\n'),
         ]
       : [];
-  return [`native values ${HOST[shown[0]!.host]} could not answer (${shown.length}):`, ...lines, ...snippet];
+  return [...answered, `native values ${HOST[shown[0]!.host]} could not answer (${shown.length}):`, ...lines, ...snippet];
+};
+
+const list = (names: string[], max = 6) => (names.length > max ? `${names.slice(0, max).join(', ')} and ${names.length - max} more` : names.join(', '));
+
+/**
+ * The modules headless's fallback answered, one line each, and how to answer better: never silent, and short, since an
+ * agent reads it at the end of every run. A library is mocked in the headless entry; a call or a constant can also be
+ * set in the cases config's `nativeMocks`.
+ */
+export const describeFallbacks = (reads: RunNativeValue[], entry = 'the headless entry'): string[] => {
+  const modules = reads.filter((r) => r.readAs === 'empty' && r.property === undefined);
+  if (modules.length === 0) return [];
+  const lines = modules.map((m) => {
+    const own = reads.filter((r) => r.module === m.module && r.platform === m.platform && r.property !== undefined);
+    const called = own.filter((r) => r.called).map((r) => r.property!);
+    const unused = own.filter((r) => !r.called).map((r) => r.property!);
+    const parts = [called.length ? `called ${list(called)}` : '', unused.length ? `read, never called: ${list(unused)}` : ''].filter(Boolean);
+    return `  • ${m.module} (${m.package ?? 'the app’s own code'})${parts.length ? `: ${parts.join('; ')}` : ''}`;
+  });
+  const packages = [...new Set(modules.map((m) => m.package).filter((p): p is string => !!p))];
+  const firstCall = reads.find((r) => r.readAs === 'function' && r.called);
+  return [
+    `answered empty by default (${modules.length} native module${modules.length === 1 ? '' : 's'} with no mock; each method resolves undefined, which may not be what the app needs):`,
+    ...lines,
+    ...(packages.length
+      ? [
+          `  a better answer goes in ${entry}, where the app keeps its own mocks:`,
+          ...packages.map((p) => `    jest.mock('${p}', () => ({ /* what the app uses, as a device answers */ }))`),
+        ]
+      : []),
+    `  or per call in the cases config: "nativeMocks": { "${firstCall ? `${firstCall.module}.${firstCall.property}` : `${modules[0]!.module}.<method>`}": { "result": <what it resolves> } }`,
+  ];
 };

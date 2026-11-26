@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { ensureToken, packageName, readToken } from '../config.js';
+import { exactCase, exportOf, findAppComponent } from './appEntry.js';
 
 const APP_CANDIDATES = ['App.tsx', 'App.jsx', 'App.js', 'app/App.tsx', 'src/App.tsx', 'src/App.jsx', 'src/App.js'];
 const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
@@ -11,7 +12,8 @@ const INDEX_CANDIDATES = ['index.js', 'index.tsx', 'index.ts'];
 export type InitOptions = {
   entry: string;
   app?: string;
-  apiEnv: string;
+  /** The env var the app reads its API address from, when it reads one. */
+  apiEnv?: string;
   auto: boolean;
   force: boolean;
   locale?: { languageTag?: string; country?: string; language?: string };
@@ -53,13 +55,19 @@ const routesOf = (root: string): string | undefined => {
 };
 
 /** How the entry gets the App: the root component, or, for Expo Router, the router over the app's route files. */
-type AppSource = { component: string } | { routes: string; dir: string };
+type AppSource = { component: string; exportName: string; entry?: string } | { routes: string; dir: string };
 
 const appBlock = (source: AppSource): string =>
   'component' in source
-    ? `// Whatever the app's index runs before rendering (polyfills, i18n, services):
+    ? source.entry
+      ? `// The app's own entry runs as on a device (polyfills, services, the agent and its
+// commands); the component it registers is the App. To skip the entry, require the
+// component itself instead:
+//   const { ${source.exportName === 'App' ? 'App' : `${source.exportName}: App`} } = require('${source.component}')
+const App = registeredApp(() => require('${source.entry}'))`
+      : `// Whatever the app's entry runs before rendering (polyfills, i18n, services):
 // require it here too, then the App.
-const { default: App } = require('${source.component}')`
+const { ${source.exportName === 'App' ? 'App' : `${source.exportName}: App`} } = require('${source.component}')`
     : `// An Expo Router app has no root component: the router is the app, over the route
 // files in ${source.dir}, read here as the bundler would read them. Whatever the
 // app's root layout does not run before rendering (polyfills, i18n), require it first.
@@ -74,32 +82,25 @@ const routes = getMockContext(require('path').resolve(__dirname, '${source.route
 require('lynkeus-agent/auto').auto({ token: process.env.LYNKEUS_TOKEN })
 const App = () => React.createElement(ExpoRoot, { context: routes })`;
 
-const entryTemplate = (source: AppSource, apiEnv: string, appName: string, locale?: InitOptions['locale']): string => {
+const entryTemplate = (source: AppSource, appName: string, locale?: InitOptions['locale']): string => {
   const LOCALE =
     locale?.languageTag || locale?.country || locale?.language
       ? `\n  // The locale this app is built for, from lynkeus.config.json.\n  locale: ${JSON.stringify({ country: locale.country, languageTag: locale.languageTag, languageCode: locale.language })},`
       : "\n  // locale: { country: 'DE', languageTag: 'de-DE', languageCode: 'de' },";
   return `// Entry for \`lynkeus headless start\`: the whole app, hosted under jest so an agent can
-// drive it in Node against a real local backend. Nothing here runs in the app
-// itself. lynkeus mocks the common native modules (storage, keychain,
-// device-info, safe-area, localize, ...); only ${appName}-specific pieces go here.
-import { installDefaultMocks } from 'lynkeus-headless/mocks'
-
-// Real network plus a hosted app is exactly what would let a driver act
-// against production if ${apiEnv} ever pointed there. Refuse anything not local.
-// Unset is an app with no backend of its own: the network stays fenced to local hosts.
-const apiUrl = process.env.${apiEnv} ?? ''
-if (apiUrl && !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1|10\\.0\\.2\\.2)(:\\d+)?(\\/|$)/.test(apiUrl)) {
-  throw new Error(\`lynkeus headless only drives a local backend; ${apiEnv} is "\${apiUrl}"\`)
-}
+// drive it in Node, with no simulator. Nothing here runs in the app itself. A native module gets the library's own jest mock when it ships one, else
+// an empty answer the run reports; only ${appName}-specific pieces go here.
+import { installDefaultMocks${'entry' in source && source.entry ? ', registeredApp' : ''} } from 'lynkeus-headless/mocks'
 
 installDefaultMocks({
+  // Real requests, to local hosts only (add others with networkHosts): a hosted app
+  // never reaches production, whatever its API address says.
   network: 'real',${LOCALE}
 })
 
-// App-specific mocks go here, before the app is required. \`lynkeus headless doctor\`
-// lists the native modules the app references that nothing covers yet:
-//   jest.mock('some-native-package', () => ({ method: () => undefined }))
+// The app's own mocks go here, before the app is required: where a module answered
+// empty by default needs a better answer (\`lynkeus headless doctor\` and each run list them):
+//   jest.mock('some-native-package', () => ({ method: async () => 'what a device answers' }))
 
 ${appBlock(source)}
 
@@ -209,7 +210,10 @@ export const mountAgent = (root: string): string[] => {
 export const init = (root: string, opts: InitOptions): string[] => {
   const notes: string[] = [];
   const entryPath = path.join(root, opts.entry);
-  const app = opts.app ?? findFirst(root, APP_CANDIDATES);
+  const given = opts.app ? exactCase(root, opts.app) : undefined;
+  if (opts.app && !given) throw new Error(`no ${opts.app} in ${root} (the path must match the file's case: jest's resolver is case-sensitive)`);
+  const found = given ? { file: given, exportName: exportOf(root, given) } : findAppComponent(root, readManifest(root).main);
+  const app = found?.file;
   const routes = app ? undefined : routesOf(root);
   if (!app && !routes) throw new Error(`no App component found (${APP_CANDIDATES.join(', ')}) and no Expo Router routes; pass --component <path>`);
   if (fs.existsSync(entryPath) && !opts.force) {
@@ -217,10 +221,17 @@ export const init = (root: string, opts: InitOptions): string[] => {
   } else {
     fs.mkdirSync(path.dirname(entryPath), { recursive: true });
     const source: AppSource = app
-      ? { component: relImport(entryPath, path.join(root, app)) }
+      ? {
+          component: relImport(entryPath, path.join(root, app)),
+          exportName: found!.exportName,
+          ...(found!.entry ? { entry: relImport(entryPath, path.join(root, found!.entry)) } : {}),
+        }
       : { routes: path.relative(path.dirname(entryPath), path.join(root, routes!)).replace(/\\/g, '/'), dir: routes! };
-    fs.writeFileSync(entryPath, entryTemplate(source, opts.apiEnv, packageName(root), opts.locale));
-    notes.push(`wrote ${opts.entry} (${app ? `app: ${app}` : `Expo Router, routes in ${routes}`})`);
+    fs.writeFileSync(entryPath, entryTemplate(source, packageName(root), opts.locale));
+    const component = app ? `${found!.exportName === 'default' ? 'the default export' : found!.exportName} of ${app}` : '';
+    notes.push(
+      `wrote ${opts.entry} (${app ? (found!.entry ? `runs ${found!.entry}, which registers ${component}` : `app: ${component}`) : `Expo Router, routes in ${routes}`})`,
+    );
   }
   if (opts.auto) notes.push(...mountAgent(root));
   // `headless start` refuses to run without one, and an app tested only headless never runs `lynkeus init`.
@@ -229,7 +240,7 @@ export const init = (root: string, opts: InitOptions): string[] => {
     "jest: when the app has no jest configuration, `headless start` passes the preset it needs (jest-expo for Expo, React Native's otherwise) and the packages to transpile; an app that sets its own lets 'lynkeus-[^/]+' through, next to react-native",
   );
   notes.push(
-    `next: lynkeus headless start  (with ${opts.apiEnv}=http://127.0.0.1:3000/, or "apiUrl" in lynkeus.config.json, when the app has a local backend; the token is the project's, in .lynkeus/token)`,
+    `next: lynkeus headless start${opts.apiEnv ? `  (the app reads its API address from ${opts.apiEnv}: set it, or "apiUrl" in lynkeus.config.json, to your local backend)` : ''}; the token is the project's, in .lynkeus/token`,
   );
   notes.push(
     '      or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)',

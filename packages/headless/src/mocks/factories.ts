@@ -15,52 +15,136 @@ const ui = () => {
   return { React, View, Image };
 };
 
-// The library's own stub is a proxy that never settles. Instances with the same
-// id share their storage, as on a device.
+// Instances with the same id share their storage, as on a device, and a reset empties them all; the library's
+// own jest stand-in (where it has one) gives each instance a store of its own. Its hooks are rebuilt on this class:
+// the library's call its own.
 export const mmkv: MockFactory = () => {
   type Value = string | number | boolean;
-  const stores = new Map<string, Map<string, Value>>();
+  type Listener = (key: string) => void;
+  const React = require('react') as typeof import('react');
+  const stores = new Map<string, { values: Map<string, Value>; listeners: Set<Listener> }>();
+  const storeOf = (id: string) => stores.get(id) ?? stores.set(id, { values: new Map(), listeners: new Set() }).get(id)!;
   onReset(() => {
-    for (const store of stores.values()) store.clear();
+    for (const store of stores.values()) store.values.clear();
   });
   class MMKV {
-    private readonly m: Map<string, Value>;
+    private readonly store: { values: Map<string, Value>; listeners: Set<Listener> };
     constructor(config?: { id?: string }) {
-      const id = config?.id ?? 'mmkv.default';
-      this.m = stores.get(id) ?? stores.set(id, new Map()).get(id)!;
+      this.store = storeOf(config?.id ?? 'mmkv.default');
+    }
+    private changed(key: string) {
+      for (const listener of [...this.store.listeners]) listener(key);
     }
     set(key: string, value: Value) {
-      this.m.set(key, value);
+      this.store.values.set(key, value);
+      this.changed(key);
     }
     getString(key: string) {
-      const v = this.m.get(key);
+      const v = this.store.values.get(key);
       return typeof v === 'string' ? v : undefined;
     }
     getNumber(key: string) {
-      const v = this.m.get(key);
+      const v = this.store.values.get(key);
       return typeof v === 'number' ? v : undefined;
     }
     getBoolean(key: string) {
-      const v = this.m.get(key);
+      const v = this.store.values.get(key);
       return typeof v === 'boolean' ? v : undefined;
     }
+    getBuffer() {
+      return undefined;
+    }
     contains(key: string) {
-      return this.m.has(key);
+      return this.store.values.has(key);
     }
     delete(key: string) {
-      this.m.delete(key);
+      this.store.values.delete(key);
+      this.changed(key);
+    }
+    remove(key: string) {
+      this.delete(key);
     }
     getAllKeys() {
-      return [...this.m.keys()];
+      return [...this.store.values.keys()];
     }
     clearAll() {
-      this.m.clear();
+      const keys = this.getAllKeys();
+      this.store.values.clear();
+      for (const key of keys) this.changed(key);
     }
-    addOnValueChangedListener() {
-      return { remove: () => undefined };
+    recrypt() {}
+    trim() {}
+    get size() {
+      return this.store.values.size;
+    }
+    addOnValueChangedListener(listener: Listener) {
+      this.store.listeners.add(listener);
+      return {
+        remove: () => {
+          this.store.listeners.delete(listener);
+        },
+      };
     }
   }
-  return { MMKV, useMMKV: (config?: { id?: string }) => new MMKV(config) };
+  const fallback = new MMKV();
+  const hook =
+    <T>(read: (instance: MMKV, key: string) => T | undefined, write: (value: T) => Value) =>
+    (key: string, instance: MMKV = fallback) => {
+      const [value, setValue] = React.useState(() => read(instance, key));
+      React.useEffect(() => {
+        setValue(read(instance, key));
+        const subscription = instance.addOnValueChangedListener((changed) => {
+          if (changed === key) setValue(read(instance, key));
+        });
+        return () => subscription.remove();
+      }, [key, instance]);
+      const set = React.useCallback(
+        (next: T | undefined | ((current: T | undefined) => T | undefined)) => {
+          const resolved = typeof next === 'function' ? (next as (current: T | undefined) => T | undefined)(read(instance, key)) : next;
+          if (resolved === undefined) instance.delete(key);
+          else instance.set(key, write(resolved));
+        },
+        [key, instance],
+      );
+      return [value, set] as const;
+    };
+  return {
+    MMKV,
+    Mode: { SINGLE_PROCESS: 0, MULTI_PROCESS: 1 },
+    createMMKV: (config?: { id?: string }) => new MMKV(config),
+    useMMKV: (config?: { id?: string }) => React.useMemo(() => new MMKV(config), [config?.id]),
+    useMMKVString: hook(
+      (i, k) => i.getString(k),
+      (v: string) => v,
+    ),
+    useMMKVNumber: hook(
+      (i, k) => i.getNumber(k),
+      (v: number) => v,
+    ),
+    useMMKVBoolean: hook(
+      (i, k) => i.getBoolean(k),
+      (v: boolean) => v,
+    ),
+    useMMKVBuffer: hook(
+      () => undefined,
+      (v: string) => v,
+    ),
+    useMMKVObject: hook(
+      (i, k) => {
+        const text = i.getString(k);
+        return text === undefined ? undefined : (JSON.parse(text) as unknown);
+      },
+      (v: unknown) => JSON.stringify(v),
+    ),
+    useMMKVListener: (listener: Listener, instance: MMKV = fallback) => {
+      const ref = React.useRef(listener);
+      ref.current = listener;
+      React.useEffect(() => {
+        const subscription = instance.addOnValueChangedListener((key) => ref.current(key));
+        return () => subscription.remove();
+      }, [instance]);
+    },
+  };
 };
 
 export const keychain: MockFactory = () => {
@@ -257,9 +341,12 @@ export const sensor = {
   fallback: 'fail' as BiometricOutcome,
   prompts: 0,
   keys: false,
+  // Set when the opt-in mock loads: without it the `biometrics` command has nothing to drive.
+  mocked: false,
 };
 
 export const biometrics: MockFactory = () => {
+  sensor.mocked = true;
   const prompt = () => {
     sensor.prompts += 1;
     const outcome = sensor.queue.shift() ?? sensor.fallback;

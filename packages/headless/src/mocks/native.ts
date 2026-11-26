@@ -85,9 +85,12 @@ const standIn = () => {
     if (!('result' in mocks[key]!) && !mocks[key]!.screen) continue;
     const [module, method] = key.split('.') as [string, string];
     // NativeEventEmitter asks a module for these before it listens.
-    const target = rn.NativeModules[module] ?? { addListener: () => undefined, removeListeners: () => undefined };
+    // `in` first: reading a missing module would make the fallback answer it as if the app had asked.
+    const target = (module in rn.NativeModules ? rn.NativeModules[module] : undefined) ?? { addListener: () => undefined, removeListeners: () => undefined };
     rn.NativeModules[module] = target;
-    if (typeof target[method] !== 'function' || (target[method] as { nativeMock?: boolean }).nativeMock) {
+    // Own properties only: what the fallback hands out for a missing one is a no-op, not the app's.
+    const own = Object.hasOwn(target, method) ? target[method] : undefined;
+    if (typeof own !== 'function' || (own as { nativeMock?: boolean }).nativeMock) {
       const call = Object.assign((..._args: unknown[]) => callNative(module, method) ?? Promise.resolve(undefined), { nativeMock: true });
       target[method] = call;
     }

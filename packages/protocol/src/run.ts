@@ -142,17 +142,21 @@ export type RunLaunch = {
 
 /**
  * A native property the app read that its host could not answer, so the host's own default stood in: Lynkeus FastSim
- * (`host: 'fastsim'`) answers with a function, which reads as true, and headless with undefined. `called`, for
- * FastSim, says whether the app ever called that function: one read and never called is a constant with a wrong
- * value. A read of a whole module that does not exist has no `property`. The cases config's `nativeMocks` sets it.
+ * (`host: 'fastsim'`) answers with a function, which reads as true, and headless with undefined. `called` says whether
+ * the app ever called that function: one read and never called is a constant with a wrong value. A read of a whole
+ * module that does not exist has no `property`. The cases config's `nativeMocks` sets it.
+ *
+ * `readAs: 'empty'` is a whole module headless's fallback answered, because the library that needs it has no mock:
+ * each method a no-op that resolves empty (its reads follow as `function`). `package` names the library that read it.
  */
 export type RunNativeValue = {
   module: string;
   property?: string;
   platform: 'ios' | 'android';
   host: 'fastsim' | 'headless';
-  readAs: 'function' | 'undefined';
+  readAs: 'function' | 'undefined' | 'empty';
   called?: boolean;
+  package?: string;
 };
 
 export type RunManifest = {

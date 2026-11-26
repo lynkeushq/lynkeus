@@ -4,6 +4,7 @@
  * statically, without a simulator or a host.
  */
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { packageName } from '../config.js';
@@ -19,13 +20,7 @@ const AUTO_MOCKED = [
   '@react-native-async-storage/async-storage',
   'react-native-worklets',
   'react-native-pager-view',
-  'react-native-video',
-  'react-native-fast-image',
-  'react-native-biometrics',
-  'react-native-in-app-review',
   'react-native-webview',
-  'react-native-vision-camera',
-  'react-native-image-picker',
 ];
 
 // Native modules React Native's own jest preset already provides.
@@ -143,6 +138,120 @@ const autoMockedFrom = (root: string): string[] => {
   return AUTO_MOCKED;
 };
 
+const resolvesFrom = (root: string, id: string): boolean => {
+  try {
+    createRequire(path.join(root, 'package.json')).resolve(id);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const packageDir = (root: string, name: string): string | undefined => {
+  for (let dir = root; ; dir = path.dirname(dir)) {
+    const candidate = path.join(dir, 'node_modules', name);
+    if (fs.existsSync(path.join(candidate, 'package.json'))) return candidate;
+    if (path.dirname(dir) === dir) return undefined;
+  }
+};
+
+const nativeIn = (dir: string): boolean => {
+  try {
+    return fs.readdirSync(dir).some((e) => e === 'ios' || e === 'android' || e === 'expo-module.config.json' || e.endsWith('.podspec'));
+  } catch {
+    return false;
+  }
+};
+
+/** How the host answers a native dependency: the same order lynkeus-headless follows. */
+type Answer = { name: string; how: string; empty?: boolean };
+
+// The paths lynkeus-headless looks for a library's own jest mock and setup file at (mocks/shipped.ts).
+const OWN_MOCK = ['jest/mock', 'mock', 'jest'];
+const OWN_SETUP = ['jestSetup', 'jest-setup', 'jest/setup'];
+// lynkeus-headless keeps Reanimated real and defers its completions: its own mock lacks newer APIs.
+const RUNS_AS_IS = new Set(['react-native-reanimated']);
+
+const nativeAnswers = (root: string, deps: string[], autoMocked: string[], entrySpecs: Set<string>): Answer[] => {
+  const jestExpo = resolvesFrom(root, 'jest-expo/package.json');
+  const answers: Answer[] = [];
+  for (const name of deps) {
+    const dir = packageDir(root, name);
+    // React Native itself (it has a jest preset) and the agent (the host is the agent's native side) are the host.
+    if (!dir || !nativeIn(dir) || fs.existsSync(path.join(dir, 'jest-preset.js')) || name === 'lynkeus-agent') continue;
+    if (entrySpecs.has(name)) answers.push({ name, how: 'mocked in the entry' });
+    else if (autoMocked.includes(name)) answers.push({ name, how: 'Lynkeus default mock' });
+    else if (RUNS_AS_IS.has(name)) answers.push({ name, how: 'runs under jest as it is (its babel plugin)' });
+    else if (OWN_MOCK.some((sub) => resolvesFrom(root, `${name}/${sub}`))) answers.push({ name, how: 'its own jest mock' });
+    else if (OWN_SETUP.some((sub) => resolvesFrom(root, `${name}/${sub}`))) answers.push({ name, how: 'its own jest setup' });
+    else if (jestExpo && fs.existsSync(path.join(dir, 'expo-module.config.json'))) answers.push({ name, how: 'jest-expo' });
+    else answers.push({ name, how: 'no mock: what it asks its native side is answered empty by default', empty: true });
+  }
+  return answers;
+};
+
+const versionOf = (root: string, name: string): string | undefined => {
+  const dir = packageDir(root, name);
+  try {
+    return dir
+      ? (JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')) as { version?: string; peerDependencies?: Record<string, string> }).version
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const parts = (v: string) =>
+  v
+    .replace(/^[^\d]*/, '')
+    .split(/[.-]/)
+    .slice(0, 3)
+    .map((n) => Number.parseInt(n, 10) || 0);
+const compare = (a: string, b: string) => {
+  const [x, y] = [parts(a), parts(b)];
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i]! - y[i]!;
+  return 0;
+};
+
+/** Enough of semver for a peer range: `*`, `>=a.b.c`, `<a.b.c`, `^a.b.c`, joined by spaces and `||`. */
+export const satisfies = (version: string, range: string): boolean =>
+  range.split('||').some((alternative) =>
+    alternative
+      .trim()
+      .split(/\s+/)
+      .every((cond) => {
+        if (!cond || cond === '*' || cond === 'x') return true;
+        const m = /^(>=|<=|>|<|\^|~)?(.*)$/.exec(cond)!;
+        const c = compare(version, m[2]!);
+        if (m[1] === '>=') return c >= 0;
+        if (m[1] === '>') return c > 0;
+        if (m[1] === '<=') return c <= 0;
+        if (m[1] === '<') return c < 0;
+        if (m[1] === '^') return c >= 0 && parts(version)[0] === parts(m[2]!)[0];
+        if (m[1] === '~') return c >= 0 && parts(version)[0] === parts(m[2]!)[0] && parts(version)[1] === parts(m[2]!)[1];
+        return c === 0;
+      }),
+  );
+
+const RNTL = '@testing-library/react-native';
+
+/** Whether the installed Testing Library is one lynkeus-headless renders with. */
+const rntlLine = (root: string): string | undefined => {
+  const installed = versionOf(root, RNTL);
+  const headless = packageDir(root, 'lynkeus-headless');
+  if (!installed || !headless) return undefined;
+  let range: string | undefined;
+  try {
+    range = (JSON.parse(fs.readFileSync(path.join(headless, 'package.json'), 'utf8')) as { peerDependencies?: Record<string, string> }).peerDependencies?.[
+      RNTL
+    ];
+  } catch {}
+  if (!range) return undefined;
+  return satisfies(installed, range)
+    ? `Testing Library: ${RNTL} ${installed} (lynkeus-headless supports ${range}) ✓`
+    : `Testing Library: ${RNTL} ${installed} is outside what lynkeus-headless supports (${range}); install a version in that range.`;
+};
+
 export const doctor = (root: string, entry: string, options: { fix?: boolean } = {}): string[] => {
   let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } = {};
   try {
@@ -165,9 +274,22 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
   const lines: string[] = [];
   lines.push(`lynkeus headless doctor — headless readiness for ${packageName(root)}\n`);
 
-  lines.push('Auto-mocked by Lynkeus (installDefaultMocks):');
-  if (present.length) for (const m of present) lines.push(`  ✓ ${m}`);
-  else lines.push('  (none of the known native libs are installed)');
+  const rntl = rntlLine(root);
+  if (rntl) lines.push(rntl, '');
+
+  // What the bundle can import: the app's dependencies, each answered the way the host will answer it.
+  const answers = nativeAnswers(root, Object.keys(pkg.dependencies ?? {}), autoMocked, specs);
+  lines.push('Native dependencies, and how the host answers each:');
+  if (answers.length === 0) lines.push('  (no dependency with native code)');
+  for (const a of answers) lines.push(`  ${a.empty ? '⚠' : '✓'} ${a.name.padEnd(40)} ${a.how}`);
+  const empty = answers.filter((a) => a.empty);
+  if (empty.length) {
+    lines.push(
+      `  ${empty.length} answered empty by default (each native method resolves undefined), which may not be what the app needs. A better answer goes in ${entry}, where the app keeps its own mocks:`,
+      ...empty.map((a) => `    jest.mock('${a.name}', () => ({ /* what the app uses, as a device answers */ }))`),
+      '  `case run` lists which of their modules and methods the app reached.',
+    );
+  }
   lines.push('');
 
   if (!entryHasFile) {
@@ -175,7 +297,7 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
     lines.push('  Create one that installs the default mocks and exports App:');
     lines.push("    import { installDefaultMocks } from 'lynkeus-headless/mocks'");
     lines.push("    installDefaultMocks({ network: 'real' })");
-    lines.push("    const { default: App } = require('./path/to/App')");
+    lines.push("    const { App } = require('./path/to/App')  // the component the app registers, default or named");
     lines.push('    export { App }');
     lines.push('');
   } else {
@@ -209,8 +331,8 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
   lines.push('');
 
   if (uncovered.length) {
-    lines.push(`${uncovered.length} native module(s) look unmocked. Under jest they do not exist, so`);
-    lines.push(`the app can crash when it touches them. Add a mock for each in ${entry}:`);
+    lines.push(`${uncovered.length} native module(s) your code reads have no mock. One your app's own native code defines is`);
+    lines.push(`answered empty by default; any other reads as undefined, as an optional module does. Where the app needs a real answer, mock it in ${entry}:`);
     for (const r of uncovered) lines.push(`  jest.mock('...${r.name}...', () => ({ /* the methods your app calls */ }))`);
     lines.push('');
     lines.push('(Heuristic: some may be provided by a mocked wrapper or a library. Review.)');
@@ -229,7 +351,8 @@ export const doctor = (root: string, entry: string, options: { fix?: boolean } =
       if (entryHasFile) {
         const entryPath = path.join(root, entry);
         const text = fs.readFileSync(entryPath, 'utf8');
-        const at = text.indexOf('const { default: App }');
+        // Before the App is required, whichever form the entry requires it in.
+        const at = text.search(/^(\/\/ The app's own entry runs|\/\/ Whatever the app's entry|const \{[^}]*\bApp\b[^}]*\} = require|const App = )/m);
         fs.writeFileSync(entryPath, at >= 0 ? `${text.slice(0, at) + block.trimStart()}\n${text.slice(at)}` : text + block);
         lines.push(`--fix: wrote ${packages.length} stub(s) and ${local.length} TODO(s) into ${entry}`);
       } else {

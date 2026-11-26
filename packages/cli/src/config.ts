@@ -53,9 +53,9 @@ export type LynkeusConfig = {
   cases?: CasesConfig;
   /** What `lynkeus ci` brings up around a suite: the project's backend and the app's hosts. */
   ci?: CiConfig;
-  /** The headless entry (default `qa/headless.tsx`). */
+  /** The headless entry (default: `qa/headless.tsx` when one is there, else `headless.tsx` in the cases folder). */
   entry?: string;
-  /** The environment variable the app reads its API base from; the headless entry refuses one that is not local. */
+  /** The environment variable the app reads its API base from (default: the one its source reads an address from, if any). */
   apiEnv?: string;
   /**
    * The local backend `headless start` hands the app under `apiEnv` when the environment sets none: an agent

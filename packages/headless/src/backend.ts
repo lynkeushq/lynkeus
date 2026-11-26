@@ -15,7 +15,7 @@ import {
 
 import { computeLayout, type LayoutIndex, type Rect, type YogaModule } from './layout.js';
 import { log } from './runtime.js';
-import { fiberName, textOf, topScreenChild, type Fiber, type ReactTestInstance } from './tree.js';
+import { fiberName, rendererNode, textOf, topScreenChild, type Fiber, type ReactTestInstance } from './tree.js';
 
 type Point = { x: number; y: number };
 type Handler = (event: unknown) => void;
@@ -293,19 +293,19 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     typedSinceFocus = next;
     const onChangeText = input.props.onChangeText as ((text: string) => void) | undefined;
     if (focusedInert && onChangeText) await act(() => onChangeText(next));
-    else await fireEvent.changeText(input as never, next);
+    else await fireEvent.changeText(rendererNode(input) as never, next);
   };
 
   const press = async (element: Element) => {
     const instance = instanceFor(element);
     if (element.kind === 'input') {
       focus(instance, false);
-      await fireEvent(instance as never, 'focus');
+      await fireEvent(rendererNode(instance) as never, 'focus');
       return;
     }
     const handler = pressHandlerOf(instance);
     if (!handler) {
-      await fireEvent.press(instance as never);
+      await fireEvent.press(rendererNode(instance) as never);
       return;
     }
     await act(() => {
@@ -381,7 +381,7 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
       layoutMeasurement: { width: rect.w, height: rect.h },
     };
     await act(async () => {
-      for (const name of ['scrollBeginDrag', 'scroll', 'scrollEndDrag', 'momentumScrollEnd']) fireEvent(node as never, name, { nativeEvent });
+      for (const name of ['scrollBeginDrag', 'scroll', 'scrollEndDrag', 'momentumScrollEnd']) fireEvent(rendererNode(node) as never, name, { nativeEvent });
     });
     log(`swipe: ${horizontal ? 'x' : 'y'} offset ${Math.round(before)} → ${Math.round(offset)}`);
     return true;
@@ -516,12 +516,12 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     typeText: (chunk, target) => edit(target, (value) => value + chunk),
     deleteBackward: (count, target) => edit(target, (value) => value.slice(0, -count)),
     dismissKeyboard: async () => {
-      if (focused) await fireEvent(focused as never, 'blur');
+      if (focused) await fireEvent(rendererNode(focused) as never, 'blur');
       focused = null;
     },
     submit: async (target) => {
       const input = focusedInput(target);
-      await fireEvent(input as never, 'submitEditing', { nativeEvent: { text: currentValue(input) } });
+      await fireEvent(rendererNode(input) as never, 'submitEditing', { nativeEvent: { text: currentValue(input) } });
     },
     // A finger across a scroller moves its content or turns a pager's page;
     // fire what the platform would and let the app's handlers decide.
