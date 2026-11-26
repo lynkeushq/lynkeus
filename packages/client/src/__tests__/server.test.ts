@@ -184,3 +184,60 @@ test('a second driver on a taken port is refused, naming the port, instead of sh
     return true;
   });
 });
+
+test('a call to an app that left fails as gone once it has had time to come back, not after its whole timeout', async () => {
+  const server = await serve({ goneMs: 150 });
+  const app = await fakeApp(server);
+  await server.waitForApp(2000);
+  app.socket.close();
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(server.gone, true);
+  const t0 = Date.now();
+  await assert.rejects(server.call('screen', undefined, 20_000), (e: unknown) => {
+    assert.ok(e instanceof AgentError);
+    assert.equal(e.code, 'gone');
+    assert.match(e.message, /^the app is gone \(crashed or closed\): it disconnected [\d.]+ s ago and has not dialed back in$/);
+    return true;
+  });
+  // The short wait an app back in front gets to redial, never the call's 20 s.
+  assert.ok(Date.now() - t0 < 4000);
+});
+
+test('an app that left and dials back in within the window is used, and is no longer gone', async () => {
+  const server = await serve({ goneMs: 3000 });
+  const first = await fakeApp(server);
+  await server.waitForApp(2000);
+  first.socket.close();
+  await new Promise((r) => setTimeout(r, 50));
+  const pending = server.call('ping', undefined, 20_000);
+  const second = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await pending, { pong: true });
+  assert.equal(server.gone, false);
+  second.socket.close();
+});
+
+test('a call to an app that said it went to the background times out saying so', async () => {
+  const server = await serve();
+  const app = await fakeApp(server, () => undefined);
+  await server.waitForApp(2000);
+  app.socket.send(JSON.stringify({ event: 'appstate', state: 'background' }));
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(server.appState, 'background');
+  await assert.rejects(server.call('screen', undefined, 100), (e: unknown) => {
+    assert.ok(e instanceof AgentError);
+    assert.equal(e.message, 'screen timed out after 100ms: the app went to the background (another app is in front)');
+    return true;
+  });
+  app.socket.close();
+});
+
+test('a call that hears nothing at all from the app says so, as a suspended app or a stuck JS thread', async () => {
+  const server = await serve();
+  const app = await fakeApp(server, () => undefined);
+  await server.waitForApp(2000);
+  await assert.rejects(
+    server.call('screen', undefined, 100),
+    /screen timed out after 100ms: nothing at all came from the app meanwhile \(another app in front/,
+  );
+  app.socket.close();
+});

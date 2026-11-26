@@ -354,10 +354,15 @@ export type HelloEvent = {
     app?: Record<string, unknown>;
     nonce?: string;
     proof?: string;
+    appState?: string;
 };
 export type NavigationEvent = {
     event: 'navigation';
     route?: string;
+};
+export type AppStateEvent = {
+    event: 'appstate';
+    state: string;
 };
 export type AuthEvent = {
     event: 'auth';
@@ -368,7 +373,7 @@ export type VerifiedEvent = {
     event: 'verified';
     proof?: string;
 };
-export type AgentEvent = HelloEvent | NavigationEvent;
+export type AgentEvent = HelloEvent | NavigationEvent | AppStateEvent;
 export * from './run.js';
 export * from './fixtures.js';
 
