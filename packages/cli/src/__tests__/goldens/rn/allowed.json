@@ -1,1 +1,30 @@
-{}
+{
+  "surface/help/back": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "84d0aaaaa77e859f"
+  },
+  "surface/help/mock": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "f374b38ef79785b0"
+  },
+  "surface/help/os language": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "253ddb33db343fd5"
+  },
+  "surface/mcp/instructions": {
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text.",
+    "now": "4343df476661876b"
+  },
+  "surface/mcp/tool/back": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "3b22d5060ad7f230"
+  },
+  "surface/mcp/tool/mock": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "531cd80fd32f9adc"
+  },
+  "surface/mcp/tool/os_language": {
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
+    "now": "8685c9122536c4f8"
+  }
+}

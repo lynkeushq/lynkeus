@@ -147,6 +147,7 @@ export const driveCommands = [
     group: 'drive',
     summary: 'Pop the current route',
     needs: 'app',
+    mcp: 'core',
     run: async (ctx) => ({ json: await (await ctx.device()).back() }),
   }),
   define({
