@@ -1,4 +1,4 @@
-import { LogBox, NativeModules, Platform } from 'react-native';
+import { AppState, LogBox, NativeModules, Platform } from 'react-native';
 
 import type { Backend } from './backend';
 import { fabricBackend } from './backends/fabric';
@@ -109,6 +109,7 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
+    ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
     ...proof,
   });
 
@@ -234,12 +235,16 @@ export const start = (options: ClientOptions): (() => void) => {
     trace({ kind: 'route', route, path: navigation.path() });
     send({ event: 'navigation', route });
   });
+  // Said before the OS suspends the app: afterwards its socket stays open on a phone and answers nothing, and the
+  // driver could only wait out each call.
+  const appState = AppState.addEventListener?.('change', (state) => send({ event: 'appstate', state: String(state) }));
   connect();
 
   return () => {
     stopped = true;
     if (timer) clearTimeout(timer);
     unsubscribe();
+    appState?.remove();
     socket?.close();
   };
 };

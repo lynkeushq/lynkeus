@@ -54,5 +54,21 @@
   "surface/usage": {
     "why": "the usage lists fastsim start and fastsim stop",
     "now": "9df0b1c581a2899d"
+  },
+  "report/answer": {
+    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
+    "now": "9940b66e8d110154"
+  },
+  "surface/help/case stop": {
+    "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
+    "now": "55dc59d4708a09b0"
+  },
+  "surface/mcp/tool/case_stop": {
+    "why": "case_stop is a new MCP tool, so a model can stop a case_run its client moved to the background.",
+    "now": "87d4605d6f7ddbc9"
+  },
+  "wire/press-by-number": {
+    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
+    "now": "27f33b157d1b274f"
   }
 }

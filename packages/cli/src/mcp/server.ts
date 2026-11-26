@@ -109,7 +109,7 @@ For a run with everything (frames, film, requests, analytics, backend): case_run
 A case that changes something outside the app (a face enrolled on a shared Simulator) puts it back in \`teardown:\`, a list of steps with the same syntax as \`steps\`: it runs after them whether they passed, failed or were skipped, a failing teardown step is only a warning, and a run cut by a timeout never reaches it.
 A long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.
 
-For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications.
+For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications. A client may move a long case_run to the background: follow it with case_status, and stop it with case_stop (cancelling the call stops it too). One case_run at a time drives an app: a second one on the same port is refused until the first ends or is stopped.
 
 For a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.
 
@@ -167,15 +167,19 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
       return { ...text(`✗ ${request.params.name} takes no ${unknown.join(', ')}; it takes ${known.join(', ') || 'no arguments'}`), isError: true };
     // A client that passed a progress token hears how a long command (a case run) goes while it runs.
     const token = request.params._meta?.progressToken;
-    const ctx =
-      token === undefined
-        ? session.ctx
+    // A client that cancels the call (notifications/cancelled) stops a long command with it: a case run ends its
+    // case, stops its hosts and lets go of its port instead of running on unseen.
+    const ctx = {
+      ...session.ctx,
+      signal: extra.signal,
+      ...(token === undefined
+        ? {}
         : {
-            ...session.ctx,
             progress: progressNotifier((params) => {
               void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
             }),
-          };
+          }),
+    };
     const r = await execute(argvFor(c, input), ctx);
     if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));

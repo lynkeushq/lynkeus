@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import type { HelloEvent } from 'lynkeus-protocol';
+
 import { nativeValuesEnv } from '../cases/nativeValues.js';
 import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
@@ -135,6 +137,13 @@ const jestDefaults = (root: string): string[] => {
   return flags;
 };
 
+/** The status line for the app on the driver's port, from its latest hello; none is an app that was attached and left. */
+export const attachedCheck = (hello: HelloEvent | null, attachFix: string): { what: string; ok: boolean; fix?: string } => {
+  if (!hello) return { what: 'an app is attached', ok: false, fix: `the app that was attached is gone (crashed or closed): start it again; ${attachFix}` };
+  const name = hello.app?.runtime === 'headless' ? 'headless host' : String(hello.app?.name ?? hello.platform);
+  return { what: `an app is attached (${name === hello.platform ? name : `${name}, ${hello.platform}`})`, ok: true };
+};
+
 export const headlessCommands = [
   define({
     name: 'init',
@@ -166,7 +175,10 @@ export const headlessCommands = [
       if (ready && !ctx.flags.offline) {
         try {
           const device = await ctx.device();
-          checks.push({ what: `an app is attached (${device.info.name})`, ok: true });
+          // Over MCP the connection outlives the app: it is asked again, and named from its latest hello, since
+          // another app (another platform) may have taken the port since.
+          const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
+          checks.push(attachedCheck(hello, runtime.attachFix));
         } catch {
           checks.push({
             what: 'an app is attached',

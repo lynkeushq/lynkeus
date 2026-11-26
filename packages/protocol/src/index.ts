@@ -209,8 +209,15 @@ export type HelloEvent = {
   /** The app's half of the handshake: a fresh nonce, and HMAC-SHA256 under the token of `lynkeus/app/<session>/<driver nonce>/<app nonce>`. */
   nonce?: string;
   proof?: string;
+  /** React Native's AppState when the app said hello (`active`, `background`, `inactive`); absent from older agents. */
+  appState?: string;
 };
 export type NavigationEvent = { event: 'navigation'; route?: string };
+/**
+ * The app's AppState changed. A phone suspends an app in the background without closing its socket, so without this
+ * the driver only sees calls that never come back.
+ */
+export type AppStateEvent = { event: 'appstate'; state: string };
 /**
  * The driver's first message. `session` is random per driver process, so the app can tell a reconnect (whose resent
  * requests it may have answered) from a new driver reusing request ids; `nonce` is fresh per connection.
@@ -221,7 +228,7 @@ export type NavigationEvent = { event: 'navigation'; route?: string };
  */
 export type AuthEvent = { event: 'auth'; session: string; nonce?: string };
 export type VerifiedEvent = { event: 'verified'; proof?: string };
-export type AgentEvent = HelloEvent | NavigationEvent;
+export type AgentEvent = HelloEvent | NavigationEvent | AppStateEvent;
 
 export * from './run.js';
 export * from './fixtures.js';
