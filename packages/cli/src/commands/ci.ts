@@ -4,6 +4,8 @@ import path from 'node:path';
 
 import { coverageOf, impactOf, readSeen } from '../cases/coverage.js';
 import { readCases } from '../cases/format.js';
+import { readJson } from '../files.js';
+import type { ScreenGraph } from '../knowledge/types.js';
 import { screensAffectedBy } from '../knowledge/query.js';
 import { portFromEnv } from '../config.js';
 import { define } from '../registry.js';
@@ -81,9 +83,13 @@ export const ciCommands = [
       if (typeof all === 'string') return { text: all, code: 1 };
       let files = all;
       let picked = `All ${all.length} case files.`;
-      if (ctx.flags.affected) {
-        const graphFile = path.join(ctx.root, '.lynkeus', 'graph.json');
-        if (!fs.existsSync(graphFile)) spawnSync(process.execPath, [self, 'map', 'build'], { cwd: ctx.root, stdio: 'inherit' });
+      const graphFile = path.join(ctx.root, '.lynkeus', 'graph.json');
+      const screens = () => (fs.existsSync(graphFile) ? Object.keys(readJson<ScreenGraph>(graphFile).screens ?? {}).length : 0);
+      if (ctx.flags.affected && screens() === 0) spawnSync(process.execPath, [self, 'map', 'build'], { cwd: ctx.root, stdio: 'inherit' });
+      // With no route map no change traces to a screen: picking cases from it would pass every PR untested.
+      const blind = ctx.flags.affected && screens() === 0;
+      if (blind) picked = `All ${all.length} case files: the route map has no screen, so the changes cannot be traced to cases.`;
+      if (ctx.flags.affected && !blind) {
         const cases = all.flatMap(readCases);
         const graph = ctx.graph();
         const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')));
