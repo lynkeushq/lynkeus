@@ -1533,13 +1533,13 @@ lynkeus headless start [--entry <file>] [-- <argumentos de jest>]
 
 Aloja la app en Node (jest y React Native Testing Library) y espera a que se conecte un driver. Forma corta: `lynkeus headless`.
 
-Necesita el token del proyecto: el que `lynkeus init` (o `headless init`) escribió en `.lynkeus/token`, o `LYNKEUS_TOKEN` en el entorno, que gana sobre el archivo. Sin ninguno de los dos se niega a arrancar. La dirección de la API de la app sale de la variable de entorno que nombra `apiEnv` (por defecto `API_URL`) y, si no está definida, de `apiUrl` en `lynkeus.config.json`. `LYNKEUS_PORT` mueve juntos al host y a su driver. `LYNKEUS_HOST` indica dónde escucha el driver cuando el host no está en la misma máquina, por ejemplo un contenedor que se conecta hacia afuera. Lo que escribas después de `--` se le pasa a jest.
+Necesita el token del proyecto: el que `lynkeus init` (o `headless init`) escribió en `.lynkeus/token`, o `LYNKEUS_TOKEN` en el entorno, que gana sobre el archivo. Sin ninguno de los dos se niega a arrancar. La dirección de la API de la app sale de la variable de entorno de la que la app la lee (Lynkeus detecta el nombre; `apiEnv` en `lynkeus.config.json` lo fija) y, si no está definida, de `apiUrl` en `lynkeus.config.json`. Si la app no lee ninguna, no se supone ninguna. El archivo del host vive en `.lynkeus/host/` y nunca se ejecuta en el jest de la app, y recupera los mocks de tests unitarios del setup de jest de la app, salvo que ese setup lea `LYNKEUS_HEADLESS`. `LYNKEUS_PORT` mueve juntos al host y a su driver. `LYNKEUS_HOST` indica dónde escucha el driver cuando el host no está en la misma máquina, por ejemplo un contenedor que se conecta hacia afuera. Lo que escribas después de `--` se le pasa a jest.
 
 Cuando el host se cae, las últimas líneas dicen qué suele significar el error y cómo se arregla.
 
 | Opción | Qué hace |
 |---|---|
-| `--entry <file>` | El archivo de entrada del host. Si no la das, se usa `entry` de la configuración y, si tampoco está, `qa/headless.tsx`. |
+| `--entry <file>` | El archivo de entrada del host. Si no la das, se usa `entry` de la configuración; si tampoco está, un `qa/headless.tsx` que ya exista y, si no, `<cases.dir>/headless.tsx`. |
 
 ```bash
 API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
@@ -1551,13 +1551,13 @@ API_URL=http://127.0.0.1:3000/ npx lynkeus headless start
 lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]
 ```
 
-Escribe el archivo de entrada del host: los mocks por defecto, una comprobación de que el backend es local y tu componente `App`.
+Escribe el archivo de entrada del host: los mocks por defecto y la entrada propia de tu app (`registerRootComponent` o `AppRegistry`). La barrera de red del host, no la entrada, mantiene a la app lejos de los hosts que no son locales.
 
 | Opción | Qué hace |
 |---|---|
-| `--entry <file>` | Dónde escribir la entrada. Por defecto, `entry` de la configuración o `qa/headless.tsx`. |
-| `--component <App.tsx>` | El archivo del componente `App`. Si está en un lugar habitual, se encuentra solo. |
-| `--api-env <NAME>` | La variable de entorno de la que la app lee la dirección de su API. Por defecto, `apiEnv` de la configuración o `API_URL`. |
+| `--entry <file>` | Dónde escribir la entrada. Por defecto, `entry` de la configuración; si no, un `qa/headless.tsx` que ya exista y, si no, `<cases.dir>/headless.tsx`. |
+| `--component <App.tsx>` | El archivo del componente `App`. Se encuentra solo a partir de la entrada de la app. |
+| `--api-env <NAME>` | La variable de entorno de la que la app lee la dirección de su API. Por defecto, `apiEnv` de la configuración o la variable que lee el código de la app; si no hay ninguna, no se supone ninguna. |
 | `--auto` | Además monta el agente como lo hace [`lynkeus init`](#lynkeus-init): agrega `auto()` al punto de entrada y, en una app de React Native, el plugin `lynkeus-agent/babel` a `babel.config.js`. |
 | `--force` | Sobrescribe una entrada existente. |
 | `--no-install` | No agrega `jest`, Testing Library ni `lynkeus-headless` al proyecto. Por defecto los instala. |
@@ -1570,7 +1570,7 @@ Si el proyecto todavía no tiene token, lo crea en `.lynkeus/token`, porque `hea
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Dice qué módulos nativos simula Lynkeus y cuáles todavía necesitan un mock.
+Dice qué módulos nativos simula Lynkeus y cuáles nadie provee (reciben una respuesta vacía), y cómo dar a cada uno una respuesta real. Comprueba también que la versión de React Native Testing Library sea una que `lynkeus-headless` admite (12, 13 o 14).
 
 | Opción | Qué hace |
 |---|---|

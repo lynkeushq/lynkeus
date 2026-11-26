@@ -1531,11 +1531,11 @@ lynkeus headless start [--entry <file>] [-- <jest arguments>]
 
 Hosts the app in Node (jest and React Native Testing Library) and waits for a driver. It speaks the same protocol as a device. Alias: `headless`.
 
-It needs the project's token and refuses to start without it: the one `lynkeus init` or `lynkeus headless init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` in the environment, which wins. The app's API base comes from the environment variable that `apiEnv` names (default `API_URL`), or else from `apiUrl` in `lynkeus.config.json`. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
+It needs the project's token and refuses to start without it: the one `lynkeus init` or `lynkeus headless init` wrote to `.lynkeus/token`, or `LYNKEUS_TOKEN` in the environment, which wins. The app's API base comes from the environment variable the app reads it from (Lynkeus detects the name; `apiEnv` in `lynkeus.config.json` overrides it), or else from `apiUrl` in `lynkeus.config.json`. An app that reads no address gets none. The host's own test file lives in `.lynkeus/host/`, so it never runs in the app's own jest. It takes back the unit-test mocks of the app's jest setup, unless that setup reads `LYNKEUS_HEADLESS`. Each run lists the native modules nobody provides, which are answered empty. `LYNKEUS_PORT` moves the host and its driver together. `LYNKEUS_HOST` says where the driver is listening, for a host that does not run in the same place as its driver. Arguments after `--` go to jest. When the host crashes, the last lines printed say what the error usually means.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
 
 ```bash
 lynkeus headless start
@@ -1548,15 +1548,15 @@ API_URL=http://127.0.0.1:3000/ lynkeus headless start
 lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]
 ```
 
-Writes the headless entry: the default mocks, a guard that refuses a backend that is not local, and your `App`. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
+Writes the headless entry: the default mocks and your app's own entry (`registerRootComponent` or `AppRegistry`), so the root component runs as on a device. React Navigation is found by itself. The network fence, not the entry, keeps the app off hosts that are not local. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
 
 It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app has none, so it cannot run on the headless host.
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
-| `--component <App.tsx>` | | The file of the `App` component. It is found by itself when it sits in a standard place. |
-| `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else `API_URL` | The environment variable the app reads its API base from. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
+| `--component <App.tsx>` | | The file of the `App` component. It is found through the app's own entry when it can be. |
+| `--api-env <NAME>` | `apiEnv` in `lynkeus.config.json`, else the variable the app's source reads | The environment variable the app reads its API base from. With none found, none is assumed. |
 | `--auto` | | Also mount the agent from `index.js` with `auto()`, as [`lynkeus init`](#lynkeus-init) does. |
 | `--force` | | Overwrite an existing entry. |
 | `--no-install` | | Do not add jest, Testing Library and `lynkeus-headless` to the project. |
@@ -1567,11 +1567,11 @@ It stops with `no App component found` when it finds no root component and `--co
 lynkeus headless doctor [--entry <file>] [--fix] [--explain <text>]
 ```
 
-Lists what Lynkeus mocks, and which native modules of the app still need a mock.
+Lists what Lynkeus mocks, which native modules of the app nobody provides (they are answered empty) and how to give each a real answer, and whether the installed React Native Testing Library is one `lynkeus-headless` supports (12, 13 or 14).
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--entry <file>` | `entry` in `lynkeus.config.json`, else `qa/headless.tsx` | The headless entry file. |
+| `--entry <file>` | `entry` in `lynkeus.config.json`, else an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry file. |
 | `--fix` | | Write stubs for the uncovered modules into the entry. |
 | `--explain <text>` | | Turn a jest error into its usual cause and fix. Paste the first line of the error, not the stack. |
 

@@ -158,8 +158,8 @@ the app's folder:
 
 ```json
 {
-  "entry": "qa/headless.tsx",
-  "apiEnv": "API_URL",
+  "entry": "cases/headless.tsx",
+  "apiEnv": "EXPO_PUBLIC_API_URL",
   "port": 8123,
   "device": "iPhone 16",
   "app": "com.example.myapp",

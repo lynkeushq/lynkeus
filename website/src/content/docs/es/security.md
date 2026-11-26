@@ -118,9 +118,9 @@ El host sin pantalla (headless) ejecuta tu app en Node, sin simulador. La capa n
 
 **La red está limitada a tu máquina.** Con `network: 'real'`, el host rechaza cualquier petición a un servidor que no esté en `networkHosts`, y esa lista por defecto solo contiene la propia máquina (`127.0.0.1` y `localhost`). Una herramienta automática apuntada a producción es exactamente el accidente que esto previene.
 
-**La entrada comprueba adónde apunta la app.** El archivo que genera `lynkeus headless init` lee la variable de la que tu app toma la dirección de su API (`apiEnv` en la configuración, `API_URL` por defecto) y se niega a renderizar la app si no apunta a un backend local. El error es `lynkeus headless only drives a local backend; API_URL is "…"`.
+**La dirección de la API queda dentro de esa barrera.** El archivo que genera `lynkeus headless init` no revisa la dirección de la API. Si la app lee una que no es local, sus peticiones se rechazan como las de cualquier otro host. Solo las peticiones que responde una regla de `lynkeus mock` se contestan siempre: no salen del proceso.
 
-La segunda y la tercera están en tu archivo de entrada, así que las puedes cambiar. Si amplías `networkHosts`, hazlo sabiendo que es la barrera entre un test automático y un servidor que no es tuyo.
+Si amplías `networkHosts`, hazlo sabiendo que es la barrera entre un test automático y un servidor que no es tuyo.
 
 ## Lo que queda en tu máquina
 

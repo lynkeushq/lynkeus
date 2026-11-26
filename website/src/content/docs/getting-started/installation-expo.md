@@ -20,7 +20,7 @@ Before any development build, the headless host runs the app in Node, so a first
 ```bash
 npm install --save-dev lynkeus
 npx lynkeus init                          # installs the agent, mounts it and makes the token
-npx lynkeus headless init                 # installs jest, jest-expo and lynkeus-headless, writes qa/headless.tsx
+npx lynkeus headless init                 # installs jest, jest-expo and lynkeus-headless, writes the entry (cases/headless.tsx)
 npx lynkeus case here first-screen --host --write   # the app in Node: a case from what is on its screen
 npx lynkeus case run --host
 ```

@@ -25,16 +25,16 @@ For a value that can come from three places, flags win over the environment, and
 | App id | `--app` | `LYNKEUS_APP_ID` | `app` | none |
 | Attach timeout | `--attach-timeout` | `LYNKEUS_ATTACH_TIMEOUT_MS` | `attachTimeout` | `15000` |
 | Driver port | none | `LYNKEUS_PORT` | `port` | `8123` |
-| Headless entry | `--entry` | none | `entry` | `qa/headless.tsx` |
-| API variable | `--api-env` | none | `apiEnv` | `API_URL` |
+| Headless entry | `--entry` | none | `entry` | an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` |
+| API variable | `--api-env` | none | `apiEnv` | the one the app's source reads, if any |
 | Lint baseline | `--baseline` | none | `lintBaseline` | none |
 
 ## A full example
 
 ```json title="lynkeus.config.json"
 {
-  "entry": "qa/headless.tsx",
-  "apiEnv": "API_URL",
+  "entry": "cases/headless.tsx",
+  "apiEnv": "EXPO_PUBLIC_API_URL",
   "apiUrl": "http://127.0.0.1:3000/",
   "port": 8123,
   "device": "iPhone 16",
@@ -111,8 +111,8 @@ The token is not a configuration key, because it is a secret and the config file
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `entry` | string | `qa/headless.tsx` | The headless entry: the file that exports your `App` for `lynkeus headless start`. |
-| `apiEnv` | string | `API_URL` | The environment variable your app reads its API base from. `headless init` writes a guard into the entry that refuses to start unless this variable points at a local backend. |
+| `entry` | string | an existing `qa/headless.tsx`, else `<cases.dir>/headless.tsx` | The headless entry: the file that exports your `App` for `lynkeus headless start`. |
+| `apiEnv` | string | detected | The environment variable your app reads its API base from. Lynkeus finds it by reading the app's source; set this only to override that. An app that reads none gets none. |
 | `apiUrl` | string | none | The local backend `headless start` gives the app under `apiEnv` when the environment does not set that variable. Useful when an AI agent starts the host over MCP, since it cannot export a variable. Since 0.4.0. |
 | `live` | string[] | none | Regular expressions for the `testID`s of controls whose content changes on its own: a ticking clock, a countdown. Their text stops counting as a commit. Without this, `idle` waits out its whole timeout on every screen that shows one. |
 | `strictMode` | boolean | `false` | Keep `React.StrictMode` in the headless host. It is off by default because its double renders inflate every request, commit and millisecond the host measures. |

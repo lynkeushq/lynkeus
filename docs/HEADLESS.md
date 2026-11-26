@@ -6,7 +6,7 @@ app dials out exactly as it does on a device, so every command in
 [DRIVE.md](DRIVE.md) works unchanged.
 
 ```sh
-npx lynkeus headless init         # writes qa/headless.tsx: default mocks, local-backend guard, your App (--auto mounts the agent too)
+npx lynkeus headless init         # writes the entry: default mocks, your app's own entry (--auto mounts the agent too)
 npx lynkeus headless doctor       # what lynkeus will mock, and which native modules still need one (--fix writes the stubs)
 npx lynkeus headless start        # hosts the app and waits for a driver on 8123 (LYNKEUS_TOKEN overrides .lynkeus/token)
 ```
@@ -16,8 +16,17 @@ npx lynkeus headless start        # hosts the app and waits for a driver on 8123
 without a token any local process could drive it. `LYNKEUS_PORT` moves the host
 and its driver together; `LYNKEUS_HOST` says where the driver listens, for a
 host that is not beside it (a container dialing out). Arguments after `--` go to jest. The entry path can
-live in `lynkeus.config.json` as `entry` instead of `--entry` on every call;
-`apiEnv` there is the variable the local-backend guard checks.
+live in `lynkeus.config.json` as `entry` instead of `--entry` on every call.
+`apiEnv` there names the variable the app reads its API address from. Lynkeus
+detects it from the app's source; set `apiEnv` only to override that. An app
+that reads no address gets none: there is no default `API_URL`.
+
+The host's own test file lives in `.lynkeus/host/`, so it never runs in the
+app's own jest. The host takes back the unit-test mocks of the app's jest
+setup (the app's code runs for real), unless that setup reads
+`LYNKEUS_HEADLESS`. Packages jest must transpile are detected from what the
+app installs, not taken from a fixed list. React Native Testing Library 12, 13
+and 14 work; `headless doctor` checks the version.
 
 The host renders without `React.StrictMode`: production has none, and its
 double renders and double-mounted effects double every request, commit and
@@ -30,8 +39,13 @@ same for an error you paste.
 
 ## The entry
 
-Your entry, `qa/headless.tsx` by default, exports `App` and, optionally, a
-`navigation` adapter. It is the one place that knows your app:
+Your entry exports `App` and, optionally, a `navigation` adapter. It is the one
+place that knows your app. An existing `qa/headless.tsx` is kept; otherwise the
+entry goes next to the cases, in `<cases.dir>/headless.tsx`. `entry` in
+`lynkeus.config.json` or `--entry` choose it explicitly. The generated one runs
+the app's own entry (`registerRootComponent` or `AppRegistry`) and finds React
+Navigation by itself. It does not check the API address: the network fence
+below keeps the app off non-local hosts. The entry:
 
 ```tsx
 import { installDefaultMocks } from 'lynkeus-headless/mocks';
@@ -51,15 +65,28 @@ export { App };
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
 Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view, video, fast-image, biometrics, in-app-review, webview,
-vision-camera, image-picker, and vector-icons' native module. Reanimated
-and gesture-handler are deliberately left alone (their jest story is a babel
-plugin, not `jest.mock`); pass `overrides` if your app wants them mocked.
+worklets, pager-view and webview. A library's own shipped jest mock or jest
+setup file is used automatically. Reanimated and gesture-handler are
+deliberately left alone (their jest story is a babel plugin, not
+`jest.mock`); pass `overrides` if your app wants them mocked.
+
+The biometrics, in-app-review, vision-camera, image-picker, video, fast-image
+and vector-icons mocks are opt-in. Pass the ones you want:
+
+```ts
+import { installDefaultMocks, biometrics } from 'lynkeus-headless/mocks';
+
+installDefaultMocks({ overrides: { 'react-native-biometrics': biometrics } });
+```
+
+`XMLHttpRequest`, the Expo app config and Metro's script URL are provided, so
+axios, Reactotron and expo-linking work.
 Options: `skip`, `overrides`, `network` (`'real'` or `'banned'`), `networkHosts`, `websocket` (`'stub'`, `'real'` or `'none'`),
 `animations`, `deviceVersion`, `locale`, `initialUrl` (what `Linking.getInitialURL` answers).
 
-`headless init` finds your App component when it sits in a standard place
-(`--component` otherwise), takes `--api-env <NAME>` for the guard, and with
+`headless init` finds your App component through the app's own entry
+(`--component` otherwise), takes `--api-env <NAME>` to set the variable the
+app reads its API address from, and with
 `--auto` also adds the `auto()` mount to `index.js`. `--force` overwrites an
 existing entry.
 
@@ -148,6 +175,12 @@ if (!process.env.LYNKEUS_HEADLESS) jest.mock('@sumsub/react-native-mobilesdk-mod
 
 If the package ships untranspiled ES modules, list it in the app's `transformIgnorePatterns` as react-native is.
 
+### Native modules nobody provides
+
+A native module that neither the library's own jest mock nor your entry provides is answered empty: each method
+resolves `undefined`. Each run and `lynkeus headless doctor` list those modules and how to give a real answer: a
+`jest.mock` in the headless entry, or `cases.nativeMocks`.
+
 ### Native values the host does not know
 
 Under jest a native property nothing answers reads as `undefined`: `NativeModules.RNFoo.isTablet` is undefined, a
@@ -201,15 +234,16 @@ aliases, the longest first, since jest-expo tries `@/*` before `@/assets/*`.
   app reads for its `token` prop.
 - With `network: 'real'`, the host refuses any host outside `networkHosts`,
   which defaults to loopback. An automated harness pointed at production is
-  exactly the accident this prevents.
-- The `apiEnv` guard in the generated entry checks that the API base the app
-  reads points at a local backend before the app is rendered.
+  exactly the accident this prevents. The entry itself does not refuse a
+  non-local API address; the fence does that work. Requests answered by
+  `lynkeus mock` rules (`netmock`) are the exception: they are answered even
+  for hosts outside `networkHosts`, since they never leave the process.
 
 ## Troubleshooting
 
 **An env var change has no effect.** If your babel inlines environment
 variables, jest's transform cache freezes the first value it saw. `headless
-start` keeps one cache per value of the `apiEnv` variable, under
+start` keeps one cache per value of the API variable, under
 `.lynkeus/jest-cache/`; for any other inlined variable, remove that folder.
 
 **The app never leaves the splash.** Usually a native module that Lynkeus does

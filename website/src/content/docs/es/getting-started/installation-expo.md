@@ -25,7 +25,7 @@ Antes de cualquier development build, el host headless corre la app en Node, y u
 npx expo install lynkeus-agent
 npm install --save-dev lynkeus
 npx lynkeus init                          # monta el agente y crea el token
-npx lynkeus headless init                 # instala jest y escribe qa/headless.tsx
+npx lynkeus headless init                 # instala jest y escribe la entrada (cases/headless.tsx)
 npx lynkeus case here first-screen --host --write   # la app en Node: un caso con lo que hay en su pantalla
 npx lynkeus case run --host
 ```

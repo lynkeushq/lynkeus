@@ -690,6 +690,16 @@ Reads progress.ndjson, which `case run` writes as it goes: in the run directory 
 |---|---|
 | `dir` | the run directory (case run --out), or its progress.ndjson; default: the last run here (optional) |
 
+### `lynkeus case stop [dir]`
+
+Stop a case run that is going: no step starts after the current one, the hosts it started stop and its ports are let go
+
+Without a directory: every run of this Lynkeus (an MCP server or a session) at once, else the last run of this project, from any process. A run in another process stops when it next looks (within a second); this waits for it to say so. A run stopped this way ends with what it ran, and `case status` says it was stopped.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory (case run --out), or its progress.ndjson; default: the runs of this Lynkeus, else the last run here (optional) |
+
 ### `lynkeus case prepare [files]… [--prepared <dir>] [--jobs <n>] [--ahead <n>] [--idle <share>]`
 
 Run the setup of cases ahead of them, so each starts at its first step
