@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `lynkeus case run` with a Lynkeus FastSim host command, and `fastsim start`, no longer run on a bundle older than the app's code. They only warned and then reported green on the old code. Now a stale bundle is bundled again first with the `fastsim-bundle` beside the command's `fastsim-run` (for the app and platform the bundle's `bundle.json` recorded, in Lynkeus's environment), and the summary says it was. When there is no `fastsim-bundle` at hand, bundling fails, or the bundle is still older afterwards, the run is refused (exit 1) before any host starts, with the exact command to run.
 - On a Lynkeus FastSim host an app's commands were missing when the app registered them inside `if (__DEV__)`: FastSim runs a release bundle, where `__DEV__` is false, and the case failed with `Unknown method signIn` or `no command reset registered` and no reason. In a release bundle `lynkeus-agent` now adds why to that error (the release bundle, the `__DEV__` guard, and that `qa.register` is safe to call unconditionally), and `case run` shows it with the step. The Agent API, FastSim guide and MCP instructions say to register commands outside `if (__DEV__)`; registering stays inert in a production build (the handler is only kept in memory, nothing connects or reads the screen).
 
 ## 0.7.6

@@ -12,8 +12,8 @@
     "now": "253ddb33db343fd5"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim.",
-    "now": "99f9791fd1677871"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code.",
+    "now": "e3eeed51781b7514"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -32,8 +32,8 @@
     "now": "1a81dab195ee463b"
   },
   "surface/help/fastsim start": {
-    "why": "new command: starts a FastSim host on the session's driver port",
-    "now": "8b0563dd8a253230"
+    "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
+    "now": "f68b8d77d4eb9191"
   },
   "surface/help/fastsim stop": {
     "why": "new command: stops the host fastsim start started",
@@ -44,8 +44,8 @@
     "now": "fc91aa1f80ae07f4"
   },
   "surface/mcp/tool/fastsim_start": {
-    "why": "new tool: explore the app on a FastSim host",
-    "now": "3ddc9af3a0b1586b"
+    "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
+    "now": "7b46be325b84d7d7"
   },
   "surface/mcp/tool/fastsim_stop": {
     "why": "new tool: stops the host fastsim_start started",

@@ -279,3 +279,18 @@ test('why reads about the last case run, not a command that failed before it', a
   await execute(['why'], base);
   assert.equal(asked.at(-1), 1);
 });
+
+test('a case run on a FastSim bundle older than the app, with no fastsim-bundle at hand, is refused before any host starts', async () => {
+  const p = project();
+  const bundle = path.join(p.root, '.lynkeus', 'fastsim-ios');
+  fs.mkdirSync(bundle, { recursive: true });
+  fs.writeFileSync(path.join(bundle, 'app.hbc'), '');
+  fs.utimesSync(path.join(bundle, 'app.hbc'), 1000, 1000);
+  fs.writeFileSync(path.join(p.root, 'index.js'), '');
+  const outcome = await execute(['case', 'run', '--once', '--host-command', `/nowhere/bin/fastsim-run ${bundle} {port}`, '--ports', String(p.port)], p.base);
+  assert.equal(outcome.code, 1);
+  assert.match(outcome.text ?? '', /^the FastSim bundle at .*fastsim-ios is older than index\.js, and no fastsim-bundle is beside/);
+  assert.match(outcome.text ?? '', /\n {2}<FastSim folder>\/bin\/fastsim-bundle .* ios$/);
+  assert.equal(fs.existsSync(path.join(bundle, 'hosts')), false);
+  p.free();
+});

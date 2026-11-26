@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,13 +9,36 @@ const NOT_APP_CODE = new Set(['node_modules', 'ios', 'android', 'build', 'dist',
 // A walk that big is not an app's own code any more; a bundle is better left unchecked than a run held up.
 const MAX_ENTRIES = 20_000;
 
+const RUN = /("[^"]*fastsim-run"|'[^']*fastsim-run'|[^\s"']*fastsim-run)\s+("[^"]+"|'[^']+'|[^\s"']+)/;
+
+const unquote = (word: string): string => word.replace(/^["']|["']$/g, '').replace(/^~(?=\/)/, os.homedir());
+
 /** The bundle folder a `fastsim-run <bundle dir> {port}` host command names, resolved; undefined for any other command. */
 export const fastsimBundleDir = (command: string, cwd: string): string | undefined => {
-  const match = /fastsim-run["']?\s+("[^"]+"|'[^']+'|[^\s"']+)/.exec(command);
-  if (!match?.[1]) return undefined;
-  const given = match[1].replace(/^["']|["']$/g, '').replace(/^~(?=\/)/, os.homedir());
-  if (given.includes('{') || given.includes('$')) return undefined;
-  return path.resolve(cwd, given);
+  const given = RUN.exec(command)?.[2];
+  if (!given) return undefined;
+  const dir = unquote(given);
+  if (dir.includes('{') || dir.includes('$')) return undefined;
+  return path.resolve(cwd, dir);
+};
+
+/** The `fastsim-bundle` beside the `fastsim-run` a host command starts (or on the PATH, for a bare `fastsim-run`), if it is there. */
+export const fastsimBundler = (command: string, cwd: string, envPath: string | undefined = process.env.PATH): string | undefined => {
+  const given = RUN.exec(command)?.[1];
+  if (!given) return undefined;
+  const run = unquote(given);
+  if (run.includes('$') || run.includes('{')) return undefined;
+  const dirs = run.includes('/') ? [path.dirname(path.resolve(cwd, run))] : (envPath ?? '').split(path.delimiter).filter(Boolean);
+  for (const dir of dirs) {
+    const bundler = path.join(dir, 'fastsim-bundle');
+    try {
+      fs.accessSync(bundler, fs.constants.X_OK);
+      return bundler;
+    } catch {
+      // not in this folder
+    }
+  }
+  return undefined;
 };
 
 /** The app's newest source file and when it changed, leaving out dependencies, native projects, tests and `skip`. */
@@ -45,11 +69,20 @@ export const newestSource = (appDir: string, skip: string[] = []): { file: strin
   return newest;
 };
 
+export type StaleBundle = {
+  bundle: string;
+  /** The app fastsim-bundle recorded in the bundle's bundle.json, else the project's folder. */
+  app: string;
+  platform: string;
+  /** The newest source, relative to `app`. */
+  newest: string;
+};
+
 /**
- * A warning when the FastSim bundle a host command runs is older than the app's code: the run would test the app as
- * it was. The app is the one fastsim-bundle recorded in the bundle's bundle.json, else `appDir`.
+ * The FastSim bundle a host command runs, when it is older than the app's code: a run on it would test the app as it
+ * was. Undefined when it is current, or when the command runs no bundle that can be checked.
  */
-export const staleBundleWarning = (command: string, appDir: string, skip: string[] = []): string | undefined => {
+export const staleBundle = (command: string, appDir: string, skip: string[] = []): StaleBundle | undefined => {
   const bundle = fastsimBundleDir(command, appDir);
   if (!bundle) return undefined;
   let built: number;
@@ -59,13 +92,85 @@ export const staleBundleWarning = (command: string, appDir: string, skip: string
     return undefined;
   }
   let app = appDir;
+  let platform: string | undefined;
   try {
-    const recorded = (JSON.parse(fs.readFileSync(path.join(bundle, 'bundle.json'), 'utf8')) as { app?: unknown }).app;
-    if (typeof recorded === 'string' && fs.existsSync(recorded)) app = recorded;
+    const recorded = JSON.parse(fs.readFileSync(path.join(bundle, 'bundle.json'), 'utf8')) as { app?: unknown; platform?: unknown };
+    if (typeof recorded.app === 'string' && fs.existsSync(recorded.app)) app = recorded.app;
+    if (recorded.platform === 'ios' || recorded.platform === 'android') platform = recorded.platform;
   } catch {
     // A bundle made before fastsim-bundle recorded its app: the project's folder is the app.
   }
+  if (!platform) {
+    try {
+      platform = /--platform (\w+)/.exec(fs.readFileSync(path.join(bundle, 'host.args'), 'utf8'))?.[1];
+    } catch {
+      // no host.args either: fastsim-bundle's own default
+    }
+  }
   const newest = newestSource(app, skip);
   if (!newest || newest.mtimeMs <= built) return undefined;
-  return `⚠ the bundle at ${bundle} is older than ${path.relative(app, newest.file)}; run fastsim-bundle again, or the run tests the app as it was`;
+  return { bundle, app, platform: platform ?? 'ios', newest: path.relative(app, newest.file) };
+};
+
+const shellWord = (word: string): string => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`);
+
+/** The command that bundles the app again, as a person would type it. */
+export const rebundleCommand = (stale: StaleBundle, bundler: string | undefined): string =>
+  [bundler ? shellWord(bundler) : '<FastSim folder>/bin/fastsim-bundle', shellWord(stale.app), shellWord(stale.bundle), stale.platform].join(' ');
+
+export type Bundling = { code: number | null; output: string };
+export type Bundle = (bundler: string, args: string[], o: { cwd: string; signal?: AbortSignal }) => Promise<Bundling>;
+
+const MAX_OUTPUT = 64 * 1024;
+
+const spawnBundle: Bundle = (bundler, args, o) =>
+  new Promise((resolve) => {
+    let output = '';
+    const keep = (chunk: Buffer) => {
+      output = (output + chunk.toString()).slice(-MAX_OUTPUT);
+    };
+    // The bundler inlines this process's environment (EXPO_PUBLIC_*, the backend's address) as a release build does.
+    const child = spawn(bundler, args, { cwd: o.cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'], signal: o.signal });
+    child.stdout.on('data', keep);
+    child.stderr.on('data', keep);
+    child.on('error', (error) => resolve({ code: null, output: `${output}${error.message}` }));
+    child.on('close', (code) => resolve({ code, output }));
+  });
+
+export type FreshBundle = { ok: true; note?: string } | { ok: false; text: string };
+
+/**
+ * Makes sure a FastSim host command runs the app's current code: a stale bundle is bundled again with the
+ * fastsim-bundle beside the command's fastsim-run, and when that is not there or fails, the run is refused with the
+ * command to run. A run never goes on to report on code older than the app's.
+ */
+export const freshBundle = async (
+  command: string,
+  appDir: string,
+  o: { skip?: string[]; log?: (line: string) => void; signal?: AbortSignal; bundle?: Bundle; envPath?: string } = {},
+): Promise<FreshBundle> => {
+  const stale = staleBundle(command, appDir, o.skip);
+  if (!stale) return { ok: true };
+  const bundler = fastsimBundler(command, appDir, o.envPath ?? process.env.PATH);
+  const again = rebundleCommand(stale, bundler);
+  const older = `the FastSim bundle at ${stale.bundle} is older than ${stale.newest}`;
+  if (!bundler)
+    return { ok: false, text: `${older}, and no fastsim-bundle is beside the host command's fastsim-run; bundle it again, then run again:\n  ${again}` };
+  o.log?.(`${older}; bundling it again: ${again}`);
+  const t0 = Date.now();
+  const done = await (o.bundle ?? spawnBundle)(bundler, [stale.app, stale.bundle, stale.platform], { cwd: stale.app, signal: o.signal });
+  if (done.code !== 0) {
+    const tail = done.output.trim().split('\n').slice(-15).join('\n');
+    return {
+      ok: false,
+      text: `${older}, and bundling it again failed (${done.code === null ? 'it did not finish' : `exit ${done.code}`}); fix that and run:\n  ${again}${tail ? `\n${tail}` : ''}`,
+    };
+  }
+  const still = staleBundle(command, appDir, o.skip);
+  if (still)
+    return {
+      ok: false,
+      text: `the FastSim bundle at ${still.bundle} is still older than ${still.newest} after bundling it again (is that file dated in the future?); the run would test old code`,
+    };
+  return { ok: true, note: `bundled ${stale.bundle} again in ${((Date.now() - t0) / 1000).toFixed(1)} s: it was older than ${stale.newest}` };
 };
