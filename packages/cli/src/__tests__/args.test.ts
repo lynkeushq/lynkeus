@@ -107,3 +107,9 @@ test('mock --lost refuses a status, a body or a delay, which a lost answer would
   assert.match(refused.text ?? '', /--status, --delay/);
   await assert.rejects(Promise.resolve(mock.run(ctx({ lost: true }))), /no app/);
 });
+
+test('os language takes the app, as the CLI flag does', () => {
+  const language = osCommands.find((c) => c.name === 'os language');
+  assert.ok(language?.flags?.app);
+  assert.ok(!language.mcpOmit?.includes('app'));
+});

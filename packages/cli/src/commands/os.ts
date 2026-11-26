@@ -264,6 +264,7 @@ export const osCommands = [
     summary: 'Simulator: relaunch the app in a locale',
     mcp: 'core',
     positionals: [{ name: 'tag', help: 'de-DE, en-US, … (default: the locale in lynkeus.config.json)' }],
+    flags: { app: { type: 'string', help: 'the app to relaunch on a simulator or emulator (default: the config’s app)', value: 'bundleId' } },
     needs: 'app',
     run: async (ctx) => {
       const tag = ctx.args[0] ?? ctx.config.locale?.languageTag ?? ctx.config.language;

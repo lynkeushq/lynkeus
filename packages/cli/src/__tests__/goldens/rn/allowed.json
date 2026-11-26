@@ -8,8 +8,8 @@
     "now": "f374b38ef79785b0"
   },
   "surface/help/os language": {
-    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
-    "now": "253ddb33db343fd5"
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP.",
+    "now": "01de158681580569"
   },
   "surface/mcp/instructions": {
     "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text.",
@@ -24,8 +24,8 @@
     "now": "531cd80fd32f9adc"
   },
   "surface/mcp/tool/os_language": {
-    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
-    "now": "8685c9122536c4f8"
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP.",
+    "now": "3e350a30f71da8c9"
   },
   "surface/commands": {
     "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop",
-    "now": "f7ecf6f889d15a4b"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app.",
+    "now": "21e897796bb4a9a5"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
