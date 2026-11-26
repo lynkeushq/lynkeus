@@ -72,3 +72,31 @@ test('a request still in flight is named, with how long it has been open, even i
   const bare = explain({ screen: screen([el({}, 0)], 'Home'), requests: [], inFlight: 2 });
   assert.match(bare.find((f) => f.rule === 'in-flight')?.message ?? '', /^2 request\(s\) still in flight when the command gave up:/);
 });
+
+test('a missing element next to a failed request is put down to that request, mocked or not', () => {
+  const s = screen([el({ kind: 'text', text: 'Orders' }, 0)], 'Orders');
+  const mocked = { ...req(500, 'http://x/api/orders'), mocked: true };
+  const found = explain({ screen: s, requests: [mocked], inFlight: 0, target: { testId: 'order-0' } });
+  const linked = found.find((f) => f.rule === 'request-failed');
+  assert.match(
+    linked?.message ?? '',
+    /^#order-0 is not on screen and GET \/api\/orders 500 \(mocked\) failed: the screen is likely showing its empty or error state/,
+  );
+  assert.ok(
+    rules(
+      explain({ screen: s, requests: [req(undefined, 'http://x/api/orders', 'Network request failed')], inFlight: 0, target: { text: 'Order #1' } }),
+    ).includes('request-failed'),
+  );
+  // An element that is there is not explained by a request.
+  assert.ok(!rules(explain({ screen: s, requests: [mocked], inFlight: 0, target: { text: 'Orders' } })).includes('request-failed'));
+});
+
+test('a missing element whose screen got its data says so, when nothing else explains it', () => {
+  const s = screen([el({ kind: 'text', text: 'No orders yet' }, 0)], 'Orders');
+  const found = explain({ screen: s, requests: [req(200, 'http://x/api/orders'), req(304, 'http://x/api/me')], inFlight: 0, target: { testId: 'order-0' } });
+  assert.deepEqual(rules(found), ['requests-ok']);
+  assert.match(found[0]!.message, /GET \/api\/orders 200, GET \/api\/me 304\): the data came/);
+  assert.ok(
+    !rules(explain({ screen: s, requests: [req(200, 'http://x/api/orders')], inFlight: 0, target: { text: 'No orders yet' } })).includes('requests-ok'),
+  );
+});

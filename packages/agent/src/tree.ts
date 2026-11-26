@@ -3,7 +3,18 @@ import { Dimensions, Platform, StyleSheet, TextInput } from 'react-native';
 import { centre, type Snapshot } from './backend';
 import { kindOf, SCREEN_CONTAINERS } from './hosts';
 import { touch } from './native';
-import { blocksTouches, isA11yHidden, isUnrendered, layerKindOf, opaqueContainer, resolvePresentation, type Layer } from './presentation';
+import {
+  blocksTouches,
+  isA11yHidden,
+  isUnrendered,
+  layerKindOf,
+  opaqueContainer,
+  resolvePresentation,
+  textTransformOf,
+  transformText,
+  type Layer,
+  type TextTransform,
+} from './presentation';
 import type { Element, Frame, HiddenReason } from './protocol';
 
 /*
@@ -61,6 +72,37 @@ const rootFibers = (): Fiber[] => {
 
 const props = (fiber: Fiber): Record<string, unknown> => (typeof fiber.memoizedProps === 'object' && fiber.memoizedProps !== null ? fiber.memoizedProps : {});
 
+type AnimatedHandle = { viewDescriptors?: unknown; initial?: { value?: Record<string, unknown>; updater?: () => unknown } };
+
+const A11Y_KEYS = ['accessibilityElementsHidden', 'importantForAccessibility', 'aria-hidden'] as const;
+
+/**
+ * Reanimated applies `useAnimatedProps` on the UI thread and leaves React's props at their first value, so a drawer
+ * (react-native-drawer-layout) opened since still reads `accessibilityElementsHidden` from when it was closed. The
+ * handle keeps the updater; run on this thread, as Reanimated runs it for the first render, it reads the shared values
+ * as they are now. Only the accessibility props are taken: they decide what is presented.
+ */
+const liveA11yProps = (fiber: Fiber): Record<string, unknown> | undefined => {
+  for (let owner = fiber.return; owner && owner.tag !== HOST_COMPONENT; owner = owner.return) {
+    const animated = props(owner).animatedProps;
+    if (animated === undefined || animated === null) continue;
+    const live: Record<string, unknown> = {};
+    for (const handle of (Array.isArray(animated) ? animated : [animated]) as (AnimatedHandle | null)[]) {
+      const initial = handle?.initial;
+      if (!handle?.viewDescriptors || !initial?.value || typeof initial.updater !== 'function') continue;
+      if (!A11Y_KEYS.some((key) => key in initial.value!)) continue;
+      try {
+        const now = initial.updater() as Record<string, unknown> | null;
+        if (now && typeof now === 'object') for (const key of A11Y_KEYS) if (key in now) live[key] = now[key];
+      } catch {
+        // An updater that cannot run off the UI thread leaves React's props as the answer.
+      }
+    }
+    return Object.keys(live).length > 0 ? live : undefined;
+  }
+  return undefined;
+};
+
 const isEnabled = (p: Record<string, unknown>): boolean => {
   const state = p.accessibilityState as { disabled?: boolean } | undefined;
   if (state?.disabled) return false;
@@ -82,21 +124,23 @@ const measure = (fiber: Fiber): Frame | undefined => {
   }
 };
 
-const gatherText = (fiber: Fiber | null, out: string[]): void => {
+// A nested text inherits the transform of the text around it, unless its own style sets another.
+const gatherText = (fiber: Fiber | null, out: string[], transform: TextTransform | 'none' | undefined): void => {
   for (let node = fiber; node; node = node.sibling) {
     if (node.tag === HOST_TEXT && typeof node.memoizedProps === 'string') {
-      out.push(node.memoizedProps);
+      out.push(transformText(node.memoizedProps, transform, Platform.OS));
     } else {
-      gatherText(node.child, out);
+      gatherText(node.child, out, (node.tag === HOST_COMPONENT ? textTransformOf(props(node)) : undefined) ?? transform);
     }
   }
 };
 
+/** What the text reads on screen, whole: a target or a check names all of it; only printouts shorten it. */
 const textOf = (fiber: Fiber): string | undefined => {
   const parts: string[] = [];
-  gatherText(fiber.child, parts);
+  gatherText(fiber.child, parts, textTransformOf(props(fiber)));
   const text = parts.join('').replace(/\s+/g, ' ').trim();
-  return text.length > 0 ? text.slice(0, 200) : undefined;
+  return text.length > 0 ? text : undefined;
 };
 
 /** A text inside a button, with its own frame, for the button's `texts`. */
@@ -296,7 +340,8 @@ export const snapshotElements = (): Snapshot => {
       return;
     }
     const name = String(node.type);
-    const p = props(node);
+    const live = liveA11yProps(node);
+    const p = live ? { ...props(node), ...live } : props(node);
 
     if (isUnrendered(name, p)) return;
     if (SCREEN_CONTAINERS.has(name)) {

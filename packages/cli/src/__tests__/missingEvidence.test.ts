@@ -59,5 +59,8 @@ test('frames asked for and none taken on a host the run started blames the bundl
   assert.match(own, /--screenshots kept no frame/);
   assert.match(own, /fastsim-bundle/);
   assert.match(missingEvidence([run({ steps })], { video: false, sdks: [], screenshots: true }).join('\n'), /simulator or emulator/);
-  assert.deepEqual(missingEvidence([run({ steps: [{ ...steps[0]!, screenshot: '/x/01.avif' }] })], { video: false, sdks: [], screenshots: true, ownHost: true }), []);
+  assert.deepEqual(
+    missingEvidence([run({ steps: [{ ...steps[0]!, screenshot: '/x/01.avif' }] })], { video: false, sdks: [], screenshots: true, ownHost: true }),
+    [],
+  );
 });

@@ -166,5 +166,53 @@
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
     "now": "268047cd81968b36"
+  },
+  "wire/compare-run-frames": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
+    "now": "60583c0bc20eb7a3"
+  },
+  "wire/counter-name-and-countdown": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "ebcf2212c36c4144"
+  },
+  "wire/events": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "d363e69a85ec0a16"
+  },
+  "wire/every-wait": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "7f2754e1df91d9c1"
+  },
+  "wire/failure-evidence-and-continue": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "de8e55b02842d403"
+  },
+  "wire/interruptions": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
+    "now": "aea231d90b0a9802"
+  },
+  "wire/list-back-and-dialog": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "9bfb78881d182c35"
+  },
+  "wire/macros-blocks-and-commands": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "cdb41b0060c163c2"
+  },
+  "wire/native-window-scrolls": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "ebd35f1d65aae5b1"
+  },
+  "wire/retries-until-enabled-and-listed": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "75662c85c309bd73"
+  },
+  "wire/screenshots-each-step": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
+    "now": "162773e89fd5f0c6"
+  },
+  "wire/unsupported-command": {
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
+    "now": "81e072ad46a07ef4"
   }
 }

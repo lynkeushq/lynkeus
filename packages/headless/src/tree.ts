@@ -1,3 +1,6 @@
+import { Platform } from 'react-native';
+import { textTransformOf, transformText, type TextTransform } from 'lynkeus-agent/presentation';
+
 // The host-only tree React Native Testing Library 14 renders, typed
 // structurally so the package does not depend on the renderer's types.
 export type ReactTestInstance = {
@@ -27,13 +30,17 @@ export const fiberName = (fiber: Fiber): string => {
   return t.displayName || t.name || t.render?.displayName || t.render?.name || t.type?.displayName || t.type?.name || 'anonymous';
 };
 
+// As the device walker reads it: a nested text inherits the `textTransform` around it unless it sets its own.
 export const textOf = (node: ReactTestInstance): string => {
   const parts: string[] = [];
-  const visit = (n: ReactTestInstance | string) => {
-    if (typeof n === 'string') parts.push(n);
-    else for (const child of n.children) visit(child);
+  const visit = (n: ReactTestInstance | string, transform: TextTransform | 'none' | undefined) => {
+    if (typeof n === 'string') parts.push(transformText(n, transform, Platform.OS));
+    else {
+      const own = textTransformOf(n.props) ?? transform;
+      for (const child of n.children) visit(child, own);
+    }
   };
-  visit(node);
+  visit(node, undefined);
   return parts.join('').replace(/\s+/g, ' ').trim();
 };
 

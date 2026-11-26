@@ -67,6 +67,15 @@ const randomHex = (): string => {
 };
 
 /** The app end of the link: dials the driver, retries quietly while nobody listens, serves requests. Returns a stop function. */
+// Hermes resolves Intl's default locale from the device's settings: what a case drafted from the screen reads in.
+const deviceLocale = (): string | undefined => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().locale || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const start = (options: ClientOptions): (() => void) => {
   // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
   if (!options.token && options.allowUnauthenticated !== true) {
@@ -110,6 +119,7 @@ export const start = (options: ClientOptions): (() => void) => {
     route: navigation.currentRoute()?.name,
     app: options.app,
     ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
+    locale: deviceLocale(),
     ...proof,
   });
 

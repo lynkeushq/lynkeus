@@ -86,3 +86,24 @@ test('an app with no navigation gets a case with no route to go to', () => {
     ['app.see'],
   );
 });
+
+test('a case from the screen checks short texts, never a paragraph, and says when the device reads another language', () => {
+  const paragraph =
+    'Esta es una aplicación de ejemplo que muestra cómo se ve un párrafo largo en la pantalla de bienvenida, con más de doscientos caracteres de texto que nadie debería comprobar palabra por palabra.';
+  const screen = {
+    route: 'Welcome',
+    path: ['Welcome'],
+    elements: [element(0, { text: paragraph }), element(1, { text: 'Empecemos' })],
+    commit: 1,
+    busy: false,
+    window: { w: 390, h: 844 },
+    costMs: 1,
+  } as unknown as Parameters<typeof hereCase>[1];
+  const text = hereCase('welcome', screen, undefined, { locale: 'es-AR', language: 'en' });
+  assert.deepEqual(
+    parse(text).steps.map((s) => s.value),
+    ['Empecemos'],
+  );
+  assert.match(text, /# The device reads es-AR, the app's language is en: these texts are as es shows them\. Prefer testIDs\./);
+  assert.doesNotMatch(hereCase('welcome', screen, undefined, { locale: 'en-US', language: 'en' }), /The device reads/);
+});

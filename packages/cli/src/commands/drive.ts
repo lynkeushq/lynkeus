@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import type { Element, Screen, Target } from 'lynkeus-protocol';
 import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
@@ -29,6 +30,61 @@ const withCover = async (device: Device, error: unknown): Promise<unknown> => {
   const cover = error instanceof Error ? await coverOf(device) : undefined;
   if (cover && error instanceof Error) error.message = `${error.message} (${cover})`;
   return error;
+};
+
+// The looks below go through the app (`idle`), so a host with a clock of its own moves on between them.
+const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutMs: ms * 2 }).catch(() => undefined);
+
+/**
+ * A field still under what covers it (a screen sliding in, the app coming back from a reset) takes no tap, and the
+ * typing then finds no focused input. Waited for as a case's `app.type` waits: there, then not covered.
+ */
+export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
+  let found = await find();
+  if (!found) {
+    await device.waitFor({ target, timeoutMs }).catch(() => undefined);
+    found = await find();
+  }
+  while (found?.covered && Date.now() < deadline) {
+    await look(device, 50);
+    found = await find();
+  }
+};
+
+const coveredShape = (screen: Screen) =>
+  screen.elements
+    .filter((e) => e.covered && !e.hidden)
+    .map((e) => `${e.i}@${Math.round(e.frame.x)},${Math.round(e.frame.y)}`)
+    .join('|');
+
+// Longer than a platform's screen transition: covered controls that stay so this long are covered for good (a header
+// over a scrolled list), not by a screen still moving.
+const STEADY_COVER_MS = 600;
+
+/**
+ * The screen once the app is quiet and done moving. A native transition changes no React state, so a quiet app can
+ * still be sliding the next screen in, every control on it reading as covered until it lands: the screen is read
+ * again until what is covered clears or stops changing.
+ */
+export const settledScreen = async (device: Device, timeoutMs = 3000): Promise<Screen> => {
+  await device.idle({ quietMs: 200, timeoutMs }).catch(() => undefined);
+  let screen = await device.screen();
+  let shape = coveredShape(screen);
+  let since = Date.now();
+  const deadline = Date.now() + timeoutMs;
+  while (shape && Date.now() < deadline && Date.now() - since < STEADY_COVER_MS) {
+    // A host on a clock of its own answers a look at once: the steady time is still the wall's.
+    await Promise.all([look(device, 100), new Promise((r) => setTimeout(r, 50))]);
+    screen = await device.screen();
+    const now = coveredShape(screen);
+    if (now !== shape) {
+      shape = now;
+      since = Date.now();
+    }
+  }
+  return screen;
 };
 
 export const driveCommands = [
@@ -85,8 +141,7 @@ export const driveCommands = [
           throw await withCover(device, error);
         });
       if (!ctx.flags.settle) return { json: result };
-      await device.idle({ quietMs: 200, timeoutMs: 3000 }).catch(() => undefined);
-      return { text: describeScreen(await device.screen()), json: result };
+      return { text: describeScreen(await settledScreen(device)), json: result };
     },
   }),
   define({
@@ -106,15 +161,14 @@ export const driveCommands = [
       clear: { type: 'boolean', help: 'clear the field first' },
     },
     needs: 'app',
-    run: async (ctx) => ({
-      json: await (await ctx.device()).type({
-        text: ctx.args[0]!,
-        target: ctx.args[1] ? scopedTarget(ctx.args[1], ctx.flags) : undefined,
-        paste: !!ctx.flags.paste,
-        clear: !!ctx.flags.clear,
-        submit: !!ctx.flags.submit,
-      }),
-    }),
+    run: async (ctx) => {
+      const device = await ctx.device();
+      const target = ctx.args[1] ? scopedTarget(ctx.args[1], ctx.flags) : undefined;
+      if (target) await untilUncovered(device, target);
+      return {
+        json: await device.type({ text: ctx.args[0]!, target, paste: !!ctx.flags.paste, clear: !!ctx.flags.clear, submit: !!ctx.flags.submit }),
+      };
+    },
   }),
   define({
     name: 'swipe',

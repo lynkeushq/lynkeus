@@ -14,12 +14,16 @@ const MIN_SETTLE_LOOKS = 30;
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
 // paragraph is no target at all: its centre lands on whatever word sits there.
+// Case is ignored: a text drawn with `textTransform` reads as drawn, and the
+// source's own casing still finds it. A field also answers to its placeholder.
 export const score = (element: Element, target: Target): number => {
   if ('testId' in target) return element.testId === target.testId ? 4 : 0;
   if ('i' in target) return element.i === target.i ? 4 : 0;
   if (!('text' in target)) return 0;
   const needle = target.text.toLowerCase().trim();
-  const haystacks = [element.text, element.accessibilityLabel].filter((v): v is string => typeof v === 'string').map((v) => v.toLowerCase().trim());
+  const haystacks = [element.text, element.accessibilityLabel, element.kind === 'input' ? element.placeholder : undefined]
+    .filter((v): v is string => typeof v === 'string')
+    .map((v) => v.toLowerCase().trim());
   const control = element.kind === 'button' || element.kind === 'input';
   if (haystacks.some((h) => h === needle)) return control ? 4 : 3;
   if (control && haystacks.some((h) => h.includes(needle))) return 2;
@@ -459,6 +463,8 @@ export const dispatch = async (handlers: Handlers, method: string, params: unkno
   // The app resets its own stores; the agent adds what only it reaches: the
   // host's mocked native state and the navigation stack.
   if (method === 'reset') {
+    // With nothing to reset the app's own state, an answer of null would read as a reset that happened.
+    if (!custom && !host.resetsItself()) throw new Error(`no command reset registered; registered: ${host.commands().join(', ') || 'none'}`);
     const result = custom ? ((await custom(params)) ?? null) : null;
     await host.runReset();
     navigation?.resetToRoot?.();

@@ -24,6 +24,26 @@ const mergeStyle = (into: Style, value: unknown): Style => {
 
 export const flatStyle = (p: HostProps): Style => mergeStyle({}, p.style);
 
+export type TextTransform = 'uppercase' | 'lowercase' | 'capitalize';
+
+/** The `textTransform` a text's own style sets, or undefined when it sets none (`none` cancels an inherited one). */
+export const textTransformOf = (p: HostProps): TextTransform | 'none' | undefined => {
+  const value = flatStyle(p).textTransform;
+  return value === 'uppercase' || value === 'lowercase' || value === 'capitalize' || value === 'none' ? value : undefined;
+};
+
+/**
+ * The text as the platform draws it. iOS capitalizes as `capitalizedString` does: words split at whitespace, the rest
+ * of each word lowered. Android upper-cases each word's first letter and leaves the rest as written.
+ */
+export const transformText = (text: string, transform: TextTransform | 'none' | undefined, platform?: string): string => {
+  if (transform === 'uppercase') return text.toUpperCase();
+  if (transform === 'lowercase') return text.toLowerCase();
+  if (transform !== 'capitalize') return text;
+  if (platform === 'ios') return text.replace(/\S+/g, (word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+  return text.replace(/(^|[^\p{L}\p{N}'’])([\p{L}\p{N}])/gu, (_, before: string, first: string) => before + first.toUpperCase());
+};
+
 /** The platform draws nothing here, so there is no frame to report either. */
 export const isUnrendered = (name: string, p: HostProps): boolean =>
   flatStyle(p).display === 'none' || (name === 'RNSScreen' && p.activityState === 0) || (name === 'RCTModalHostView' && p.visible === false);

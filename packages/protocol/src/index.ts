@@ -206,6 +206,8 @@ export type HelloEvent = {
   commands: string[];
   route?: string;
   app?: Record<string, unknown>;
+  /** The device's locale as the app's JavaScript sees it (a BCP 47 tag); absent from agents before it was sent. */
+  locale?: string;
   /** The app's half of the handshake: a fresh nonce, and HMAC-SHA256 under the token of `lynkeus/app/<session>/<driver nonce>/<app nonce>`. */
   nonce?: string;
   proof?: string;

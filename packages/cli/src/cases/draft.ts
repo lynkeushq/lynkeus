@@ -74,20 +74,33 @@ export const draftCase = (d: DraftInput): string => {
   return lines.join('\n');
 };
 
-/** What a case can check on a screen at once: up to three of what is on it, testIDs first, then texts. */
+// A label or a heading; a paragraph is copy that is rewritten, translated and wrapped, and breaks a check on any change.
+const MAX_SIGHT_TEXT = 60;
+
+/** What a case can check on a screen at once: up to three of what is on it, testIDs first, then short texts. */
 const sightsOf = (screen: Screen): string[] => {
   const shown = screen.elements.filter((e) => !e.hidden && !e.covered);
   const byId = shown.flatMap((e) => (e.testId ? [`#${e.testId}`] : []));
-  const byText = shown.flatMap((e) => (!e.testId && e.text && e.text.trim().length > 1 ? [e.text.trim()] : []));
+  const byText = shown.flatMap((e) => {
+    const text = e.text?.trim();
+    return !e.testId && text && text.length > 1 && text.length <= MAX_SIGHT_TEXT ? [text] : [];
+  });
   return [...new Set([...byId, ...byText])].slice(0, 3);
 };
 
+const languageOf = (tag: string | undefined) => tag?.split(/[-_]/)[0]?.toLowerCase() || undefined;
+
 /**
  * A case that passes as it is, from the screen the app shows: it goes to that route when there is one and sees what
- * is there. A project's first case, or the start of one for a screen, without a template to fill first.
+ * is there. A project's first case, or the start of one for a screen, without a template to fill first. `locale` is
+ * the device's, `language` the app's own (lynkeus.config.json): texts read in another language than the app's fail
+ * wherever the app runs in its own.
  */
-export const hereCase = (id: string, screen: Screen, title?: string): string => {
+export const hereCase = (id: string, screen: Screen, title?: string, languages: { locale?: string; language?: string } = {}): string => {
   const sights = sightsOf(screen);
+  const device = languageOf(languages.locale);
+  const app = languageOf(languages.language);
+  const foreign = device && app && device !== app && sights.some((s) => !s.startsWith('#'));
   return [
     '---',
     `id: ${id}`,
@@ -95,7 +108,10 @@ export const hereCase = (id: string, screen: Screen, title?: string): string => 
     '---',
     ...(screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
     'steps:',
-    ...(sights.length ? sights.map((s) => `  - app.see: ${quote(s)}`) : ['  # Nothing on this screen has a testID or text to check yet.']),
+    ...(foreign
+      ? [`  # The device reads ${languages.locale}, the app's language is ${languages.language}: these texts are as ${device} shows them. Prefer testIDs.`]
+      : []),
+    ...(sights.length ? sights.map((s) => `  - app.see: ${quote(s)}`) : ['  # Nothing on this screen has a testID or a short text to check yet.']),
     '',
   ].join('\n');
 };

@@ -3,7 +3,7 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { fabricBackend } from '../backends/fabric';
 import { createHandlers, dispatch } from '../handlers';
 import { noNavigation } from '../navigation';
-import { qa } from '../registry';
+import { host, qa } from '../registry';
 import { lastSeq, record } from '../trace';
 
 describe('dispatch', () => {
@@ -20,6 +20,20 @@ describe('dispatch', () => {
     off();
 
     await expect(dispatch(handlers, 'nope', undefined)).rejects.toThrow(/Unknown method/);
+  });
+
+  it('refuses a reset the app never registered, naming what it did register, unless the host resets by itself', async () => {
+    const off = qa.register('seedUser', () => null);
+    await expect(dispatch(handlers, 'reset', undefined)).rejects.toThrow(/^no command reset registered; registered: .*seedUser/);
+    off();
+    const remount = jest.fn(async () => undefined);
+    host.onReset(remount);
+    try {
+      expect(await dispatch(handlers, 'reset', undefined)).toBeNull();
+      expect(remount).toHaveBeenCalled();
+    } finally {
+      host.onReset(undefined);
+    }
   });
 
   it('runs a batch in order and stops at the first error', async () => {

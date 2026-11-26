@@ -15,7 +15,7 @@ import { claimPorts, freePorts } from '../cases/portClaim.js';
 import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
-import { Flakes } from '../cases/flakes.js';
+import { caseVersion, Flakes } from '../cases/flakes.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -938,7 +938,7 @@ export const caseCommands = [
                   if (second) liveRun?.add(second);
                 }
                 if (jobs > 1) ctx.err(lines.join('\n'));
-                ledger?.note(report);
+                ledger?.note(report, new Date(), caseVersion(c));
                 if (typeof ctx.flags.events === 'string' && report.events) {
                   const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
                   fs.mkdirSync(dir, { recursive: true });
