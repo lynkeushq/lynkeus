@@ -920,6 +920,25 @@ Asks lynkeus.io for a grant for the build this machine runs (--platform ios unle
 | `--cloud <url>` | service URL (default LYNKEUS_REPORTS_URL or https://lynkeus.io) |
 | `--print` | print the token even at a terminal (it is printed anyway when stdout is a pipe) |
 
+### `lynkeus fastsim start <bundle> [--kit <dir>] [--timeout <ms>]`
+
+Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type
+
+Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.
+
+| Argument | |
+|---|---|
+| `bundle` | the folder fastsim-bundle made |
+
+| Flag | |
+|---|---|
+| `--kit <dir>` | the Lynkeus FastSim folder (default: the newest installed for the bundle's platform) |
+| `--timeout <ms>` | how long to wait for the app to attach (default `60000`) |
+
+### `lynkeus fastsim stop`
+
+Stop the Lynkeus FastSim host fastsim start started for this session
+
 ### `lynkeus login [--cloud <url>] [--no-browser]`
 
 Sign in to lynkeus.io in a browser, so a member with a Lynkeus FastSim seat can download it without a key

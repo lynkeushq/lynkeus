@@ -137,7 +137,11 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       return graph;
     },
     device: () => {
-      device ??= connect();
+      // A connection that failed (no app yet) is tried again on the next command: a session outlives an app that was late.
+      device ??= connect().catch((error: unknown) => {
+        device = undefined;
+        throw error;
+      });
       return device;
     },
     forPort: (other) => {

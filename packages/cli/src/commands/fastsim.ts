@@ -1,12 +1,16 @@
-import { spawnSync } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { staleBundleWarning } from '../cases/staleBundle.js';
+import { portFromEnv } from '../config.js';
+import type { Device } from '../device/driver.js';
 import { define, type Ctx, type Result } from '../registry.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
+import { stopHost } from './cases.js';
 import { serviceBase } from './report.js';
 
 export type FastsimRelease = { version: string; variant: string; sha256: string; bytes: number; signature?: string };
@@ -358,6 +362,47 @@ export const grantSummary = (o: { variant: string; expiresAt: string; cached: bo
   ].join('\n');
 };
 
+/** The newest installed Lynkeus FastSim that draws `platform`, as its folder; undefined when none is. */
+export const installedKit = (platform: string, dir: string = fastsimCacheDir()): string | undefined => {
+  const kits = installedFastsim(dir)
+    .map(({ version, variant }) => ({ version, kit: path.join(dir, version, variant) }))
+    .filter(({ kit }) => {
+      try {
+        return fs.readFileSync(path.join(kit, 'share', 'platform'), 'utf8').trim() === platform && fs.existsSync(path.join(kit, 'bin', 'fastsim-run'));
+      } catch {
+        return false;
+      }
+    });
+  return kits.sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))[0]?.kit;
+};
+
+// The host `fastsim start` keeps for a session or an MCP server. It reads its standard input from this process, so it
+// stops when this process does.
+let exploring: { child: ChildProcess; bundle: string; port: number } | undefined;
+
+const stopExploring = async (): Promise<string | undefined> => {
+  const was = exploring;
+  exploring = undefined;
+  if (!was) return undefined;
+  await stopHost(was.child);
+  return was.bundle;
+};
+
+const nextHello = (d: Device, child: ChildProcess, timeoutMs: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    const done = (attached: boolean) => {
+      clearTimeout(timer);
+      d.server.off('hello', onHello);
+      child.off('exit', onExit);
+      resolve(attached);
+    };
+    const onHello = () => done(true);
+    const onExit = () => done(false);
+    const timer = setTimeout(() => done(false), timeoutMs);
+    d.server.once('hello', onHello);
+    child.once('exit', onExit);
+  });
+
 export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, deps: SignInDeps = {}) => [
   define({
     name: 'fastsim install',
@@ -440,6 +485,98 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       } catch (error) {
         return { text: (error as Error).message, code: 1 };
       }
+    },
+  }),
+  define({
+    name: 'fastsim start',
+    group: 'runs',
+    summary: 'Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type',
+    details:
+      "Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.",
+    mcpDetails:
+      "Starts a Lynkeus FastSim host on a bundle made with the kit's bin/fastsim-bundle (pass that folder as bundle) and attaches this server to it: screen, press, type, wait, screenshot and the rest then drive the app on FastSim, to explore it before writing a case. kit is the FastSim folder fastsim_install answered (default: the newest installed for the bundle's platform). fastsim_stop ends the host. Rebuild the bundle with fastsim-bundle after changing the app's code; the answer warns when it is older than the code.",
+    positionals: [{ name: 'bundle', help: 'the folder fastsim-bundle made', required: true }],
+    flags: {
+      kit: { type: 'string', help: "the Lynkeus FastSim folder (default: the newest installed for the bundle's platform)", value: 'dir' },
+      timeout: { type: 'number', help: 'how long to wait for the app to attach', default: 60000, value: 'ms' },
+    },
+    needs: 'nothing',
+    session: true,
+    mcp: 'core',
+    run: async (ctx) => {
+      if (!ctx.attached)
+        return {
+          text: 'fastsim start keeps its host for a session (lynkeus session) or an MCP server; from a shell, start <kit>/bin/fastsim-run <bundle> <port> yourself',
+          code: 2,
+        };
+      const bundle = path.resolve(ctx.root, ctx.args[0]!);
+      let args: string;
+      try {
+        args = fs.readFileSync(path.join(bundle, 'host.args'), 'utf8');
+      } catch {
+        return { text: `${bundle} has no host.args: make it with the kit's bin/fastsim-bundle <app> ${bundle} <ios|android>`, code: 2 };
+      }
+      const platform = /--platform (\w+)/.exec(args)?.[1] ?? 'ios';
+      const kit = typeof ctx.flags.kit === 'string' ? path.resolve(ctx.root, ctx.flags.kit) : installedKit(platform);
+      if (!kit) return { text: `no Lynkeus FastSim for ${platform} is installed: run fastsim install --platform ${platform}`, code: 2 };
+      const run = path.join(kit, 'bin', 'fastsim-run');
+      if (!fs.existsSync(run)) return { text: `${kit} has no bin/fastsim-run: is it a Lynkeus FastSim folder?`, code: 2 };
+      const port = portFromEnv(ctx.config) ?? 8123;
+      const command = `${JSON.stringify(run)} ${JSON.stringify(bundle)} ${port}`;
+      const granted = await hostGrantEnv(ctx, command);
+      if ('failed' in granted) return granted.failed;
+      await stopExploring();
+      // A device already attached answers at once: then the host's app is the next one to say hello.
+      const current = ctx.device();
+      current.catch(() => undefined);
+      const before = await Promise.race([
+        current.then(
+          (d) => d,
+          () => undefined,
+        ),
+        new Promise<undefined>((resolve) => setImmediate(() => resolve(undefined))),
+      ]);
+      const child = spawn(run, [bundle, String(port)], { cwd: ctx.root, env: granted.env, stdio: ['pipe', 'ignore', 'ignore'], detached: true });
+      exploring = { child, bundle, port };
+      const timeoutMs = Number(ctx.flags.timeout ?? 60000);
+      const attached = before
+        ? await nextHello(before, child, timeoutMs)
+        : await current.then(
+            () => true,
+            () => false,
+          );
+      const log = path.join(bundle, 'hosts', `${port}.err`);
+      if (!attached) {
+        await stopExploring();
+        return {
+          text: `the FastSim host on port ${port} ${child.exitCode !== null ? `exited (${child.exitCode})` : 'started, and its app did not attach'}; its log: ${log}`,
+          code: 1,
+        };
+      }
+      const d = before ?? (await current);
+      const offered = d.server.hello?.commands ?? [];
+      const notes = [
+        staleBundleWarning(command, ctx.root),
+        offered.includes('screenshot')
+          ? undefined
+          : "⚠ this bundle's app offers no screenshot, film or clock: bundle it again with a current fastsim-bundle and lynkeus-agent 0.7.6 or newer",
+      ].filter((note): note is string => !!note);
+      return {
+        text: [`FastSim host on port ${port} runs ${bundle} (${platform}); this session drives it now. Its log: ${log}`, ...notes].join('\n'),
+        json: { bundle, kit, port, platform, commands: offered },
+      };
+    },
+  }),
+  define({
+    name: 'fastsim stop',
+    group: 'runs',
+    summary: 'Stop the Lynkeus FastSim host fastsim start started for this session',
+    needs: 'nothing',
+    session: true,
+    mcp: 'core',
+    run: async () => {
+      const bundle = await stopExploring();
+      return bundle ? { text: `stopped the FastSim host on ${bundle}` } : { text: 'no FastSim host started by fastsim start is running' };
     },
   }),
 ];

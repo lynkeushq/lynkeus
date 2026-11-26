@@ -35,3 +35,12 @@ test('asking for film on a host that keeps none says so', () => {
   assert.match(missingEvidence([run({ steps })], { video: true }).join('\n'), /no film/);
   assert.deepEqual(missingEvidence([run({ steps, video: '/x/video.mp4' })], { video: true }), []);
 });
+
+test('frames asked for and none taken on a host the run started blames the bundle, not a simulator', () => {
+  const steps = [{ step: 'press', status: 'passed' as const, ms: 1, sent: [{ provider: 'mixpanel', name: 'Tap', via: 'sdk' as const }] }];
+  const own = missingEvidence([run({ steps })], { video: false, screenshots: true, ownHost: true }).join('\n');
+  assert.match(own, /--screenshots kept no frame/);
+  assert.match(own, /fastsim-bundle/);
+  assert.match(missingEvidence([run({ steps })], { video: false, screenshots: true }).join('\n'), /simulator or emulator/);
+  assert.deepEqual(missingEvidence([run({ steps: [{ ...steps[0]!, screenshot: '/x/01.avif' }] })], { video: false, screenshots: true, ownHost: true }), []);
+});

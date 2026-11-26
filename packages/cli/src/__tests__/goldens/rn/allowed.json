@@ -1,1 +1,34 @@
-{}
+{
+  "surface/commands": {
+    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
+    "now": "b164f525833a632b"
+  },
+  "surface/help/fastsim start": {
+    "why": "new command: starts a FastSim host on the session's driver port",
+    "now": "8b0563dd8a253230"
+  },
+  "surface/help/fastsim stop": {
+    "why": "new command: stops the host fastsim start started",
+    "now": "5186ac9dfb138829"
+  },
+  "surface/mcp/full": {
+    "why": "fastsim_start and fastsim_stop are served over MCP",
+    "now": "3cc34e2f849ce520"
+  },
+  "surface/mcp/instructions": {
+    "why": "the instructions name fastsim_start for exploring on FastSim",
+    "now": "049dd370d4e8b0fe"
+  },
+  "surface/mcp/tool/fastsim_start": {
+    "why": "new tool: explore the app on a FastSim host",
+    "now": "3ddc9af3a0b1586b"
+  },
+  "surface/mcp/tool/fastsim_stop": {
+    "why": "new tool: stops the host fastsim_start started",
+    "now": "ad9c9cf2a470a8a1"
+  },
+  "surface/usage": {
+    "why": "the usage lists fastsim start and fastsim stop",
+    "now": "9df0b1c581a2899d"
+  }
+}

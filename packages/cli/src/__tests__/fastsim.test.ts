@@ -168,3 +168,24 @@ test('installedFastsim lists the installed releases without calling anyone', () 
   fs.mkdirSync(path.join(dir, '2026.11.3', 'half-unpacked'), { recursive: true });
   assert.deepEqual(installedFastsim(dir), [{ version: '2026.11.17', variant: 'darwin-arm64-ios' }]);
 });
+
+test('fastsim start finds the newest installed FastSim that draws the bundle’s platform', async () => {
+  const { installedKit } = await import('../commands/fastsim.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fastsim-kits-'));
+  const kit = (version: string, variant: string, platform: string) => {
+    const at = path.join(dir, version, variant);
+    fs.mkdirSync(path.join(at, 'share'), { recursive: true });
+    fs.mkdirSync(path.join(at, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(at, 'share', 'platform'), `${platform}\n`);
+    fs.writeFileSync(path.join(at, 'bin', 'fastsim-run'), '');
+    fs.writeFileSync(path.join(at, '.sha256'), 'x');
+    return at;
+  };
+  kit('2026.9.30', 'darwin-arm64-ios', 'ios');
+  const newest = kit('2026.11.17', 'darwin-arm64-ios', 'ios');
+  const android = kit('2026.11.17', 'darwin-arm64-android', 'android');
+  assert.equal(installedKit('ios', dir), newest);
+  assert.equal(installedKit('android', dir), android);
+  assert.equal(installedKit('ios', path.join(dir, 'none')), undefined);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

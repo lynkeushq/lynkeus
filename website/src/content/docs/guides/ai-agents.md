@@ -94,6 +94,7 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
 | `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
+| `fastsim_start`, `fastsim_stop` | Start a Lynkeus FastSim host on a bundle and attach the server to it, so `screen`, `press` and `type` explore the app on FastSim before a case is written; stop it again. |
 | `case_init` | Writes an example case and the reference of the format. |
 | `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |

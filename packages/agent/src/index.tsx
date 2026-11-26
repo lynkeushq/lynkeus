@@ -19,6 +19,7 @@ export { PROTOCOL_VERSION } from './protocol';
 export { record as traceRecord } from './trace';
 export { requestsHeld, requestsInFlight } from './requests';
 export { countHeldFrom } from './netmock';
+export type { HostControls } from './hostControls';
 export type {
   AgentEvent,
   AuthEvent,
