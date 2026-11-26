@@ -24,12 +24,12 @@ report carries the screen, the requests and the reason.
 | `app.press` | target, or `{ target, within?, nth?, optional?, hold?, timeoutMs? }` | Waits for the control to be there and enabled. `optional` presses only if it is on screen. |
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | `target` is tapped first, once it is there (`timeoutMs` is how long that may take); `submit` ends with the return key. |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` | |
-| `app.wait` | route, target, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `enabled` waits until the target is there, enabled and taking touches (not inert). `anyOf` accepts the first target present; an item is a string, `{ testId }` or `{ text, nth? }`, and `gone` cannot go with it. A `request` is `METHOD /path`, and a trailing slash on either side does not matter. |
-| `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. |
+| `app.wait` | route, target, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `enabled` waits until the target is there, enabled and taking touches (not inert). `anyOf` accepts the first target present; an item is a string, `{ testId }` or `{ text, nth? }`, and `gone` cannot go with it. A `request` is `METHOD /path`, and a trailing slash on either side does not matter; it is waited for until it answers 2xx unless `status` names another. |
+| `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. A `text` matches whatever its case, so one drawn in capitals (`textTransform`) is found by the words the source writes. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered with `qa.register`. |
+| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered: `qa.register('reset', async (params) => { … })`, with `qa` from `lynkeus-agent`. What the function returns is what `expect` and `as` read. A command the app did not register fails, naming those it did. |
 | `app.run` | `{ flow, vars? }` | A Lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other Lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
@@ -43,7 +43,12 @@ A request a mock answered (or whose answer it lost) is marked `mocked`: a failed
 case's evidence says `(mocked)` after it, and its reasons never blame the
 backend for the 500 the case asked for.
 
-A target is `#testId`, a text, an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
+Every case starts with no mocks: Lynkeus clears the app's rules and holds before
+the first step and again after the last, so a mock never answers for another case
+or for the app driven by hand. `app.mock: { clear: true }` drops them in the
+middle of a case.
+
+A target is `#testId`, a text (a field's placeholder too), an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
 
 One case runs on a host and on a device. What only one of them needs — closing a
 native screen the host never shows — is kept to it; everywhere else it is

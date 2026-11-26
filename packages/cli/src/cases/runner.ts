@@ -324,6 +324,9 @@ export const argvFor = (command: Command, value: StepValue): string[] => {
 
 const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !e.hidden || e.hidden === 'inert');
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
+// Letter case aside, as the agent matches a target: a text drawn in capitals (`textTransform`) reads in capitals, and
+// the words as the source writes them still find it.
+const says = (e: Element, text: string) => textOf(e).toLowerCase().includes(text.toLowerCase());
 
 const MAX_SCROLLS_KEPT = 20;
 const MAX_SIGHTINGS_KEPT = 8;
@@ -401,6 +404,8 @@ const aboutOf = (c: Case): { about?: CaseReport['about'] } => {
 
 // Steps that look at the app rather than act on it: a request they wait for was caused by the action before them.
 const LOOKING = new Set(['see', 'wait', 'event', 'requests', 'events']);
+/** Steps whose effect reaches the screen through the platform, a render or more after they return. */
+const ACTING = /^app\.(press|type|swipe|back|nav|deeplink)$/;
 
 const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event'];
 
@@ -518,6 +523,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // A phone's app in the background is suspended: its socket may stay open, but nothing answers, so every call to it
   // waits out its whole timeout (20 s). An app away that long meets its screen lock when it comes back.
   let away = false;
+  let mocksSet = false;
   const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
   const markRequests = async (d: Device, byHand = false): Promise<void> => {
     if (markedByHand && !byHand) return;
@@ -624,10 +630,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       const found = (await d.server.call('find', target)) as Element | null;
       note(found, screen.window);
       if (!found || (found.hidden && found.hidden !== 'inert')) return `not on screen: ${JSON.stringify(target)}`;
-      if (text !== undefined && !textOf(found).includes(text) && !elements.some((e) => e.parent === found.i && textOf(e).includes(text))) {
+      if (text !== undefined && !says(found, text) && !elements.some((e) => e.parent === found.i && says(e, text))) {
         return `${JSON.stringify(target)} says ${JSON.stringify(textOf(found))}, not ${JSON.stringify(text)}`;
       }
-    } else if (text !== undefined && !elements.some((e) => textOf(e).includes(text))) return `not on screen: ${JSON.stringify(text)}`;
+    } else if (text !== undefined && !elements.some((e) => says(e, text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
       if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
@@ -743,7 +749,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         markedByHand = false;
         return;
       }
-      if (Date.now() > deadline) throw new Error(`no ${status ?? '2xx'} ${String(params.request)} within ${timeoutMs} ms`);
+      if (Date.now() > deadline) {
+        if (status !== undefined) throw new Error(`no ${status} ${String(params.request)} within ${timeoutMs} ms`);
+        const other = events.find((e) => requestMatches(e, String(params.request)) && e.status !== undefined);
+        const answered = other ? `; it answered ${other.status}${other.error ? ` (${other.error})` : ''}` : '';
+        throw new Error(
+          `no 2xx ${String(params.request)} within ${timeoutMs} ms${answered} — a request wait wants a 2xx unless it names another: pass status to wait for that one`,
+        );
+      }
       await sleep(300);
     }
   };
@@ -984,6 +997,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       default: {
         const command = find(name) ?? find(`os ${name}`);
         if (!command) throw new Error(`app.${name} is not a step: Lynkeus has no command ${name}, and the project declares no macro for it`);
+        if (name === 'mock') mocksSet = true;
         await cli(argvFor(command, value));
         if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
@@ -1141,8 +1155,23 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
     return typeof answer?.frames === 'number' ? Math.round((answer.frames / evidence.video.fps) * 100) / 100 : undefined;
   };
+  // A touch reaches the app through the platform, and what it renders can come after the step has returned: a frame
+  // taken once the app is merely quiet then shows the screen from before the step. Waiting for a commit past the one
+  // the step began on makes the frame the step's; a step that rendered nothing takes the quiet screen instead.
+  const idleAfter = async (d: Device, quietMs: number, before: number | undefined): Promise<boolean> => {
+    const timeoutMs = Math.max(1000, quietMs * 4);
+    if (before !== undefined) {
+      const after = await d.idle({ quietMs, timeoutMs, after: before }).catch(() => undefined);
+      if (after?.idle) return true;
+      if (after && after.commit > before) return false;
+    }
+    return d.idle({ quietMs, timeoutMs }).then(
+      (r) => r.idle,
+      () => false,
+    );
+  };
   // What a step leaves for a report: the frame after it and what it sent. Nothing here may fail the case.
-  const record = async (report: StepReport, index: number, startedAt: number | undefined, begunMs: number) => {
+  const record = async (report: StepReport, index: number, startedAt: number | undefined, begunMs: number, commitBefore?: number) => {
     if (startedAt !== undefined) report.videoS = startedAt;
     if (config.serverEvents && options.fixtures) {
       const { fixture: name, provider } = config.serverEvents;
@@ -1232,12 +1261,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // moment, not of a state. The wait is paid on every step: short for a report, and long enough for what
       // arrives after a short delay (700 ms) where two runs' frames are compared pixel by pixel.
       const quietMs = evidence.settleMs ?? 150;
-      const settled = away
-        ? false
-        : await d.idle({ quietMs, timeoutMs: Math.max(1000, quietMs * 4) }).then(
-            (r) => r.idle,
-            () => false,
-          );
+      const settled = away ? false : await idleAfter(d, quietMs, commitBefore);
       const stem = path.join(
         evidence.dir,
         `${String(index).padStart(2, '0')}-${report.step
@@ -1359,6 +1383,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     steps.push(...options.prepared.steps);
     log(`  ⚡ setup made ahead (${options.prepared.steps.length} steps)`);
   }
+  // A mock answers for the case that set it: one an earlier case or a hand left on the app would make this case pass
+  // or fail on an answer it never asked for. Cleared again once a case that set one is done, so neither the next case
+  // nor the app driven by hand meets it.
+  const clearMocks = async () => {
+    if (options.setupOnly || options.dry || away) return;
+    mocksSet = false;
+    const d = await device().catch(() => undefined);
+    if (d?.server.connected) await d.command('netmock', { action: 'clear' }).catch(() => undefined);
+  };
+  await clearMocks();
   // What native SDKs answer in this case starts as the config says, whatever the last case on this app set.
   if (config.nativeMocks && !options.setupOnly && !options.dry) {
     const d = await device().catch(() => undefined);
@@ -1399,12 +1433,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const todo = options.setupOnly ? c.setup : options.prepared ? c.steps : [...c.setup, ...c.steps];
   const setupLength = todo === c.steps ? 0 : c.setup.length;
   const looksFirst = !!evidence?.onChange && !!evidence.stillMs;
-  let held: { report: StepReport; n: number; at: number | undefined; t0: number; looks: StepReport[] } | undefined;
+  let held: { report: StepReport; n: number; at: number | undefined; t0: number; looks: StepReport[]; commit?: number } | undefined;
   const flush = async () => {
     if (!held) return;
     const h = held;
     held = undefined;
-    await record(h.report, h.n, h.at, h.t0);
+    await record(h.report, h.n, h.at, h.t0, h.commit);
     if (h.report.screenshot) for (const l of h.looks) l.screenshot = h.report.screenshot;
   };
   for (const [index, step] of todo.entries()) {
@@ -1450,6 +1484,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       tracing.steps.set(spanId, { index: steps.length, startedMs: t0 });
       await (await device()).command('traceContext', { traceparent: traceparent(tracing.traceId, spanId) }).catch(() => undefined);
     }
+    const acts = ACTING.test(step.verb) || !!config.macros?.[step.verb];
+    const commitBefore =
+      evidence?.screenshots && acts && !away
+        ? await (await device().catch(() => undefined))?.screen().then(
+            (sc) => sc.commit,
+            () => undefined,
+          )
+        : undefined;
     trail = undefined;
     try {
       const outcome = await perform(step);
@@ -1460,8 +1502,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
-        else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [] };
-        else await record(done, steps.length, at, t0);
+        else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [], commit: commitBefore };
+        else await record(done, steps.length, at, t0, commitBefore);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -1487,7 +1529,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       log(`  ❌ ${text}  — ${message.split('\n')[0]}  (${Date.now() - t0}ms)`);
       ended('failed');
       await flush();
-      if (evidence || capturing) await record(broke, steps.length, at, t0);
+      if (evidence || capturing) await record(broke, steps.length, at, t0, commitBefore);
     }
   }
 
@@ -1504,6 +1546,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       }
     }
   }
+  if (mocksSet) await clearMocks();
   if (requestsSeen !== undefined) {
     const d = await device().catch(() => undefined);
     // The last answers of the case, given a moment to arrive.

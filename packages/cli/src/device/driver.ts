@@ -119,6 +119,10 @@ export class Device {
 
 const quote = (value: string) => JSON.stringify(value);
 
+// The agent sends a text whole, so a check can name all of it; a listing only needs enough to recognize it.
+const PRINTED_TEXT = 200;
+const shortened = (text: string) => (text.length > PRINTED_TEXT ? `${text.slice(0, PRINTED_TEXT - 1)}…` : text);
+
 export const describeTrace = (events: TraceEvent[]): string => {
   if (events.length === 0) return '(no events)';
   const t0 = events[0]!.t;
@@ -195,7 +199,7 @@ export const describeScreen = (screen: Screen, options: DescribeOptions = {}): s
           : '';
     const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}`;
     const at = frames ? ` @${Math.round(e.frame.x + e.frame.w / 2)},${Math.round(e.frame.y + e.frame.h / 2)}` : '';
-    return `${index}${e.kind}${id}${label ? ` ${quote(label)}` : ''}${value}${state}${at}`;
+    return `${index}${e.kind}${id}${label ? ` ${quote(shortened(label))}` : ''}${value}${state}${at}`;
   });
   const rest = listed.length - lines.length;
   return [header, ...lines, rest > 0 ? `… ${rest} more` : ''].filter(Boolean).join('\n');
