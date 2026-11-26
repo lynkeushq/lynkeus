@@ -1,15 +1,30 @@
 // What the app reads off a native module that this host does not know. A real device answers each of those with a
-// value of its own; jest's React Native answers undefined, the opposite of Lynkeus FastSim (a function, so a
-// constant reads as true). Both are guesses, so the host says which reads it could not answer and lets the cases
-// config's `nativeMocks` set them: `"RNFoo.isTablet": { "value": false }`.
+// value of its own. A module nothing provides (no mock, no library jest mock, not React Native's preset) gets the
+// generic fallback: a module whose every method is a no-op that resolves empty, as Lynkeus FastSim's shim answers
+// (a function, so a constant reads as true). Both are guesses, so the host says which modules and properties it
+// answered that way, and the CLI tells how to give a better answer: a mock in the headless entry, or the cases
+// config's `nativeMocks` (`"RNFoo.isTablet": { "value": false }`, `"RNFoo.load": { "result": {} }`).
 import { qa } from 'lynkeus-agent';
 
 import { log } from '../runtime.js';
+import { owners, type Reader, readerOf } from './owners.js';
 
 type Platform = 'ios' | 'android';
 
-/** One property (or, with no `property`, one whole module) the app read that nothing answered. */
-export type NativeValueRead = { module: string; property?: string; platform: Platform; host: 'headless'; readAs: 'undefined' };
+/**
+ * One property (or, with no `property`, one whole module) the app read that nothing answered: `undefined` on a module
+ * that exists, `function` on a module the fallback answered (`called` once the app called it), `empty` for the module
+ * itself, with the package whose code first read it.
+ */
+export type NativeValueRead = {
+  module: string;
+  property?: string;
+  platform: Platform;
+  host: 'headless';
+  readAs: 'undefined' | 'function' | 'empty';
+  called?: boolean;
+  package?: string;
+};
 
 /** The constants form of a `nativeMocks` entry; `result` and `screen` entries are about calls and are left to native.ts. */
 export type NativeValueEntry = { value?: unknown; ios?: unknown; android?: unknown; absent?: boolean | Platform[] };
@@ -39,22 +54,60 @@ const PROBES = new Set(['then', 'toJSON', 'constructor', 'asymmetricMatch', 'nod
 const reads = new Map<string, NativeValueRead>();
 const configured = new Set<string>();
 const wrapped = new WeakMap<object, object>();
+// Modules the fallback made, and the no-op each property read of one hands out (the same one every time).
+const fallbacks = new WeakSet<object>();
+const noops = new Map<string, (...args: unknown[]) => unknown>();
+// Inside TurboModuleRegistry.get a missing module is an optional one: the library has a path for null.
+let optionalLookups = 0;
 
 const platformOf = (rn: RN): Platform => (rn.Platform.OS === 'android' ? 'android' : 'ios');
 
+const keyOf = (read: Pick<NativeValueRead, 'module' | 'property'>) => (read.property === undefined ? read.module : `${read.module}.${read.property}`);
+
 const note = (read: NativeValueRead) => {
-  const key = read.property === undefined ? read.module : `${read.module}.${read.property}`;
-  if (!reads.has(key)) reads.set(key, read);
+  if (!reads.has(keyOf(read))) reads.set(keyOf(read), read);
 };
+
+const MODULE_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** The generic fallback for a module nothing provides; kept on `NativeModules`, where `nativeMocks` can still answer it. */
+export const fallbackModule = (module: string, platform: Platform, reader: Reader | undefined = readerOf()): Record<string, unknown> => {
+  const made: Record<string, unknown> = {};
+  fallbacks.add(made);
+  const from = reader?.package;
+  note({ module, platform, host: 'headless', readAs: 'empty', ...(from ? { package: from } : {}) });
+  log(`native: ${module}${from ? ` (${from})` : ''} has no mock; answered empty by default`);
+  return made;
+};
+
+const noop = (module: string, property: string, platform: Platform) => {
+  const key = `${module}.${property}`;
+  const known = noops.get(key);
+  if (known) return known;
+  note({ module, property, platform, host: 'headless', readAs: 'function', called: false });
+  const fn = (..._args: unknown[]) => {
+    const read = reads.get(key);
+    if (read) read.called = true;
+    return Promise.resolve(undefined);
+  };
+  noops.set(key, fn);
+  return fn;
+};
+
+// What NativeEventEmitter, TurboModule specs and the event subscriptions built on them call on any module.
+const PLUMBING: Record<string, () => unknown> = { getConstants: () => ({}), addListener: () => undefined, removeListeners: () => undefined };
 
 const watch = (module: string, target: Record<string, unknown>, platform: Platform): object => {
   const existing = wrapped.get(target);
   if (existing) return existing;
+  const fallback = fallbacks.has(target);
   const proxy = new Proxy(target, {
     get(t, prop, receiver) {
       const value = Reflect.get(t, prop, receiver);
-      if (value === undefined && typeof prop === 'string' && !PROBES.has(prop) && !(prop in t) && !configured.has(`${module}.${prop}`))
-        note({ module, property: prop, platform, host: 'headless', readAs: 'undefined' });
+      if (value !== undefined || typeof prop !== 'string' || prop in t || configured.has(`${module}.${prop}`)) return value;
+      if (fallback) return PLUMBING[prop] ?? (PROBES.has(prop) || !MODULE_NAME.test(prop) ? undefined : noop(module, prop, platform));
+      // `__expo_module_name__` and the like are a framework asking what the object is, not the app reading a constant.
+      if (!PROBES.has(prop) && !prop.startsWith('__')) note({ module, property: prop, platform, host: 'headless', readAs: 'undefined' });
       return value;
     },
   });
@@ -71,11 +124,17 @@ const watchModules = (rn: RN, platform: Platform) => {
     try {
       holder.default = new Proxy(target, {
         get(t, name, receiver) {
-          const module = Reflect.get(t, name, receiver);
+          let module = Reflect.get(t, name, receiver);
           if (typeof name !== 'string' || PROBES.has(name)) return module;
           if (module === undefined && !(name in t)) {
-            note({ module: name, platform, host: 'headless', readAs: 'undefined' });
-            return module;
+            // Only a module the reading code's own native side defines: anyone else's is an optional one it checks for.
+            const reader = optionalLookups > 0 || !MODULE_NAME.test(name) ? undefined : readerOf();
+            if (!reader || !owners.owns(reader, name)) {
+              note({ module: name, platform, host: 'headless', readAs: 'undefined' });
+              return module;
+            }
+            module = fallbackModule(name, platform, reader);
+            t[name] = module as Record<string, unknown>;
           }
           return typeof module === 'object' && module !== null ? watch(name, module as Record<string, unknown>, platform) : module;
         },
@@ -133,13 +192,34 @@ export const installNativeValues = (): void => {
   // A new-architecture library asks the registry; one the config names gets the module it set up above.
   const registry = rn.TurboModuleRegistry;
   const forModule = (name: string) => (configured.size && [...configured].some((key) => key.startsWith(`${name}.`)) ? rn.NativeModules[name] : undefined);
+  const raw = (name: string) => (name in rn.NativeModules ? rn.NativeModules[name] : undefined);
   if (registry?.get) {
     const get = registry.get.bind(registry);
-    registry.get = (name: string) => get(name) ?? forModule(name) ?? null;
+    registry.get = (name: string) => {
+      optionalLookups += 1;
+      try {
+        return get(name) ?? forModule(name) ?? null;
+      } finally {
+        optionalLookups -= 1;
+      }
+    };
   }
   if (registry?.getEnforcing) {
     const getEnforcing = registry.getEnforcing.bind(registry);
-    registry.getEnforcing = (name: string) => forModule(name) ?? getEnforcing(name);
+    // getEnforcing means the library cannot do without it: the fallback stands in where jest's would throw.
+    registry.getEnforcing = (name: string) => {
+      const set = forModule(name);
+      if (set) return set;
+      try {
+        return getEnforcing(name);
+      } catch {
+        const known = raw(name);
+        if (known) return known;
+        const made = fallbackModule(name, platform);
+        rn.NativeModules[name] = made;
+        return rn.NativeModules[name];
+      }
+    };
   }
   qa.register('nativeValues', () => [...reads.values()]);
 };

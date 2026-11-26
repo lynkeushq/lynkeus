@@ -1,3 +1,5 @@
+import { installXMLHttpRequest } from './xhr.js';
+
 // jest buffers console output until a test ends, and the host's test never does.
 export const log = (line: string): void => {
   process.stderr.write(`[lynkeus-headless] ${line}\n`);
@@ -46,4 +48,15 @@ export const installRuntime = (): void => {
   const { Dimensions } = require('react-native') as { Dimensions: { set?: (dims: Record<string, unknown>) => void } };
   const window = { width: 390, height: 844, scale: 3, fontScale: 1 };
   Dimensions.set?.({ window, screen: window });
+  installXMLHttpRequest();
+  // A development build loads its bundle from Metro and says so; jest's says null, and dev tooling that reads the
+  // dev server's address from it (Expo's metro runtime, Reactotron) throws or warns at import.
+  const { NativeModules, Platform } = require('react-native') as {
+    NativeModules: Record<string, { getConstants?: () => Record<string, unknown> } | undefined>;
+    Platform: { OS: string };
+  };
+  const source = 'SourceCode' in NativeModules ? NativeModules.SourceCode : undefined;
+  const constants = source?.getConstants?.();
+  if (source && constants && constants.scriptURL == null)
+    source.getConstants = () => ({ ...constants, scriptURL: `http://localhost:8081/index.bundle?platform=${Platform.OS}&dev=true` });
 };

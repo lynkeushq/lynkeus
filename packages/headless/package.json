@@ -39,7 +39,7 @@
     "yoga-layout": "3.2.1"
   },
   "peerDependencies": {
-    "@testing-library/react-native": "*",
+    "@testing-library/react-native": ">=12.0.0",
     "lynkeus-agent": "*",
     "react": "*",
     "react-native": "*"
