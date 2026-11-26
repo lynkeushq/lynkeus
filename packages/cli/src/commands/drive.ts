@@ -5,7 +5,7 @@ import path from 'node:path';
 import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
-import { describeScreen, describeTrace } from '../device/driver.js';
+import { type Device, describeScreen, describeTrace, nativeCover } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
@@ -20,6 +20,15 @@ import { type LintBaseline, newFindings } from './check.js';
 const SCOPE_FLAGS = {
   in: { type: 'string' as const, help: 'the match nearest this target', value: 'target' },
   nth: { type: 'number' as const, help: 'the nth match, from 0', value: 'n' },
+};
+
+const coverOf = (device: Device): Promise<string | undefined> => device.screen().then(nativeCover, () => undefined);
+
+/** A press that failed while a native view covers the app says so: the agent alone only reads every control as covered. */
+const withCover = async (device: Device, error: unknown): Promise<unknown> => {
+  const cover = error instanceof Error ? await coverOf(device) : undefined;
+  if (cover && error instanceof Error) error.message = `${error.message} (${cover})`;
+  return error;
 };
 
 export const driveCommands = [
@@ -66,11 +75,15 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const device = await ctx.device();
-      const result = await device.press({
-        ...scopedTarget(ctx.args[0]!, ctx.flags),
-        holdMs: ctx.flags.hold as number | undefined,
-        mode: ctx.flags.js ? 'js' : undefined,
-      });
+      const result = await device
+        .press({
+          ...scopedTarget(ctx.args[0]!, ctx.flags),
+          holdMs: ctx.flags.hold as number | undefined,
+          mode: ctx.flags.js ? 'js' : undefined,
+        })
+        .catch(async (error: unknown) => {
+          throw await withCover(device, error);
+        });
       if (!ctx.flags.settle) return { json: result };
       await device.idle({ quietMs: 200, timeoutMs: 3000 }).catch(() => undefined);
       return { text: describeScreen(await device.screen()), json: result };
@@ -241,7 +254,8 @@ export const driveCommands = [
         });
         return { text: `${ctx.flags.absent ? 'gone' : 'on screen'}: ${raw}`, json: result };
       } catch {
-        return { text: `${ctx.flags.absent ? 'still on screen' : 'not on screen'}: ${raw}`, json: { ok: false }, code: 1 };
+        const cover = ctx.flags.absent ? undefined : await coverOf(device);
+        return { text: `${ctx.flags.absent ? 'still on screen' : 'not on screen'}: ${raw}${cover ? ` (${cover})` : ''}`, json: { ok: false }, code: 1 };
       }
     },
   }),

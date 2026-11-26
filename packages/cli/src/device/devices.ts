@@ -48,12 +48,23 @@ export const androidDevices = async (): Promise<DeviceInfo[]> => {
 };
 
 /**
- * A phone on USB (or over adb's network) cannot reach this machine at 10.0.2.2 as the emulator can: `adb reverse`
- * gives it the driver's port at its own localhost, which the agent dials next. Quietly nothing without adb or a phone.
+ * Gives each Android device and emulator the driver's port at its own localhost. A phone on USB cannot reach this
+ * machine at 10.0.2.2 as the emulator can, and an emulator whose network blocks 10.0.2.2 (or an app whose network
+ * security config does) reaches nothing either; `localhost` after `adb reverse` works on both, and the agent tries it
+ * next. The serials it reversed; none, quietly, without adb or a device.
  */
-export const reversePhones = async (port: number): Promise<void> => {
-  const phones = (await androidDevices().catch(() => [])).filter((d) => d.type === 'physical');
-  await Promise.all(phones.map((d) => run('adb', ['-s', d.id, 'reverse', `tcp:${port}`, `tcp:${port}`]).catch(() => undefined)));
+export const reverseAndroid = async (port: number, devices?: DeviceInfo[]): Promise<string[]> => {
+  const list = devices ?? (await androidDevices().catch(() => []));
+  const done: string[] = [];
+  // One after the other: a few milliseconds each, and adb's own server takes them in turn anyway.
+  for (const d of list.filter((one) => one.platform === 'android')) {
+    const reversed = await run('adb', ['-s', d.id, 'reverse', `tcp:${port}`, `tcp:${port}`]).then(
+      () => true,
+      () => false,
+    );
+    if (reversed) done.push(d.id);
+  }
+  return done;
 };
 
 /** The Android device an app that said it runs on Android is on: the one asked for, or the first that is up. */

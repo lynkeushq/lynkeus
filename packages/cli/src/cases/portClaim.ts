@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -49,4 +50,24 @@ export const claimPorts = (ports: number[], dir = os.tmpdir()): { release: () =>
     }
   }
   return { release };
+};
+
+const free = (port: number, host: string): Promise<boolean> =>
+  new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', () => resolve(false));
+    server.listen(port, host, () => server.close(() => resolve(true)));
+  });
+
+/**
+ * `count` driver ports nobody listens on or claims, counted up from just past `after`: the port an attached app
+ * dials is left to it, or its app would attach to a case's host instead.
+ */
+export const freePorts = async (count: number, after: number, dir = os.tmpdir(), host = '127.0.0.1'): Promise<number[]> => {
+  const found: number[] = [];
+  for (let port = after + 1; found.length < count && port < 65_536; port++) {
+    if (fs.existsSync(path.join(dir, `lynkeus-port-${port}.pid`))) continue;
+    if (await free(port, host)) found.push(port);
+  }
+  return found;
 };

@@ -177,7 +177,7 @@ A **report** is a run presented for people: each case step by step, the video in
 
 **Flow.** A JSON file of steps that `lynkeus run` replays and `lynkeus record` writes from what a person does in the app. Flows came before cases; a case can run one with `app.run`.
 
-**`.lynkeus/`.** The folder in your app where Lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits; the token is kept out of git by `.lynkeus/.gitignore`.
+**`.lynkeus/`.** The folder in your app where Lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits. `.lynkeus/.gitignore` keeps everything else out of git: the token, runs, FastSim bundles (which contain the token), jest caches, the flake ledger, recorded screens and the map. Only `snapshots/`, `funnels/`, `lint/` and `lint.json` are left for git.
 
 ## Next steps
 

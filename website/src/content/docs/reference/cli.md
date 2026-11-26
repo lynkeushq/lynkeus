@@ -444,15 +444,19 @@ Running it again changes only what is missing: it answers that the entry already
 lynkeus status [--offline]
 ```
 
-Says what the project has of Lynkeus and what is missing. It is the first command to run in a project you do not know. Each line starts with `✓` or `✗`, and each `✗` says what fixes it:
+Says what the project has of Lynkeus and what is missing, and where cases can run on this machine. It is the first command to run in a project you do not know. Each line starts with `✓` when it holds, `✗` when something needed is missing, or `○` when something optional is missing; each `✗` and `○` says what fixes it:
 
 - `lynkeus-agent` is a dependency and is installed.
 - The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
 - The project has a token, and in an Expo app Expo is given it.
-- An app is attached. This is the only check that waits, and it runs only when everything above holds.
-- The app can run headless: jest, Testing Library and `lynkeus-headless` are installed, and the entry exists. Optional.
+- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds.
 - There are cases to run. `lynkeus case init` writes an example.
 - Runs can be pushed to the report service: `LYNKEUS_REPORTS_KEY` is set. Optional.
+
+Then, under **Where cases can run on this machine**: the booted iOS Simulators, the Android emulators and phones `adb devices` lists, whether the app can run headless (jest, Testing Library and `lynkeus-headless` installed and the entry written), and whether Lynkeus FastSim is installed. The last line recommends one for day-to-day work and one for CI. Without `--offline`, `status` also:
+
+- runs `adb reverse tcp:<port> tcp:<port>` on every Android emulator and phone, so the app reaches Lynkeus at `localhost` as well as at `10.0.2.2`, and says which it reversed;
+- in an app with `expo-dev-client`, marks the dev menu's onboarding sheet as seen and hides its floating button on each booted simulator and emulator where the app is installed. Both are native views over the app that no step can press through. They take effect at the app's next launch. The same happens once when an app attaches on a simulator or emulator.
 
 | Flag | Meaning |
 |---|---|

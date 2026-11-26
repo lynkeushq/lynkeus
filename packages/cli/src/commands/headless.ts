@@ -4,14 +4,17 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { nativeValuesEnv } from '../cases/nativeValues.js';
-import { type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { prepareDevMenu } from '../device/devMenu.js';
+import { reverseAndroid } from '../device/devices.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { installedFastsim } from './fastsim.js';
 import { runHost } from './hostProcess.js';
-import { headlessMissing, init, installHeadless, jestPreset } from './init.js';
+import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
+import { machineTargets, runTargets } from './runTargets.js';
 
 const ENTRY_FLAG = { entry: { type: 'string' as const, help: 'the headless entry (or `entry` in lynkeus.config.json)', value: 'file' } };
 const entryOf = (ctx: Ctx) => (ctx.flags.entry as string | undefined) ?? ctx.config.entry ?? 'qa/headless.tsx';
@@ -163,19 +166,23 @@ export const headlessCommands = [
       const runtime = await runtimeAt(ctx.root);
       const checks = runtime.setupChecks(ctx.root);
       const ready = checks.every((c) => c.ok);
-      if (ready && !ctx.flags.offline) {
+      const port = portFromEnv(ctx.config) ?? DEFAULT_PORT;
+      const offline = !!ctx.flags.offline;
+      // Asked while the app is waited for: the simulators, emulators and phones this machine has up.
+      const machine = offline ? undefined : machineTargets();
+      let attached: string | undefined;
+      if (ready && !offline) {
         try {
-          const device = await ctx.device();
-          checks.push({ what: `an app is attached (${device.info.name})`, ok: true });
+          attached = (await ctx.device()).info.name;
+          checks.push({ what: `an app is attached (${attached}, port ${port})`, ok: true });
         } catch {
           checks.push({
-            what: 'an app is attached',
+            what: `an app is attached (Lynkeus listens on port ${port})`,
             ok: false,
             fix: runtime.attachFix,
           });
         }
       }
-      checks.push(runtime.headlessCheck(ctx.root, entryOf(ctx)));
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
       const cases = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md') && !/^(README|FORMAT|CATALOG)\.md$/i.test(f)).length : 0;
       checks.push({
@@ -186,15 +193,32 @@ export const headlessCommands = [
       checks.push({
         what: 'runs can be pushed to the reports service',
         ok: !!process.env.LYNKEUS_REPORTS_KEY,
+        optional: true,
         fix: 'set LYNKEUS_REPORTS_KEY to an API key of your organization (lynkeus.io, API keys); optional',
       });
-      const hosts = installedFastsim();
-      checks.push({
-        what: hosts.length ? `Lynkeus FastSim is installed (${hosts.map((h) => `${h.version}, ${h.variant}`).join('; ')})` : 'Lynkeus FastSim is not installed',
-        ok: true,
+      const found = machine ? await machine : undefined;
+      const reversed = found ? await reverseAndroid(port, found.android) : [];
+      const devMenu = found ? await prepareDevMenu(ctx.root, ctx.config.app, [...found.simulators, ...found.android]) : [];
+      const where = runTargets({
+        attached,
+        port,
+        simulators: found?.simulators,
+        android: found?.android.map((d) => ({ ...d, reversed: reversed.includes(d.id) })),
+        headless: runtime.headlessCheck(ctx.root, entryOf(ctx)),
+        fastsim: installedFastsim(),
       });
-      const text = checks.map((c) => `${c.ok ? '✓' : '✗'} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`).join('\n');
-      return { text, json: checks };
+      const all = [...checks, ...where.checks];
+      const mark = (c: SetupCheck) => (c.ok ? '✓' : c.optional ? '○' : '✗');
+      const line = (c: SetupCheck) => `${mark(c)} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`;
+      const text = [
+        ...checks.map(line),
+        '',
+        'Where cases can run on this machine:',
+        ...where.checks.map(line),
+        ...devMenu.map((l) => `  ${l}`),
+        `→ ${where.advice}`,
+      ].join('\n');
+      return { text, json: [...all, { what: where.advice, ok: true, group: 'advice' }] };
     },
   }),
   define({

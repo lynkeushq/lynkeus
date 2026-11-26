@@ -318,7 +318,7 @@ LYNKEUS_PORT=8124 npx lynkeus headless start
 npx lynkeus case run --jobs 2 --ports 8123,8124
 ```
 
-Los casos más largos empiezan primero, para que los trabajos terminen juntos; `--in-order` respeta el orden dado. Si faltan puertos verás `--jobs and --host-command need a driver port per job: --ports with 2`.
+Los casos más largos empiezan primero, para que los trabajos terminen juntos; `--in-order` respeta el orden dado. Sin `--ports`, Lynkeus elige puertos libres después del que usa la app conectada y los muestra al empezar. Si `--ports` trae menos puertos que trabajos verás `--jobs and --host-command need a driver port per job: --ports with 2`.
 
 Los casos que corren uno al lado del otro comparten el backend. Un caso que cambia lo que ven todos (un flag global, un ajuste para todos los usuarios) rompería a los que corren a su lado: un inicio de sesión que debía rechazarse entra porque otro caso encendió el flag. Márcalo con `exclusive: true` en su encabezado y corre solo: espera a que terminen los que están en curso, ningún otro empieza hasta que termina, y su `setup` nunca se prepara por adelantado.
 

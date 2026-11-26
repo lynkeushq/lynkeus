@@ -153,6 +153,19 @@ type DescribeOptions = {
   verbose?: boolean;
 };
 
+export const NATIVE_COVER =
+  'a native view outside React Native covers the app (the Expo dev menu’s sheet, a system alert, a permission prompt): every control reads ~covered, and that view’s own buttons are not in the tree; close it on the device, or relaunch the app';
+
+/**
+ * Whether something outside the app's React tree is over it. The agent marks a control covered when a touch at its
+ * centre would land elsewhere; when every presented control is covered at once and the tree shows nothing on top,
+ * what is over them is a native view of its own (expo-dev-client's onboarding sheet on a first launch, say).
+ */
+export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting'>): string | undefined => {
+  const controls = screen.elements.filter((e) => !e.hidden && (e.kind === 'button' || e.kind === 'input'));
+  return !screen.presenting && controls.length > 0 && controls.every((e) => e.covered) ? NATIVE_COVER : undefined;
+};
+
 export const describeScreen = (screen: Screen, options: DescribeOptions = {}): string => {
   const { limit = 80, all = false, frames = false, verbose = false } = options;
   const layer = screen.presenting ? ` +${screen.presenting.modal ? 'modal' : 'overlay'}${screen.presenting.testId ? `#${screen.presenting.testId}` : ''}` : '';
@@ -198,5 +211,6 @@ export const describeScreen = (screen: Screen, options: DescribeOptions = {}): s
     return `${index}${e.kind}${id}${label ? ` ${quote(label)}` : ''}${value}${state}${at}`;
   });
   const rest = listed.length - lines.length;
-  return [header, ...lines, rest > 0 ? `… ${rest} more` : ''].filter(Boolean).join('\n');
+  const cover = nativeCover(screen);
+  return [header, cover ? `! ${cover}` : '', ...lines, rest > 0 ? `… ${rest} more` : ''].filter(Boolean).join('\n');
 };

@@ -164,6 +164,8 @@ Se obtiene subiendo el directorio de la ejecución al servicio de reportes de [l
 
 Todo lo que Lynkeus genera queda en `.lynkeus/`, dentro de la carpeta de la app. Es un producto de compilación: se puede borrar sin riesgo y se regenera.
 
+El archivo `.lynkeus/.gitignore` deja fuera de git todo lo que es de cada máquina: el token, las ejecuciones, los bundles de FastSim (que llevan el token adentro), la caché de jest, el registro de casos inestables y el mapa. En git quedan solo las referencias de `snapshots/`, los embudos de `funnels/` y las referencias de lint (`lint/` y `lint.json`), que el equipo revisa.
+
 ### `lynkeus.config.json`
 
 Los valores que de otro modo repetirías en cada comando van en `lynkeus.config.json`, en la carpeta de la app: el puerto, el simulador, el identificador de la app, la carpeta de los casos, el comando de fixtures.

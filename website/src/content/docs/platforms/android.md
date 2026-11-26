@@ -160,7 +160,7 @@ Of the commands that act from outside the app, `lynkeus screenshot` is the one t
 
 ## A phone on USB
 
-An Android phone that `adb devices` lists works as an emulator does. The address `10.0.2.2` exists only inside an emulator, so when the CLI starts listening it runs `adb reverse tcp:<port> tcp:<port>` for every device whose serial does not start with `emulator-`. That gives the phone the driver's port at its own `localhost`, which the agent dials after `10.0.2.2`. The app's log (logcat) is kept for a phone as for an emulator. Nothing to configure, as long as `adb` is on your `PATH` and USB debugging is on. With several devices attached, name the serial with `--device`.
+An Android phone that `adb devices` lists works as an emulator does. The address `10.0.2.2` exists only inside an emulator, so when the CLI starts listening (and when you run `lynkeus status`) it runs `adb reverse tcp:<port> tcp:<port>` for every device and emulator `adb devices` lists. That gives each one the driver's port at its own `localhost`, which the agent dials after `10.0.2.2`; an emulator whose `10.0.2.2` is blocked attaches through it too. The app's log (logcat) is kept for a phone as for an emulator. Nothing to configure, as long as `adb` is on your `PATH` and USB debugging is on. With several devices attached, name the serial with `--device`.
 
 An `adb reverse` that fails is ignored, so if the app never attaches, run `adb -s <serial> reverse tcp:8123 tcp:8123` yourself.
 
