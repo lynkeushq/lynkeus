@@ -3,6 +3,7 @@
 ## Unreleased
 
 - `lynkeus mcp` read `lynkeus.config.json` once, when it started, so `macros`, `cases.start`, `launch` and anything else the agent added later were ignored until the server restarted. Every tool call now sees the file as it is: it is parsed again when its modification time changes (and `LYNKEUS_CONFIG`'s, when set), which costs a `stat` per call.
+- `case impact`, `map impact` and `ci --affected` ignored a change to the app's entry file (the one that registers the app, from `package.json`'s `main` or `index.*`) and to the root component it registers (`app/app.tsx` in an Ignite app, found by how the entry registers it, not by path), so the diff reached no case. Such a change now reaches every screen and every case, and the output gives the file as the reason.
 
 ## 0.7.6
 

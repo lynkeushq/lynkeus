@@ -10,6 +10,7 @@ import * as edges from '../knowledge/edges.js';
 import { plan } from '../knowledge/plan.js';
 import { screensAffectedBy } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
+import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles, startHost, stopHost } from './cases.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { changedSources } from './map.js';
@@ -86,10 +87,11 @@ export const coverageCommands = [
       const base = ctx.flags.base as string;
       const changed = changedSources(ctx.root, base, ctx.err, (await runtimeAt(ctx.root)).sources);
       const affected = screensAffectedBy(ctx.graph(), changed, ctx.flags.depth as number);
-      const impact = impactOf(affected, read.coverage);
+      const impact = impactOf(affected, read.coverage, entryReason(changedAppEntry(ctx.root, changed)));
       if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: impact };
       const lines = [
         `${changed.length} source file${changed.length === 1 ? '' : 's'} changed against ${base}; they reach ${new Set(affected.map((a) => a.route)).size} screen(s)`,
+        ...(impact.reason ? [`every case is affected: ${impact.reason}`] : []),
         ...(impact.cases.length
           ? [`cases to run (${impact.cases.length}):`, ...impact.cases.map((c) => `  ${c.id.padEnd(46)} ${c.routes.join(', ')} (via ${c.via})`)]
           : ['no case touches them']),

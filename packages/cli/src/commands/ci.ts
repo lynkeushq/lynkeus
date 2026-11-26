@@ -9,6 +9,7 @@ import type { ScreenGraph } from '../knowledge/types.js';
 import { screensAffectedBy } from '../knowledge/query.js';
 import { DEFAULT_PORT, portFromEnv } from '../config.js';
 import { define } from '../registry.js';
+import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles } from './cases.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { changedSources } from './map.js';
@@ -94,7 +95,7 @@ export const ciCommands = [
         const graph = ctx.graph();
         const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')));
         const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, (await runtimeAt(ctx.root)).sources);
-        const impact = impactOf(screensAffectedBy(graph, changed), coverage);
+        const impact = impactOf(screensAffectedBy(graph, changed), coverage, entryReason(changedAppEntry(ctx.root, changed)));
         files = [...new Set(impact.cases.map((c) => c.file))];
         picked = `${files.length} of ${all.length} case files: the ones the ${changed.length} changed source file(s) against ${ctx.flags.base} reach.`;
         if (files.length === 0) {

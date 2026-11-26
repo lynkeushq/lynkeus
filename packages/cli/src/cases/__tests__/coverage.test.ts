@@ -47,3 +47,14 @@ test('impact runs the cases that touch a reached screen, nearest first, and list
   );
   assert.deepEqual(impact.untested, ['Pay.Done']);
 });
+
+test('a change to the app entry reaches every case, with the reason', () => {
+  const cov = coverageOf([c('a', [{ verb: 'app.nav', value: 'Home.Main' }]), c('b', [{ verb: 'app.nav', value: 'Pay.Main' }])], ['Home.Main', 'Pay.Main']);
+  const impact = impactOf([], cov, 'index.tsx starts the app, so every screen runs through it');
+  assert.deepEqual(
+    impact.cases.map((x) => x.id),
+    ['a', 'b'],
+  );
+  assert.equal(impact.reason, 'index.tsx starts the app, so every screen runs through it');
+  assert.deepEqual(impactOf([], cov).cases, []);
+});
