@@ -13,7 +13,7 @@ import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { define } from '../registry.js';
-import { whyFor } from '../runtime.js';
+import { whyFor, whyScope } from '../runtime.js';
 import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
@@ -354,7 +354,11 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const expected = { ...expectedOf(ctx.args[0]), ...(ctx.flags.route ? { route: ctx.flags.route as string } : {}) };
-      return (await whyFor(ctx, Object.keys(expected).length ? expected : undefined)) || '(no evidence available)';
+      // About the last case or command run on this app, not whatever failed before it.
+      const scope = whyScope((await ctx.device()).server.port);
+      const read = await whyFor(ctx, Object.keys(expected).length ? expected : undefined, scope?.at, scope?.since);
+      const failed = scope?.failed ? `the last ${scope.case ? `case (${scope.case})` : 'command'} failed at ${scope.failed}` : undefined;
+      return [failed, read].filter(Boolean).join('\n') || '(no evidence available)';
     },
   }),
   define({

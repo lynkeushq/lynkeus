@@ -1,1 +1,34 @@
-{}
+{
+  "report/answer": {
+    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing.",
+    "now": "9940b66e8d110154"
+  },
+  "surface/commands": {
+    "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
+    "now": "882ef44cf438c68b"
+  },
+  "surface/help/case stop": {
+    "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
+    "now": "55dc59d4708a09b0"
+  },
+  "surface/mcp/full": {
+    "why": "case_stop is a new MCP tool, so a model can stop a case_run its client moved to the background.",
+    "now": "9b373a8c130b9522"
+  },
+  "surface/mcp/instructions": {
+    "why": "The instructions now say how to follow and stop a case_run a client moved to the background, and that a second run on the same port is refused.",
+    "now": "69d712bcc915c1a6"
+  },
+  "surface/mcp/tool/case_stop": {
+    "why": "case_stop is a new MCP tool, so a model can stop a case_run its client moved to the background.",
+    "now": "87d4605d6f7ddbc9"
+  },
+  "surface/usage": {
+    "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
+    "now": "b009ef81de83b394"
+  },
+  "wire/press-by-number": {
+    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
+    "now": "27f33b157d1b274f"
+  }
+}

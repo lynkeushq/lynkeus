@@ -27,7 +27,8 @@ export type ProgressEvent =
   | (At & { type: 'case-start'; id: string; job: number; attempt: number; steps: number; host?: string })
   | (At & { type: 'step'; id: string; job: number } & StepProgress)
   | (At & { type: 'case-end'; id: string; job: number; attempt: number; result: CaseReport['result']; ms: number; retrying?: boolean })
-  | (At & { type: 'run-end'; passed: number; failed: number; unsupported: number; ms: number; report?: string });
+  /** `stopped`: why the run ended before its cases did (the MCP client cancelled it, `case stop`). */
+  | (At & { type: 'run-end'; passed: number; failed: number; unsupported: number; ms: number; report?: string; stopped?: string });
 
 export type Running = {
   job: number;
@@ -40,9 +41,10 @@ export type Running = {
   failedSteps: number;
 };
 
-/** A run as its events leave it: `stopped` is a run whose process is gone without saying it ended. */
+/** A run as its events leave it: `stopped` is a run stopped on purpose (`stoppedBy` says how) or whose process is gone without saying it ended. */
 export type RunStatus = {
   state: 'running' | 'finished' | 'stopped';
+  stoppedBy?: string;
   pid?: number;
   startedAt?: string;
   elapsedMs: number;
@@ -78,7 +80,7 @@ export class RunState {
   private readonly took: number[] = [];
   private readonly retriedIds = new Set<string>();
   private readonly running = new Map<number, Running>();
-  private ended?: { at: number };
+  private ended?: { at: number; stopped?: string };
   private last = 0;
   private report?: string;
   private out?: string;
@@ -116,7 +118,7 @@ export class RunState {
         this.took.push(e.ms);
         break;
       case 'run-end':
-        this.ended = { at: ms(e.at) };
+        this.ended = { at: ms(e.at), ...(e.stopped ? { stopped: e.stopped } : {}) };
         if (e.report) this.report = e.report;
         this.running.clear();
         break;
@@ -127,11 +129,12 @@ export class RunState {
   status(now = Date.now(), alive?: boolean): RunStatus {
     const results = [...this.results.values()];
     const count = (r: CaseReport['result']) => results.filter((x) => x === r).length;
-    const state = this.ended ? 'finished' : alive === false ? 'stopped' : 'running';
+    const state = this.ended ? (this.ended.stopped ? 'stopped' : 'finished') : alive === false ? 'stopped' : 'running';
     const running = state === 'running' ? [...this.running.values()].sort((a, b) => a.job - b.job) : [];
     const eta = state === 'running' ? this.eta(now, running) : undefined;
     return {
       state,
+      ...(this.ended?.stopped ? { stoppedBy: this.ended.stopped } : {}),
       ...(this.pid !== undefined ? { pid: this.pid } : {}),
       ...(this.startedAt !== undefined ? { startedAt: new Date(this.startedAt).toISOString() } : {}),
       // A stopped run went on until the last thing it said.
@@ -269,7 +272,7 @@ export const describeStatus = (s: RunStatus, file?: string): string => {
   const head = {
     running: `running: ${counts}${started}${s.etaMs !== undefined ? `; about ${clock(s.etaMs)} left (${s.etaFrom === 'history' ? 'from past runs' : 'from this run’s cases'})` : ''}`,
     finished: `finished: ${counts} in ${clock(s.elapsedMs)}`,
-    stopped: `stopped: its process (${s.pid}) is gone without finishing; ${counts}`,
+    stopped: s.stoppedBy ? `stopped (${s.stoppedBy}): ${counts}` : `stopped: its process (${s.pid}) is gone without finishing; ${counts}`,
   }[s.state];
   return [
     head,

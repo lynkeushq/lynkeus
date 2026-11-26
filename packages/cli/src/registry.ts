@@ -34,6 +34,8 @@ export type Base = {
   forPort?: (port: number) => { base: Base; stop: () => Promise<void> };
   /** Where a long command says how far it has got, for a caller that follows it (an MCP client's progress). */
   progress?: (event: ProgressEvent) => void;
+  /** Aborted when the caller gives up on the command (an MCP client cancelling its request): a long one stops. */
+  signal?: AbortSignal;
 };
 
 export type Ctx = Base & { args: string[]; flags: FlagValues; passthrough: string[] };

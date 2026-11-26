@@ -15,7 +15,7 @@ import { type Device, describeScreen } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute } from '../runtime.js';
+import { execute, scopeWhy, unreachable, whyFor } from '../runtime.js';
 import { isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -172,6 +172,8 @@ export type RunOptions = {
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
   routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
   nativeLogs?: { take: () => LogLine[] };
+  /** Aborted when the run is stopped: no step after it starts, and the case ends without its teardown. */
+  signal?: AbortSignal;
 };
 
 /**
@@ -506,7 +508,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const collect = async (index: number) => {
     if (!options.events || sdkRecorded) return;
     const d = await base.device().catch(() => undefined);
-    if (!d?.server.connected || away) return;
+    if (!d?.server.connected || away || unreachable(d.server)) return;
     const now = normalizeEvents(await d.command('events').catch(() => []));
     const route = (await d.screen().catch(() => undefined))?.route;
     const provider = config.appEvents?.provider;
@@ -1165,7 +1167,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (server.length > 0) report.sent = [...(report.sent ?? []), ...server];
     }
     const d = await device().catch(() => undefined);
-    if (!d?.server.connected || away) return;
+    if (!d?.server.connected || away || unreachable(d.server)) return;
     if (capturing) {
       const raw = (await d.command('analytics', { take: true }).catch(() => [])) as { sdk?: string; name?: string; properties?: Record<string, unknown> }[];
       const sent = (Array.isArray(raw) ? raw : []).flatMap((e) =>
@@ -1375,7 +1377,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const lookedAfter = async (step: Step): Promise<RunLooked | undefined> => {
     if (options.dry || !trail || (step.verb !== 'app.see' && step.verb !== 'app.wait')) return undefined;
     const d = await device().catch(() => undefined);
-    if (!d?.server.connected) return undefined;
+    if (!d?.server.connected || unreachable(d.server)) return undefined;
     const screen = await d.screen().catch(() => undefined);
     if (!screen) return undefined;
     const params = (typeof step.value === 'string' ? { target: step.value } : (step.value ?? {})) as Record<string, unknown>;
@@ -1410,7 +1412,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   for (const [index, step] of todo.entries()) {
     if (!(held && step.verb === 'app.see')) await flush();
     const text = label(step);
-    if (unsupported || setupFailed || (failed && !options.continue)) {
+    if (unsupported || setupFailed || (failed && !options.continue) || options.signal?.aborted) {
       steps.push({ step: text, status: 'skipped', ms: 0 });
       continue;
     }
@@ -1494,7 +1496,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   await flush();
   // A case that changes what the next one runs on (a face enrolled on a shared Simulator) puts it back here, whether
   // its steps passed, failed or were skipped. A teardown step that fails is said and does not change the result.
-  if (!options.dry && !options.setupOnly) {
+  if (!options.dry && !options.setupOnly && !options.signal?.aborted) {
     for (const step of c.teardown) {
       try {
         const outcome = await perform(step);
@@ -1562,11 +1564,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (film && !fs.existsSync(film) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, film, stopped.bytes);
     if (film && fs.existsSync(film)) report.video = film;
   }
-  if (failed && !options.dry && !options.setupOnly) {
+  if (failed && !options.dry && !options.setupOnly && !options.signal?.aborted) {
     const d = await device().catch(() => undefined);
-    // A step that failed on its own reading of the screen left no reasons; ask for them.
-    if (!why && d?.server.connected) why = (await execute(['why'], base).catch(() => undefined))?.text || undefined;
-    if (d?.server.connected) {
+    const away = unreachable(d?.server);
+    // A step that failed on its own reading of the screen left no reasons; ask for them, about this case only.
+    if (away) why = `  • ${away}`;
+    else if (!why && d?.server.connected) why = (await whyFor(base, undefined, started, mark).catch(() => '')) || undefined;
+    if (d?.server.connected && !away) {
       const screen = await d.screen().catch(() => undefined);
       const events = await d.trace(mark).catch(() => undefined);
       report.evidence = {
@@ -1576,12 +1580,21 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           .slice(-8),
         why,
       };
-    }
+    } else if (away) report.evidence = { why };
     const reasons = (why ?? '')
       .split('\n')
       .map((l) => l.replace(/^\s*•\s*/, '').trim())
       .filter((l) => l.length > 0);
     if (reasons.length > 0) report.diagnosis = reasons;
+  }
+  if (!options.dry && !options.setupOnly) {
+    const broke = steps.find((s) => s.status === 'failed');
+    scopeWhy((await device().catch(() => undefined))?.server?.port, {
+      at: started,
+      since: mark,
+      case: c.id,
+      ...(broke ? { failed: `${broke.step}: ${(broke.error ?? '').split('\n')[0]}` } : {}),
+    });
   }
   return report;
 };
