@@ -13,7 +13,7 @@
   },
   "surface/mcp/instructions": {
     "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text.",
-    "now": "d7aa6e9b909262f2"
+    "now": "4a19231e51c54c57"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -29,7 +29,7 @@
   },
   "surface/commands": {
     "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
-    "now": "b164f525833a632b"
+    "now": "1a81dab195ee463b"
   },
   "surface/help/fastsim start": {
     "why": "new command: starts a FastSim host on the session's driver port",
@@ -41,7 +41,7 @@
   },
   "surface/mcp/full": {
     "why": "fastsim_start and fastsim_stop are served over MCP",
-    "now": "3cc34e2f849ce520"
+    "now": "fc91aa1f80ae07f4"
   },
   "surface/mcp/tool/fastsim_start": {
     "why": "new tool: explore the app on a FastSim host",
@@ -53,7 +53,7 @@
   },
   "surface/usage": {
     "why": "the usage lists fastsim start and fastsim stop",
-    "now": "9df0b1c581a2899d"
+    "now": "98f60f5530fb91d8"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
