@@ -50,6 +50,17 @@ describe('headlessBackend snapshot', () => {
     expect(snapshot()[0]).toMatchObject({ kind: 'text', text: 'Hello there' });
   });
 
+  it('reads a text as its textTransform draws it, as the device walker does', async () => {
+    const { snapshot } = await mount(
+      <Pressable testID="login" onPress={noop}>
+        <Text style={{ textTransform: 'uppercase' }}>
+          Tap to log in!<Text style={{ textTransform: 'none' }}> (beta)</Text>
+        </Text>
+      </Pressable>,
+    );
+    expect(byTestId(snapshot(), 'login').text).toBe('TAP TO LOG IN! (beta)');
+  });
+
   it('lists a view only when it carries a testID or a label, as kind view', async () => {
     const { snapshot } = await mount(
       <View>
