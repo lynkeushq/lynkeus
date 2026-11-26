@@ -1496,6 +1496,27 @@ Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants
 | `--print` | no | Muestra el token también en una terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, si no `https://lynkeus.io` | El servicio. Fuera de loopback tiene que ser HTTPS. |
 
+### `lynkeus fastsim start`
+
+```bash
+lynkeus fastsim start <bundle> [--kit <carpeta>] [--timeout <ms>]
+```
+
+Arranca un host de Lynkeus FastSim sobre un bundle hecho con el `bin/fastsim-bundle` del paquete y le conecta la sesión, para recorrer la app en FastSim antes de escribir un caso: desde ese momento [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` y los demás comandos la manejan a ella. Está pensado para un cliente MCP (`fastsim_start`) o una [`lynkeus session`](#lynkeus-session); desde una terminal, arranca tú `bin/fastsim-run <bundle> <puerto>`. El host se conecta al puerto del driver de la sesión y reemplaza a la app que estuviera conectada; cierra antes la app del Simulator, o vuelve a conectarse. Usa el FastSim instalado más reciente que dibuja la plataforma del bundle, salvo que `--kit` indique otro; pide el permiso igual que [`lynkeus case run`](#lynkeus-case-run) y espera hasta `--timeout` a que la app se conecte. La respuesta indica el log del host (`<bundle>/hosts/<puerto>.err`) y avisa si el bundle es más viejo que el código de la app o si su app no ofrece capturas, video ni reloj (un bundle anterior a que `fastsim-bundle` agregara los controles de FastSim, o `lynkeus-agent` anterior a 0.7.6).
+
+| Opción | Por defecto | Qué hace |
+|---|---|---|
+| `--kit <carpeta>` | el más reciente instalado para la plataforma del bundle | La carpeta de Lynkeus FastSim cuyo `bin/fastsim-run` arranca el host. |
+| `--timeout <ms>` | `60000` | Cuánto esperar a que la app se conecte. |
+
+### `lynkeus fastsim stop`
+
+```bash
+lynkeus fastsim stop
+```
+
+Detiene el host que arrancó [`lynkeus fastsim start`](#lynkeus-fastsim-start). El host también se detiene cuando termina la sesión o el servidor MCP.
+
 ## Host sin pantalla (`headless`)
 
 El host sin pantalla ejecuta la app en Node, bajo jest, sin simulador. Habla el mismo protocolo que un dispositivo, así que todos los comandos de [Manejar la app](#manejar-la-app) funcionan igual. Lo específico de este host está en [Host sin pantalla](/es/platforms/headless/).

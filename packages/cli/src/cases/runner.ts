@@ -172,6 +172,11 @@ export type RunOptions = {
   /** Collect the screens the app went through, for a coverage map. `fresh`: the app was started for this case. */
   routes?: boolean | 'fresh' /** The app's native log on a simulator or an emulator, read step by step into each step's logs. */;
   nativeLogs?: { take: () => LogLine[] };
+  /**
+   * The run started the host the app runs in (`--host`, `--host-command`): a frame comes from that host or not at
+   * all, since simctl or adb would photograph some other device.
+   */
+  ownHost?: boolean;
 };
 
 /**
@@ -1289,7 +1294,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           file = `${stem}.png`;
           taken = await hostShot(file);
         }
-      } else taken = (await execute(['screenshot', file], base)).code === 0;
+      } else taken = !options.ownHost && (await execute(['screenshot', file], base)).code === 0;
       // An animation the agent cannot see (a device's native transition, a host's printer running on its own clock)
       // leaves a quiet app on a moving screen: the picture itself says when it stopped. Two frames alike, taken
       // stillMs apart, are a still screen. Frames still being encoded (AVIF on a host) are left as they are.

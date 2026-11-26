@@ -21,6 +21,7 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, define } from '../registry.js';
+import { staleBundleWarning } from '../cases/staleBundle.js';
 import { hostGrantEnv } from './fastsim.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
@@ -261,7 +262,7 @@ const spawnHost = (command: string, port: number, job: number, cwd: string, env:
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
 // A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
-export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }): string[] => {
+export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; screenshots?: boolean; ownHost?: boolean }): string[] => {
   if (reports.length === 0) return [];
   const steps = reports.flatMap((r) => r.steps);
   const fromApp = steps.some((s) => s.sent?.some((e) => e.via !== 'server')) || reports.some((r) => (r.events?.length ?? 0) > 0);
@@ -271,8 +272,19 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean }
       : [
           '⚠ no case kept an analytics event from the app (the agent and the hosts keep the calls that reach Mixpanel, AppsFlyer, Firebase, Datadog, Sentry, Crashlytics and Intercom; on a simulator or emulator only where the SDK’s module can be wrapped).',
         ]),
+    ...(asked.screenshots && !steps.some((s) => s.screenshot)
+      ? [
+          asked.ownHost
+            ? '⚠ --screenshots kept no frame: the host this run started does not take them. On Lynkeus FastSim the app needs lynkeus-agent 0.7.6 or newer and a bundle made by a fastsim-bundle that adds the host’s controls: update both and bundle again. The headless host draws nothing.'
+            : '⚠ --screenshots kept no frame: neither the app nor the simulator or emulator gave one.',
+        ]
+      : []),
     ...(asked.video && !reports.some((r) => r.video)
-      ? ['⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).']
+      ? [
+          asked.ownHost
+            ? '⚠ --video kept no film: the host this run started does not film. Lynkeus FastSim films when its bundle has the host’s controls (lynkeus-agent 0.7.6 or newer, bundled again with a current fastsim-bundle); headless keeps nothing.'
+            : '⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).',
+        ]
       : []),
   ];
 };
@@ -580,6 +592,8 @@ export const caseCommands = [
         return reviving;
       };
       const reports: (CaseReport & { retried?: boolean })[] = [];
+      // Said again with the summary: over MCP the summary is all the caller reads.
+      let stale: string | undefined;
       try {
         // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
         const described = await fixtures?.describe();
@@ -596,6 +610,8 @@ export const caseCommands = [
         // which finds nothing when lynkeus itself runs from the npx cache.
         let hostEnv: NodeJS.ProcessEnv = process.env;
         if (hostCommand) {
+          stale = staleBundleWarning(hostCommand, ctx.root, [path.resolve(home, config.dir ?? 'cases')]);
+          if (stale) ctx.err(stale);
           const granted = await hostGrantEnv(ctx, hostCommand);
           if ('failed' in granted) return granted.failed;
           hostEnv = granted.env;
@@ -750,6 +766,7 @@ export const caseCommands = [
                       routes: seenDir ? (host ? 'fresh' : true) : false,
                       traces,
                       nativeLogs: native,
+                      ownHost: !!hostCommand || !!runHost,
                       onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                     });
                     const mine = keepHosts ? kept[index] : (host ?? runHost);
@@ -864,7 +881,14 @@ export const caseCommands = [
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
-        ...(out ? missingEvidence(reports, { video: !!ctx.flags.video }) : []),
+        ...(stale ? [stale] : []),
+        ...(out
+          ? missingEvidence(reports, {
+              video: !!ctx.flags.video,
+              screenshots: !!ctx.flags.screenshots,
+              ownHost: typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host,
+            })
+          : []),
         ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues))),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(uploaded ? [uploaded.text] : []),

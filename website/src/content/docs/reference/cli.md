@@ -1494,6 +1494,27 @@ A grant is valid for one hour. The command keeps it in `~/.cache/lynkeus/fastsim
 | `--print` | off | Print the token even at a terminal. |
 | `--cloud <url>` | `LYNKEUS_REPORTS_URL`, else `https://lynkeus.io` | The service. HTTPS is required outside loopback. |
 
+### `lynkeus fastsim start`
+
+```bash
+lynkeus fastsim start <bundle> [--kit <dir>] [--timeout <ms>]
+```
+
+Starts a Lynkeus FastSim host on a bundle made with the package's `bin/fastsim-bundle` and attaches the session to it, so you can explore the app on FastSim before writing a case: [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` and the other commands drive it from then on. It is meant for an MCP client (`fastsim_start`) or a [`lynkeus session`](#lynkeus-session); from a shell, start `bin/fastsim-run <bundle> <port>` yourself. The host listens on the session's driver port and replaces any app attached before; close a Simulator's app first, or it dials back in. It uses the newest installed FastSim that draws the bundle's platform unless `--kit` names one, gets its grant as [`lynkeus case run`](#lynkeus-case-run) does, and waits up to `--timeout` for the app to attach. The answer gives the host's log (`<bundle>/hosts/<port>.err`), and warns when the bundle is older than the app's code or when its app offers no screenshot, film or clock (a bundle made before `fastsim-bundle` added FastSim's controls, or `lynkeus-agent` older than 0.7.6).
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--kit <dir>` | newest installed for the bundle's platform | The Lynkeus FastSim folder whose `bin/fastsim-run` starts the host. |
+| `--timeout <ms>` | `60000` | How long to wait for the app to attach. |
+
+### `lynkeus fastsim stop`
+
+```bash
+lynkeus fastsim stop
+```
+
+Stops the host [`lynkeus fastsim start`](#lynkeus-fastsim-start) started. The host also stops when the session or the MCP server ends.
+
 ## headless
 
 Commands for the headless host: the app hosted in Node under jest, with no simulator. See [Headless](/platforms/headless/).

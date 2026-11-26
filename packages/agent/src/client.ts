@@ -5,6 +5,7 @@ import { fabricBackend } from './backends/fabric';
 import { createHandlers, dispatch } from './handlers';
 import type { NavigationAdapter } from './navigation';
 import { hmacSha256Hex, sameHex } from './hmac';
+import { installHostControls } from './hostControls';
 import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response, type VerifiedEvent } from './protocol';
 import { addDefault, host } from './registry';
 import { trackRequests } from './requests';
@@ -73,6 +74,8 @@ export const start = (options: ClientOptions): (() => void) => {
     return () => undefined;
   }
   trackRequests();
+  // Before `hello`, which lists the commands: the host's own (FastSim's screenshots and clock) are among them.
+  installHostControls();
   // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,
   // from the SDKs' own modules.
   if (tapSdks(NativeModules as Record<string, Record<string, unknown> | undefined>) > 0) addDefault('analytics', readSdkCalls);
