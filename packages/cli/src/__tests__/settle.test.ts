@@ -55,3 +55,36 @@ test('typing into a field waits until nothing covers it', async () => {
   assert.equal(reads, 3);
   assert.equal(looks(), 2);
 });
+
+test('a press waits for a control a screen still slides over, but not for one only the keyboard covers', async () => {
+  // Covered for the first two finds; the screen (read for the keyboard) shows no focused field.
+  let finds = 0;
+  let slid = 0;
+  const sliding = {
+    idle: async () => {
+      slid++;
+      return { commit: 1, idle: true };
+    },
+    waitFor: async () => ({ waitedMs: 0 }),
+    screen: async () => screenOf([button(false)]),
+    server: { call: async () => button(++finds <= 2) },
+  } as unknown as Device;
+  await untilUncovered(sliding, { testId: 'logout' });
+  assert.equal(slid, 2);
+
+  const field: Element = { ...button(false), i: 1, kind: 'input', testId: 'email', focused: true };
+  const looks = { n: 0 };
+  const device = {
+    idle: async () => {
+      looks.n++;
+      return { commit: 1, idle: true };
+    },
+    waitFor: async () => ({ waitedMs: 0 }),
+    screen: async () => screenOf([field, button(true)]),
+    server: { call: async () => button(true) },
+  } as unknown as Device;
+  const began = Date.now();
+  await untilUncovered(device, { testId: 'logout' });
+  assert.equal(looks.n, 0);
+  assert.ok(Date.now() - began < 500);
+});

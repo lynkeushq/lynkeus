@@ -36,18 +36,20 @@ const withCover = async (device: Device, error: unknown): Promise<unknown> => {
 const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutMs: ms * 2 }).catch(() => undefined);
 
 /**
- * A field still under what covers it (a screen sliding in, the app coming back from a reset) takes no tap, and the
- * typing then finds no focused input. Waited for as a case's `app.type` waits: there, then not covered.
+ * A control still under what covers it (a screen sliding in, the app coming back from a reset) takes no tap: a press
+ * is lost and typing finds no focused input. Waited for as a case's steps wait: there, then not covered.
  */
 export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
+  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does).
+  const underKeyboard = async (e: Element) => e.kind !== 'input' && (await device.screen()).elements.some((x) => x.focused);
   let found = await find();
   if (!found) {
     await device.waitFor({ target, timeoutMs }).catch(() => undefined);
     found = await find();
   }
-  while (found?.covered && Date.now() < deadline) {
+  while (found?.covered && Date.now() < deadline && !(await underKeyboard(found))) {
     await look(device, 50);
     found = await find();
   }
@@ -131,6 +133,8 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const device = await ctx.device();
+      // A control a screen is still sliding over takes no tap: waited for as a case's press waits.
+      if (!ctx.waited) await untilUncovered(device, scopedTarget(ctx.args[0]!, ctx.flags));
       const result = await device
         .press({
           ...scopedTarget(ctx.args[0]!, ctx.flags),

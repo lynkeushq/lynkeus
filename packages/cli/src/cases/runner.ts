@@ -544,8 +544,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (requests.length === 0 && requestsAfter && (await lastRequest(d)) < requestsAfter) requestsAfter = 0;
     return requests;
   };
-  const cli = async (argv: string[]) => {
-    const outcome = await execute(argv, base);
+  const cli = async (argv: string[], waited = false) => {
+    const outcome = await execute(argv, waited ? { ...base, waited } : base);
     if (outcome.error || outcome.code !== 0) {
       why = outcome.why;
       throw new Error(outcome.error || outcome.text || `${argv.join(' ')} failed`);
@@ -827,7 +827,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
     try {
-      await cli(argvFor(find('press')!, rest as StepValue));
+      await cli(argvFor(find('press')!, rest as StepValue), true);
     } catch (error) {
       // A one-time sheet can disappear between the presence check and the native press.
       if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';

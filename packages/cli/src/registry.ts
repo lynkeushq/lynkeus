@@ -30,6 +30,8 @@ export type Base = {
   err: (line: string) => void;
   /** Inside `lynkeus session` and over MCP: one connection, many commands. */
   attached: boolean;
+  /** A case step that has already waited for its control to be there and uncovered: the command need not wait again. */
+  waited?: boolean;
   /** The same, but waiting for its app on another port: one per host when several run side by side. */
   forPort?: (port: number) => { base: Base; stop: () => Promise<void> };
   /** Where a long command says how far it has got, for a caller that follows it (an MCP client's progress). */
