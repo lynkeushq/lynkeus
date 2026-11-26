@@ -7,7 +7,8 @@ import fs from 'node:fs';
 
 import { UsageError } from './args.js';
 import { graphFile } from './config.js';
-import { writeJson } from './files.js';
+import { readJson, writeJson } from './files.js';
+import type { ScreenGraph } from './knowledge/types.js';
 import { describeWhy, explain } from './knowledge/why.js';
 import { type Base, helpFor, parseFor, resolve } from './registry.js';
 import { runtimeAt } from './runtimes/index.js';
@@ -56,11 +57,17 @@ const TARGET_ARG: Record<string, number> = { press: 0, see: 0, wait: 0, swipe: 1
  * A command that reads the route graph builds it the first time instead of failing: the first run of `case new` or
  * `smoke` in a new project needs no `map build` before it. Any runtime whose routes can be read here gets one.
  */
-const graphFirst = async (root: string): Promise<void> => {
-  if (fs.existsSync(graphFile(root))) return;
+const graphFirst = async (root: string, required: boolean): Promise<void> => {
+  const file = graphFile(root);
+  // A graph with no screen is read again: the navigators may have been added since, or found by a newer Lynkeus.
+  if (fs.existsSync(file) && Object.keys(readJson<ScreenGraph>(file).screens ?? {}).length > 0) return;
   const runtime = await runtimeAt(root);
   if (runtime.graphMissing(root)) return;
-  writeJson(graphFile(root), await runtime.buildGraph(root));
+  const graph = await runtime.buildGraph(root);
+  writeJson(file, graph);
+  // A command about screens on an empty map would answer as if the app had none: say why instead.
+  if (required && Object.keys(graph.screens).length === 0)
+    throw new Error(`the route map is empty: ${graph.warnings[0] ?? 'no screen was found in the source'}`);
 };
 
 export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
@@ -77,7 +84,7 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
   if (parsed.flags.help) return { code: 0, text: helpFor(command) };
   const startedAt = Date.now();
   try {
-    if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root);
+    if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root, command.needs === 'graph');
     const result = await command.run({ ...base, ...parsed });
     if (result === undefined) return { code: 0 };
     if (typeof result === 'string') return { code: 0, text: result };

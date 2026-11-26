@@ -5,6 +5,7 @@
  * shared components rather than screen files, so facts are recorded per file
  * and attributed to screens later through the import graph.
  */
+import fs from 'node:fs';
 import path from 'node:path';
 import { Node, Project, SyntaxKind, type JsxAttribute, type SourceFile } from 'ts-morph';
 
@@ -20,11 +21,11 @@ const isNavigationReceiver = (text: string): boolean => /(^|\.)nav(igation)?$/i.
 type ExtractOptions = {
   root: string;
   navigatorGlobs?: string[];
-  /** First-party source, relative to the root. */
+  /** First-party source, relative to the root: by default the whole project outside node_modules. */
   sourceDir?: string;
 };
 
-export const extractScreenGraph = ({ root, navigatorGlobs = ['app/navigation/**/*.tsx'], sourceDir = 'app' }: ExtractOptions): ScreenGraph => {
+export const extractScreenGraph = ({ root, navigatorGlobs, sourceDir = '' }: ExtractOptions): ScreenGraph => {
   const warnings: string[] = [];
   const project = new Project({
     tsConfigFilePath: path.join(root, 'tsconfig.json'),
@@ -39,10 +40,18 @@ export const extractScreenGraph = ({ root, navigatorGlobs = ['app/navigation/**/
     .filter((f) => !f.getFilePath().includes('/node_modules/'))
     .filter((f) => f.getFilePath().startsWith(sourceRoot));
 
-  const navigators = project.getSourceFiles(navigatorGlobs.map((g) => path.join(root, g))).filter((f) => !f.getFilePath().includes('/node_modules/'));
+  const navigators = navigatorGlobs
+    ? project.getSourceFiles(navigatorGlobs.map((g) => path.join(root, g))).filter((f) => !f.getFilePath().includes('/node_modules/'))
+    : project.getSourceFiles().filter(declaresScreens);
 
   if (navigators.length === 0) {
-    warnings.push(`No navigator files matched ${navigatorGlobs.join(', ')}`);
+    warnings.push(
+      navigatorGlobs
+        ? `No navigator files matched ${navigatorGlobs.join(', ')}`
+        : usesExpoRouter(root)
+          ? 'No navigator found: this app routes with Expo Router (screens are files under app/), which the map does not read yet'
+          : 'No navigator found: no file outside node_modules declares a screen (<Stack.Screen name=…> or { screen: … })',
+    );
   }
 
   const screens: Record<string, ScreenNode> = {};
@@ -96,6 +105,25 @@ type ScreenElement = { attr: (name: string) => JsxAttribute | undefined };
 export type ScreenDeclaration = { route: string; component: string | null };
 
 /** Routes in either of React Navigation's shapes: `<Stack.Screen name component />`, or `screens: { 'A.B': { screen: AB } }`. */
+const usesExpoRouter = (root: string): boolean => {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as Record<string, Record<string, string> | undefined>;
+    return !!(manifest.dependencies?.['expo-router'] ?? manifest.devDependencies?.['expo-router']);
+  } catch {
+    return false;
+  }
+};
+
+// Navigators are found by what they declare, wherever they live: each template names its folder differently
+// (app/navigation, app/navigators, src/routes). Tests render screens of their own and are left out.
+const SCREEN_HINT = /\.Screen\b|<Screen\b|\bscreen\s*:/;
+const TEST_FILE = /\/(__tests__|__mocks__)\/|\.(test|spec)\.[jt]sx?$/;
+const declaresScreens = (source: SourceFile): boolean => {
+  const file = source.getFilePath();
+  if (file.includes('/node_modules/') || TEST_FILE.test(file) || source.isDeclarationFile()) return false;
+  return SCREEN_HINT.test(source.getFullText()) && screenDeclarations(source).length > 0;
+};
+
 export const screenDeclarations = (source: SourceFile): ScreenDeclaration[] => {
   const out: ScreenDeclaration[] = [];
   for (const element of findScreenElements(source)) {
