@@ -53,7 +53,7 @@
   },
   "surface/usage": {
     "why": "the usage lists fastsim start and fastsim stop",
-    "now": "98f60f5530fb91d8"
+    "now": "f7ecf6f889d15a4b"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
@@ -214,5 +214,13 @@
   "wire/unsupported-command": {
     "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
     "now": "81e072ad46a07ef4"
+  },
+  "surface/help/headless init": {
+    "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
+    "now": "a88d858460672de3"
+  },
+  "surface/mcp/tool/headless_init": {
+    "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
+    "now": "f07d7c562f25d929"
   }
 }

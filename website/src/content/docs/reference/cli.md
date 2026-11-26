@@ -1550,7 +1550,7 @@ lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>
 
 Writes the headless entry: the default mocks and your app's own entry (`registerRootComponent` or `AppRegistry`), so the root component runs as on a device. React Navigation is found by itself. The network fence, not the entry, keeps the app off hosts that are not local. It also adds jest, Testing Library, `lynkeus-headless` and the jest preset the app needs (`jest-expo` for Expo) as development dependencies, and makes the project's token in `.lynkeus/token` when there is none.
 
-It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app has none, so it cannot run on the headless host.
+It stops with `no App component found` when it finds no root component and `--component` names none. An Expo Router app gets an entry of its own that renders its routes.
 
 | Flag | Default | Meaning |
 |---|---|---|

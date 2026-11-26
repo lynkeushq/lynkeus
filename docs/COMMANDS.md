@@ -988,7 +988,7 @@ Also accepted: `headless`.
 
 ### `lynkeus headless init [--entry <file>] [--component <App.tsx>] [--api-env <NAME>] [--auto] [--force] [--no-install]`
 
-Write the headless entry: default mocks, a local-backend guard, your App
+Write the headless entry: default mocks and the app's own entry
 
 | Flag | |
 |---|---|

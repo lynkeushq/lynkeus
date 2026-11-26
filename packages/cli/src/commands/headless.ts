@@ -372,7 +372,7 @@ export const headlessCommands = [
   define({
     name: 'headless init',
     group: 'headless',
-    summary: 'Write the headless entry: default mocks, a local-backend guard, your App',
+    summary: "Write the headless entry: default mocks and the app's own entry",
     flags: {
       ...ENTRY_FLAG,
       component: { type: 'string', help: 'the App component file (found by itself when standard)', value: 'App.tsx' },
