@@ -653,7 +653,7 @@ Solo simulador. Define dónde está el dispositivo.
 ### `lynkeus os language`
 
 ```bash
-lynkeus os language [tag]
+lynkeus os language [tag] [--app <bundleId>]
 ```
 
 Solo simulador. Vuelve a abrir la app en otro idioma.
@@ -661,6 +661,10 @@ Solo simulador. Vuelve a abrir la app en otro idioma.
 | Argumento | Qué es |
 |---|---|
 | `tag` | Opcional. `de-DE`, `en-US`, … Si lo omites, se usa el idioma declarado en `lynkeus.config.json`. |
+
+| Flag | Qué es |
+|---|---|
+| `--app <bundleId>` | La app que se reinicia. Si lo omites, la de `lynkeus.config.json`. Por MCP es el argumento `app` de `os_language`. |
 
 ## Mapa (`map`)
 

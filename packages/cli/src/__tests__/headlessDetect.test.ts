@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { exactCase, findAppComponent, headlessEntryOf } from '../commands/appEntry.js';
+import { appEntryFiles, changedAppEntry, exactCase, findAppComponent, headlessEntryOf } from '../commands/appEntry.js';
 import { detectApiEnv, setupMocks, transformPackages } from '../commands/appEnv.js';
 import { doctor, satisfies } from '../commands/doctor.js';
 import { hostTestFlag } from '../commands/headless.js';
@@ -127,4 +127,17 @@ test('doctor answers each native dependency the way the host will, and checks th
   assert.doesNotMatch(out, /pure-js/);
   assert.match(out, /@testing-library\/react-native 11\.5\.0 is outside what lynkeus-headless supports \(>=12\.0\.0\)/);
   assert.ok(satisfies('13.3.3', '>=12.0.0') && satisfies('14.1.0', '^14.0.1') && !satisfies('12.9.0', '>=13 || ^14.0.0'));
+});
+
+test('a changed entry or root component is found without knowing the framework layout', () => {
+  const ignite = project({
+    'package.json': JSON.stringify({ main: 'index.tsx' }),
+    'index.tsx': 'import { registerRootComponent } from "expo"\nimport { App } from "./app/app"\nregisterRootComponent(App)\n',
+    'app/app.tsx': 'export function App() { return null }\n',
+    'app/screens/Home.tsx': 'export default () => null\n',
+  });
+  assert.deepEqual(appEntryFiles(ignite), ['index.tsx', 'app/app.tsx']);
+  assert.equal(changedAppEntry(ignite, ['app/screens/Home.tsx', 'app/app.tsx']), 'app/app.tsx');
+  assert.equal(changedAppEntry(ignite, ['mobile/index.tsx']), 'mobile/index.tsx');
+  assert.equal(changedAppEntry(ignite, ['app/screens/Home.tsx']), undefined);
 });

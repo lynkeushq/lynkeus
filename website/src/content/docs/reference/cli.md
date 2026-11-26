@@ -702,7 +702,7 @@ lynkeus os location <where>
 ### `lynkeus os language`
 
 ```bash
-lynkeus os language [tag]
+lynkeus os language [tag] [--app <bundleId>]
 ```
 
 **Simulator (iOS only).** Relaunches the app in a locale.
@@ -710,6 +710,10 @@ lynkeus os language [tag]
 | Argument | Meaning |
 |---|---|
 | `tag` | Optional. A language tag such as `de-DE` or `en-US`. Without it, the locale in `lynkeus.config.json`. |
+
+| Flag | Meaning |
+|---|---|
+| `--app <bundleId>` | The app to relaunch. Without it, the app in `lynkeus.config.json`. Over MCP it is the `app` argument of `os_language`. |
 
 ## map
 

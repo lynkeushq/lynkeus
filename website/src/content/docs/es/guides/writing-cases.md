@@ -102,7 +102,7 @@ Hay tres comandos que redactan un caso por ti, y los tres lo imprimen para que l
 - **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: las pulsaciones desde donde empieza (`--from`, o `cases.start` de la configuración) hasta ella, según `map plan`; el `setup` que ofrece tu servidor de fixtures, comentado, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
 - **`lynkeus fixtures describe`** lista lo que sabe hacer tu servidor de fixtures, con sus parámetros, para elegir el `setup`. `lynkeus fixtures check` verifica que cumple el protocolo.
 
-Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama.
+Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama. Un cambio en el archivo que registra la app o en el componente raíz que registra alcanza todas las pantallas: salen todos los casos, y la salida dice qué archivo lo causó.
 
 ## Los pasos que manejan la app
 

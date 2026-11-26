@@ -19,7 +19,7 @@ import { fastsimCommands } from './commands/fastsim.js';
 import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
-import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
+import { configReader, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { devMenuOnAttach } from './device/devMenu.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reverseAndroid } from './device/devices.js';
@@ -70,16 +70,17 @@ let lastApp: string | undefined;
 const contextFor = (argv: string[], attached = false, port?: number, ownHost = false): Session => {
   const g = globals(argv);
   const root = path.resolve((g.root as string | undefined) ?? process.cwd());
-  const config = loadConfig(root);
+  const currentConfig = configReader(root);
+  currentConfig();
   const err = (line: string) => console.error(line);
   let graph: ReturnType<typeof loadGraph> | undefined;
   let device: Promise<Device> | undefined;
 
   const connect = async (): Promise<Device> => {
-    const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? config.app;
+    const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? currentConfig().app;
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
-    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(config) });
+    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(currentConfig()) });
     server.on('hello', (hello: HelloEvent) => {
       const identity = helloIdentity(hello);
       const switched = switchTold ? undefined : appSwitched(lastApp, identity, server.port);
@@ -95,7 +96,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     });
     // A host started for the case is the device: looking for the configured simulator would only replace a
     // late app's error with one about a simulator nobody asked for.
-    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device;
+    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? currentConfig().device;
     const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice(wantedDevice);
     if (g.launch && appId) {
       const d = new Device(await picking, { appId, server });
@@ -108,7 +109,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     await server.listen();
     if (!ownHost) void reverseAndroid(server.port);
     const hello = await server
-      .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? config.attachTimeout ?? 15000))
+      .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? currentConfig().attachTimeout ?? 15000))
       .catch(async (error) => {
         await server.close();
         await picking;
@@ -130,7 +131,10 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
 
   const ctx: Base = {
     root,
-    config,
+    // A getter: a server that outlives the agent's edits to lynkeus.config.json sees the file as it is now.
+    get config() {
+      return currentConfig();
+    },
     attached,
     err,
     graph: () => {

@@ -77,10 +77,22 @@ export type Impact = {
   cases: { id: string; file: string; routes: string[]; distance: number; via: string }[];
   /** Routes the change reaches that no case touches. */
   untested: string[];
+  /** Why every case is here, when a change reaches the whole app rather than a screen. */
+  reason?: string;
 };
 
 /** The cases a change reaches: the screens it touches or imports, crossed with what each case covers. */
-export const impactOf = (affected: Affected[], coverage: Coverage): Impact => {
+export const impactOf = (affected: Affected[], coverage: Coverage, everything?: string): Impact => {
+  if (everything) {
+    const cases = Object.entries(coverage.files).map(([id, file]) => ({
+      id,
+      file,
+      routes: Object.keys(coverage.byRoute).filter((r) => coverage.byRoute[r]!.includes(id)),
+      distance: 0,
+      via: everything,
+    }));
+    return { cases: cases.sort((a, b) => a.id.localeCompare(b.id)), untested: [], reason: everything };
+  }
   const nearest = new Map<string, Affected>();
   for (const a of affected) if (!nearest.has(a.route) || nearest.get(a.route)!.distance > a.distance) nearest.set(a.route, a);
   const byCase = new Map<string, Impact['cases'][number]>();

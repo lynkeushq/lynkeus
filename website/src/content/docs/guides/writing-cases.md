@@ -353,7 +353,7 @@ npx lynkeus case coverage                          # which screens the cases tou
 npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
 ```
 
-`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers.
+`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers. A change to the file that registers the app, or to the root component it registers, reaches every screen, so every case is listed and the output says which file did it.
 
 ## How it works
 

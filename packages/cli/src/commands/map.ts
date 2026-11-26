@@ -14,6 +14,7 @@ import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
 import type { RuntimeAdapter } from '../runtimes/index.js';
 import { runtimeAt } from '../runtimes/index.js';
+import { changedAppEntry } from './appEntry.js';
 import { describeGraphDiff, diffGraphs } from './check.js';
 
 const baseGraphFile = (root: string) => path.join(lynkeusDir(root), 'graph.base.json');
@@ -193,7 +194,11 @@ export const mapCommands = [
     needs: 'graph',
     run: async (ctx) => {
       const depth = ctx.flags.depth as number;
-      const all = screensAffectedBy(ctx.graph(), ctx.args, depth);
+      const graph = ctx.graph();
+      const entry = changedAppEntry(ctx.root, ctx.args);
+      const all: Affected[] = entry
+        ? Object.keys(graph.screens).map((route) => ({ route, distance: 0, via: entry, through: [] }))
+        : screensAffectedBy(graph, ctx.args, depth);
       const affected = ctx.flags.direct ? all.filter((a) => a.distance <= 1) : all;
       if (affected.length === 0) {
         const text =

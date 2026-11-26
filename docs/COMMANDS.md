@@ -395,13 +395,17 @@ Simulator: where the device is
 |---|---|
 | `where` | <lat>,<lon> | clear |
 
-### `lynkeus os language [tag]`
+### `lynkeus os language [tag] [--app <bundleId>]`
 
 Simulator: relaunch the app in a locale
 
 | Argument | |
 |---|---|
 | `tag` | de-DE, en-US, … (default: the locale in lynkeus.config.json) (optional) |
+
+| Flag | |
+|---|---|
+| `--app <bundleId>` | the app to relaunch on a simulator or emulator (default: the config’s app) |
 
 ## map
 

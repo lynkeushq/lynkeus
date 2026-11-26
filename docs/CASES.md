@@ -192,7 +192,8 @@ what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and t
 
 A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
 screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
-graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
+graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does. A change to the file that registers the app or to the root
+component it registers reaches every screen, so every case is listed, with that file as the reason.
 
 ## In CI
 
