@@ -25,6 +25,7 @@ import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, type Ctx, define, type Result } from '../registry.js';
+import { androidDevices, bootedSimulators } from '../device/devices.js';
 import { onPhone } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import type { FlagValues } from '../args.js';
@@ -42,6 +43,17 @@ import { LiveLine } from '../cases/liveLine.js';
 /** Why a host that came up is gone: how it exited, what it printed last, where its log is. */
 const lastWords = new WeakMap<ChildProcess, () => string>();
 let started = 0;
+
+const QUICK_ATTACH_MS = 3000;
+
+/** Why the simulator target cannot be there, decided without waiting for an app: no Simulator or emulator is up. */
+const phoneProbe = async (ctx: Ctx): Promise<string | undefined> => {
+  if (ctx.flags.launch) return undefined;
+  const [ios, android] = await Promise.all([bootedSimulators().catch(() => null), androidDevices().catch(() => null)]);
+  // A probe that failed is not proof of nothing running.
+  if (!ios || !android) return undefined;
+  return ios.length + android.length === 0 ? 'no Simulator or emulator is running' : undefined;
+};
 
 export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
@@ -1162,7 +1174,22 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
   };
   const plan = async (t: TargetName): Promise<TargetPlan> => {
     if (t === 'simulator') {
-      const device = await ctx.device().catch((error: unknown) => (error as Error).message.split('\n')[0] ?? 'no app');
+      const probe = await phoneProbe(ctx);
+      if (probe) return { unavailable: probe };
+      const asking = ctx.device().catch((error: unknown) => (error as Error).message.split('\n')[0] ?? 'no app');
+      // Something is running, but a development build already open dials in within a second or two: waiting the
+      // whole attach timeout is for an app being launched.
+      const patient =
+        ctx.flags.launch ||
+        ctx.flags['attach-timeout'] !== undefined ||
+        process.env.LYNKEUS_ATTACH_TIMEOUT_MS !== undefined ||
+        ctx.config.attachTimeout !== undefined;
+      const device = patient
+        ? await asking
+        : await Promise.race([
+            asking,
+            new Promise<string>((resolve) => setTimeout(() => resolve(`none within ${QUICK_ATTACH_MS / 1000} s`), QUICK_ATTACH_MS).unref()),
+          ]);
       if (typeof device === 'string')
         return { unavailable: `no app attached on port ${port} (${device}): open the development build on a booted Simulator or emulator` };
       const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
