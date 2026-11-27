@@ -580,7 +580,8 @@ A simulator's or an emulator's own transitions, and a host's animations on its o
 clock, keep moving after the app is quiet; `--still <ms>` takes the frame again
 until two in a row are the same, that many ms apart, and the frame's JSON says
 whether it stopped (`still`). For frames compared pixel by pixel across two runs
-or two hosts: `--screenshots --frames png --settle 700 --still 300`. A screen that
+or two hosts: `--screenshots --frames png --settle 700 --still 300` (over MCP,
+`case_run` with `frames`, `settle` and `still`). A screen that
 moves on by itself (a success screen that prints, then leaves) is still caught at
 another moment on each side.
 

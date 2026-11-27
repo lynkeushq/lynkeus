@@ -1104,7 +1104,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt, and `progress.ndjson`. |
 | `--no-app-events` | | With `--out`: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen, and frames that two runs compare should not have it. |
 | `--screenshots` | | With `--out`: a frame of the screen after every app step. |
-| `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. |
+| `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. Over MCP, `case_run` takes `settle`, `still` and `frames` too. |
 | `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
 | `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
 | `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (Lynkeus FastSim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
