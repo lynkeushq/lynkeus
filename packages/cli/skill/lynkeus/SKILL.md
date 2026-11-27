@@ -22,7 +22,7 @@ A failed step answers with its error and the screen it failed on (`--verbose` fo
 
 ## Sections
 
-Each topic lists its sections; each answers one question in a few lines.
+Read a section when the task reaches it, not up front: each answers one question in a few lines.
 
 - cases: [format](cases/format.md), [targets](cases/targets.md) (testIDs, text matching), [steps](cases/steps.md), [commands](cases/commands.md) (`qa.register`, `app.call`), [relaunch](cases/relaunch.md), [on-blocks](cases/on-blocks.md), [macros](cases/macros.md), [interruptions](cases/interruptions.md), [mocks](cases/mocks.md)
 - targets: [overview](targets/overview.md) (which target for a case), [project-targets](targets/project-targets.md) (`cases.targets`, `--on targets`), [on-all](targets/on-all.md), [headless](targets/headless.md), [device](targets/device.md), [fastsim](targets/fastsim.md), [one-run](targets/one-run.md) (`case status`, `case stop`)
