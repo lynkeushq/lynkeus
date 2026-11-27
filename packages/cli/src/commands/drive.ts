@@ -13,9 +13,9 @@ import { describeFindings, lintScreen } from '../knowledge/lint.js';
 import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
-import { define } from '../registry.js';
+import { type Base, define } from '../registry.js';
 import { awayNote, onPhone, whyFor, whyScope } from '../runtime.js';
-import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
+import { bareWordNote, expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
 const SCOPE_FLAGS = {
@@ -110,6 +110,22 @@ export const awayAfter = async (device: Device, opened: string | undefined): Pro
     });
   }
   return awayNote(device.server, opened);
+};
+
+/** The note `bareWordNote` makes about a bare word, against the routes the route graph and the screens read so far name. */
+const bareWordOnScreen = async (ctx: Base, device: Device, raw: string): Promise<string | undefined> => {
+  if (raw.startsWith('route:') || !isRoute(raw)) return undefined;
+  const known = new Set<string>(screens.observed(lynkeusDir(ctx.root)).keys());
+  try {
+    for (const route of Object.keys(ctx.graph().screens)) known.add(route);
+  } catch {
+    // No route graph: the screens read so far are all that is known.
+  }
+  const screen = await device.screen().catch(() => undefined);
+  if (!screen) return undefined;
+  if (screen.route) known.add(screen.route);
+  const texts = screen.elements.filter((e) => !e.hidden || e.hidden === 'inert').flatMap((e) => [e.text, e.accessibilityLabel].filter((t): t is string => !!t));
+  return bareWordNote(raw, texts, known);
 };
 
 export const driveCommands = [
@@ -295,17 +311,24 @@ export const driveCommands = [
       if (!raw && !anyOf?.length) throw new Error('wait needs a route, target, milliseconds, or --anyOf');
       // Which of several should leave? Ambiguous, and the agent would wait for presence instead.
       if (anyOf?.length && ctx.flags.gone) throw new Error('wait --gone takes one target, not --anyOf');
-      return {
-        json: await (await ctx.device()).waitFor({
-          ...(raw ? (isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }) : {}),
-          ...(anyOf?.length ? { anyOf } : {}),
-          gone: ctx.flags.gone ? true : undefined,
-          scroll: ctx.flags.scroll ? true : undefined,
-          ...(ctx.flags.enabled ? { enabled: true } : {}),
-          timeoutMs: ctx.flags.timeout as number,
-          since: ctx.flags.since as number | undefined,
-        }),
-      };
+      const device = await ctx.device();
+      try {
+        return {
+          json: await device.waitFor({
+            ...(raw ? (isRoute(raw) ? { route: routeOf(raw) } : { target: scopedTarget(raw, ctx.flags) }) : {}),
+            ...(anyOf?.length ? { anyOf } : {}),
+            gone: ctx.flags.gone ? true : undefined,
+            scroll: ctx.flags.scroll ? true : undefined,
+            ...(ctx.flags.enabled ? { enabled: true } : {}),
+            timeoutMs: ctx.flags.timeout as number,
+            since: ctx.flags.since as number | undefined,
+          }),
+        };
+      } catch (error) {
+        const note = raw && !ctx.flags.gone ? await bareWordOnScreen(ctx, device, raw) : undefined;
+        if (!note || !(error instanceof Error)) throw error;
+        throw new Error(`${error.message} — ${note}`);
+      }
     },
   }),
   define({
@@ -457,11 +480,13 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const expected = { ...expectedOf(ctx.args[0]), ...(ctx.flags.route ? { route: ctx.flags.route as string } : {}) };
+      const device = await ctx.device();
       // About the last case or command run on this app, not whatever failed before it.
-      const scope = whyScope((await ctx.device()).server.port);
+      const scope = whyScope(device.server.port);
       const read = await whyFor(ctx, Object.keys(expected).length ? expected : undefined, scope?.at, scope?.since);
       const failed = scope?.failed ? `the last ${scope.case ? `case (${scope.case})` : 'command'} failed at ${scope.failed}` : undefined;
-      return [failed, read].filter(Boolean).join('\n') || '(no evidence available)';
+      const word = ctx.args[0] ? await bareWordOnScreen(ctx, device, ctx.args[0]) : undefined;
+      return [failed, word && `  • ${word}`, read].filter(Boolean).join('\n') || '(no evidence available)';
     },
   }),
   define({

@@ -56,3 +56,34 @@ export const expectedOf = (raw: string | undefined): Expected | undefined => {
   const t = parseTarget(raw);
   return 'testId' in t ? { testId: t.testId } : 'text' in t ? { text: t.text } : undefined;
 };
+
+const distance = (a: string, b: string): number => {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) next[j] = Math.min(row[j]! + 1, next[j - 1]! + 1, row[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length]!;
+};
+
+/**
+ * A bare capitalized word is read as a route; when the app has no route of that name Lynkeus knows of and a text on
+ * screen is that word or close to it, the author most likely meant the text. `known` is empty when nothing is known.
+ */
+export const bareWordNote = (raw: string, texts: string[], known: Set<string>): string | undefined => {
+  if (raw.startsWith(ROUTE_PREFIX) || !isRoute(raw) || known.has(raw)) return undefined;
+  const word = raw.toLowerCase();
+  const shown = [...new Set(texts.map((t) => t.trim()).filter((t) => t.length > 0 && t.length <= 60))];
+  const exact = shown.find((t) => t.toLowerCase() === word);
+  const close = exact
+    ? undefined
+    : shown
+        .map((t) => ({ t, d: distance(t.toLowerCase(), word) }))
+        .filter(({ t, d }) => d <= Math.max(1, Math.floor(word.length / 4)) || t.toLowerCase().split(/\W+/).includes(word))
+        .sort((a, b) => a.d - b.d)[0]?.t;
+  if (!exact && !close) return undefined;
+  const route = known.size ? `the app has no route ${raw} that Lynkeus knows of` : 'Lynkeus knows no routes of this app to check it against';
+  const text = exact ? `${JSON.stringify(exact)} is a text on screen` : `the closest text on screen is ${JSON.stringify(close)}`;
+  return `${raw} was read as a route (a bare word that starts with a capital is one), and ${route}; ${text}: quote it ('"${exact ?? close}"') to mean the text, or write route:${raw} for a route`;
+};
