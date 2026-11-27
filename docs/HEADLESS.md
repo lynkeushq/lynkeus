@@ -39,6 +39,15 @@ run (as `lynkeus ci` does), logging to `lynkeus-headless-<pid>-<port>.log` in
 the temporary folder. A case that finds no app on a headless host is never put
 down to a bundle with the agent off: a headless host always runs it.
 
+A headless host that serves several cases (`--host`, or `--keep-hosts` with a
+command that runs `headless start`) is reset before each case after its first,
+about 200 ms: mocked storage (MMKV, keychain, AsyncStorage), network rules,
+clock, offline state and native mocks are emptied, the app's own `reset`
+command runs if it registered one, and the app is mounted again. State the
+app keeps at module scope (a query cache, a store made at import) survives,
+since modules load once per host; an app whose cases see each other through
+it wants `--host-command` without `--keep-hosts`, a host per case.
+
 When the host crashes, the last thing printed is what the error usually
 means and the fix. `lynkeus headless doctor --explain "<first line>"` does the
 same for an error you paste.

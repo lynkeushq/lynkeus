@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-import { agentSilent, heapPast, hostLost, selfHeadlessCommand, startsHeadless } from '../commands/cases.js';
+import { agentSilent, heapPast, hostLost, resetSharedHost, selfHeadlessCommand, startsHeadless } from '../commands/cases.js';
 
 const server = (connected: boolean, attachesWithin?: number) => ({
   connected,
@@ -72,4 +72,25 @@ test('a host command that starts headless is told from one that does not', () =>
   assert.match(selfHeadlessCommand(), /^LYNKEUS_PORT=\{port\} /);
   assert.equal(startsHeadless('/opt/fastsim/bin/fastsim-run bundle {port}'), false);
   assert.equal(startsHeadless(undefined), false);
+});
+
+test('a shared host is reset before the next case, and a host that cannot reset does not stop the run', async () => {
+  const sent: string[] = [];
+  const lines: string[] = [];
+  const device = {
+    command: async (method: string) => {
+      sent.push(method);
+      return null;
+    },
+    idle: async () => ({}),
+  };
+  const base = { device: async () => device } as unknown as Parameters<typeof resetSharedHost>[0];
+  assert.equal(await resetSharedHost(base, (l) => lines.push(l)), true);
+  assert.deepEqual(sent, ['reset']);
+  assert.match(lines[0] ?? '', /shared host was reset/);
+  const broken = {
+    device: async () => ({ ...device, command: async () => Promise.reject(new Error('no command reset registered')) }),
+  } as unknown as Parameters<typeof resetSharedHost>[0];
+  assert.equal(await resetSharedHost(broken, (l) => lines.push(l)), false);
+  assert.match(lines[1] ?? '', /could not be reset for this case: no command reset registered/);
 });

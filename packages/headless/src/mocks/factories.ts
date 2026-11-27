@@ -255,7 +255,18 @@ export const localize =
 
 export const reanimated: MockFactory = () => require('react-native-reanimated/mock');
 
-export const asyncStorage: MockFactory = () => require('@react-native-async-storage/async-storage/jest/async-storage-mock');
+// The library's own mock keeps what was written in one object for the process; a reset empties it, as for MMKV.
+export const asyncStorage: MockFactory = () => {
+  const mock = require('@react-native-async-storage/async-storage/jest/async-storage-mock') as {
+    __INTERNAL_MOCK_STORAGE__?: Record<string, unknown>;
+    default?: { __INTERNAL_MOCK_STORAGE__?: Record<string, unknown> };
+  };
+  onReset(() => {
+    const storage = mock.__INTERNAL_MOCK_STORAGE__ ?? mock.default?.__INTERNAL_MOCK_STORAGE__;
+    for (const key of Object.keys(storage ?? {})) delete storage![key];
+  });
+  return mock;
+};
 
 // Nothing installs the library's own mock, and under jest the real
 // scheduleOnRN silently drops the function: every "when the animation

@@ -147,6 +147,26 @@ export const agentSilent = (report: Pick<CaseReport, 'result' | 'steps'>, host: 
   return 'is running the app, but no Lynkeus agent dialed in: the bundle has the agent off (auto() or <Lynkeus> with enabled false; before lynkeus-agent 0.7.6 a FastSim bundle, a release build, left it off unless enabled said otherwise) or was made without it';
 };
 
+/**
+ * Starts a case on a headless host an earlier case used, as on a host of its own: the host's reset empties its mocked
+ * storage (MMKV, keychain, AsyncStorage), network rules, clock, offline state and native mocks, runs the app's own
+ * `reset` command when it registered one, and mounts the app again. What the app keeps at module scope survives.
+ */
+export const resetSharedHost = async (base: Base, log: (line: string) => void): Promise<boolean> => {
+  const started = Date.now();
+  try {
+    const device = await base.device();
+    await device.command('reset');
+    // The remount is done when reset answers; a short quiet lets the first effects (fonts, i18n, a stored session) land.
+    await device.idle({ quietMs: 100, timeoutMs: 5000 }).catch(() => undefined);
+    log(`  ↺ the shared host was reset for this case (${Date.now() - started} ms)`);
+    return true;
+  } catch (error) {
+    log(`  ↺ the shared host could not be reset for this case: ${(error as Error).message}`);
+    return false;
+  }
+};
+
 /** The command a run uses to start a headless host of its own on a port: this same CLI, so the host matches it. */
 export const selfHeadlessCommand = (): string =>
   `LYNKEUS_PORT={port} ${JSON.stringify(process.execPath)} ${JSON.stringify(process.argv[1] ?? 'lynkeus')} headless start`;
@@ -836,6 +856,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         : undefined;
     let next = 0;
     const turns = new Turns();
+    // The shared hosts that have served a case: the next case on one starts with a reset.
+    const served = new WeakSet<ChildProcess>();
     const job = async (index: number) => {
       // Each job keeps its own connection to the fixtures server, warm from one case to the next.
       const own = index === 0 ? fixtures : declared && !dry ? new Fixtures(declared, home) : undefined;
@@ -880,6 +902,11 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                     .device()
                     .then((d) => d.idle({ quietMs: 300, timeoutMs: 5000 }))
                     .catch(() => undefined);
+                // A headless host shared by cases (`--host`, kept hosts) still holds what the last case left: mocked
+                // storage, network rules, the clock, the screen. It starts this one as a host of its own would.
+                const shared = headlessHosts && !host ? (keepHosts ? kept[index] : runHost) : undefined;
+                const reset = shared !== undefined && served.has(shared) && (await resetSharedHost(scoped.base, log));
+                if (shared) served.add(shared);
                 const report = await runCase(c, {
                   base: scoped.base,
                   config,
@@ -891,7 +918,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   prepared,
                   continue: !!ctx.flags.continue,
                   seed: launch.seed,
-                  routes: seenDir ? (host ? 'fresh' : true) : false,
+                  routes: seenDir ? (host || reset ? 'fresh' : true) : false,
                   traces,
                   nativeLogs: native,
                   ownHost: !!hostCommand || !!runHost,
@@ -1328,7 +1355,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);
