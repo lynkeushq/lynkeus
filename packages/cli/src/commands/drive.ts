@@ -15,7 +15,7 @@ import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { type Base, define } from '../registry.js';
-import { awayNote, onPhone, whyFor, whyScope } from '../runtime.js';
+import { awayNote, onPhone, platformOf, whyFor, whyScope } from '../runtime.js';
 import { bareWordNote, expectedOf, isRoute, parseTarget, partMatchNote, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
@@ -494,17 +494,26 @@ export const driveCommands = [
     summary: 'Why the last thing failed: screen, requests and trace read as rules',
     details: 'Runs by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.',
     positionals: [{ name: 'target', help: `what was expected: Route | ${TARGET_HELP}` }],
-    flags: { route: { type: 'string', help: 'the route that was expected', value: 'Route' } },
+    flags: {
+      route: { type: 'string', help: 'the route that was expected', value: 'Route' },
+      on: { type: 'string', help: 'the lane to explain when two apps share the port: ios or android (default: the attached app’s)', value: 'platform' },
+    },
     needs: 'app',
     run: async (ctx) => {
       const expected = { ...expectedOf(ctx.args[0]), ...(ctx.flags.route ? { route: ctx.flags.route as string } : {}) };
       const device = await ctx.device();
       // About the last case or command run on this app, not whatever failed before it.
-      const scope = whyScope(device.server.port);
+      const lane = (ctx.flags.on as string | undefined) ?? platformOf(device);
+      const scope = whyScope(device.server.port, lane);
       const read = await whyFor(ctx, Object.keys(expected).length ? expected : undefined, scope?.at, scope?.since);
+      const attachedOn = platformOf(device);
+      const elsewhere =
+        lane && attachedOn && lane !== attachedOn
+          ? `the app attached here runs on ${attachedOn}; the screen, requests and trace below are its, the case is ${lane}'s`
+          : undefined;
       const failed = scope?.failed ? `the last ${scope.case ? `case (${scope.case})` : 'command'} failed at ${scope.failed}` : undefined;
       const word = ctx.args[0] ? await bareWordOnScreen(ctx, device, ctx.args[0]) : undefined;
-      return [failed, word && `  • ${word}`, read].filter(Boolean).join('\n') || '(no evidence available)';
+      return [elsewhere, failed, word && `  • ${word}`, read].filter(Boolean).join('\n') || '(no evidence available)';
     },
   }),
   define({

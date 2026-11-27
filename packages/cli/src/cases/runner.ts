@@ -29,7 +29,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, notePrinted, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import { execute, notePrinted, onPhone, platformOf, scopeWhy, unreachable, whyFor } from '../runtime.js';
 import * as screens from '../knowledge/screens.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
@@ -1623,7 +1623,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           : [],
       );
       if (logs.length > 0) report.logs = logs;
-      notePrinted(d.server.port, logs);
+      notePrinted(d.server.port, logs, platformOf(d));
     }
     const native = options.nativeLogs?.take() ?? [];
     // In the order they were printed, whichever side printed them.
@@ -2114,12 +2114,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   if (!options.dry && !options.setupOnly) {
     const broke = steps.find((s) => s.status === 'failed');
-    scopeWhy((await device().catch(() => undefined))?.server?.port, {
-      at: started,
-      since: mark,
-      case: c.id,
-      ...(broke ? { failed: `${broke.step}: ${(broke.error ?? '').split('\n')[0]}` } : {}),
-    });
+    const ran = await device().catch(() => undefined);
+    scopeWhy(
+      ran?.server?.port,
+      {
+        at: started,
+        since: mark,
+        case: c.id,
+        ...(broke ? { failed: `${broke.step}: ${(broke.error ?? '').split('\n')[0]}` } : {}),
+      },
+      platformOf(ran),
+    );
   }
   return report;
 };

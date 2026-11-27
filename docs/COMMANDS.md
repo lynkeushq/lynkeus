@@ -182,7 +182,7 @@ Relaunch the app and wait for the agent
 |---|---|
 | `--clean` | run the app's reset command first, if it is attached |
 
-### `lynkeus why [target] [--route <Route>]`
+### `lynkeus why [target] [--route <Route>] [--on <platform>]`
 
 Why the last thing failed: screen, requests and trace read as rules
 
@@ -195,6 +195,7 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 | Flag | |
 |---|---|
 | `--route <Route>` | the route that was expected |
+| `--on <platform>` | the lane to explain when two apps share the port: ios or android (default: the attached app’s) |
 
 ### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 

@@ -318,3 +318,31 @@ test('a case run on a FastSim bundle older than the app, with no fastsim-bundle 
   assert.equal(fs.existsSync(path.join(bundle, 'hosts')), false);
   p.free();
 });
+
+test('why reads the case of the attached app’s platform, not the other app on the same port', async () => {
+  const { scopeWhy } = await import('../runtime.js');
+  const port = 8123;
+  const now = Date.now();
+  scopeWhy(port, { at: now - 1000, case: 'login', failed: 'app.press #go: ios broke' }, 'ios');
+  scopeWhy(port, { at: now - 500, case: 'checkout', failed: 'app.press #pay: android broke' }, 'android');
+  const on = (platform: string) =>
+    ({
+      server: { port, hello: { platform } },
+      screen: async () => ({ route: 'Home', elements: [] }),
+      requests: async () => ({ requests: [], inFlight: 0 }),
+      trace: async () => ({ events: [] }),
+    }) as unknown as Device;
+  const base = (platform: string): Base => ({
+    root: os.tmpdir(),
+    config: {},
+    attached: true,
+    err: () => undefined,
+    graph: () => ({}) as never,
+    device: async () => on(platform),
+  });
+  assert.match((await execute(['why'], base('ios'))).text ?? '', /^the last case \(login\) failed at app\.press #go: ios broke/);
+  assert.match((await execute(['why'], base('android'))).text ?? '', /^the last case \(checkout\) failed at app\.press #pay: android broke/);
+  const picked = (await execute(['why', '--on', 'ios'], base('android'))).text ?? '';
+  assert.match(picked, /case is ios's/);
+  assert.match(picked, /the last case \(login\) failed/);
+});
