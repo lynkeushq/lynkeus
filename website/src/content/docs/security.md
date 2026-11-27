@@ -114,7 +114,7 @@ lynkeus: the app passed a token and it is empty, so the agent stays off. …
 
 This case is common, not exotic. React Native gives the app no environment, so `process.env.LYNKEUS_TOKEN` is `undefined` inside a bundle unless something writes it there. The `lynkeus-agent/babel` plugin does, with `LYNKEUS_TOKEN` from Metro's environment or else the project's `.lynkeus/token`, and `lynkeus init` adds it to `babel.config.js`. Metro must be started once with `--reset-cache` after the value is made or changes.
 
-The plugin writes the token into a development bundle only. A release bundle is left alone: a developer's secret has no place in a build that ships.
+The plugin writes the token into a development bundle only. A release bundle is left alone: a developer's secret has no place in a build that ships. The one release bundle it writes into is one made by `fastsim-bundle` for Lynkeus FastSim, which sets `LYNKEUS_FASTSIM_BUNDLE=1` while it bundles. Your store build never sets that variable, so it never gets the token.
 
 :::note[Since 0.3.0]
 Before 0.3.0 an empty token meant "no token", and the agent served any driver that connected. In a React Native app without the plugin, that was every app that read `process.env.LYNKEUS_TOKEN`.

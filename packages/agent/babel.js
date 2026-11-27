@@ -6,7 +6,9 @@
  *   plugins: ['lynkeus-agent/babel']
  *
  * A production transform is left alone: the secret of a developer's machine
- * has no place in a release bundle.
+ * has no place in a release bundle. The one exception is a bundle made for Lynkeus
+ * FastSim, which is a release bundle by design: `fastsim-bundle` says so with
+ * LYNKEUS_FASTSIM_BUNDLE=1, and a store build never sets it.
  */
 const fs = require('node:fs');
 const nodePath = require('node:path');
@@ -21,7 +23,7 @@ const fromFile = (root) => {
 };
 
 module.exports = ({ types: t, env }) => {
-  const production = env('production');
+  const production = env('production') && process.env.LYNKEUS_FASTSIM_BUNDLE !== '1';
   return {
     name: 'lynkeus-token',
     visitor: {

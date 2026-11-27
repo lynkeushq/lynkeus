@@ -63,7 +63,7 @@ auto({ token: process.env.LYNKEUS_TOKEN });
 
 El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN` o, si no está definida, del archivo `.lynkeus/token` que crea `lynkeus init`. Ese archivo queda fuera de git (`init` lo agrega al `.gitignore` de `.lynkeus`) y se escribe con permisos de lectura solo para quien lo creó.
 
-A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo: el token nunca se escribe en un build de producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
+A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo, con una excepción: el bundle que arma `fastsim-bundle` para Lynkeus FastSim, que es de release y se marca con `LYNKEUS_FASTSIM_BUNDLE=1` mientras se arma. El build que subes a la tienda no tiene esa variable, así que el token nunca llega a producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
 **Un token vacío no abre la puerta.** Si la app pasa un token y el valor llega vacío, porque falta el plugin o porque Metro arrancó sin la variable, el agente queda apagado y la app lo dice en su log. No se convierte en un agente sin token que atiende a cualquiera. Con una app que monta el agente sin `token` pasa igual. Atender sin token solo ocurre con la opción `allowUnauthenticated: true`, pensada para un entorno de pruebas aislado, al que ningún otro proceso llega.
 
@@ -87,7 +87,7 @@ Un componente que acepta órdenes de afuera no debe existir en la app que recibe
 |---|---|
 | `enabled` vale `enabledByDefault()` por defecto | Es verdadero solo en desarrollo (`__DEV__`) y en un host de Lynkeus FastSim, que marca su entorno con una variable global antes de que corra el código de la app; esa variable no existe en ningún otro lugar. Un bundle de tienda no tiene ninguna de las dos cosas, así que el agente no arranca. |
 | El cliente se carga solo cuando hace falta | El cliente es todo lo que lee la pantalla y habla con el driver. Solo se evalúa si `enabled` es verdadero, sea cual sea la forma en que la app importa el paquete y lo que Metro esté configurado para incorporar. Un bundle de producción lleva el paquete, y ese código nunca se ejecuta ahí. |
-| El token no viaja a producción | El plugin `lynkeus-agent/babel` escribe el token solo en un bundle de desarrollo. |
+| El token no viaja a producción | El plugin `lynkeus-agent/babel` escribe el token solo en un bundle de desarrollo o en uno armado por `fastsim-bundle`. |
 | iOS: `#if DEBUG` | La síntesis de toques usa una API privada de UIKit, la misma técnica en la que se apoyan KIF y Detox. Está envuelta en `#if DEBUG`: en un binario de producción esos símbolos no existen. No están desactivados; no están. |
 | Android: `FLAG_DEBUGGABLE` | El módulo nativo se niega a correr si la app no es depurable. |
 

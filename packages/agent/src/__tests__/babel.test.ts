@@ -14,6 +14,7 @@ describe('the babel plugin', () => {
   afterEach(() => {
     if (before === undefined) delete process.env.LYNKEUS_TOKEN;
     else process.env.LYNKEUS_TOKEN = before;
+    delete process.env.LYNKEUS_FASTSIM_BUNDLE;
   });
 
   it('writes the token where the app reads it, and nothing else', () => {
@@ -41,5 +42,13 @@ describe('the babel plugin', () => {
     expect(transform('production')).toContain('process.env.LYNKEUS_TOKEN');
     delete process.env.LYNKEUS_TOKEN;
     expect(transform('development')).toContain('process.env.LYNKEUS_TOKEN');
+  });
+
+  it('writes the token into a release bundle made for FastSim, and only that one', () => {
+    process.env.LYNKEUS_TOKEN = 'local-secret';
+    process.env.LYNKEUS_FASTSIM_BUNDLE = '1';
+    expect(transform('production')).toContain('token: "local-secret"');
+    process.env.LYNKEUS_FASTSIM_BUNDLE = 'yes';
+    expect(transform('production')).toContain('process.env.LYNKEUS_TOKEN');
   });
 });
