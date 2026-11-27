@@ -66,6 +66,7 @@ La app espera este mensaje para presentarse: no envía `hello` por su cuenta al 
 |---|---|
 | `protocolVersion` | La versión del protocolo que habla la app. |
 | `agentVersion` | La versión de `lynkeus-agent` en la app. Los agentes anteriores a este campo no lo envían. |
+| `appId` | El identificador propio de la app: el bundle id en iOS, el application id en Android. La CLI lo usa para traer la app al frente o relanzarla cuando no hay `app` en `lynkeus.config.json` ni `--app`. No lo envían los agentes anteriores ni los hosts que no tienen uno. |
 | `platform` | `ios`, `android` u otro texto. |
 | `native` | `true` si los toques son toques reales sintetizados. Solo ocurre en builds de depuración, sobre un simulador o un emulador. |
 | `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. Un host que puede filmar nombra aquí su comando `record`; es lo que mira `case run --video`. |

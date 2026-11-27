@@ -357,6 +357,7 @@ export type HelloEvent = {
     commands: string[];
     route?: string;
     app?: Record<string, unknown>;
+    appId?: string;
     locale?: string;
     nonce?: string;
     proof?: string;

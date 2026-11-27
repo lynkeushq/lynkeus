@@ -109,8 +109,9 @@ export class Device {
     return this.info;
   }
 
+  /** The id the caller gave (config, --app), else the one the app said in its hello. */
   get appId(): string | null {
-    return this.#appId;
+    return this.#appId ?? this.server.hello?.appId ?? this.#hello?.appId ?? null;
   }
 
   /** Learns where presses lead from what this connection reads anyway (see knowledge/walk.ts). */
@@ -159,10 +160,10 @@ export class Device {
    * the launcher intent), which keeps it as it was; only if it does not come back is it relaunched, losing its state.
    */
   async foreground(timeoutMs = FOREGROUND_MS): Promise<'returned' | 'relaunched'> {
-    const appId = this.#appId;
+    const appId = this.appId;
     if (!appId)
       throw new Error(
-        'the app is in the background and Lynkeus does not know its bundle id or application id to bring it back: set app in lynkeus.config.json, or pass --app',
+        'the app is in the background and Lynkeus does not know its bundle id or application id to bring it back: set app in lynkeus.config.json, or pass --app (the app’s agent did not say it either)',
       );
     const id = (await this.resolved()).id;
     this.#opened = undefined;
@@ -186,8 +187,11 @@ export class Device {
 
   /** Terminates the app and launches it again (simctl, adb), and waits for the new process to attach. */
   async relaunch(timeoutMs = 30_000): Promise<void> {
-    const appId = this.#appId;
-    if (!appId) throw new Error('Lynkeus does not know the app’s bundle id or application id to relaunch it: set app in lynkeus.config.json, or pass --app');
+    const appId = this.appId;
+    if (!appId)
+      throw new Error(
+        'Lynkeus does not know the app’s bundle id or application id to relaunch it: set app in lynkeus.config.json, or pass --app (the app’s agent did not say it either)',
+      );
     const id = (await this.resolved()).id;
     this.#opened = undefined;
     this.#walk?.acted(true);

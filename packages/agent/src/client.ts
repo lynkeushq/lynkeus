@@ -10,6 +10,7 @@ import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOC
 import { addDefault, host } from './registry';
 import { trackOpenedUrls } from './opened';
 import { trackRequests } from './requests';
+import { appId } from './native';
 import { readLogs, tapLogs } from './logs';
 import { readSdkCalls, tapSdks } from './sdks';
 import { record as trace } from './trace';
@@ -130,6 +131,7 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
+    ...(appId() ? { appId: appId() as string } : {}),
     ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
     locale: deviceLocale(),
     ...proof,
