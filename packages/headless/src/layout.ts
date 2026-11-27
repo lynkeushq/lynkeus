@@ -2,7 +2,7 @@
 // from character counts. Not pixel-accurate, but enough to tell a button on
 // screen from one off it or under an overlay.
 import type { Node as YogaNode, Yoga as YogaModule } from 'yoga-layout/load';
-import { HOST_IMAGE, HOST_INPUT, HOST_SCROLL, HOST_TEXT, SCREEN_CONTAINERS } from 'lynkeus-agent/hosts';
+import { HOST_IMAGE, HOST_INPUT, HOST_SCROLL, HOST_SWITCH, HOST_TEXT, SCREEN_CONTAINERS } from 'lynkeus-agent/hosts';
 import { flatStyle, isUnrendered } from 'lynkeus-agent/presentation';
 
 import { textOf, topScreenChild, type ReactTestInstance } from './tree.js';
@@ -161,6 +161,29 @@ const styleApplier = (Y: YogaModule) => {
 
 const appliers = new WeakMap<YogaModule, ReturnType<typeof styleApplier>>();
 
+const SIZING = ['width', 'height', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'position', 'minHeight', 'maxHeight', 'minWidth', 'maxWidth'];
+const fills = (style: Style): boolean => (num(style.flex) ?? 0) > 0 || (num(style.flexGrow) ?? 0) > 0 || style.height === '100%';
+
+/**
+ * A library's native view standing in a jest mock (a keyboard or gesture provider) has lost the style its real
+ * component gives it, and with no size of its own it collapses the screen it wraps to nothing: every control then
+ * lies on the one after it and reads as covered. One that only wraps a child meant to fill gets to fill, as on a
+ * device. A core View keeps React Native's rule: unstyled, it is as tall as its content.
+ */
+const fillsLikeItsChild = (instance: ReactTestInstance, style: Style, children: Box[]): boolean =>
+  !(
+    instance.type === 'View' ||
+    instance.type === 'RCTView' ||
+    HOST_TEXT.has(instance.type) ||
+    HOST_INPUT.has(instance.type) ||
+    HOST_SCROLL.has(instance.type) ||
+    HOST_IMAGE.has(instance.type) ||
+    HOST_SWITCH.has(instance.type)
+  ) &&
+  !SIZING.some((key) => style[key] !== undefined) &&
+  children.length === 1 &&
+  fills(flatStyle(children[0]!.instance.props));
+
 type Box = { node: YogaNode; instance: ReactTestInstance; children: Box[] };
 
 // Deeper than any real screen; a runaway tree must not blow the stack.
@@ -190,7 +213,13 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
     const box: Box = { node, instance, children: [] };
     // A node with a measure function cannot have children.
     if (HOST_TEXT.has(instance.type) || HOST_INPUT.has(instance.type)) return box;
-    const contentStyle: Style | undefined = scroller && instance.props.horizontal ? { flexDirection: 'row', alignSelf: 'flex-start' } : undefined;
+    // Jest's scroll view leaves `contentContainerStyle` off the view that holds the content; on a device it is there.
+    const contentStyle: Style | undefined = scroller
+      ? {
+          ...(instance.props.contentContainerStyle ? flatStyle({ style: instance.props.contentContainerStyle }) : undefined),
+          ...(instance.props.horizontal ? { flexDirection: 'row', alignSelf: 'flex-start' } : undefined),
+        }
+      : undefined;
     const top = SCREEN_CONTAINERS.has(instance.type) ? topScreenChild(instance) : undefined;
     for (const child of top === undefined ? instance.children : top ? [top] : []) {
       if (typeof child === 'string') continue;
@@ -198,6 +227,10 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
       if (!childBox) continue;
       node.insertChild(childBox.node, box.children.length);
       box.children.push(childBox);
+    }
+    if (fillsLikeItsChild(instance, style, box.children)) {
+      node.setFlexGrow(1);
+      node.setFlexShrink(1);
     }
     return box;
   };

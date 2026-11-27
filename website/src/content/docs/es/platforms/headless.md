@@ -29,6 +29,8 @@ La diferencia está en qué es real:
 
 Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único que cambia es cómo arranca la app.
 
+Los componentes de reemplazo de Jest pierden algunos estilos que el dispositivo sí aplica, y el host los repone cuando puede deducirlos. El `contentContainerStyle` de un ScrollView va a la vista que contiene el contenido. Una vista nativa de una biblioteca que no tiene tamaño propio (un proveedor de teclado o de gestos) y solo envuelve una pantalla que debe ocupar todo el espacio, ocupa ese espacio como ella. Sin esto, una pantalla entera quedaba con altura cero, cada campo se encimaba con el siguiente, y un control que figuraba como tapado hacía que cada toque o escritura esperara a que se destapara.
+
 ## Antes de empezar
 
 - Node 22 o posterior.

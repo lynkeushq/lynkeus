@@ -116,6 +116,9 @@ existing entry.
 - **Get**: no simulator, no build, start in ~40 s, several apps at once
   (`LYNKEUS_PORT`), a real backend if you point it at one, and the same screen
   reading and touches as on a device, layout included, computed with Yoga.
+  Where jest's stand-ins drop a style a device applies, the layout puts it
+  back: a scroll view's `contentContainerStyle` on its content view, and a
+  library's unstyled native view that only wraps a filling child fills too.
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 

@@ -316,6 +316,55 @@ describe('headlessBackend with Yoga layout', () => {
     expect(byTestId(snapshot(), 'half').frame).toMatchObject({ w: 195, h: 84 });
   });
 
+  it("a library's unstyled native wrapper fills like the screen it wraps, so a form's fields do not pile up", async () => {
+    // A jest mock of a provider (a keyboard controller, say) renders its native view without the style that sizes it.
+    const Provider = 'KeyboardProvider' as unknown as ComponentType<{ children?: ReactElement }>;
+    const Field = ({ id }: { id: string }) => (
+      <Pressable accessibilityLabel={id} style={{ marginBottom: 24 }} onPress={noop}>
+        <Text>{id}</Text>
+        <View style={{ borderWidth: 1 }}>
+          <TextInput testID={id} style={{ height: 24 }} placeholder={id} onChangeText={noop} />
+        </View>
+      </Pressable>
+    );
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <Provider>
+          <View style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 48, paddingHorizontal: 24 }}>
+              <Field id="email" />
+              <Field id="password" />
+              <Pressable testID="log-in" style={{ minHeight: 48 }} onPress={noop}>
+                <Text>Log in</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </Provider>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    const email = byTestId(elements, 'email');
+    const password = byTestId(elements, 'password');
+    const button = byTestId(elements, 'log-in');
+    expect(password.covered).toBeUndefined();
+    expect(email.frame.x).toBe(25);
+    expect(password.frame.y).toBeGreaterThan(email.frame.y + email.frame.h);
+    expect(button.frame.y).toBeGreaterThan(password.frame.y + password.frame.h);
+  });
+
+  it('an unstyled core View is as tall as its content, as on a device', async () => {
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View>
+          <View testID="screen" style={{ flex: 1 }} />
+        </View>
+      </View>,
+      yoga,
+    );
+    expect(byTestId(snapshot(), 'screen').frame.h).toBe(0);
+  });
+
   it('a later, larger sibling over an element marks it covered', async () => {
     const { snapshot } = await mount(
       <View style={{ flex: 1 }}>

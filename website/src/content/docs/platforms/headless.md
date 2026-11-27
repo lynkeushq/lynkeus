@@ -176,6 +176,8 @@ With `--host`, the run also looks after the host. If it dies during a case (out 
 
 Inside, the agent is the same code as on a device with a different backend underneath. It reads the same React tree. Layout is computed with Yoga, so elements have frames, a swipe across a scroller scrolls it, and the frames follow the scroll. The host also respects what a device would refuse: a swipe on an element that is not presented fails.
 
+Jest's stand-ins lose some of the styles a device applies, and the host puts them back where it can tell: a scroll view's `contentContainerStyle` goes on the view that holds its content, and a library's native view with no size of its own (a keyboard or gesture provider) that only wraps a screen meant to fill fills like it. Without that, a whole screen collapsed to no height, each field lay on the next, and a control read as covered made every press and type into it wait for it to clear.
+
 The host renders without `React.StrictMode`. Production has none, and its double renders and double-mounted effects would double every request and every millisecond the host measures. `"strictMode": true` in `lynkeus.config.json` keeps it.
 
 ## The entry in detail
