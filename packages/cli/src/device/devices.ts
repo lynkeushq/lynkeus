@@ -77,13 +77,19 @@ export const pickAndroidDevice = async (wanted?: string): Promise<DeviceInfo> =>
   return device;
 };
 
+/** launchd lists an app as `<pid> <status> UIKitApplication:<bundle id>[…]`, with `-` for a pid once it has exited. */
+export const runsInLaunchctl = (listing: string, appId: string): boolean =>
+  listing.split('\n').some((line) => {
+    const [pid, , label] = line.trim().split(/\s+/);
+    return !!label?.startsWith(`UIKitApplication:${appId}[`) && /^\d+$/.test(pid ?? '');
+  });
+
 /** Whether the app with this id has a process on the device now: asked of the OS, false when it cannot say. */
 export const runsApp = async (device: DeviceInfo, appId: string): Promise<boolean> => {
   try {
     if (device.platform === 'android') return (await run('adb', ['-s', device.id, 'shell', 'pidof', appId])).stdout.trim().length > 0;
-    // launchd names an app's job UIKitApplication:<bundle id>[…] while its process runs.
     const { stdout } = await run('xcrun', ['simctl', 'spawn', device.id, 'launchctl', 'list'], { maxBuffer: 8 * 1024 * 1024 });
-    return stdout.includes(`UIKitApplication:${appId}[`);
+    return runsInLaunchctl(stdout, appId);
   } catch {
     return false;
   }

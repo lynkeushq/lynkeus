@@ -92,7 +92,14 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? currentConfig().app;
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
-    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(currentConfig()), accepts });
+    // Set once the app attached: a call made while it is away asks the device whether its process still runs (reloading).
+    let driven: Device | undefined;
+    const server = new AgentServer({
+      token: readToken(root),
+      port: port ?? portFromEnv(currentConfig()),
+      accepts,
+      stillRunning: async () => (driven ? driven.processRunning() : false),
+    });
     server.on('hello', (hello: HelloEvent) => {
       const identity = helloIdentity(hello);
       // A context that drives one platform's app shares the port by design: another app there is not a switch.
@@ -114,6 +121,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     if (g.launch && appId) {
       const d = learning(new Device(await picking, { appId, server }));
       await d.launchApp(appId, { fresh: true });
+      driven = d;
       attachedIn(d);
       return d;
     }
@@ -139,6 +147,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const locate = async (said: HelloEvent): Promise<DeviceInfo> =>
       onDevice(said) ? appDevice(said.platform === 'android' ? 'android' : 'ios', appId ?? said.appId, wantedDevice) : standIn(said);
     const d = learning(new Device(standIn(hello), { appId: appId ?? null, server, locate }));
+    driven = d;
     attachedIn(d);
     if (onDevice(hello))
       void d

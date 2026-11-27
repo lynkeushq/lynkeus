@@ -48,6 +48,14 @@ export type AgentServerOptions = {
    */
   goneMs?: number;
   /**
+   * Asked once `goneMs` has passed with the app gone: whether its process still runs. One that does is loading or
+   * reloading its JavaScript (a Fast Refresh, a dev client fetching a bundle), not crashed: calls then wait up to
+   * `reloadMs` from when it left.
+   */
+  stillRunning?: () => Promise<boolean>;
+  /** How long calls wait for an app whose process still runs to dial back in, counted from when it left (default 60000 ms). */
+  reloadMs?: number;
+  /**
    * Which apps this server drives, by what they say in hello (`platform: 'android'`, say). Servers in one process may
    * share a port when each says which apps it takes: an app goes to the one that accepts it, else to the one that takes
    * any. Every server on a port proves the same token.
@@ -99,6 +107,10 @@ export class AgentServer extends EventEmitter {
   #graceTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectGraceMs: number;
   #goneMs: number;
+  #reloadMs: number;
+  #stillRunning: (() => Promise<boolean>) | undefined;
+  /** Until when calls wait for an app started again on purpose (expectBack), whatever goneMs says. */
+  #backBy: number | null = null;
   #candidates = 0;
   /** When the attached app disconnected; null while one is attached, or before any was. */
   #goneSince: number | null = null;
@@ -113,6 +125,8 @@ export class AgentServer extends EventEmitter {
     this.#token = options.token;
     this.#reconnectGraceMs = options.reconnectGraceMs ?? 2500;
     this.#goneMs = options.goneMs ?? 10_000;
+    this.#reloadMs = options.reloadMs ?? 60_000;
+    this.#stillRunning = options.stillRunning;
     this.#accepts = options.accepts;
   }
 
@@ -128,6 +142,14 @@ export class AgentServer extends EventEmitter {
   /** An app was attached and has disconnected without dialing back in: it crashed, was closed, or is reloading. */
   get gone(): boolean {
     return this.#goneSince !== null && !this.connected;
+  }
+
+  /**
+   * The app was started again on purpose (a relaunch, a reload asked for): calls wait up to `ms` from now for its
+   * hello, instead of failing as gone once `goneMs` has passed since the old process left.
+   */
+  expectBack(ms: number): void {
+    this.#backBy = Date.now() + ms;
   }
 
   /** The app's AppState as it last said (`active`, `background`…); undefined from an agent that does not say. */
@@ -233,10 +255,15 @@ export class AgentServer extends EventEmitter {
       // in front again) waits for its hello itself.
       const goneSince = this.#goneSince;
       if (goneSince !== null) {
-        const wait = Math.min(timeoutMs, goneSince + this.#goneMs - Date.now());
-        if (wait <= 0) throw this.#goneError(goneSince);
+        let until = Math.max(goneSince + this.#goneMs, this.#backBy ?? 0);
+        // Past the window, an app whose process still runs is loading its JavaScript: it gets longer, bounded.
+        const loading =
+          until <= Date.now() && goneSince + this.#reloadMs > Date.now() && this.#stillRunning !== undefined && (await this.#stillRunning().catch(() => false));
+        if (loading) until = goneSince + this.#reloadMs;
+        const wait = Math.min(deadline - Date.now(), until - Date.now());
+        if (wait <= 0) throw this.#goneError(goneSince, loading);
         await this.waitForApp(wait).catch(() => {
-          throw this.#goneError(goneSince);
+          throw this.#goneError(goneSince, loading);
         });
       } else await this.waitForApp(timeoutMs);
       socket = this.#socket;
@@ -259,11 +286,15 @@ export class AgentServer extends EventEmitter {
     return result;
   }
 
-  #goneError(since: number): AgentError {
+  #goneError(since: number, running = false): AgentError {
     const left = `it disconnected ${((Date.now() - since) / 1000).toFixed(1)} s ago and has not dialed back in`;
-    return this.#appState === 'background'
-      ? new AgentError(`${BACKGROUND} and let go of the driver: ${left}`, 'background')
-      : new AgentError(`the app is gone (crashed or closed): ${left}`, 'gone');
+    if (this.#appState === 'background') return new AgentError(`${BACKGROUND} and let go of the driver: ${left}`, 'background');
+    if (running)
+      return new AgentError(
+        `the app is still running but its JavaScript has not attached again: ${left} (Metro still bundling, a red screen, or a reload that left the agent out)`,
+        'loading',
+      );
+    return new AgentError(`the app is gone (crashed or closed): ${left}`, 'gone');
   }
 
   // Why a call got no answer, when the app says or its silence does.
@@ -376,6 +407,7 @@ export class AgentServer extends EventEmitter {
           owner.#unanswered = false;
           owner.#refused = 0;
           owner.#goneSince = null;
+          owner.#backBy = null;
           owner.#appState = typeof owner.#hello.appState === 'string' ? owner.#hello.appState : undefined;
           owner.#heard++;
           socket.send(

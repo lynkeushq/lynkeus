@@ -210,6 +210,12 @@ In a run, the case that leaves the app in the background is the one whose failur
 
 **Fix.** Update `lynkeus-agent` and rebuild the app. The fix is in the native module, so a Metro reload is not enough.
 
+### `the app is gone (crashed or closed)` right after a relaunch or a reload
+
+**Why.** The app's connection closed and it has not dialed back in. An app that just left gets 10 seconds; after a relaunch Lynkeus made (`app.relaunch`, the relaunch before a case, bringing the app back), the commands that follow wait up to 60 seconds. Past those 10 seconds, Lynkeus asks the Simulator or emulator whether the app's process still runs: if it does, the app is loading or reloading its JavaScript (a Fast Refresh, a development build fetching its bundle from Metro), and the command waits for it, up to 60 seconds from when it left. Only an app whose process is gone fails as gone.
+
+**Fix.** When it says `the app is still running but its JavaScript has not attached again`, look at Metro and at the app: a bundle still building, a red screen, or a reload of a bundle without the agent. When it says the app is gone, the app crashed or was closed: open it again, or `lynkeus launch`.
+
 ### `No element matches …`
 
 **Why.** Nothing on screen answers the target. The most common causes are a `testID` that changed, a screen that has not arrived yet, and an element below the fold.

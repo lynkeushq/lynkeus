@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { test } from 'node:test';
 
+import { runsInLaunchctl } from '../device/devices.js';
 import { startRecorder } from '../device/platform.js';
 
 const fakeRecorder = () => {
@@ -36,4 +37,17 @@ test('a recorder that quits before it begins says why, and one that says nothing
   await startRecorder('adb', [], /Content area/, 100, () => silent);
   assert.ok(Date.now() - t0 >= 95);
   silent.emit('exit', 0);
+});
+
+test('launchctl tells a running app from one that exited, by its bundle id', () => {
+  const listing = [
+    'PID\tStatus\tLabel',
+    '4512\t0\tUIKitApplication:com.example.shop[3f2a][rb-legacy]',
+    '-\t0\tUIKitApplication:com.example.closed[91bc][rb-legacy]',
+    '77\t0\tcom.apple.springboard',
+  ].join('\n');
+  assert.equal(runsInLaunchctl(listing, 'com.example.shop'), true);
+  assert.equal(runsInLaunchctl(listing, 'com.example.closed'), false);
+  assert.equal(runsInLaunchctl(listing, 'com.example'), false);
+  assert.equal(runsInLaunchctl('', 'com.example.shop'), false);
 });

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
-import type { Platform } from './devices.js';
+import { type Platform, runsInLaunchctl } from './devices.js';
 import { iosLaunchArgv } from './launchArgs.js';
 
 const run = promisify(execFile);
@@ -14,6 +14,8 @@ export type Recording = { file: string; startedAt: number; stop: () => Promise<b
 
 export type PlatformLifecycle = {
   launchApp(deviceId: string, appId: string, fresh: boolean): Promise<void>;
+  /** Whether the app's process runs on the device now (it may be loading its JavaScript), whatever its agent says. */
+  running(deviceId: string, appId: string): Promise<boolean>;
   screenshot(deviceId: string, destination: string): Promise<void>;
   freezeChrome(deviceId: string): Promise<void>;
   recordVideo(deviceId: string, destination: string): Promise<Recording>;
@@ -72,6 +74,11 @@ const ios: PlatformLifecycle = {
     await run('xcrun', iosLaunchArgv(deviceId, appId, fresh));
   },
 
+  async running(deviceId, appId) {
+    const { stdout } = await run('xcrun', ['simctl', 'spawn', deviceId, 'launchctl', 'list'], { maxBuffer: 8 * 1024 * 1024 });
+    return runsInLaunchctl(stdout, appId);
+  },
+
   async screenshot(deviceId, destination) {
     await run('xcrun', ['simctl', 'io', deviceId, 'screenshot', destination]);
   },
@@ -126,6 +133,14 @@ const android: PlatformLifecycle = {
     if (fresh) await adb(deviceId, ['shell', 'am', 'force-stop', appId]);
     // Monkey aborts on a device with no physical keys unless system-key events are turned off.
     await adb(deviceId, ['shell', 'monkey', '--pct-syskeys', '0', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1']);
+  },
+
+  // pidof exits 1 when no process has that name.
+  async running(deviceId, appId) {
+    return adb(deviceId, ['shell', 'pidof', appId]).then(
+      ({ stdout }) => stdout.trim().length > 0,
+      () => false,
+    );
   },
 
   async screenshot(deviceId, destination) {

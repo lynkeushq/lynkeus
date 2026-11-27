@@ -92,6 +92,7 @@ const phoneApp = (options: { opensWith: 'url' | 'appstate'; comesBack?: boolean 
         server.emit('appstate', { event: 'appstate', state: 'active' });
       }, 5);
     },
+    running: async () => true,
     screenshot: async () => undefined,
     recordVideo: async () => {
       throw new Error('not filmed here');
