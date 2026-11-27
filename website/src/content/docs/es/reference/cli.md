@@ -24,6 +24,8 @@ Muchos comandos reciben un **objetivo**: el elemento sobre el que actúan. Se es
 
 Un objetivo con comillas propias es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`: `"12"` no es el elemento de índice 12, y `"Next"` no es la ruta `Next`. Sin comillas, lo que no empieza con `#` ni es un número o un punto también se lee como texto; las comillas hacen falta cuando la forma engaña, sobre todo en `wait` y `see`, donde una palabra con mayúscula inicial es una ruta.
 
+En un paso de un caso, la clave explícita `target:` siempre nombra un elemento: `app.wait: { target: TextField, scroll: true }` espera el texto `TextField`, salvo que la app tenga una ruta con ese nombre. Un valor suelto (`app.wait: TextField`) sigue siendo una ruta.
+
 El shell se queda con las comillas que encuentra, así que hay que protegerlas con otras: `lynkeus wait '"Next"'`. Lo mismo vale para `#`, que algunos shells tratan como comentario: `lynkeus press '#next-button'`.
 
 :::note[Desde 0.3.0]
@@ -303,6 +305,8 @@ lynkeus why [target] [--route <Route>]
 Explica por qué falló lo último que intentaste. Lee la pantalla, las últimas peticiones y la traza, y les aplica una serie de reglas: el objetivo está tapado, la sesión venció, el backend respondió 500. Las reglas sobre el backend (5xx, 401, 403, 429) leen solo lo que el servidor respondió: una respuesta que dio un mock tuyo no se le atribuye al backend.
 
 Se ejecuta solo después de un `press`, `wait`, `type`, `swipe` o `nav` que falla. Si le dices qué buscabas, la respuesta es más precisa.
+
+Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó a `"Sign Out"`), `why` ofrece los controles del mismo tipo que son nuevos en la pantalla, primero el más cercano a donde estaba el anterior si Lynkeus guardó su marco (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
 | Argumento | Qué es |
 |---|---|

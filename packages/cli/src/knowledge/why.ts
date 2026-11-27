@@ -24,6 +24,8 @@ export type Evidence = {
   sourceDiff?: string;
   /** What the app wrote to its console while the command ran (warnings and errors are read), oldest first. */
   logs?: { level: string; text: string }[];
+  /** The route's screen as Lynkeus last kept it (before this failure), where a text that is gone used to stand. */
+  lastSeen?: { elements: Element[]; frames: Record<string, { x: number; y: number; w: number; h: number }> };
 };
 
 /**
@@ -137,6 +139,35 @@ export const textChangeIn = (diff: string, text: string): { file: string; line: 
   return found();
 };
 
+const SAME_PLACE = 40;
+
+/**
+ * A text that is gone and has no look-alike: the controls of the same kind that are on screen now and were not before,
+ * nearest first to where the old one stood when its frame was kept.
+ */
+const replacements = (text: string, els: Element[], seen: NonNullable<Evidence['lastSeen']>): string[] => {
+  const want = fold(text);
+  const old = seen.elements.find((el) => [el.text, el.accessibilityLabel].some((t) => t && fold(t) === want));
+  if (!old) return [];
+  const before = new Set(
+    seen.elements
+      .flatMap((el) => [el.text, el.accessibilityLabel])
+      .filter((t): t is string => !!t)
+      .map(fold),
+  );
+  const at = old.testId ? seen.frames[old.testId] : undefined;
+  const centre = (f: { x: number; y: number; w: number; h: number }) => ({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
+  return els
+    .filter((el) => el.kind === old.kind && (!el.hidden || el.hidden === 'inert') && el.text && !before.has(fold(el.text)))
+    .map((el) => {
+      const gap = at && el.frame ? Math.hypot(centre(el.frame).x - centre(at).x, centre(el.frame).y - centre(at).y) : undefined;
+      return { el, gap };
+    })
+    .sort((a, b) => (a.gap ?? Infinity) - (b.gap ?? Infinity))
+    .slice(0, 2)
+    .map(({ el, gap }) => `maybe it is now: ${JSON.stringify(el.text)} (${el.kind}${gap !== undefined && gap <= SAME_PLACE ? ', same place' : ''})`);
+};
+
 const isTarget = (el: Element, { testId, text }: NonNullable<Evidence['target']>): boolean =>
   !!((testId && el.testId === testId) || (text && (el.text === text || el.accessibilityLabel === text)));
 
@@ -242,6 +273,10 @@ export const explain = (e: Evidence): Finding[] => {
           message: `${JSON.stringify(text)} is not on screen; ${JSON.stringify(near)} is (the text may have changed)${where ? `\n    ${where}` : ''}`,
         });
       else if (where) out.push({ rule: 'text-changed', message: `${JSON.stringify(text)} is not on screen; ${where}` });
+      else if (e.lastSeen) {
+        const now = replacements(text, els, e.lastSeen);
+        if (now.length) out.push({ rule: 'renamed', message: `${JSON.stringify(text)} is not on screen; ${now.join('; ')}` });
+      }
       const listed = els.filter((el) => el.testId && /-\d+-item$/.test(el.testId));
       const prefix = want.slice(0, 4);
       if (listed.length >= 10 && prefix && listed.filter((el) => fold(el.text ?? '').includes(prefix)).length >= listed.length / 2)

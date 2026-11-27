@@ -93,6 +93,16 @@ export const record = (lynkeusDir: string, screen: Screen): ScreenChange | null 
   return change;
 };
 
+/** A route's screen as it was last read, with the frames of its elements that have a testID: where a text used to be. */
+export const lastRead = (lynkeusDir: string, route: string): { elements: Screen['elements']; frames: Record<string, Frame> } | undefined => {
+  try {
+    const stored = JSON.parse(fs.readFileSync(fileOf(lynkeusDir, route), 'utf8')) as Stored;
+    return { elements: stored.elements ?? [], frames: stored.frames ?? {} };
+  } catch {
+    return undefined;
+  }
+};
+
 export type Observed = {
   route: string;
   path: string[];

@@ -10,8 +10,9 @@ import path from 'node:path';
 import type { AgentServer } from 'lynkeus-client';
 
 import { UsageError } from './args.js';
-import { graphFile, saveGraph } from './config.js';
+import { graphFile, lynkeusDir, saveGraph } from './config.js';
 import { readJson } from './files.js';
+import * as screens from './knowledge/screens.js';
 import type { ScreenGraph } from './knowledge/types.js';
 import { describeWhy, explain } from './knowledge/why.js';
 import { type Base, helpFor, parseFor, resolve } from './registry.js';
@@ -98,6 +99,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
     if (away) return `  • ${away}: nothing on its screen can be read`;
     const [screen, requests, trace] = await Promise.all([device.screen(), device.requests(), device.trace(since)]);
     const sourceDiff = expected?.text ? uncommittedDiff(base.root) : undefined;
+    const lastSeen = expected?.text && screen.route ? screens.lastRead(lynkeusDir(base.root), screen.route) : undefined;
     const during = duringCommand(requests.requests, startedAt);
     const logs = await printedSince(device, startedAt).catch(() => []);
     const events = since === undefined ? fromStart(trace.events, startedAt, (e) => e.t) : trace.events;
@@ -112,6 +114,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         target: expected,
         fetchedBefore: during.length < requests.requests.length,
         ...(sourceDiff ? { sourceDiff } : {}),
+        ...(lastSeen ? { lastSeen } : {}),
         ...(logs.length ? { logs: logs.slice(-40) } : {}),
       }),
     );
