@@ -347,9 +347,10 @@ test('each step says where its time went, a macro summing its steps, and a slow 
   const macros = { 'app.again': [{ 'app.press': '#refresh' }, { 'app.press': '#refresh' }] };
   const report = await runCase(c, { base: slow as Base, config: { ...config, macros }, fixtures });
   const [press, see, again] = report.steps;
+  // In the order they happen; marks and target take no time against a stand-in app that answers at once.
   assert.deepEqual(
-    Object.keys(press?.phases ?? {}).filter((p) => p !== 'marks'),
-    ['target', 'action', 'settle'],
+    Object.keys(press?.phases ?? {}).filter((p) => p !== 'marks' && p !== 'target'),
+    ['action', 'settle'],
   );
   assert.ok((press?.phases?.settle ?? 0) >= 25, JSON.stringify(press?.phases));
   assert.ok(

@@ -1051,7 +1051,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       // A control the keyboard covers stays covered until the press: the agent closes the keyboard before it
       // presses anything but a field, and measures again. Waiting for it to clear only ran out the deadline.
       const underKeyboard = async (e: Element) => e.kind !== 'input' && (await d.screen()).elements.some((x) => x.focused);
-      if (found?.enabled && at === was && (!found.covered || (await underKeyboard(found)))) break;
+      // Still is two reads alike, a quiet window apart; a host that draws nothing has no transition to wait out, and
+      // the agent's own press waits for the target to hold still anyway.
+      const still = at === was || (at !== undefined && !helloOf(d)?.native);
+      if (found?.enabled && still && (!found.covered || (await underKeyboard(found)))) break;
       was = at;
       if (Date.now() > deadline && !(await d.screen()).busy) break;
       await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
@@ -1161,7 +1164,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         if (field)
           await timed('target', async () => {
             await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
-            await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+            // A device's field may still be sliding in with its screen; a host's is where it will be once it is listed.
+            if (helloOf(d)?.native) await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
           });
         // A swipe's target still landing (a pager's page arriving, a sheet sliding in) reads as inert for a moment. The
         // agent waits for it too, but on a host with a virtual clock its wait runs out in no real time, so the wait

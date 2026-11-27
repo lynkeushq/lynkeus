@@ -192,7 +192,7 @@ it('a targeted swipe starts after the target stops moving', async () => {
 });
 
 describe('typing into a field the keyboard moves', () => {
-  it('types once the field has landed', async () => {
+  it('types once the field has landed, on a device', async () => {
     let pressedAt: number | undefined;
     // The field slides from 600 to 200 over the 300 ms after the tap, as a screen collapsing for the keyboard.
     const fieldY = () => (pressedAt === undefined ? 600 : Math.max(200, 600 - ((Date.now() - pressedAt) / 300) * 400));
@@ -200,6 +200,7 @@ describe('typing into a field the keyboard moves', () => {
     const { backend } = fakeBackend([]);
     const handlers = createHandlers(noNavigation, {
       ...backend,
+      native: true,
       snapshot: () => ({ elements: [element({ kind: 'input', testId: 'search', frame: { x: 0, y: fieldY(), w: 300, h: 40 } })] }),
       press: async () => {
         pressedAt = Date.now();
@@ -211,6 +212,36 @@ describe('typing into a field the keyboard moves', () => {
 
     await dispatch(handlers, 'type', { target: { testId: 'search' }, text: 'ab' });
     expect(typedAt).toEqual([200, 200]);
+  });
+
+  it('on a host, which has no keyboard, types at once and does not wait for one to slide away', async () => {
+    const typed: string[] = [];
+    let blurred = 0;
+    const { backend } = fakeBackend([]);
+    const field = element({ kind: 'input', testId: 'email' });
+    const go = element({ i: 1, testId: 'go', frame: { x: 0, y: 100, w: 100, h: 40 } });
+    let focused = false;
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      snapshot: () => ({ elements: [{ ...field, focused }, go] }),
+      press: async (e) => {
+        focused = e.kind === 'input';
+      },
+      typeText: async (chunk) => {
+        typed.push(chunk);
+      },
+      dismissKeyboard: async () => {
+        blurred++;
+        focused = false;
+      },
+    });
+    const started = Date.now();
+    await dispatch(handlers, 'type', { target: { testId: 'email' }, text: 'ignite@infinite.red' });
+    await dispatch(handlers, 'press', { testId: 'go' });
+    expect(typed.join('')).toBe('ignite@infinite.red');
+    expect(blurred).toBe(1);
+    // A device spends 25 ms a key, 80 ms for the keyboard to attach and 300 ms for it to slide away: 855 ms here.
+    expect(Date.now() - started).toBeLessThan(250);
   });
 });
 

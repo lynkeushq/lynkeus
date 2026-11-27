@@ -174,6 +174,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return !e.offscreen && x >= 0 && y >= 0 && x <= w && y <= h;
   };
 
+  // A host that is not a device moves a view per frame, which it runs on a timer of its own (the headless host's
+  // requestAnimationFrame): two looks one frame apart see the move, and a landed target costs a frame, not 40 ms.
+  const stillLookMs = backend.native ? 40 : 16;
+
   // An element still sliding in would be tapped where it was. Two identical
   // measurements 40 ms apart mean it has landed. An Android fling coasts for
   // seconds, and a finger that lands on it stops the scroll where it is: wait
@@ -208,12 +212,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     };
     while (inert() && waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
     }
     let previous = look();
     while (waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
       if (inert()) continue;
       const current = look();
       if (!current) continue;
@@ -248,7 +252,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // scroll view swallows it): close it first and measure again once the layout moves back.
     if (point.element?.kind !== 'input' && elements().some((e) => e.focused)) {
       await backend.dismissKeyboard();
-      await sleep(300);
+      // Only a device has a keyboard that slides away and a layout that follows it; a host has neither to wait for.
+      if (backend.native) await sleep(300);
       point = await settled(target);
     }
     if (point.element) underSystemView(target, point.element);
@@ -300,11 +305,13 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
         element = found;
       } else {
         element = (await pressNative(params.target, 50)).element;
-        // The keyboard needs a frame to attach to the field before it accepts input.
-        await sleep(80);
-        // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
-        // field out where it was then, so wait it out like a person would.
-        await settled(params.target);
+        if (backend.native) {
+          // The keyboard needs a frame to attach to the field before it accepts input.
+          await sleep(80);
+          // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
+          // field out where it was then, so wait it out like a person would.
+          await settled(params.target);
+        }
       }
     }
     if (params.clear) {
@@ -314,10 +321,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     if (params.paste) {
       await backend.typeText(params.text, element);
     } else {
-      // A controlled input formats on every change, and keys faster than a commit race the formatter.
+      // A controlled input formats on every change, and keys faster than a commit race the formatter. A host commits
+      // each key before it answers (the headless host types inside act()); a turn of the event loop lets a formatter
+      // that defers to a timer run, as a frame would.
       for (const char of params.text) {
         await backend.typeText(char, element);
-        await sleep(25);
+        await sleep(backend.native ? 25 : 0);
       }
     }
     if (params.submit) await backend.submit(element);
