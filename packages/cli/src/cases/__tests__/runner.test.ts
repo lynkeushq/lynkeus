@@ -12,7 +12,7 @@ import type { Device } from '../../device/driver.js';
 import { type Base, find, register } from '../../registry.js';
 import { Fixtures } from '../fixtures.js';
 import { parseCase } from '../format.js';
-import { argvFor, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase, type StepReport, stepRoutes } from '../runner.js';
+import { argvFor, expandSteps, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase, type StepReport, stepRoutes } from '../runner.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -1051,8 +1051,197 @@ test('a case starts with no mocks, and one that set a mock leaves none behind', 
     const report = await runCase(c, { base, config, fixtures });
     assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
     assert.equal(asked[0], 'netmock:clear');
-    assert.deepEqual(asked.slice(1), sets ? ['netmock:add', 'netmock:clear'] : []);
+    assert.deepEqual(asked.slice(1), sets ? ['netmock:add', 'netmock:list', 'netmock:clear'] : []);
   }
+});
+
+test('a mock rule nothing matched is a warning naming what went to the network instead', async () => {
+  const c = parseCase('---\nid: feed\n---\nsteps:\n  - app.mock: { route: "GET /v1/feed.json", status: 200 }\n  - app.press: "#refresh"\n', 'feed.md');
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { command: unknown }).command = async (name: string, params: { action?: string }) =>
+    name === 'netmock' && params?.action === 'list'
+      ? {
+          rules: [
+            { method: 'GET', path: '/v1/feed.json', hits: 0 },
+            { method: '*', path: '/used', hits: 2 },
+          ],
+          holds: [],
+        }
+      : {};
+  const press = device.press;
+  device.press = async (params) => {
+    requests.push({ id: requests.length + 1, method: 'GET', url: 'http://x/v1/api.json?rss=1', status: 200, startedAt: 0 });
+    return press(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed');
+  assert.deepEqual(report.warnings, ['mock rule GET /v1/feed.json never matched; GET /v1/api.json, GET /api/points went to the network']);
+});
+
+test('an on block inside a macro runs on the hosts it names, in steps and in teardown, and a teardown that fails is said', async () => {
+  const macros = {
+    'app.x': [
+      { on: 'headless', do: [{ 'app.press': '#refresh' }] },
+      { on: 'device', do: { 'app.press': '#never' } },
+    ],
+    'app.broken': [{ no_such_fixture: {} }],
+  };
+  const c = parseCase('---\nid: on-macro\n---\nsteps:\n  - app.x: {}\nteardown:\n  - app.x: {}\n  - app.broken: {}\n', 'on-macro.md');
+  const { base, calls } = fakeApp();
+  const report = await runCase(c, { base, config: { ...config, macros }, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.deepEqual(
+    calls.filter((x) => x.method === 'press').map((x) => (x.params as { testId?: string }).testId),
+    ['refresh', 'refresh'],
+  );
+  assert.equal(report.warnings?.length, 1);
+  assert.match(report.warnings![0]!, /^teardown app\.broken failed: /);
+});
+
+test('a target written as a bare number is an index', async () => {
+  const c = parseCase('---\nid: index\n---\nsteps:\n  - app.press: 0\n  - app.see: 1\n', 'index.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  device.server.call = (async (method: string, params: { i?: number; testId?: string }) => {
+    calls.push({ method, params });
+    if (method === 'find') return (await device.screen()).elements.find((e) => e.i === params.i) ?? null;
+    return null;
+  }) as typeof device.server.call;
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal((calls.find((x) => x.method === 'press')?.params as { i?: number } | undefined)?.i, 0);
+});
+
+test('see contains finds a text inside a longer one, where a target matches a whole text', async () => {
+  const { base } = fakeApp();
+  const device = await base.device();
+  const screen = device.screen;
+  device.screen = async () => {
+    const sc = await screen();
+    sc.elements.push({
+      i: 2,
+      kind: 'text',
+      text: 'Toggle. Renders a boolean input. Use it for settings.',
+      enabled: true,
+      depth: 0,
+      frame: { x: 0, y: 80, w: 300, h: 60 },
+    });
+    return sc;
+  };
+  // As the agent matches a text target: the whole text, whatever its case.
+  device.server.call = (async (method: string, params: { text?: string }) =>
+    method === 'find'
+      ? ((await device.screen()).elements.find((e) => e.text?.toLowerCase() === params.text?.toLowerCase()) ?? null)
+      : null) as typeof device.server.call;
+  const whole = parseCase('---\nid: whole\n---\nsteps:\n  - app.see: { target: "renders a boolean input.", timeoutMs: 100 }\n', 'whole.md');
+  assert.equal((await runCase(whole, { base, config, fixtures })).result, 'failed');
+  const part = parseCase(
+    '---\nid: part\n---\nsteps:\n  - app.see: { target: "renders a boolean input.", contains: true }\n  - app.see: { target: "nowhere", contains: true, absent: true }\n',
+    'part.md',
+  );
+  const report = await runCase(part, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+});
+
+test('app.call waits for a command an app that just attached has not registered yet', async () => {
+  const c = parseCase('---\nid: call\n---\nsteps:\n  - app.call: { command: signOut }\n', 'call.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  let asked = 0;
+  (device as unknown as { attachedAt: number }).attachedAt = Date.now();
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    if (name !== 'signOut') return {};
+    asked += 1;
+    if (asked < 3) throw new Error('Unknown method signOut');
+    return { ok: true };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(asked, 3);
+
+  // One that attached long ago will not register it: unsupported at once.
+  (device as unknown as { attachedAt: number }).attachedAt = Date.now() - 60_000;
+  asked = -100;
+  const started = Date.now();
+  assert.equal((await runCase(c, { base, config, fixtures })).result, 'unsupported');
+  assert.ok(Date.now() - started < 500);
+});
+
+test("app.relaunch starts the run's own host again, or mounts the app again on a host it did not start", async () => {
+  const c = parseCase('---\nid: relaunch\n---\nsteps:\n  - app.relaunch\n  - app.see: { text: "Hello" }\n', 'relaunch.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const commands: string[] = [];
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    commands.push(name);
+    return {};
+  };
+  let restarted = 0;
+  assert.equal(
+    (
+      await runCase(c, {
+        base,
+        config,
+        fixtures,
+        relaunch: async () => {
+          restarted += 1;
+        },
+      })
+    ).result,
+    'passed',
+  );
+  assert.equal(restarted, 1);
+  assert.ok(!commands.includes('reset'));
+  assert.equal((await runCase(c, { base, config, fixtures })).result, 'passed');
+  assert.ok(commands.includes('reset'));
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    if (name === 'reset') throw new Error('no command reset registered; registered: none');
+    return {};
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'unsupported');
+  assert.match(report.steps[0]!.error!, /host_command/);
+});
+
+test('a phone covered by a view the app did not draw is relaunched before the first step, and the case says so', async () => {
+  const c = parseCase('---\nid: covered\n---\nsteps:\n  - app.see: { text: "Hello" }\n', 'covered.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  let system = true;
+  let relaunched = 0;
+  (device.server as unknown as { hello: unknown }).hello = { native: true, commands: [] };
+  const screen = device.screen;
+  device.screen = async () => ({ ...(await screen()), ...(system ? { system: { frame: { x: 0, y: 500, w: 390, h: 300 } } } : {}) });
+  (device as unknown as { relaunch: unknown }).relaunch = async () => {
+    relaunched += 1;
+    system = false;
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(relaunched, 1);
+  assert.match(report.warnings?.[0] ?? '', /did not draw covered it before the first step.*relaunched the app/);
+});
+
+test('a dry run lists every step, each macro opened into its own', () => {
+  const c = parseCase('---\nid: dry\n---\nsetup:\n  - create_user: { as: u }\nsteps:\n  - app.login: { as: u, wait: Home }\n  - app.tap: "#x"\n', 'dry.md');
+  const macros = {
+    'app.login': [
+      { 'app.call': { command: 'reset' } },
+      { on: 'headless', do: [{ 'app.press': '#a' }] },
+      { when: 'wait', do: { 'app.wait': '{{param.wait}}' } },
+    ],
+  };
+  assert.deepEqual(expandSteps(c, { macros }), [
+    '  setup:',
+    '    1. create_user as: u',
+    '  steps:',
+    '    2. app.login as: u, wait: Home',
+    '         ↳ app.call command: reset',
+    '         ↳ [on headless] app.press #a',
+    '         ↳ [when wait] app.wait Home',
+    '    3. app.tap #x  ✗ app.tap is not a step: Lynkeus has no command tap, and the project declares no macro for it',
+  ]);
 });
 
 test('a frame after a press waits for the commit the press caused, not only for a quiet app', async () => {

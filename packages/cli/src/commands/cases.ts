@@ -9,11 +9,12 @@ import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '
 import type { RunLaunch } from 'lynkeus-protocol';
 import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
-import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
+import { type CasesConfig, type CaseReport, expandSteps, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
 import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
 import { HostPids, hostsFileOf } from '../cases/hostPids.js';
 import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
+import { nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { caseVersion, Flakes } from '../cases/flakes.js';
@@ -249,6 +250,7 @@ export const describe = (report: CaseReport, o: { verbose?: boolean; headline?: 
   const requests = o.verbose ? report.evidence?.requests : report.evidence?.requests?.filter(notable);
   if (requests?.length) lines.push(o.verbose ? '— requests:' : '— requests that failed or were mocked:', ...requests.map((l) => `    ${l}`));
   if (report.evidence?.why) lines.push('— why:', ...report.evidence.why.split('\n').map((l) => `    ${l}`));
+  if (report.warnings?.length) lines.push(...report.warnings.map((w) => `⚠ ${w}`));
   return lines.join('\n');
 };
 
@@ -459,6 +461,8 @@ type ActiveRun = { label: string; progress?: string; stop: (why: string) => void
 const active = new Set<ActiveRun>();
 
 const STOP_POLL_MS = 500;
+// A host started again for `app.relaunch` boots as the case's first did: a FastSim host takes seconds, not minutes.
+const HOST_RELAUNCH_MS = 120_000;
 // How often a kept host still on its way up is asked whether its app attached, at most.
 const ATTACH_PROBE_MS = 250;
 
@@ -477,7 +481,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const notApplied = recordLaunch(launch, startsHost)?.unsupported;
   if (notApplied?.length && !ctx.flags['dry-run'])
     ctx.err(
-      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command); the seed still applies to {{random.*}}`,
+      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}`,
     );
   const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
   const out =
@@ -828,7 +832,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
             const attempt = async (n: number, prepared?: Prepared) => {
               await hostUp(log);
               if (keepHosts && port !== undefined) await keptUp(index, port, log);
-              const host =
+              let host =
                 hostCommand && port !== undefined && !keepHosts && !halt.signal.aborted
                   ? spawnHost(hostCommand, port, index, ctx.root, hostEnv, caseLaunch(launch, c.id, n))
                   : undefined;
@@ -871,6 +875,28 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   nativeLogs: native,
                   ownHost: !!hostCommand || !!runHost,
                   signal: halt.signal,
+                  // A host the run started is started again for a relaunch, as the next case would find it.
+                  ...(hostCommand && port !== undefined
+                    ? {
+                        relaunch: async () => {
+                          const attached = nextHello((await scoped.base.device()).server, HOST_RELAUNCH_MS);
+                          if (keepHosts) {
+                            if (kept[index]) await stopHost(kept[index]!);
+                            kept[index] = spawnHost(hostCommand, port, index, ctx.root, hostEnv, launch);
+                            hostPids.add(kept[index]!);
+                          } else {
+                            if (host) {
+                              await stopHost(host);
+                              perCase.delete(host);
+                            }
+                            host = spawnHost(hostCommand, port, index, ctx.root, hostEnv, caseLaunch(launch, c.id, n));
+                            perCase.add(host);
+                            hostPids.add(host);
+                          }
+                          if (!(await attached.done)) throw new Error(`the host started again did not attach within ${HOST_RELAUNCH_MS / 1000} s`);
+                        },
+                      }
+                    : {}),
                   onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                 });
                 const mine = keepHosts ? kept[index] : (host ?? runHost);
@@ -933,7 +959,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
               if (second) liveRun?.add(second);
             }
             if (jobs > 1) ctx.err(lines.join('\n'));
-            ledger?.note(report, new Date(), caseVersion(c));
+            ledger?.note(report, new Date(), caseVersion(c, config.macros));
             if (typeof ctx.flags.events === 'string' && report.events) {
               const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
               fs.mkdirSync(dir, { recursive: true });
@@ -1025,7 +1051,12 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       (r) =>
         `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}` +
         // In a session or over MCP the caller reads this answer and nothing else: a case that did not pass brings its steps.
-        (ctx.attached && r.result !== 'passed' ? `\n${describe(r, { verbose, headline: false })}` : ''),
+        (ctx.attached && r.result !== 'passed'
+          ? `\n${describe(r, { verbose, headline: false })}`
+          : r.warnings?.length
+            ? `\n${r.warnings.map((w) => `  ⚠ ${w}`).join('\n')}`
+            : '') +
+        (dry ? `\n${expandSteps(cases.find((c) => c.id === r.id)!, config).join('\n')}` : ''),
     ),
     `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
     ...notes,

@@ -38,6 +38,22 @@ const untilActive = (server: AgentServer, timeoutMs: number): { done: Promise<bo
   return { done, cancel: () => finish(false) };
 };
 
+/** Whether an app says hello on this server within the time: a process started again, not the connection that was there. */
+export const nextHello = (server: Pick<AgentServer, 'on' | 'off'>, timeoutMs: number): { done: Promise<boolean>; cancel: () => void } => {
+  let finish: (back: boolean) => void = () => undefined;
+  const done = new Promise<boolean>((resolve) => {
+    const onHello = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    finish = (back) => {
+      clearTimeout(timer);
+      server.off('hello', onHello);
+      resolve(back);
+    };
+    server.on('hello', onHello);
+  });
+  return { done, cancel: () => finish(false) };
+};
+
 const OBSERVING = new Set([
   'events',
   'logs',
@@ -63,6 +79,7 @@ export class Device {
   // A phone's app that let go of the driver in the background says hello no more; what it said last tells it was a phone.
   #hello: HelloEvent | null = null;
   #opened?: string;
+  #helloAt?: number;
 
   constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo>; lifecycle?: PlatformLifecycle } = {}) {
     this.info = info;
@@ -71,6 +88,16 @@ export class Device {
     this.server = options.server ?? new AgentServer({ token: readToken(), port: portFromEnv() });
     this.#lifecycle = options.lifecycle ?? lifecycleFor(info.platform);
     this.#appId = options.appId ?? null;
+    // A stand-in server in a test may have no events.
+    if (typeof this.server.on === 'function')
+      this.server.on('hello', () => {
+        this.#helloAt = Date.now();
+      });
+  }
+
+  /** When this connection last heard the app say hello (a launch, a relaunch, a reconnect); undefined if before it existed. */
+  get attachedAt(): number | undefined {
+    return this.#helloAt;
   }
 
   /** The device as the OS knows it: reading the screen needs none of it; launching, screenshots and OS commands do. */
@@ -155,6 +182,25 @@ export class Device {
     if (this.server.appState === 'background') await relaunched.done;
     else relaunched.cancel();
     return 'relaunched';
+  }
+
+  /** Terminates the app and launches it again (simctl, adb), and waits for the new process to attach. */
+  async relaunch(timeoutMs = 30_000): Promise<void> {
+    const appId = this.#appId;
+    if (!appId) throw new Error('Lynkeus does not know the app’s bundle id or application id to relaunch it: set app in lynkeus.config.json, or pass --app');
+    const id = (await this.resolved()).id;
+    this.#opened = undefined;
+    this.#walk?.acted(true);
+    // The old connection can answer for a moment after the launch: only the new process's hello counts.
+    const attached = nextHello(this.server, timeoutMs);
+    try {
+      await this.server.listen();
+      await this.#lifecycle.launchApp(id, appId, true);
+    } catch (error) {
+      attached.cancel();
+      throw error;
+    }
+    if (!(await attached.done)) throw new Error(`the app did not attach again within ${timeoutMs} ms of its relaunch`);
   }
 
   async openUrl(url: string): Promise<void> {
