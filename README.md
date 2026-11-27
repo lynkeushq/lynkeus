@@ -59,8 +59,15 @@ Rebuild the app once. From then on, Metro is enough.
 ```ts
 import { auto } from 'lynkeus-agent/auto';
 
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
+auto({ token: process.env.LYNKEUS_TOKEN });
 ```
+
+The agent is on in development builds and on Lynkeus FastSim (which runs a
+release bundle, where `__DEV__` is false), and off in a store build. To gate it
+further, combine the default with your own check:
+`enabled: enabledByDefault() && config.ENV !== 'prod'`, with
+`import { enabledByDefault } from 'lynkeus-agent'`. Do not write
+`enabled: __DEV__`: it turns the agent off on FastSim.
 
 React Native gives the app no environment, so the token is written into the
 bundle by a Babel plugin. Add it in `babel.config.js`; it reads the token

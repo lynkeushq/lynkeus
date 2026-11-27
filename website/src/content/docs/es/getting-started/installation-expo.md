@@ -165,7 +165,7 @@ auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN });
 import 'expo-router/entry';
 ```
 
-`auto()` envuelve el componente raíz y encuentra el contenedor de navegación por su cuenta. Por defecto solo corre cuando `__DEV__` es verdadero, así que no necesitas pasar `enabled` salvo que quieras restringirlo más.
+`auto()` envuelve el componente raíz y encuentra el contenedor de navegación por su cuenta. Por defecto solo corre en desarrollo y en Lynkeus FastSim, nunca en un build de tienda, así que no necesitas pasar `enabled` salvo que quieras restringirlo más.
 
 Segundo, la clave `main` de `package.json`. En un proyecto con expo-router apunta a `expo-router/entry`; tiene que apuntar al archivo nuevo:
 

@@ -54,7 +54,7 @@ The agent is built so that it cannot run in a release build, at two levels.
 - On iOS it is wrapped in `#if DEBUG`. The symbols do not exist in a release binary. This matters for more than safety: touch synthesis uses private UIKit API, the technique KIF and Detox rely on, and it must never reach App Store review.
 - On Android the module checks the application's `FLAG_DEBUGGABLE` flag and refuses every call unless the app is debuggable.
 
-**JavaScript.** `enabled` defaults to `__DEV__`. When it is false, `auto()` returns at once and `<Lynkeus>` never loads the client: the code that reads the screen and talks to the driver. The package is in the release bundle and does nothing there. The client is loaded only when the agent is enabled, whichever way the app imports the package and whatever Metro is configured to inline.
+**JavaScript.** `enabled` defaults to `enabledByDefault()`, which is true only in a development build (`__DEV__`) and on a Lynkeus FastSim host. A store build has neither: `__DEV__` is false in a release bundle, and the marker FastSim's host sets before the app's code runs, a global that exists only inside that host, is not there. A store build cannot reach the host, so the default is false. When it is false, `auto()` returns at once and `<Lynkeus>` never loads the client: the code that reads the screen and talks to the driver. The package is in the release bundle and does nothing there. The client is loaded only when the agent is enabled, whichever way the app imports the package and whatever Metro is configured to inline.
 
 ### Gate `enabled` on your environment
 
@@ -65,12 +65,14 @@ import { auto } from 'lynkeus-agent/auto';
 
 auto({
   token: process.env.LYNKEUS_TOKEN,
-  enabled: __DEV__ && config.ENV !== 'prod',
+  enabled: enabledByDefault() && config.ENV !== 'prod',
 });
 ```
 
 :::caution
-Never set `enabled` to `true` unconditionally. The default, `__DEV__`, is the least you should keep.
+Never set `enabled` to `true` unconditionally, and never write a gate that can be true where the default is false, such as `config.ENV !== 'prod'` alone: in a release bundle that is true for every non-production environment, including a staging build you ship to testers. Start from `enabledByDefault()`, which you import from `lynkeus-agent`, and only narrow it. Do not start from `__DEV__` alone either: FastSim runs a release bundle, where it is false, so the agent would be off there.
+
+`lynkeus init` writes `auto({ token })` with no `enabled`, so the default applies and the guarantees above hold without you doing anything.
 :::
 
 ## The connection
@@ -216,7 +218,7 @@ Subscriptions are handled by Stripe. `lynkeus report plan --upgrade` prints Stri
 
 Before you rely on Lynkeus in a team:
 
-1. `enabled` is gated on `__DEV__` and on your environment.
+1. `enabled` is left at its default, or is `enabledByDefault() && <your environment check>`, never a check that can be true where the default is false.
 2. A token is set in CI and on any machine that reaches a shared backend.
 3. The token and the report key are in secret stores, not in the repository.
 4. Tests run against test data, with throwaway credentials.

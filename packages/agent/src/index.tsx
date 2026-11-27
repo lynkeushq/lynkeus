@@ -1,4 +1,4 @@
-export { Lynkeus } from './Lynkeus';
+export { Lynkeus, enabledByDefault } from './Lynkeus';
 export type { LynkeusProps } from './Lynkeus';
 export { qa, host } from './registry';
 export type { ClientOptions, Socket } from './client';

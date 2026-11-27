@@ -33,7 +33,7 @@ The [last section](#what-why-tells-you) lists every answer `why` can give.
 **Fix.** Check these in order:
 
 1. **The build is a debug build.** The agent does not run in a release build.
-2. **`enabled` is true for this environment.** If you gate it, as in `enabled: __DEV__ && config.ENV !== 'prod'`, check what the expression gives in the build you are running.
+2. **`enabled` is true for this environment.** If you gate it, as in `enabled: enabledByDefault() && config.ENV !== 'prod'`, check what the expression gives in the build you are running. Gating on `__DEV__` alone turns the agent off on Lynkeus FastSim, which runs a release bundle.
 3. **The token reached the app.** Look in the app's log for `lynkeus: the app passed a token and it is empty`. If the line is there, the agent is off; see [the next entry](#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
 4. **The tokens match.** The token the app received when it was bundled must be the one the CLI reads: `LYNKEUS_TOKEN` in the terminal, else the project's `.lynkeus/token`. A mismatch looks like no app at all, with one difference: the error then ends with `An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.`
 5. **The app runs on a simulator, an emulator or an Android phone over USB.** An iPhone is not supported: the CLI looks for a booted simulator, or a device `adb devices` lists. For a phone, `adb` must be on your `PATH`, because the CLI runs `adb reverse` to give it the driver's port.

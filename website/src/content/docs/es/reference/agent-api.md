@@ -12,12 +12,12 @@ Hay dos formas de montarlo, `auto()` y el componente `<Lynkeus>`, y un objeto `q
 | Importación | Qué trae |
 |---|---|
 | `lynkeus-agent/auto` | `auto`, la forma de montar el agente con una línea. |
-| `lynkeus-agent` | `Lynkeus`, `qa`, `reactNavigationAdapter`, `noNavigation` y los tipos. |
+| `lynkeus-agent` | `Lynkeus`, `enabledByDefault`, `qa`, `reactNavigationAdapter`, `noNavigation` y los tipos. |
 | `lynkeus-agent/babel` | Un plugin de Babel, para `babel.config.js`. Escribe el token en el bundle de desarrollo; lo explica [El token tiene que llegar a la app](#el-token-tiene-que-llegar-a-la-app). |
 
 ```ts
 import { auto } from 'lynkeus-agent/auto';
-import { Lynkeus, qa, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, qa, reactNavigationAdapter } from 'lynkeus-agent';
 ```
 
 ## `auto(options)`
@@ -62,7 +62,7 @@ El componente monta el agente de forma explícita. Úsalo cuando quieras pasarle
 
 ```tsx title="App.tsx"
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { Lynkeus, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, reactNavigationAdapter } from 'lynkeus-agent';
 
 const App = () => {
   const ref = useNavigationContainerRef();
@@ -71,7 +71,7 @@ const App = () => {
       <RootNavigator />
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
-        enabled={__DEV__ && config.ENV !== 'prod'}
+        enabled={enabledByDefault() && config.ENV !== 'prod'}
         token={process.env.LYNKEUS_TOKEN}
         app={{ name: 'myapp', env: config.ENV }}
       />
@@ -86,7 +86,7 @@ Se monta una sola vez, en cualquier lugar bajo el contenedor de navegación. No 
 
 | Prop | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
-| `enabled` | booleano | `__DEV__` | Si el agente corre o no. |
+| `enabled` | booleano | `enabledByDefault()`: verdadero en desarrollo y en Lynkeus FastSim, falso en un build de tienda | Si el agente corre o no. |
 | `navigation` | `NavigationAdapter` | ninguno | Cómo lee y maneja el agente tu navegación. Sin adaptador hay pantalla, toques y esperas, pero no rutas. |
 | `token` | texto | ninguno | El secreto compartido con el driver. Cada lado demuestra al otro que lo tiene, y ninguno lo envía. Sin token, el agente queda apagado. |
 | `allowUnauthenticated` | booleano | `false` | Atiende a cualquier driver que se conecte, sin token. Solo para un entorno de pruebas aislado. |
@@ -101,7 +101,7 @@ Se monta una sola vez, en cualquier lugar bajo el contenedor de navegación. No 
 Las opciones se leen una sola vez, al montar. Cambiarlas en un render posterior no reconecta, porque reconectar en cada render le cortaría la conexión al driver. Solo un cambio en `enabled` o en `navigation` reinicia el agente.
 
 :::caution
-`enabled` vale `__DEV__` por defecto, y eso alcanza para que el agente no corra en un build de producción. No alcanza para un build de depuración que apunta a tu backend real, con cuentas reales. Condiciónalo también a tu entorno: `enabled={__DEV__ && config.ENV !== 'prod'}`. La página de [Seguridad](/es/security/) explica por qué.
+`enabled` vale `enabledByDefault()` por defecto (verdadero en desarrollo y en Lynkeus FastSim, falso en un build de tienda), y eso alcanza para que el agente no corra en producción. No alcanza para un build de depuración que apunta a tu backend real, con cuentas reales. Condiciónalo también a tu entorno: `enabled={enabledByDefault() && config.ENV !== 'prod'}`. No uses `__DEV__` solo: en FastSim vale `false` y apagaría el agente. La página de [Seguridad](/es/security/) explica por qué.
 :::
 
 ### El token tiene que llegar a la app
