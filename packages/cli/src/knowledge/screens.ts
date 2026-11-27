@@ -20,7 +20,8 @@ export type ScreenChange = { route: string; date: string; added: string[]; remov
 // Sub-pixel rounding and font hinting move an element a point or two without any layout change.
 const GEOMETRY_TOLERANCE = 4;
 
-const presented = (e: Screen['elements'][number]) => !e.hidden || e.hidden === 'inert';
+// What another window shows over the app is not the screen's structure.
+const presented = (e: Screen['elements'][number]) => (!e.hidden || e.hidden === 'inert') && !e.system;
 
 const framesOf = (screen: Screen): Record<string, Frame> => {
   const out: Record<string, Frame> = {};

@@ -79,7 +79,7 @@ const MAX_SIGHT_TEXT = 60;
 
 /** What a case can check on a screen at once: up to three of what is on it, testIDs first, then short texts. */
 const sightsOf = (screen: Screen): string[] => {
-  const shown = screen.elements.filter((e) => !e.hidden && !e.covered);
+  const shown = screen.elements.filter((e) => !e.hidden && !e.covered && !e.system);
   const byId = shown.flatMap((e) => (e.testId ? [`#${e.testId}`] : []));
   const byText = shown.flatMap((e) => {
     const text = e.text?.trim();

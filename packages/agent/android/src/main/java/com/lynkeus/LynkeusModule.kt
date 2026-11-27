@@ -15,6 +15,7 @@ import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
+import android.widget.TextView
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableArray
@@ -241,6 +242,61 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
       }
     }
     return if (view.isClickable || view.isLongClickable) JSONArray() else null
+  }
+
+  private fun hasReactRoot(view: View): Boolean =
+    view is RootView || (view is ViewGroup && (0 until view.childCount).any { i -> view.getChildAt(i)?.let { hasReactRoot(it) } == true })
+
+  private fun actsOnTouch(view: View, stop: View): Boolean {
+    var at: View? = view
+    while (at != null && at != stop) {
+      if (at.isClickable) return true
+      at = at.parent as? View
+    }
+    return false
+  }
+
+  // What windows of this process that React Native does not draw show over the app (an AlertDialog, a native SDK's
+  // dialog): their words with frames, in the activity window's points. A dialog that is modal to touch covers it all.
+  override fun systemViews(): String {
+    if (!debuggable) return "null"
+    return onMain("null") {
+      val activity = rootView() ?: return@onMain "null"
+      val base = origin(activity)
+      val density = reactApplicationContext.resources.displayMetrics.density
+      val items = JSONArray()
+      var covers: RectF? = null
+      for (root in windowRoots().asReversed()) {
+        if (root == activity || hasReactRoot(root)) break
+        if (flags(root) and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0) continue
+        val at = origin(root)
+        val modal = flags(root) and (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
+        val area = if (modal) RectF(0f, 0f, activity.width.toFloat(), activity.height.toFloat())
+          else RectF((at[0] - base[0]).toFloat(), (at[1] - base[1]).toFloat(), (at[0] - base[0] + root.width).toFloat(), (at[1] - base[1] + root.height).toFloat())
+        covers = covers?.apply { union(area) } ?: area
+        val texts = ArrayList<TextView>()
+        fun gather(view: View) {
+          if (view.visibility != View.VISIBLE) return
+          if (view is TextView && !view.text.isNullOrEmpty()) texts.add(view)
+          if (view is ViewGroup) for (i in 0 until view.childCount) view.getChildAt(i)?.let { gather(it) }
+        }
+        gather(root)
+        for (text in texts) {
+          val box = boundsInWindow(text)
+          box.offset((at[0] - base[0]).toFloat(), (at[1] - base[1]).toFloat())
+          items.put(JSONObject().apply {
+            put("text", text.text.toString())
+            put("kind", if (actsOnTouch(text, root)) "button" else "text")
+            put("frame", JSONArray(listOf(box.left / density, box.top / density, box.width() / density, box.height() / density)))
+          })
+        }
+      }
+      val area = covers ?: return@onMain "null"
+      JSONObject().apply {
+        put("frame", JSONArray(listOf(area.left / density, area.top / density, area.width() / density, area.height() / density)))
+        put("items", items)
+      }.toString()
+    }
   }
 
   private fun <T> onMain(otherwise: T, work: () -> T): T {

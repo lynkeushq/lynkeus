@@ -6,7 +6,7 @@ import type { Element, Screen, Target } from 'lynkeus-protocol';
 import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
-import { type Device, describeScreen, describeTrace, nativeCover } from '../device/driver.js';
+import { type Device, describeScreen, describeTrace, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
@@ -27,7 +27,7 @@ const coverOf = (device: Device): Promise<string | undefined> => device.screen()
 
 /** A press that failed while a native view covers the app says so: the agent alone only reads every control as covered. */
 const withCover = async (device: Device, error: unknown): Promise<unknown> => {
-  const cover = error instanceof Error ? await coverOf(device) : undefined;
+  const cover = error instanceof Error && !error.message.includes(NOT_DRAWN) ? await coverOf(device) : undefined;
   if (cover && error instanceof Error) error.message = `${error.message} (${cover})`;
   return error;
 };
@@ -42,14 +42,18 @@ const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutM
 export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
-  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does).
-  const underKeyboard = async (e: Element) => e.kind !== 'input' && (await device.screen()).elements.some((x) => x.focused);
+  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does); a view
+  // the app did not draw stays until someone answers it, and the press then says so.
+  const stuck = async (e: Element) => {
+    const screen = await device.screen();
+    return !!screen.system || (e.kind !== 'input' && screen.elements.some((x) => x.focused));
+  };
   let found = await find();
   if (!found) {
     await device.waitFor({ target, timeoutMs }).catch(() => undefined);
     found = await find();
   }
-  while (found?.covered && Date.now() < deadline && !(await underKeyboard(found))) {
+  while (found?.covered && Date.now() < deadline && !(await stuck(found))) {
     await look(device, 50);
     found = await find();
   }

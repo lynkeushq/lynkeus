@@ -113,7 +113,7 @@ export const lintContrast = (screen: Screen, picture: Pixels, options: ContrastO
   const scale = picture.width / window.w;
   const out: Finding[] = [];
   for (const e of screen.elements ?? []) {
-    if (!judged(e) || !e.frame || e.frame.w <= 0 || e.frame.h <= 0) continue;
+    if (e.system || !judged(e) || !e.frame || e.frame.w <= 0 || e.frame.h <= 0) continue;
     if (e.testId && options.ignore?.some((pattern) => pattern.test(e.testId!))) continue;
     const measured = measureContrast(picture, { x: e.frame.x * scale, y: e.frame.y * scale, w: e.frame.w * scale, h: e.frame.h * scale });
     if (!measured) continue;

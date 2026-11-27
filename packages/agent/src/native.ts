@@ -11,6 +11,11 @@ const ready = (): Spec => {
   return NativeLynkeus;
 };
 
+export type SystemViews = {
+  frame: number[];
+  items: { text: string; kind: 'button' | 'text'; frame: number[] }[];
+};
+
 export const touch = {
   available,
   tap: (x: number, y: number, holdMs: number) => ready().tap(x, y, holdMs),
@@ -19,7 +24,6 @@ export const touch = {
   deleteBackward: (count: number) => ready().deleteBackward(count),
   dismissKeyboard: () => ready().dismissKeyboard(),
   submitEditing: () => ready().submitEditing(),
-  /** For each point, the tags of the view a touch there reaches and its ancestors; null without the native module. */
   /** Where each tag's native view stands in the window, null for a tag without one; null when the native side does not say. */
   frames: (tags: number[]): (number[] | null)[] | null => {
     // A build made before the native side learned this has no such method.
@@ -42,6 +46,18 @@ export const touch = {
       return null;
     }
   },
+  /** What windows the app's React tree did not draw show in front of it; null when nothing is, or the native side does not say. */
+  systemViews: (): SystemViews | null => {
+    // A build made before the native side learned this has no such method.
+    if (!available() || typeof ready().systemViews !== 'function') return null;
+    try {
+      const found = JSON.parse(ready().systemViews()) as SystemViews | null;
+      return found && Array.isArray(found.frame) && Array.isArray(found.items) ? found : null;
+    } catch {
+      return null;
+    }
+  },
+  /** For each point, the tags of the view a touch there reaches and its ancestors; null without the native module. */
   hitTest: (points: { x: number; y: number }[]): number[][] | null => {
     if (!available()) return null;
     try {

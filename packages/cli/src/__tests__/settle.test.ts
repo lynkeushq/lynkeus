@@ -49,10 +49,15 @@ test('a control covered for good does not hold the screen past a transition’s 
 });
 
 test('typing into a field waits until nothing covers it', async () => {
-  let reads = 0;
-  const { device, looks } = fake(() => ({ ...button(++reads <= 2), kind: 'input' }));
+  let finds = 0;
+  const { device, looks } = fake(() => ({ ...button(finds <= 2), kind: 'input' }));
+  const find = device.server.call;
+  device.server.call = (async (...args: Parameters<typeof find>) => {
+    finds++;
+    return find(...args);
+  }) as typeof find;
   await untilUncovered(device, { testId: 'logout' });
-  assert.equal(reads, 3);
+  assert.equal(finds, 3);
   assert.equal(looks(), 2);
 });
 
@@ -87,4 +92,23 @@ test('a press waits for a control a screen still slides over, but not for one on
   await untilUncovered(device, { testId: 'logout' });
   assert.equal(looks.n, 0);
   assert.ok(Date.now() - began < 500);
+});
+
+test('a press waits no transition out under a view the app did not draw: it stays until someone answers it', async () => {
+  let finds = 0;
+  const device = {
+    idle: async () => ({ commit: 1, idle: true }),
+    waitFor: async () => ({ waitedMs: 0 }),
+    screen: async () => ({ ...screenOf([button(true)]), system: { frame: { x: 0, y: 0, w: 390, h: 844 } } }),
+    server: {
+      call: async () => {
+        finds++;
+        return button(true);
+      },
+    },
+  } as unknown as Device;
+  const began = Date.now();
+  await untilUncovered(device, { testId: 'logout' });
+  assert.equal(finds, 1);
+  assert.ok(Date.now() - began < 500, `took ${Date.now() - began} ms`);
 });

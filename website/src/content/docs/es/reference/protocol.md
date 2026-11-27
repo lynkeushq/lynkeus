@@ -312,6 +312,7 @@ type Screen = {
   busy: boolean;        // hay peticiones en curso, o el comando `busy` de la app dijo que sí
   window: { w: number; h: number };  // en puntos
   presenting?: { i: number; modal: boolean; testId?: string };  // la capa de arriba, si hay una
+  system?: { frame: { x: number; y: number; w: number; h: number } };  // una vista que la app no dibujó está delante, sobre este rectángulo
   costMs: number;       // lo que tardó la app en armar esta lectura
 };
 ```
@@ -339,6 +340,7 @@ type Element = {
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;  // su rectángulo queda fuera de la ventana
   texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];  // los textos de un control, cada uno con su rectángulo, si tiene más de uno
+  system?: boolean;     // texto de una vista que la app no dibujó (ver más abajo)
 };
 ```
 
@@ -353,6 +355,12 @@ Desde la versión 0.3.0 lo responde el módulo nativo, y la app tiene que recomp
 Los dos dicen que un elemento no se puede tocar, pero por razones distintas, y la diferencia importa al diagnosticar.
 
 **`covered`** significa "un dedo caería sobre otra cosa". Sale de una prueba de toque nativa en el centro del elemento, cuando el módulo nativo está disponible. Solo cuenta aquello en lo que un toque se detendría. En Android, desde la versión 0.3.0, la respuesta viene de la búsqueda con la que React Native decide el destino de un toque; antes, la capa invisible de depuración de un build de desarrollo hacía que todos los controles se leyeran cubiertos. Requiere recompilar la app después de actualizar `lynkeus-agent`.
+
+Como la prueba se hace en la ventana que está delante en ese punto, una alerta o un aviso que se muestra en una ventana propia tapa lo que hay debajo; el teclado no. En Android solo cuentan las vistas nativas que no son de React Native (los fondos de las barras del sistema, por ejemplo) si de verdad tomarían el toque, y los controles de un `Modal` se prueban en la ventana del diálogo que los muestra.
+
+### Lo que la app no dibujó
+
+`Screen.system` aparece cuando delante de la app hay una vista que su árbol de React no dibujó: una alerta del sistema, un pedido de permiso, la hoja de un SDK nativo. Su texto llega como elementos con `system: true`, al final de la lista, y sus botones se pulsan por su texto. Si esa vista la dibuja otro proceso, como el "¿Guardar contraseña?" de iOS, no llega ningún texto y ningún toque desde dentro de la app la alcanza; `press` sobre un control que quedó debajo falla con `… is under a view the app did not draw`.
 
 **`hidden`** significa "esto no está en pantalla". El elemento está montado, pero la app no lo presenta. Es la respuesta más fuerte de las dos, y dice el motivo:
 

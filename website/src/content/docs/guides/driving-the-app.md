@@ -42,6 +42,7 @@ Each line is an element: its kind (`button`, `input`, `text`, `scroll`, `switch`
 | `!disabled` | The control will not answer a touch. |
 | `~covered` | Something is drawn over it. A touch at its center would land on something else. |
 | `~inert` | Readable, not touchable. |
+| `~system` | Not the app's: words of a system alert or a native sheet in front of it. Press its buttons by their text. |
 
 Useful variants:
 

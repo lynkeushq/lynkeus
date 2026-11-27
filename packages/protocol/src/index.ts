@@ -45,6 +45,8 @@ export type Element = {
   offscreen?: boolean;
   /** A control's own text, each piece with its frame (a card's name next to its balance), when the control holds more than one. Not elements: `see` and `find` still match the control's `text`. */
   texts?: { text: string; frame: Frame }[];
+  /** Words of a view the app's React tree did not draw (a system alert, a native SDK's sheet), listed after the app's own: see `Screen.system`. */
+  system?: boolean;
 };
 
 export type Screen = {
@@ -60,6 +62,12 @@ export type Screen = {
   window: { w: number; h: number };
   /** The layer on top, when the app is presenting one over its screen. */
   presenting?: { i: number; modal: boolean; testId?: string };
+  /**
+   * A view the app's React tree did not draw is in front of the app over this frame: a system alert or prompt, a
+   * native SDK's sheet. Its words are the `system` elements; there are none when another process draws it (iOS's
+   * Save Password prompt), and then no touch from inside the app reaches it.
+   */
+  system?: { frame: Frame };
   /** Milliseconds spent building this snapshot inside the app. */
   costMs: number;
 };

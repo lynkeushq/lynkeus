@@ -145,10 +145,22 @@ lynkeus screen
 | You see | Meaning | Fix |
 |---|---|---|
 | `~covered` | A touch at its center would land on something else. | Close what is over it, or press what covers it. If every control reads `~covered` on Android, see the next entry. |
+| `~system` | Words of a system alert or a native sheet in front of the app, not of the app. | Press its button by its text. See [A system alert or prompt is in front of the app](#a-system-alert-or-prompt-is-in-front-of-the-app). |
 | `!disabled` | The control will not answer a touch. | A form is not valid yet, or a request it depends on is still in flight. Wait for it. |
 | `3 hidden: 3 behind-overlay` in the header | The element is mounted but belongs to a screen the app is not showing. | Close what is open, or target something inside it. `lynkeus screen --all` lists the hidden elements. |
 
 `lynkeus press <target> --js` presses through the React handler instead of the OS. If that works where a normal press does not, something is over the element. It is a useful comparison, not a fix.
+
+### A system alert or prompt is in front of the app
+
+**What you see.** The header ends in `+system`, and a line starting with `!` says that a view the app did not draw is in front of it. A press of a control under it fails with `… is under a view the app did not draw`, instead of tapping the app behind the alert.
+
+**Why.** Something outside the app's React tree is showing: an alert from `Alert.alert`, a native SDK's sheet, a permission prompt, or iOS's "Save Password?" after a login form with a password field leaves the screen. Lynkeus reads what that view says when it runs in the app's process and lists it with `~system`.
+
+**Fix.**
+
+- When its words are listed, press its button by its text, as a person would: `lynkeus press "Not Now"`. To get past it in any step of any case, add it to [`cases.interruptions`](/reference/configuration/#casesinterruptions): `see` its text, `do` the press.
+- When the line says another process draws it (iOS draws "Save Password?" that way), nothing from inside the app can read or tap it. Relaunch the app, or answer it on the device. To keep a suite from meeting it, sign in through an app command (`qa.register`) rather than through the form.
 
 ### On Android, every control reads `~covered`
 

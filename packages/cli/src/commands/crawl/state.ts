@@ -24,7 +24,8 @@ export const stateKey = (s: Screen) => {
 };
 
 /** Another tab, or the screen a sheet covers, is mounted but out of a finger's reach. */
-export const presented = (s: Screen): Element[] => s.elements.filter((e) => !e.hidden);
+// A system alert's buttons are not the app's to explore.
+export const presented = (s: Screen): Element[] => s.elements.filter((e) => !e.hidden && !e.system);
 
 /** A sheet has no route, so it is named after the control that opened it: that is also how to get back into it. */
 export const layerName = (s: Screen, openedBy?: string): string | undefined => (s.presenting ? (openedBy ?? layerOf(s)) : undefined);

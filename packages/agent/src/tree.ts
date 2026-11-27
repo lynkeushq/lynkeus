@@ -220,6 +220,33 @@ const markCovered = (elements: Element[]): void => {
   });
 };
 
+const rectOf = ([x = 0, y = 0, w = 0, h = 0]: number[]): Frame => ({ x, y, w, h });
+
+// What another window shows over the app is read as words with frames, after the app's own elements: the overlay
+// mechanism and a press by text then find an alert's buttons like any others.
+const addSystemViews = (elements: Element[]): Snapshot['system'] => {
+  let found: ReturnType<typeof touch.systemViews>;
+  try {
+    found = touch.systemViews();
+  } catch {
+    return undefined;
+  }
+  if (!found) return undefined;
+  for (const item of found.items) {
+    if (typeof item.text !== 'string' || !Array.isArray(item.frame)) continue;
+    elements.push({
+      i: elements.length,
+      kind: item.kind === 'button' ? 'button' : 'text',
+      frame: rectOf(item.frame),
+      enabled: true,
+      depth: 0,
+      text: item.text,
+      system: true,
+    });
+  }
+  return { frame: rectOf(found.frame) };
+};
+
 /**
  * Moves each element to where its native view stands. An element with no view
  * of its own (flattened away) moves by what its nearest listed ancestor moved.
@@ -438,7 +465,8 @@ export const snapshotElements = (): Snapshot => {
   readFields(fields);
   const presenting = resolvePresentation(elements, layers);
   markCovered(elements);
-  return { elements, presenting };
+  const system = addSystemViews(elements);
+  return system ? { elements, presenting, system } : { elements, presenting };
 };
 
 type Pressable = {

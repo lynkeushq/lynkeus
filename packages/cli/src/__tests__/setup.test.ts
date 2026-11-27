@@ -304,3 +304,24 @@ test('every control covered at once is named as a native view over the app, not 
   assert.equal(nativeCover(screenOf([{ testId: 'next', covered: true }], { i: 0, modal: true })), undefined);
   assert.equal(nativeCover(screenOf([{ kind: 'text', text: 'only text' }])), undefined);
 });
+
+test('a view the app did not draw is named for what Lynkeus can do with it', () => {
+  const frame = { x: 0, y: 0, w: 402, h: 874 };
+  const alert = {
+    ...screenOf([
+      { testId: 'delete', covered: true },
+      { kind: 'button', text: 'Cancel', system: true },
+    ]),
+    system: { frame },
+  };
+  assert.match(nativeCover(alert) ?? '', /its buttons are pressed by their text/);
+  const lines = describeScreen(alert).split('\n');
+  assert.match(lines[0] ?? '', /\+system/);
+  assert.ok(
+    lines.some((l) => /^button "Cancel" ~system$/.test(l)),
+    lines.join('\n'),
+  );
+  // Another process draws it (iOS's Save Password prompt): nothing to read, nothing a touch from the app reaches.
+  const remote = { ...screenOf([{ testId: 'login', covered: true }, { testId: 'signup' }]), system: { frame } };
+  assert.match(nativeCover(remote) ?? '', /drawn by another process.*relaunch the app/);
+});

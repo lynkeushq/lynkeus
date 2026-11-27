@@ -118,7 +118,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const screen = async (): Promise<Screen> => {
     const started = Date.now();
-    const { elements, presenting } = backend.snapshot();
+    const { elements, presenting, system } = backend.snapshot();
     const route = navigation.currentRoute();
     return {
       route: route?.name,
@@ -129,6 +129,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       busy: await busy(),
       window: backend.window(),
       presenting,
+      ...(system ? { system } : {}),
       costMs: Date.now() - started,
     };
   };
@@ -196,6 +197,25 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return previous ?? pointOf(target);
   };
 
+  // A finger would land on what another window shows there (a system alert, a prompt), and the app would never
+  // hear it: said, rather than a tap that answers as if it had worked.
+  const underSystemView = (target: Target, element: Element) => {
+    if (!element.covered || element.system) return;
+    const { system, elements: now } = backend.snapshot();
+    if (!system) return;
+    const { x, y } = centre(element);
+    const { frame } = system;
+    if (x < frame.x || y < frame.y || x > frame.x + frame.w || y > frame.y + frame.h) return;
+    const words = now.filter((e) => e.system && e.kind === 'button').map((e) => JSON.stringify(e.text));
+    throw new Error(
+      `${describeTarget(target)} is under a view the app did not draw (a system alert or prompt): ${
+        words.length > 0
+          ? `press one of its buttons first (${words.join(', ')})`
+          : 'another process draws it, so no touch from Lynkeus reaches it; relaunch the app, or answer it on the device'
+      }`,
+    );
+  };
+
   const pressNative = async (target: Target, holdMs: number) => {
     let point = await settled(target);
     // With the keyboard up, a tap outside the field only dismisses it (the
@@ -205,6 +225,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await sleep(300);
       point = await settled(target);
     }
+    if (point.element) underSystemView(target, point.element);
     if (point.element) await backend.press(point.element, holdMs);
     else await backend.pressPoint(point.x, point.y, holdMs);
     return { ...point, mode: 'native' as const };

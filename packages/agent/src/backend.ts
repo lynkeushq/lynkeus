@@ -3,6 +3,7 @@ import type { Element, Screen } from './protocol';
 export type Snapshot = {
   elements: Element[];
   presenting?: Screen['presenting'];
+  system?: Screen['system'];
 };
 
 /**

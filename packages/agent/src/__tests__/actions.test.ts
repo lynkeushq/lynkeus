@@ -211,3 +211,42 @@ describe('typing into a field the keyboard moves', () => {
     expect(typedAt).toEqual([200, 200]);
   });
 });
+
+describe('a view the app did not draw in front of it', () => {
+  const withSystem = (elements: Element[], frame = { x: 0, y: 0, w: 390, h: 844 }) => {
+    const { backend } = fakeBackend(elements);
+    const press = jest.fn(async (_: Element) => undefined);
+    return { backend: { ...backend, snapshot: () => ({ elements, system: { frame } }), press }, press };
+  };
+
+  it('refuses a press under a prompt another process draws, and says how to get past it', async () => {
+    const { backend, press } = withSystem([element({ testId: 'login', covered: true })]);
+    const handlers = createHandlers(noNavigation, backend);
+    await expect(dispatch(handlers, 'press', { testId: 'login' })).rejects.toThrow(/under a view the app did not draw.*relaunch the app/);
+    expect(press).not.toHaveBeenCalled();
+  });
+
+  it('names the buttons of an alert it can read', async () => {
+    const { backend } = withSystem([
+      element({ testId: 'delete', covered: true }),
+      element({ i: 1, text: 'Cancel', system: true, frame: { x: 100, y: 477, w: 54, h: 20 } }),
+    ]);
+    const handlers = createHandlers(noNavigation, backend);
+    await expect(dispatch(handlers, 'press', { testId: 'delete' })).rejects.toThrow(/press one of its buttons first \("Cancel"\)/);
+  });
+
+  it("presses an alert's button by its text", async () => {
+    const cancel = element({ i: 1, text: 'Cancel', system: true, frame: { x: 100, y: 477, w: 54, h: 20 } });
+    const { backend, press } = withSystem([element({ testId: 'delete', covered: true }), cancel]);
+    const handlers = createHandlers(noNavigation, backend);
+    await dispatch(handlers, 'press', { text: 'Cancel' });
+    expect(press).toHaveBeenCalledWith(cancel, 50);
+  });
+
+  it('lets a press through outside what the view covers', async () => {
+    const { backend, press } = withSystem([element({ testId: 'tab', covered: true, frame: { x: 0, y: 800, w: 100, h: 40 } })], { x: 0, y: 0, w: 390, h: 100 });
+    const handlers = createHandlers(noNavigation, backend);
+    await dispatch(handlers, 'press', { testId: 'tab' });
+    expect(press).toHaveBeenCalledTimes(1);
+  });
+});
