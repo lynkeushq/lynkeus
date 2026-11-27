@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { pairs, parseArgs, splitLine, UsageError } from '../args.js';
 import { driveCommands } from '../commands/drive.js';
 import { headlessCommands } from '../commands/headless.js';
+import { skillCommands } from '../commands/skill.js';
 import { mapCommands } from '../commands/map.js';
 import { osCommands } from '../commands/os.js';
 import { describeCrawl } from '../commands/crawl.js';
@@ -72,12 +73,13 @@ test('every command is named once, documented, and its aliases are unique', () =
 });
 
 test('MCP serves a small core by default and everything else on request', () => {
-  const all = [...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...headlessCommands];
+  const all = [...driveCommands, ...osCommands, ...mapCommands, ...runsCommands, ...headlessCommands, ...skillCommands];
   const core = all.filter((c) => c.mcp === 'core').map((c) => c.name);
   assert.deepEqual(core.sort(), [
     'back',
     'call',
     'crawl',
+    'guide',
     'headless doctor',
     'headless init',
     'init',

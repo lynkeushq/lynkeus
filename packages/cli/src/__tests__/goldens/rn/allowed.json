@@ -28,8 +28,8 @@
     "now": "44ea453085b4e4d4"
   },
   "surface/commands": {
-    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on. report html writes a run folder as an offline HTML page.",
-    "now": "1d84574617025de8"
+    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on. report html writes a run folder as an offline HTML page. guide serves the Lynkeus skill's topics one at a time; skill install installs or updates the skill in .claude/skills/lynkeus.",
+    "now": "40ba29af94d7416d"
   },
   "surface/help/fastsim start": {
     "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -40,8 +40,8 @@
     "now": "5186ac9dfb138829"
   },
   "surface/mcp/full": {
-    "why": "fastsim_start and fastsim_stop are served over MCP. report_html is served over MCP.",
-    "now": "43a911ebfa2835e4"
+    "why": "fastsim_start and fastsim_stop are served over MCP. report_html is served over MCP. guide is served over MCP; init takes no_skill.",
+    "now": "462fd5bf20ca0a23"
   },
   "surface/mcp/tool/fastsim_start": {
     "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html.",
-    "now": "aad71dc70faa4336"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html. The usage lists guide and skill install, and init's --no-skill.",
+    "now": "9eaed4f3158a5a0d"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run.",
@@ -298,5 +298,89 @@
   "report/files": {
     "why": "A run with --out writes report.html beside run.json, a page to open offline.",
     "now": "734cf4bae49dcb51"
+  },
+  "surface/help/guide": {
+    "why": "guide is new: the Lynkeus skill's topics (cases, targets, evidence, ci, determinism, troubleshooting) one at a time, for clients without skills.",
+    "now": "0ca68762be3ed6d9"
+  },
+  "surface/help/skill install": {
+    "why": "skill install is new: installs or updates the Lynkeus skill in .claude/skills/lynkeus, leaving an edited one alone unless --force.",
+    "now": "19d2a36d7fd76fbd"
+  },
+  "surface/help/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "09fb9aeb918398aa"
+  },
+  "surface/mcp/tool/guide": {
+    "why": "guide is a core MCP tool: one topic of the Lynkeus skill per call, with the topics as an enum.",
+    "now": "b106dbb956f587ee"
+  },
+  "surface/mcp/tool/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "544ccc8d407e20f1"
+  },
+  "detect/empty/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "44a09787d1034cfb"
+  },
+  "detect/expo app/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "b1dd6c438466defd"
+  },
+  "detect/node package, no react-native/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "17db00888202f133"
+  },
+  "detect/pubspec.yaml app beside a broken package.json/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "8525b519ca36d432"
+  },
+  "detect/pubspec.yaml app beside a package.json without react-native/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "8525b519ca36d432"
+  },
+  "detect/pubspec.yaml app with a tsconfig/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "0d6cb9f03b45d0fd"
+  },
+  "detect/pubspec.yaml app, inline sdk/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "7dedd530f466d3f9"
+  },
+  "detect/pubspec.yaml app/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "7dedd530f466d3f9"
+  },
+  "detect/pubspec.yaml package without an sdk/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "7dedd530f466d3f9"
+  },
+  "detect/pubspec.yaml with an sdk only under dev_dependencies/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "7dedd530f466d3f9"
+  },
+  "detect/react-native beside a pubspec.yaml app, inline sdk/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "8525b519ca36d432"
+  },
+  "detect/react-native beside a pubspec.yaml app/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "8525b519ca36d432"
+  },
+  "detect/react-native dependency/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "17db00888202f133"
+  },
+  "detect/react-native dev dependency/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "17db00888202f133"
+  },
+  "detect/react-native peer dependency/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "17db00888202f133"
+  },
+  "detect/react-native with tsconfig/init": {
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
+    "now": "886bc68881c1ff30"
   }
 }

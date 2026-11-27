@@ -16,6 +16,8 @@ export type PositionalSpec = {
   required?: boolean;
   /** Takes every argument left. */
   rest?: boolean;
+  /** The values it takes, offered to a model as an enum. */
+  choices?: string[];
 };
 
 export type FlagValues = Record<string, string | number | boolean | string[] | undefined>;

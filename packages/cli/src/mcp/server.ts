@@ -13,7 +13,7 @@ import { TARGET_HELP } from '../targets.js';
 
 const text = (body: string) => ({ content: [{ type: 'text' as const, text: body }] });
 
-type Property = { type: string; items?: { type: string }; description: string };
+type Property = { type: string; items?: { type: string }; enum?: string[]; description: string };
 
 const propertyFor = (f: FlagSpec, mcpDefault?: number | string | boolean): Property => {
   const fallback = mcpDefault ?? f.default;
@@ -56,7 +56,9 @@ export const schemaFor = (c: Command) => {
   const required: string[] = [];
   for (const p of c.positionals ?? []) {
     const key = identifier(p.name);
-    properties[key] = p.rest ? { type: 'array', items: { type: 'string' }, description: p.help } : { type: 'string', description: p.help };
+    properties[key] = p.rest
+      ? { type: 'array', items: { type: 'string' }, description: p.help }
+      : { type: 'string', ...(p.choices ? { enum: p.choices } : {}), description: p.help };
     if (p.required) required.push(key);
   }
   for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f, c.mcpDefaults?.[name]);
