@@ -205,7 +205,7 @@ Los dos declaran `model: sonnet`, así que la rutina corre en un modelo más chi
 
 Las herramientas figuran como `mcp__lynkeus__*`, lo que supone que agregaste el servidor con el nombre `lynkeus`, como en el [paso 1](#1-conecta-el-servidor). Si usaste otro nombre, corrige la línea `tools` de los dos archivos.
 
-Las instrucciones del servidor dicen lo mismo a cualquier cliente: preparar el proyecto, revisar el estado, correr suites y juntar evidencia anda bien con un modelo más chico o con menos esfuerzo de razonamiento, y escribir o depurar casos rinde más con uno más capaz. Es una sugerencia; la decisión es tuya o del agente.
+Ojo: los clientes leen estos archivos al empezar la sesión, así que los subagentes que `init` escribe a mitad de una sesión recién existen en la siguiente. Tampoco hacen falta: las instrucciones del servidor le piden a cualquier cliente (Claude Code, Codex, Gemini, Kimi, Qwen u otro) que use los trabajos de una sola llamada (`setup`, `case_run` con `on: targets` y `brief`, `evidence`) en lugar de compilar y manejar dispositivos desde su terminal, y que, si puede correr una tarea en un contexto aparte, le pase esos trabajos y se quede solo con los resúmenes. La salida larga de cada trabajo queda en archivos que el agente abre solo si la respuesta le indica uno.
 
 ## Un ciclo completo: revisar un pull request
 

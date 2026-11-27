@@ -210,7 +210,7 @@ Both set `model: sonnet` in their frontmatter, so the routine part runs on a sma
 
 Their tools are listed as `mcp__lynkeus__*`, which assumes you added the server under the name `lynkeus`, as in [Step 1](#step-1-connect-the-server). With another name, edit the `tools` line in both files.
 
-The server's instructions say the same to any client: setup, status, running suites and gathering evidence run well on a smaller model or at lower effort, and writing and debugging cases gains from a stronger one. Lynkeus only suggests this; you, or the agent, decide.
+A client loads files like these when a session starts, so subagents that `init` writes during a session are there only from the next one. Nothing depends on them: the server's instructions tell any client (Claude Code, Codex, Gemini, Kimi, Qwen or another) to prefer the one-call jobs (`setup`, `case_run` with `on: targets` and `brief`, `evidence`) to driving builds and devices through its shell, and, when it can run a task in a separate context, to hand that context the jobs and keep only their summaries. Each job's long output is in files the agent opens only when the answer points at one.
 
 ## A sample exchange
 

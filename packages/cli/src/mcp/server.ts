@@ -97,7 +97,7 @@ export const argvFor = (c: Command, given: Record<string, unknown>): string[] =>
 // a test for this" need nothing more from the person asking.
 const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, through lynkeus-agent inside it, and runs cases: markdown files of readable steps.
 
-In a project you do not know, call status first: what is set up, where cases can run on this machine and, for each gap, the one thing that fixes it. To set Lynkeus up: init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token). The agent has native code: build the app again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) and restart Metro with --reset-cache, with your shell or by asking the person; then status until an app is attached. With no device: headless_init, headless_doctor, then case_run with host (the backend must be local: apiUrl in lynkeus.config.json).
+Prefer the one-call jobs to driving builds, Metro and devices through your shell: setup connects an app from scratch (init, the device, Metro, the development build, launch, attach, status; safe to re-run), case_run with on: targets and brief runs a suite on the project's targets, evidence runs it with frames, film and report.html. Each answers a few lines and keeps its logs in files: open one only when the answer points at it. If your client can run a task in a separate context, give it the one-call jobs and keep only their summaries. In a project you do not know, call status first. With no device: headless_init, headless_doctor, then case_run with host (the backend must be local: apiUrl in lynkeus.config.json).
 
 To write cases, spend tokens in this order and stop as soon as you know enough:
 1. case_coverage: the app's screens and which no case reaches yet.
@@ -109,15 +109,13 @@ To write cases, spend tokens in this order and stop as soon as you know enough:
 
 After changing the app's code, or to review a branch: case_impact with base lists the cases the changes reach; run those and fix what broke.
 
-Lynkeus never boots or closes a device: when you are done, shut down the Simulators and emulators you booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running.
+Lynkeus boots only a device the project names (setup says when it does) and never closes one: when you are done, shut down the Simulators and emulators you or setup booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running.
 
 A native module or value the app reads that nobody provides is answered empty (headless) or guessed (FastSim), and each run lists it: tell the person; when that changes what the app shows, giving it a real answer in cases.nativeMocks is their decision.
 
 Lynkeus FastSim is optional and paid (Team plan): use it when the person asks or their organization has it. When the service refuses (no plan, no seat, no key), tell the person what it said and carry on with headless or a device; never retry with other credentials.
 
-Everything else is in the guide tool: a topic lists its sections, topic and section answer one. Read a section when the task reaches it, not up front. Topics: cases (format, text matching, steps, app commands, macros, on: blocks, interruptions, mocks, app.relaunch), targets (cases.targets, on: targets, headless, FastSim, jobs), evidence (out, film, report.html, sharing, reading a failure), ci, determinism, troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.
-
-Routine work (setup, status, running suites, gathering evidence) runs well on a smaller model or lower effort; writing and debugging cases gains from a stronger one. With subagents, hand the routine work to lynkeus-setup and lynkeus-runner (lynkeus init installs them for Claude Code): their output stays out of your context. Lynkeus suggests; the person decides.`;
+Everything else is in the guide tool: a topic lists its sections, topic and section answer one. Read a section when the task reaches it, not up front. Topics: cases (format, text matching, steps, app commands, macros, on: blocks, interruptions, mocks, app.relaunch), targets (cases.targets, on: targets, headless, FastSim, jobs), evidence (out, film, report.html, sharing, reading a failure), ci, determinism, troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };
