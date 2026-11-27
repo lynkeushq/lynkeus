@@ -350,6 +350,52 @@ describe('headlessBackend with Yoga layout', () => {
     expect(byTestId(snapshot(), 'pay').covered).toBeUndefined();
   });
 
+  it('a drawer kept behind its screen with zIndex -1 covers nothing on the screen', async () => {
+    // As react-native-drawer-layout lays out drawerType "back": the screen first, the drawer after it, below it.
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
+          <Pressable testID="menu" style={{ width: 56, height: 56 }} onPress={noop} />
+          <Pressable testID="row" style={{ height: 50 }} onPress={noop} />
+        </View>
+        <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: 320, zIndex: -1 }}>
+          <Pressable testID="drawer-item" style={{ height: 60 }} onPress={noop} />
+          <ScrollView testID="drawer-list" style={{ flex: 1 }} />
+        </View>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    expect(byTestId(elements, 'menu').covered).toBeUndefined();
+    expect(byTestId(elements, 'row').covered).toBeUndefined();
+  });
+
+  it('a sibling with a higher zIndex covers what comes after it', async () => {
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View testID="header" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 100, zIndex: 2 }} />
+        <Pressable testID="under-header" style={{ marginTop: 20, width: 200, height: 40 }} onPress={noop} />
+      </View>,
+      yoga,
+    );
+    expect(byTestId(snapshot(), 'under-header').covered).toBe(true);
+  });
+
+  it('a full-window layer with pointerEvents box-none covers nothing under it', async () => {
+    // A toast host or a portal mounted over the app: only its children take touches.
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <Pressable testID="pay" style={{ width: 200, height: 50 }} onPress={noop} />
+        <View testID="toasts" pointerEvents="box-none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <View testID="toast" style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60 }} />
+        </View>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    expect(byTestId(elements, 'pay').covered).toBeUndefined();
+  });
+
   it('an element whose centre is outside the window is offscreen', async () => {
     const { snapshot } = await mount(
       <View style={{ flex: 1 }}>
