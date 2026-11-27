@@ -88,7 +88,7 @@ Some things are not the app's to decide: whether it has permission to use the ca
 | `lynkeus os push <payload>` | Delivers a push notification to the app. Needs the bundle identifier. |
 | `lynkeus os appearance <light\|dark>` | Switches the simulator between light and dark. |
 | `lynkeus os location <lat>,<lon>` | Sets where the device is. `lynkeus os location clear` removes it. |
-| `lynkeus os language [tag]` | Relaunches the app in a locale, such as `de-DE`. Needs the bundle identifier. |
+| `lynkeus os language [tag]` | Relaunches the app in a locale, such as `de-DE`. Needs the bundle identifier. With a simulator and an emulator both up, `--device` picks which. |
 | `lynkeus os appstate <background\|active>` | Sends the app to the background by opening Settings, and brings it back by launching it again. Its `AppState` listeners see both. Needs the bundle identifier for `active`. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Enrolls the simulator in Face ID or Touch ID, or takes the enrollment away. Which of the two the simulator has depends on its model. |
 

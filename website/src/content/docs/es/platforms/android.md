@@ -114,10 +114,10 @@ npx lynkeus os permissions grant android.permission.ACCESS_FINE_LOCATION --app c
 
 En el primer ejemplo, `camera` se convierte en `android.permission.CAMERA`.
 
-Los comandos `os push` y `os language` no están disponibles en Android. Si los ejecutas, el mensaje es:
+`os language` fija el idioma propio de la app en Android 13 (API 33) y posteriores, con `cmd locale set-app-locales`; por debajo falla diciéndolo. El comando `os push` no está disponible en Android. Si los ejecutas, el mensaje es:
 
 ```
-"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
+"push" is not available on Android through lynkeus; permissions, appearance, location, language and appstate are
 ```
 
 ## Capturas de pantalla y píxeles

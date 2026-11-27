@@ -656,7 +656,7 @@ Solo simulador. Define dónde está el dispositivo.
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-Solo simulador. Vuelve a abrir la app en otro idioma.
+Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
 
 | Argumento | Qué es |
 |---|---|
@@ -665,6 +665,7 @@ Solo simulador. Vuelve a abrir la app en otro idioma.
 | Flag | Qué es |
 |---|---|
 | `--app <bundleId>` | La app que se reinicia. Si lo omites, la de `lynkeus.config.json`. Por MCP es el argumento `app` de `os_language`. |
+| `--device <udid\|name\|serial>` | El simulador, o el emulador o teléfono (serie de adb), sobre el que actuar cuando hay más de uno. Si lo omites, el dispositivo al que está conectada la app. Por MCP es el argumento `device`; los demás comandos `os` que actúan sobre un simulador o emulador también lo aceptan. |
 
 ## Mapa (`map`)
 

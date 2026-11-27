@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { simulatorArgv } from '../commands/device.js';
+import { simulatorArgv, simulatorCommand } from '../commands/device.js';
 import { draftFlow } from '../commands/record.js';
 import type { TraceEvent } from 'lynkeus-protocol';
 
@@ -61,4 +61,28 @@ test('biometrics on a simulator sets whether a face or finger is enrolled', () =
   const off = simulatorArgv('ios', 'SIM', 'biometrics', ['none']);
   assert.deepEqual(off[0]!.args, ['simctl', 'spawn', 'SIM', 'notifyutil', '-s', 'com.apple.BiometricKit.enrollmentChanged', '0']);
   assert.equal(simulatorArgv('ios', 'SIM', 'biometrics', ['FaceID'])[0]!.args.at(-1), '1');
+});
+
+test('os language on Android sets the app locale, and says so below API 33', async () => {
+  assert.deepEqual(simulatorArgv('android', 'emu', 'language', ['de-DE'], 'com.example.myapp')[0]!.args, [
+    '-s',
+    'emu',
+    'shell',
+    'cmd',
+    'locale',
+    'set-app-locales',
+    'com.example.myapp',
+    '--locales',
+    'de-DE',
+  ]);
+  const calls: string[][] = [];
+  const device = (api: string) => async (_bin: string, args: string[]) => {
+    calls.push(args);
+    return { stdout: args.includes('getprop') ? `${api}\n` : '' };
+  };
+  await assert.rejects(simulatorCommand('android', 'emu', 'language', ['de-DE'], 'com.example.myapp', device('31')), /needs API 33\+.*API 31/);
+  assert.equal(calls.length, 1);
+  const lines = await simulatorCommand('android', 'emu', 'language', ['de-DE'], 'com.example.myapp', device('34'));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0]!, /set-app-locales com\.example\.myapp --locales de-DE/);
 });

@@ -117,6 +117,12 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
       const [lat, lon] = where.split(',');
       return [adb(['emu', 'geo', 'fix', lon!, lat!])];
     }
+    case 'language': {
+      const [tag] = args;
+      if (!tag) throw new Error('lynkeus os language <bcp47, e.g. de-DE> --app <applicationId>');
+      // The app's own locale (API 33+): the app restarts in it, the system language stays.
+      return [adb(['shell', 'cmd', 'locale', 'set-app-locales', needApp(), '--locales', tag])];
+    }
     case 'appstate': {
       // Home sends the app to the background; its launcher intent brings the same task back, not a new one.
       const [state] = args;
@@ -125,15 +131,42 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
       throw new Error('lynkeus os appstate background|active on an emulator or a phone');
     }
     default:
-      throw new Error(`"${sub}" is not available on Android through Lynkeus; permissions, appearance, location and appstate are`);
+      throw new Error(`"${sub}" is not available on Android through Lynkeus; permissions, appearance, location, language and appstate are`);
   }
 };
 
-export const simulatorCommand = async (platform: Platform, deviceId: string, sub: string, args: string[], appId?: string): Promise<string[]> => {
+export const MIN_APP_LOCALE_API = 33;
+
+type Runner = (bin: string, args: string[]) => Promise<{ stdout: string }>;
+
+export const simulatorCommand = async (
+  platform: Platform,
+  deviceId: string,
+  sub: string,
+  args: string[],
+  appId?: string,
+  exec: Runner = run,
+): Promise<string[]> => {
+  const argv = simulatorArgv(platform, deviceId, sub, args, appId);
+  if (platform === 'android' && sub === 'language') {
+    const level = await exec('adb', ['-s', deviceId, 'shell', 'getprop', 'ro.build.version.sdk']).then(
+      ({ stdout }) => Number.parseInt(stdout.trim(), 10),
+      () => Number.NaN,
+    );
+    if (!(level >= MIN_APP_LOCALE_API)) {
+      throw new Error(
+        `os language on Android sets the app's own locale with \`cmd locale set-app-locales\`, which needs API ${MIN_APP_LOCALE_API}+; ${deviceId} ${Number.isNaN(level) ? 'did not report its API level' : `is on API ${level}`}.`,
+      );
+    }
+  }
+  return runAll(argv, exec);
+};
+
+const runAll = async (argv: Invocation[], exec: Runner): Promise<string[]> => {
   const out: string[] = [];
-  for (const c of simulatorArgv(platform, deviceId, sub, args, appId)) {
+  for (const c of argv) {
     try {
-      const { stdout } = await run(c.bin, c.args);
+      const { stdout } = await exec(c.bin, c.args);
       out.push(`${c.bin} ${c.args.join(' ')}${stdout.trim() ? `\n${stdout.trim()}` : ''}`);
     } catch (error) {
       if (c.optional) continue;
