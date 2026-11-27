@@ -53,6 +53,8 @@ const PROBES = new Set(['then', 'toJSON', 'constructor', 'asymmetricMatch', 'nod
 
 const reads = new Map<string, NativeValueRead>();
 const configured = new Set<string>();
+// Modules the project declared absent (`"EXDevLauncher": { "absent": true }`): reading one is the answer asked for, not news.
+const declaredAbsent = new Set<string>();
 const wrapped = new WeakMap<object, object>();
 // Modules the fallback made, and the no-op each property read of one hands out (the same one every time).
 const fallbacks = new WeakSet<object>();
@@ -128,6 +130,7 @@ const watchModules = (rn: RN, platform: Platform) => {
           if (typeof name !== 'string' || PROBES.has(name)) return module;
           if (module === undefined && !(name in t)) {
             // Only a module the reading code's own native side defines: anyone else's is an optional one it checks for.
+            if (declaredAbsent.has(name)) return module;
             const reader = optionalLookups > 0 || !MODULE_NAME.test(name) ? undefined : readerOf();
             if (!reader || !owners.owns(reader, name)) {
               note({ module: name, platform, host: 'headless', readAs: 'undefined' });
@@ -154,6 +157,12 @@ export const applyNativeValues = (entries: Record<string, unknown>, rn: RN = req
   for (const [key, entry] of Object.entries(entries)) {
     const answer = resolveNativeValue(entry, platform);
     const dot = key.indexOf('.');
+    if (answer?.absent && dot === -1) {
+      declaredAbsent.add(key);
+      reads.delete(key);
+      applied.push(key);
+      continue;
+    }
     if (!answer || dot <= 0) continue;
     const module = key.slice(0, dot);
     const property = key.slice(dot + 1);

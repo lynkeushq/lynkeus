@@ -45,6 +45,12 @@ export const mergeNativeValues = (lists: (RunNativeValue[] | undefined)[]): RunN
   return [...merged.values()].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
 };
 
+/** A module the config's `nativeMocks` declares absent (`{ "absent": true }`, or listing this platform): the host's undefined is the answer asked for. */
+const declaredAbsent = (entry: unknown, platform: string): boolean => {
+  const absent = (entry as { absent?: unknown } | null | undefined)?.absent;
+  return absent === true || (Array.isArray(absent) && absent.includes(platform));
+};
+
 const HOST = { fastsim: 'Lynkeus FastSim', headless: 'headless' } as const;
 
 /**
@@ -52,7 +58,8 @@ const HOST = { fastsim: 'Lynkeus FastSim', headless: 'headless' } as const;
  * `nativeMocks` to paste with the value left for the person (or an agent, from the library's native code) to fill.
  * A property FastSim answered with a function the app then called is a no-op call, not a constant: it is left out.
  */
-export const describeNativeValues = (reads: RunNativeValue[], options: { entry?: string } = {}): string[] => {
+export const describeNativeValues = (reads: RunNativeValue[], options: { entry?: string; nativeMocks?: Record<string, unknown> } = {}): string[] => {
+  reads = reads.filter((r) => !declaredAbsent(options.nativeMocks?.[r.module], r.platform));
   const fallback = new Set(reads.filter((r) => r.readAs === 'empty').map((r) => `${r.platform}:${r.module}`));
   const answered = describeFallbacks(
     reads.filter((r) => fallback.has(`${r.platform}:${r.module}`)),
