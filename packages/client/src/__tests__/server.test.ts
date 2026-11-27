@@ -7,7 +7,8 @@ import { WebSocket } from 'ws';
 
 import { AgentError, AgentServer } from '../index.js';
 
-let port = 18_500;
+// Random base: fixed ports collide with another checkout running the same suite.
+let port = 20_000 + Math.floor(Math.random() * 20_000);
 const servers: AgentServer[] = [];
 after(async () => {
   for (const s of servers) await s.close();

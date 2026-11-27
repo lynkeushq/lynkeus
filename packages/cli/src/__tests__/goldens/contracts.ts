@@ -216,7 +216,7 @@ export const probeReport = async (): Promise<Entries> => {
   const base: Base = {
     root,
     // The run claims its port like a real one; 8123 may belong to a Lynkeus run on this machine.
-    config: { port: 18_000 + (process.pid % 1000) },
+    config: { port: 40_000 + Math.floor(Math.random() * 10_000) },
     attached: true,
     err: () => undefined,
     graph: () => {
