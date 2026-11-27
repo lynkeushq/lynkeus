@@ -247,21 +247,22 @@ The first thing to call in a project you do not know: each line that fails says 
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
 
-### `lynkeus guide [topic]`
+### `lynkeus guide [topic] [section]`
 
-How to work with Lynkeus, one short topic per call: the Lynkeus skill's text, for what the MCP instructions leave out
+How to work with Lynkeus, one short section per call: the Lynkeus skill's text, for what the MCP instructions leave out
 
-Without a topic, the index: the cheap way to write a case and what each topic holds. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
+A topic alone lists its sections; a topic and a section answer that section only. Neither gives the index. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
 
 | Argument | |
 |---|---|
 | `topic` | none for the index (optional) |
+| `section` | a section id from the topic's list (optional) |
 
 ### `lynkeus skill install [--force]`
 
 Install or update the Lynkeus skill in this project's .claude/skills/lynkeus, at this CLI's version
 
-`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same topics are served over MCP by the `guide` tool.
+`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same sections are served over MCP by the `guide` tool.
 
 | Flag | |
 |---|---|
