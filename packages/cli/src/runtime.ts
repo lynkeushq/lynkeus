@@ -56,19 +56,23 @@ export const awayNote = (server: Partial<Pick<AgentServer, 'appState' | 'hello'>
  * start, where known; `failed` the step or command that failed, with its own error.
  */
 export type WhyScope = { at: number; since?: number; case?: string; failed?: string };
-const scopes = new Map<number | undefined, WhyScope>();
-export const scopeWhy = (port: number | undefined, scope: WhyScope): void => {
-  scopes.set(port, scope);
+// Two apps can share a port (`case run --on ios,android`, routed by platform), so what a run kept is keyed by the
+// port and the platform of the app that ran it: a `why` on one lane never reads the other's case.
+const lane = (port: number | undefined, platform: string | undefined) => `${port ?? ''}:${platform ?? ''}`;
+const scopes = new Map<string, WhyScope>();
+export const scopeWhy = (port: number | undefined, scope: WhyScope, platform?: string): void => {
+  scopes.set(lane(port, platform), scope);
 };
-export const whyScope = (port: number | undefined): WhyScope | undefined => scopes.get(port);
+export const whyScope = (port: number | undefined, platform?: string): WhyScope | undefined => scopes.get(lane(port, platform));
+export const platformOf = (device: { server?: { hello?: { platform?: string } | null } } | undefined): string | undefined => device?.server?.hello?.platform;
 
 type Printed = { at: number; level: string; text: string };
 // A run that keeps the console takes it from the app after each step: the lines it took are kept here a while, so
 // `why` still reads what the app logged during the step before (where a fetch whose body it could not use failed).
-const printed = new Map<number | undefined, Printed[]>();
+const printed = new Map<string, Printed[]>();
 const PRINTED_KEPT = 200;
-export const notePrinted = (port: number | undefined, lines: Printed[]): void => {
-  if (lines.length) printed.set(port, [...(printed.get(port) ?? []), ...lines].slice(-PRINTED_KEPT));
+export const notePrinted = (port: number | undefined, lines: Printed[], platform?: string): void => {
+  if (lines.length) printed.set(lane(port, platform), [...(printed.get(lane(port, platform)) ?? []), ...lines].slice(-PRINTED_KEPT));
 };
 
 // What the app logged from `startedAt` on: lines a run already took, and those the app still holds (read, not taken).
@@ -82,7 +86,7 @@ const printedSince = async (device: Awaited<ReturnType<Base['device']>>, started
         () => [],
       )
     : [];
-  const all = [...(printed.get(device.server.port) ?? []), ...held];
+  const all = [...(printed.get(lane(device.server.port, platformOf(device))) ?? []), ...held];
   const unique = all.filter((l, i) => all.findIndex((o) => o.at === l.at && o.text === l.text) === i);
   return fromStart(unique, startedAt, (l) => l.at);
 };
@@ -155,7 +159,10 @@ const fromStart = <T>(items: T[], startedAt: number | undefined, at: (item: T) =
 
 const TARGET_ARG: Record<string, number> = { press: 0, see: 0, wait: 0, swipe: 1, nav: 0, type: 1 };
 
-const portOf = async (base: Base): Promise<number | undefined> => (await base.device().catch(() => undefined))?.server?.port;
+const laneOf = async (base: Base) => {
+  const device = await base.device().catch(() => undefined);
+  return { port: device?.server?.port, platform: platformOf(device) };
+};
 
 /**
  * Whether a source file the graph was read from changed after it, or a folder holding one gained or lost a file (a
@@ -209,7 +216,10 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
   try {
     if (command.needs === 'graph' || command.readsGraph) await graphFirst(base.root, command.needs === 'graph');
     const result = await command.run({ ...base, ...parsed });
-    if (TARGET_ARG[command.name] !== undefined) scopeWhy(await portOf(base), { at: startedAt });
+    if (TARGET_ARG[command.name] !== undefined) {
+      const on = await laneOf(base);
+      scopeWhy(on.port, { at: startedAt }, on.platform);
+    }
     if (result === undefined) return { code: 0 };
     if (typeof result === 'string') return { code: 0, text: result };
     return { code: result.code ?? 0, text: result.text ?? (result.json === undefined ? undefined : JSON.stringify(result.json)), json: result.json };
@@ -217,7 +227,8 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
     const out: Outcome = { code: 1, error: error instanceof Error ? error.message : String(error) };
     const at = TARGET_ARG[command.name];
     if (at !== undefined) {
-      scopeWhy(await portOf(base), { at: startedAt, failed: `${argv.join(' ')}: ${out.error}` });
+      const on = await laneOf(base);
+      scopeWhy(on.port, { at: startedAt, failed: `${argv.join(' ')}: ${out.error}` }, on.platform);
       const why = await whyFor(base, expectedOf(parsed.args[at]), startedAt);
       if (why) out.why = why;
     }
