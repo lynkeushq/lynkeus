@@ -26,6 +26,24 @@ export type Evidence = {
   logs?: { level: string; text: string }[];
 };
 
+/**
+ * Commands Lynkeus itself sends the app between steps (to read its memory, console, events, frames…). An app without
+ * one answers `Unknown method`, which is no reason a step failed.
+ */
+const OWN_PROBES = new Set([
+  'memory',
+  'logs',
+  'analytics',
+  'networkBodies',
+  'events',
+  'traceContext',
+  'nativeValues',
+  'nativeMocks',
+  'still',
+  'screenshot',
+  'record',
+  'clock',
+]);
 
 export type Finding = { rule: string; message: string };
 
@@ -319,7 +337,7 @@ export const explain = (e: Evidence): Finding[] => {
   const lastCommand = e.trace
     ?.slice()
     .reverse()
-    .find((t) => t.kind === 'command' && t.error);
+    .find((t) => t.kind === 'command' && t.error && !OWN_PROBES.has(t.method));
   if (lastCommand && lastCommand.kind === 'command' && out.length === 0)
     out.push({ rule: 'last-error', message: `the last command that failed was ${lastCommand.method}: ${lastCommand.error}` });
 

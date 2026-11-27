@@ -193,3 +193,11 @@ test('a 2xx the app logged an error about is named as a body of the wrong shape'
     ).includes('bad-body'),
   );
 });
+
+test('a probe Lynkeus sends itself is never the last command that failed', () => {
+  const s = screen([el({}, 0)], 'Home');
+  const probe: TraceEvent = { seq: 1, t: 1, kind: 'command', method: 'memory', ms: 1, error: 'Unknown method memory' };
+  assert.deepEqual(rules(explain({ screen: s, requests: [], inFlight: 0, trace: [probe] })), []);
+  const own: TraceEvent = { seq: 2, t: 2, kind: 'command', method: 'signOut', ms: 1, error: 'Unknown method signOut' };
+  assert.deepEqual(rules(explain({ screen: s, requests: [], inFlight: 0, trace: [own, probe] })), ['last-error']);
+});
