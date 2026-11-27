@@ -23,7 +23,10 @@ test('a case touches the routes its macros reach, through nested macros and thei
     'app.signedIn': [{ do: [{ 'app.nav': 'Welcome' }], unless: 'x' }],
     'app.loop': ['app.loop', { 'app.nav': 'Loop' }],
   };
-  const k = c('showroom', [{ verb: 'app.inDemo', value: { screen: 'DemoShowroom' } }, { verb: 'app.loop', value: null }]);
+  const k = c('showroom', [
+    { verb: 'app.inDemo', value: { screen: 'DemoShowroom' } },
+    { verb: 'app.loop', value: null },
+  ]);
   assert.deepEqual(routesNamed(k), []);
   assert.deepEqual(routesNamed(k, macros), ['Welcome', 'Demo', 'DemoShowroom', 'Loop']);
   const cov = coverageOf([k], ['Welcome', 'DemoShowroom'], {}, { macros });

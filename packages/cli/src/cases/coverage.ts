@@ -26,7 +26,11 @@ export const routeOf = (step: Step): string | undefined => {
 
 /** The routes a case names in its steps, and in the steps of the macros they call (with what the case passes them). */
 export const routesNamed = (c: Case, macros: Record<string, unknown[]> = {}): string[] => [
-  ...new Set(expandMacros([...c.setup, ...c.steps], macros).map(routeOf).filter((r): r is string => !!r)),
+  ...new Set(
+    expandMacros([...c.setup, ...c.steps], macros)
+      .map(routeOf)
+      .filter((r): r is string => !!r),
+  ),
 ];
 
 /** A step of a passing run as `case run` labels it, and the screen the app was on when it ended. */

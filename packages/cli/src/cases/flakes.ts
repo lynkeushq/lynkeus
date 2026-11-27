@@ -81,7 +81,16 @@ export const caseVersion = (c: Pick<Case, 'setup' | 'steps' | 'teardown'>, macro
 
 // Failures that fail the same way every time until someone changes something: no app to drive, or a case or project
 // that cannot run as written. They say nothing about whether the case passes and fails on its own.
-const STEADY = [/^No app attached/, /^Port \d+ is already taken/, /is not a step/, /\bneeds an? /, /^no alias /, /declares no fixtures/, /declares none/, /^no command \S+ registered/];
+const STEADY = [
+  /^No app attached/,
+  /^Port \d+ is already taken/,
+  /is not a step/,
+  /\bneeds an? /,
+  /^no alias /,
+  /declares no fixtures/,
+  /declares none/,
+  /^no command \S+ registered/,
+];
 
 export const countsForFlakiness = (o: Outcome): boolean => !(o.result === 'failed' && o.error && STEADY.some((p) => p.test(o.error!)));
 

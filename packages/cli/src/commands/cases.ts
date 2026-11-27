@@ -1019,7 +1019,11 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                 await scoped.stop();
               }
             };
-            let { report, startedAt, hello }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean; commands?: string[] } } =
+            let {
+              report,
+              startedAt,
+              hello,
+            }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean; commands?: string[] } } =
               await attempt(1, store?.take(c));
             // What a stopped case did after the stop is not a result: it ran only until its step ended.
             if (halt.signal.aborted) break;
