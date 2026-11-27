@@ -138,7 +138,12 @@ const android: PlatformLifecycle = {
   // the index a player needs: it is told to stop on the device, where it finishes the file, which is then pulled.
   async recordVideo(deviceId, destination) {
     const remote = `/sdcard/lynkeus-${randomBytes(6).toString('hex')}.mp4`;
-    const { child, startedAt, exited } = await startRecorder('adb', ['-s', deviceId, 'shell', 'screenrecord', '--verbose', '--bit-rate', '4000000', remote], /Content area|Configuring|encoder/i, 1500);
+    const { child, startedAt, exited } = await startRecorder(
+      'adb',
+      ['-s', deviceId, 'shell', 'screenrecord', '--verbose', '--bit-rate', '4000000', remote],
+      /Content area|Configuring|encoder/i,
+      1500,
+    );
     return {
       file: destination,
       startedAt,

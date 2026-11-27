@@ -1,4 +1,4 @@
-import type { IdentifierChange } from '../api.js';
+import { type IdentifierChange, SUBSTITUTION } from '../api.js';
 
 type Ts = typeof import('ts-morph').ts;
 type Node = import('ts-morph').ts.Node;
@@ -15,7 +15,7 @@ const MASK = '\u0000lynkeus-identifier\u0000';
 const literalOf = (ts: Ts, node: Expression | undefined): string | undefined => {
   if (!node) return undefined;
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text;
-  if (ts.isTemplateExpression(node)) return node.head.text + node.templateSpans.map((s) => `\${…}${s.literal.text}`).join('');
+  if (ts.isTemplateExpression(node)) return node.head.text + node.templateSpans.map((s) => `${SUBSTITUTION}${s.literal.text}`).join('');
   return undefined;
 };
 
@@ -71,7 +71,8 @@ export const readIdentifierChange = async (before: string, after: string, file: 
   if (was.printed !== now.printed) return undefined;
   // The same print puts the same props in the same places: a value is compared with the one in its place, so two
   // swapped testIDs count as changed.
-  const changed = (kind: Found['kind']) =>
-    [...new Set(was.found.flatMap((f, i) => (f.kind === kind && f.value !== now.found[i]!.value ? [f.value, now.found[i]!.value] : [])))];
+  const changed = (kind: Found['kind']) => [
+    ...new Set(was.found.flatMap((f, i) => (f.kind === kind && f.value !== now.found[i]!.value ? [f.value, now.found[i]!.value] : []))),
+  ];
   return { ids: changed('id'), labels: changed('label') };
 };

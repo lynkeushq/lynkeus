@@ -19,7 +19,7 @@ export type { SetupCheck } from '../commands/init.js';
 export type { FileFacts, NavigationEdge, NavigationTrigger, ScreenGraph, ScreenNode, Selector, SourcePath } from '../knowledge/types.js';
 export type { RouteParamsInfo } from '../knowledge/route-params.js';
 export type { StringEntry } from '../knowledge/stringTables.js';
-export type { IdentifierChange } from '../knowledge/identifiers.js';
+export { type IdentifierChange, SUBSTITUTION } from '../knowledge/identifiers.js';
 export type { Ctx, Result } from '../registry.js';
 export { runtimeOf, type RuntimeId } from './detect.js';
 

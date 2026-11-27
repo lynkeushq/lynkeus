@@ -424,7 +424,10 @@ export const reportCommands = [
       'Writes report.html into a run folder `case_run` with `out` made (it already writes one at the end of each run): a page to open offline or share, with each case, its steps and frames, the film, the requests and why a case failed. `embed` puts the frames and the film inside the page, for one file to send.',
     run: async (ctx) => {
       const dir = path.resolve(ctx.args[0]!);
-      const written = writeRunReport(dir, { embed: !!ctx.flags.embed, project: typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root) });
+      const written = writeRunReport(dir, {
+        embed: !!ctx.flags.embed,
+        project: typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
+      });
       if ('error' in written) return { text: written.error, code: 2 };
       const size = fs.statSync(written.file).size;
       return { text: `${written.file} (${megabytes(size)}; open it in a browser, no network needed)`, json: { ...written, bytes: size } };

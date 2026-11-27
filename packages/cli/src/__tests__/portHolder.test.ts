@@ -14,7 +14,7 @@ const answers =
     throw new Error(`unexpected ${key}`);
   };
 
-test("names a stale lynkeus mcp of another project, with its release and folder", async () => {
+test('names a stale lynkeus mcp of another project, with its release and folder', async () => {
   const holder = await portHolder(
     8123,
     answers({
@@ -25,7 +25,10 @@ test("names a stale lynkeus mcp of another project, with its release and folder"
   );
   assert.deepEqual(holder, { pid: 13646, command: 'npm exec lynkeus@0.7.6 mcp', lynkeus: { project: '/Users/me/trials/run2/ShopTrial', version: '0.7.6' } });
   const line = describeHolder(8123, holder, '/Users/me/trials/run3/ShopTrial');
-  assert.match(line, /^port 8123 is taken by pid 13646 \(npm exec lynkeus@0\.7\.6 mcp\): Lynkeus 0\.7\.6 for another project, \/Users\/me\/trials\/run2\/ShopTrial\./);
+  assert.match(
+    line,
+    /^port 8123 is taken by pid 13646 \(npm exec lynkeus@0\.7\.6 mcp\): Lynkeus 0\.7\.6 for another project, \/Users\/me\/trials\/run2\/ShopTrial\./,
+  );
   assert.match(line, /each project has its own token/);
   assert.match(line, /`kill 13646`/);
 });
@@ -56,6 +59,9 @@ test('a process that is not Lynkeus is named as such, and nothing is claimed whe
   assert.equal(await portHolder(8123, answers({})), undefined);
   assert.match(describeHolder(8123, undefined, '/x'), /lsof could not name it/);
   // lynkeus-agent in a path is not the CLI.
-  const agent = await portHolder(8123, answers({ 'lsof -nP -iTCP:8123 -sTCP:LISTEN -t': '9\n', 'ps -o args= -p 9': 'node /app/node_modules/lynkeus-agent/x.js' }));
+  const agent = await portHolder(
+    8123,
+    answers({ 'lsof -nP -iTCP:8123 -sTCP:LISTEN -t': '9\n', 'ps -o args= -p 9': 'node /app/node_modules/lynkeus-agent/x.js' }),
+  );
   assert.equal(agent?.lynkeus, undefined);
 });

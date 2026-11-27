@@ -494,7 +494,7 @@ Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull reque
 | Flag | |
 |---|---|
 | `--force` | overwrite the workflow if it exists |
-| `--depth <n>` | how many imports away the check looks (default `2`) |
+| `--depth <n>` | how many imports away the check looks (as `case impact`) (default `4`) |
 
 ### `lynkeus map check [--base <ref>] [--graph-base <file>] [--depth <n>]`
 
@@ -688,7 +688,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--frames-on-change` | with --screenshots: a step that only looks (app.see, app.wait) on an unchanged screen shares the last frame |
 | `--still <ms>` | with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see) |
 | `--frames <avif|png>` | with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel (default `avif`) |
-| `--video` | with --out: film each case, where the host films (the step says at what second it began) |
+| `--video` | with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began |
 | `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
 | `--traces-port <port>` | where --traces listens (default `4318`) |
 | `--push` | with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case |
@@ -769,7 +769,7 @@ A screen counts as touched when a case goes to it (`app.nav`), waits for it (`ap
 
 The cases a branch’s changes reach, to run only those, and the reached screens no case covers
 
-The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t('a.b')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
+The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t('a.b')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases whose steps or macros name a changed testID (old or new) or a changed label’s text. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
 
 | Flag | |
 |---|---|
@@ -841,6 +841,21 @@ Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints e
 Tell whether the project’s fixtures server keeps the fixtures protocol
 
 Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.
+
+### `lynkeus report html <dir> [--embed] [--project <name>]`
+
+Write a run as one HTML page in its folder, to open offline or share: cases, steps, frames, film, requests, failures
+
+Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry them inside the page. `case run --out` writes it by itself at the end of every run.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory `case run --out` wrote |
+
+| Flag | |
+|---|---|
+| `--embed` | carry the frames and films inside the page, for one file to send (larger) |
+| `--project <name>` | the name the page shows (default: the app’s folder name) |
 
 ### `lynkeus report prune [dir] [--older <age>] [--dry-run]`
 

@@ -52,12 +52,16 @@ export const narrowIdentifierChanges = async (changed: SourcePath[], read: Ident
   return out;
 };
 
+/** What a template's substitution reads as in a changed testID: `item-${…}`. */
+// biome-ignore lint/suspicious/noTemplateCurlyInString: the marker itself, written as a case author would read it.
+export const SUBSTITUTION = '${…}';
+
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** A step string that names the testID: `#id`, `#id[2]`, `#id` inside a longer value, or the bare id of a `testId:` field. */
 const namesId = (value: string, id: string): boolean => {
   // A template's `${…}` matches any text there: `item-${…}` is named by `#item-3`.
-  const pattern = id.split('${…}').map(escapeRegex).join('[^\\s"\'\\]]*');
+  const pattern = id.split(SUBSTITUTION).map(escapeRegex).join('[^\\s"\'\\]]*');
   return new RegExp(`(?:^|[^\\w.:/-])#${pattern}(?![\\w.:/-])`).test(value) || new RegExp(`^${pattern}$`).test(value);
 };
 

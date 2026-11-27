@@ -9,7 +9,7 @@ import { coverageOf, impactOf, withIdCases } from '../../cases/coverage.js';
 import type { Case } from '../../cases/format.js';
 import { reachOfChanges } from '../../commands/map.js';
 import { readIdentifierChange } from '../../runtimes/react-native/identifiers.js';
-import { casesNamingIds, narrowIdentifierChanges } from '../identifiers.js';
+import { casesNamingIds, narrowIdentifierChanges, SUBSTITUTION } from '../identifiers.js';
 import type { ScreenGraph } from '../types.js';
 
 const WELCOME = `import { Button, Text, View } from "react-native"
@@ -26,11 +26,14 @@ export function WelcomeScreen({ navigation }) {
 
 test('a file that only renamed a testID names the old and new IDs', async () => {
   const renamed = WELCOME.replace('"next-screen-button"', '"welcome-continue-button"');
-  assert.deepEqual(await readIdentifierChange(WELCOME, renamed, 'app/screens/Welcome.tsx'), { ids: ['next-screen-button', 'welcome-continue-button'], labels: [] });
+  assert.deepEqual(await readIdentifierChange(WELCOME, renamed, 'app/screens/Welcome.tsx'), {
+    ids: ['next-screen-button', 'welcome-continue-button'],
+    labels: [],
+  });
   // In braces, as a template, or as an object property it is the same prop.
-  const braced = WELCOME.replace('testID="next-screen-button"', 'testID={`next-${"x"}`}').replace('testID="welcome-screen"', "testID={'welcome-screen'}");
-  const braced2 = braced.replace('next-${"x"}', 'go-${"x"}');
-  assert.deepEqual(await readIdentifierChange(braced, braced2, 'a.tsx'), { ids: ['next-${…}', 'go-${…}'], labels: [] });
+  const braced = WELCOME.replace('testID="next-screen-button"', `testID={\`next-\${"x"}\`}`).replace('testID="welcome-screen"', "testID={'welcome-screen'}");
+  const braced2 = braced.replace(`next-\${"x"}`, `go-\${"x"}`);
+  assert.deepEqual(await readIdentifierChange(braced, braced2, 'a.tsx'), { ids: [`next-${SUBSTITUTION}`, `go-${SUBSTITUTION}`], labels: [] });
   const props = 'const p = { testID: "a", style: s }\n';
   assert.deepEqual(await readIdentifierChange(props, props.replace('"a"', '"b"'), 'a.ts'), { ids: ['a', 'b'], labels: [] });
 });
@@ -79,7 +82,7 @@ const kase = (id: string, steps: Case['steps'], setup: Case['setup'] = []): Case
 test('a case names a testID in a step, a scoped or indexed target, or through a macro it calls', () => {
   const ids = [
     { id: 'next-screen-button', file: 'w.tsx' },
-    { id: 'item-${…}', file: 'l.tsx' },
+    { id: `item-${SUBSTITUTION}`, file: 'l.tsx' },
   ];
   const macros = { 'app.goToDemo': [{ 'app.press': '#next-screen-button' }], 'app.signedIn': [{ 'app.goToDemo': {} }] };
   const cases = [

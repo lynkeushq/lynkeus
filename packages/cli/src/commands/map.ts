@@ -89,7 +89,8 @@ export const reachOfChanges = async (
       return undefined;
     }
   })();
-  const identifiers = sources && identifierChange ? await narrowIdentifierChanges(changed, { ...sources, change: identifierChange }).catch(() => undefined) : undefined;
+  const identifiers =
+    sources && identifierChange ? await narrowIdentifierChanges(changed, { ...sources, change: identifierChange }).catch(() => undefined) : undefined;
   const rest = identifiers?.files ?? changed;
   const narrowed = sources && table ? await narrowStringTables(rest, graph, { ...sources, table }).catch(() => undefined) : undefined;
   return {
@@ -280,7 +281,9 @@ export const mapCommands = [
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, mapCheckWorkflow(ctx.flags.depth as number, version.range));
       return {
-        text: [`wrote ${path.relative(ctx.root, file)} (lynkeus@${version.range}, --depth ${ctx.flags.depth})`, ...(version.note ? [version.note] : [])].join('\n'),
+        text: [`wrote ${path.relative(ctx.root, file)} (lynkeus@${version.range}, --depth ${ctx.flags.depth})`, ...(version.note ? [version.note] : [])].join(
+          '\n',
+        ),
         json: { file, version: version.range, depth: ctx.flags.depth },
       };
     },
@@ -358,11 +361,18 @@ export const ciVersion = (root: string, cli = CLI_VERSION): { range: string; not
     if (/^(file|link|workspace|portal|git\+?|https?):/.test(spec) || /\d+\.\d+\.\d+-/.test(spec)) {
       const base = /\d+\.\d+\.\d+/.exec(spec)?.[0] ?? cli;
       const range = released(base);
-      return { range, note: `${name} is ${spec} in package.json, which CI cannot install: the workflow runs lynkeus@${range}, published once that release is out` };
+      return {
+        range,
+        note: `${name} is ${spec} in package.json, which CI cannot install: the workflow runs lynkeus@${range}, published once that release is out`,
+      };
     }
     return { range: spec };
   }
-  if (/\d+\.\d+\.\d+-/.test(cli)) return { range: released(cli), note: `this lynkeus is a dev build (${cli}): the workflow runs lynkeus@${released(cli)}, published once that release is out` };
+  if (/\d+\.\d+\.\d+-/.test(cli))
+    return {
+      range: released(cli),
+      note: `this lynkeus is a dev build (${cli}): the workflow runs lynkeus@${released(cli)}, published once that release is out`,
+    };
   return { range: `^${cli}` };
 };
 

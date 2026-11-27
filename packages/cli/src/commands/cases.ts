@@ -1247,7 +1247,10 @@ export const caseCommands = [
         default: 'avif',
         value: 'avif|png',
       },
-      video: { type: 'boolean', help: 'with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began' },
+      video: {
+        type: 'boolean',
+        help: 'with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began',
+      },
       traces: {
         type: 'boolean',
         help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',

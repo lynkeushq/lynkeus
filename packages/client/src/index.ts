@@ -161,7 +161,10 @@ export class AgentServer extends EventEmitter {
             ? ' An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.'
             : ' Is a dev build running with <Lynkeus>?';
         reject(
-          new AgentError(`No app attached on ${this.host}:${this.port} within ${timeoutMs}ms.${why}`, this.#refused || this.#unanswered ? 'wrong-token' : undefined),
+          new AgentError(
+            `No app attached on ${this.host}:${this.port} within ${timeoutMs}ms.${why}`,
+            this.#refused || this.#unanswered ? 'wrong-token' : undefined,
+          ),
         );
       }, timeoutMs);
       const onHello = (hello: HelloEvent) => {

@@ -27,7 +27,10 @@ test('a recorder that quits before it begins says why, and one that says nothing
     quits.stderr.write('Error: no booted device\n');
     quits.emit('exit', 1);
   }, 20);
-  await assert.rejects(startRecorder('adb', ['-s', 'x', 'shell'], /Content area/, 5000, () => quits), /did not start filming: Error: no booted device/);
+  await assert.rejects(
+    startRecorder('adb', ['-s', 'x', 'shell'], /Content area/, 5000, () => quits),
+    /did not start filming: Error: no booted device/,
+  );
   const silent = fakeRecorder();
   const t0 = Date.now();
   await startRecorder('adb', [], /Content area/, 100, () => silent);

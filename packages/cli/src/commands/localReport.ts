@@ -70,7 +70,15 @@ const status = (s: string) => ({ passed: '✓', failed: '✗', skipped: '–', u
 
 const exchange = (title: string, x: RequestRecord['request']) =>
   x && (x.body || (x.headers && Object.keys(x.headers).length))
-    ? `<div class="x"><b>${title}</b>${x.headers && Object.keys(x.headers).length ? `<pre>${esc(Object.entries(x.headers).map(([k, v]) => `${k}: ${v}`).join('\n'))}</pre>` : ''}${x.body ? `<pre>${esc(x.body)}${x.truncated ? '\n…' : ''}</pre>` : ''}</div>`
+    ? `<div class="x"><b>${title}</b>${
+        x.headers && Object.keys(x.headers).length
+          ? `<pre>${esc(
+              Object.entries(x.headers)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join('\n'),
+            )}</pre>`
+          : ''
+      }${x.body ? `<pre>${esc(x.body)}${x.truncated ? '\n…' : ''}</pre>` : ''}</div>`
     : '';
 
 const requestRow = (r: RequestRecord) => {

@@ -207,7 +207,17 @@ export const ciCommands = [
       if (ports.length < jobs) return { text: `no ${jobs} free driver port(s) from ${first} up: free some, or set LYNKEUS_PORT`, code: 1 };
       const moved = ports[0] !== first ? `port ${first} is in use or claimed by another run, so the hosts take ${ports.join(', ')}` : undefined;
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
-      const runArgs = suiteArgs({ files, jobs, ports, hostCommand, ownHosts: ci.hosts?.command !== undefined, timeoutMs: ci.hosts?.timeoutMs, out, push: !!ci.push, extra: ci.run });
+      const runArgs = suiteArgs({
+        files,
+        jobs,
+        ports,
+        hostCommand,
+        ownHosts: ci.hosts?.command !== undefined,
+        timeoutMs: ci.hosts?.timeoutMs,
+        out,
+        push: !!ci.push,
+        extra: ci.run,
+      });
       if (ctx.flags['dry-run']) {
         const plan = [
           picked,

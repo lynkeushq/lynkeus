@@ -47,7 +47,7 @@ export const portHolder = async (port: number, run: Run = execute): Promise<Port
   const named = LYNKEUS.exec(command);
   if (!named) return { pid, command };
   const args = command.split(/\s+/);
-  const rootAt = args.findIndex((a) => a === '--root');
+  const rootAt = args.indexOf('--root');
   const rootFlag = rootAt >= 0 ? args[rootAt + 1] : args.find((a) => a.startsWith('--root='))?.slice('--root='.length);
   const cwd = (await run('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn']).catch(() => ''))
     .split('\n')
