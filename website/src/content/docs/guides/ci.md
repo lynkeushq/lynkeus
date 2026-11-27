@@ -258,6 +258,8 @@ The workflow runs the lynkeus your app depends on: the range in `package.json` f
 
 `--depth <n>` sets how many imports away the check looks. The default is 4, the same as `case impact` and `ci --affected`, so the comment and the cases the pipeline runs agree. `--force` overwrites an existing workflow file.
 
+`--cases` adds a second job to the same workflow: it runs `lynkeus ci --affected` on every pull request, so the cases the diff reaches run on your project's CI targets (the `headless` and FastSim entries of `cases.targets`). For each FastSim platform the job installs FastSim and bundles the app first, since bundles are not committed. The job needs a backend the app can reach (`ci.backend`) and these repository secrets: `LYNKEUS_TOKEN` always, `LYNKEUS_CLOUD_KEY` when it runs FastSim, and `LYNKEUS_REPORTS_KEY` when `ci.push` is on. It is off by default because a job without those fails. When your project declares targets a job can run, `map ci` without `--cases` ends with a line saying what `--cases` would add and which secrets it needs.
+
 Reviewers use the comment to know where to look, and a pipeline can use the same list to decide which cases to run.
 
 ## Other checks worth a step

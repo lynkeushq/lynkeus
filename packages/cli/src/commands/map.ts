@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { edgesFile, graphFile, lynkeusDir, saveGraph } from '../config.js';
+import { CI_TARGETS, declaredTargets, type TargetName } from '../cases/onTargets.js';
+import { edgesFile, graphFile, type LynkeusConfig, lynkeusDir, saveGraph } from '../config.js';
 import { CLI_VERSION } from '../device/agentVersion.js';
 import { readJson, writeJson } from '../files.js';
 import * as edges from '../knowledge/edges.js';
@@ -17,6 +18,7 @@ import type { RuntimeAdapter } from '../runtimes/index.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { changedAppEntry } from './appEntry.js';
 import { describeGraphDiff, diffGraphs } from './check.js';
+import { managerOf } from './init.js';
 
 const baseGraphFile = (root: string) => path.join(lynkeusDir(root), 'graph.base.json');
 
@@ -268,24 +270,43 @@ export const mapCommands = [
     group: 'map',
     summary: 'Write a GitHub workflow that comments on each pull request which screens its diff reaches',
     details:
-      'Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--force` overwrites an existing file.',
+      "Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--cases` adds a job that runs the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (headless and FastSim in cases.targets; for FastSim it installs the kit and bundles the app first); that job needs LYNKEUS_TOKEN, LYNKEUS_CLOUD_KEY for FastSim and LYNKEUS_REPORTS_KEY with ci.push in the repository's secrets, and a backend (ci.backend). Without `--cases`, when cases.targets has such targets, it says what `--cases` would add. `--force` overwrites an existing file.",
     flags: {
       force: { type: 'boolean', help: 'overwrite the workflow if it exists' },
       depth: { type: 'number', help: 'how many imports away the check looks (as `case impact`)', default: IMPACT_DEPTH, value: 'n' },
+      cases: {
+        type: 'boolean',
+        help: "also run the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (cases.targets: headless, fastsim:ios, fastsim:android)",
+      },
     },
     needs: 'nothing',
     run: async (ctx) => {
       const file = path.join(ctx.root, '.github', 'workflows', 'lynkeus-map-check.yml');
       if (fs.existsSync(file) && !ctx.flags.force) return { text: `${path.relative(ctx.root, file)} exists; --force overwrites it`, code: 1 };
       const version = ciVersion(ctx.root);
+      const job = casesJobPlan(ctx.config);
+      if (typeof job === 'string') return { text: job, code: 2 };
+      if (ctx.flags.cases && job.declared && job.targets.length === 0)
+        return { text: 'cases.targets has no target a CI job can start (headless, fastsim:ios, fastsim:android): --cases would run nothing', code: 2 };
+      const cases = ctx.flags.cases ? { manager: managerOf(ctx.root), ...job } : undefined;
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, mapCheckWorkflow(ctx.flags.depth as number, version.range));
-      return {
-        text: [`wrote ${path.relative(ctx.root, file)} (lynkeus@${version.range}, --depth ${ctx.flags.depth})`, ...(version.note ? [version.note] : [])].join(
-          '\n',
-        ),
-        json: { file, version: version.range, depth: ctx.flags.depth },
-      };
+      fs.writeFileSync(file, mapCheckWorkflow(ctx.flags.depth as number, version.range, cases));
+      const secrets = (o: CasesJobPlan) => o.secrets.join(', ');
+      const where = job.declared ? job.targets.join(', ') : 'ci.hosts.command, else headless (no cases.targets declared)';
+      const lines = [
+        `wrote ${path.relative(ctx.root, file)} (lynkeus@${version.range}, --depth ${ctx.flags.depth}${cases ? ', with a cases job' : ''})`,
+        ...(version.note ? [version.note] : []),
+        ...(cases
+          ? [
+              `the cases job runs \`lynkeus ci --affected\` on ${where}; it needs ${secrets(job)} in the repository's secrets${job.backend ? '' : ', and a backend the app reaches (ci.backend in lynkeus.config.json brings one up; none is declared)'}`,
+            ]
+          : job.targets.length > 0
+            ? [
+                `--cases would also run the cases each pull request reaches on ${where} (\`lynkeus ci --affected\`); that job needs ${secrets(job)} in the repository's secrets${job.backend ? '' : ' and a backend (ci.backend)'}`,
+              ]
+            : []),
+      ];
+      return { text: lines.join('\n'), json: { file, version: version.range, depth: ctx.flags.depth, ...(cases ? { cases: job } : {}) } };
     },
   }),
   define({
@@ -377,7 +398,74 @@ export const ciVersion = (root: string, cli = CLI_VERSION): { range: string; not
 };
 
 // A range the project depends on, never "latest": an unpinned npx takes whatever is out the day CI runs, which can read the map differently.
-export const mapCheckWorkflow = (depth: number, version: string): string => `name: lynkeus map check
+type CasesJobPlan = {
+  /** Whether the project declares cases.targets; without, `lynkeus ci` runs on ci.hosts.command or headless. */
+  declared: boolean;
+  /** The declared targets a CI job can start. */
+  targets: TargetName[];
+  /** The secrets the job reads, by name. */
+  secrets: string[];
+  /** Whether ci.backend brings a backend up. */
+  backend: boolean;
+};
+
+/** What a cases job of the workflow would run and need, from the configuration; a sentence when cases.targets is wrong. */
+export const casesJobPlan = (config: LynkeusConfig): CasesJobPlan | string => {
+  const declared = declaredTargets({}, config.cases?.targets);
+  if (typeof declared === 'string') return declared;
+  const targets = (declared ?? []).filter((t) => CI_TARGETS.includes(t));
+  const fastsim = targets.some((t) => t.startsWith('fastsim')) || (!declared && /fastsim-run/.test(config.ci?.hosts?.command ?? ''));
+  return {
+    declared: declared !== undefined,
+    targets,
+    // The token is per machine and kept out of git: the job's hosts and driver need the same one.
+    secrets: ['LYNKEUS_TOKEN', ...(fastsim ? ['LYNKEUS_CLOUD_KEY'] : []), ...(config.ci?.push ? ['LYNKEUS_REPORTS_KEY'] : [])],
+    backend: config.ci?.backend !== undefined,
+  };
+};
+
+const INSTALL: Record<string, string> = {
+  pnpm: 'corepack enable && pnpm install --frozen-lockfile',
+  yarn: 'corepack enable && yarn install',
+  bun: 'npx --yes bun install --frozen-lockfile',
+  npm: 'npm ci',
+};
+
+/**
+ * The job that runs the cases a pull request reaches. FastSim's bundles live in the git-ignored .lynkeus, so the job
+ * installs the kit of each declared platform and bundles the app before `lynkeus ci` looks for them.
+ */
+const casesJob = (version: string, o: CasesJobPlan & { manager: string }): string => {
+  const npx = `npx --yes 'lynkeus@${version}'`;
+  const bundles = (['ios', 'android'] as const)
+    .filter((p) => o.targets.includes(`fastsim:${p}`))
+    .map(
+      (p) => `      - name: Install Lynkeus FastSim for ${p} and bundle the app
+        run: |
+          kit=$(${npx} fastsim install --platform ${p} --json | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0, 'utf8')).dir)")
+          "$kit/bin/fastsim-bundle" . .lynkeus/fastsim-${p} ${p}
+`,
+    )
+    .join('');
+  return `
+  cases:
+    runs-on: ubuntu-latest
+    env:
+${o.secrets.map((s) => `      ${s}: \${{ secrets.${s} }}`).join('\n')}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: ${INSTALL[o.manager] ?? INSTALL.npm}
+${bundles}      - name: Run the cases this diff reaches
+        run: ${npx} ci --affected --base origin/\${{ github.base_ref }}
+`;
+};
+
+export const mapCheckWorkflow = (depth: number, version: string, cases?: CasesJobPlan & { manager: string }): string => `name: lynkeus map check
 on:
   pull_request:
 
@@ -412,4 +500,4 @@ jobs:
             echo '\`\`\`'
           } > body.md
           gh pr comment \${{ github.event.pull_request.number }} --edit-last --body-file body.md || gh pr comment \${{ github.event.pull_request.number }} --body-file body.md
-`;
+${cases ? casesJob(version, cases) : ''}`;
