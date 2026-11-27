@@ -102,6 +102,22 @@ port 8123 is already in use by another process (a `lynkeus mcp` server or anothe
 
 **Fix.** Stop the other process. To run two at once on purpose, give each pair its own port: set `LYNKEUS_PORT` for the driver and for the headless host, and the `port` option of an app on a simulator. `lynkeus ci` needs neither: it passes over a port that is taken and says which ones its hosts use instead.
 
+`lynkeus status` names the process that holds the port, from `lsof` and `ps`, and when it is Lynkeus, its release and the project it serves:
+
+```text
+✗ port 8123 is taken by pid 13646 (npm exec lynkeus@0.7.6 mcp): Lynkeus 0.7.6 for another project, /Users/me/old-app. It cannot drive this project's app (each project has its own token) and keeps this driver from listening: stop it (`kill 13646`), or give this project another port (LYNKEUS_PORT, for the app and its driver alike)
+```
+
+A server left by another project cannot drive your app. Each project has its own `.lynkeus/token`, and the app and the driver each prove theirs to the other before anything is served. A driver with another token drops the app as soon as it proves its token, and the app drops a driver whose proof is wrong. Your app keeps dialing until the port is free. It logs one warning: `lynkeus: the driver at ws://localhost:8123 does not hold this app's token…`.
+
+### An app dialed in with another project's token
+
+**What you see.** `status` says `✗ an app is attached (port 8123): one dialed in with another project's token and was refused`. Other commands end with `An app dialed in once with another token and was refused…`.
+
+**Why.** An app reached this driver and proved a token that is not this project's. Either it is another project's development build, or its bundle was made before this project's token changed.
+
+**Fix.** Open this project's development build. If it is already open, restart Metro with `--reset-cache` so the bundle gets the token in `.lynkeus/token`.
+
 ### `No booted simulator matching "…"`
 
 **Why.** You asked for a simulator with `--device`, `LYNKEUS_DEVICE` or `device` in `lynkeus.config.json`, and no booted simulator has that udid or a name that contains it.

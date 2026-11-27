@@ -119,7 +119,19 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 **Cómo se arregla.** Detén el otro proceso. Si de verdad necesitas dos ejecuciones a la vez, dale a cada par su propio puerto: `LYNKEUS_PORT` en el driver y en el host, o `--ports` en `case run --jobs`.
 
+`lynkeus status` dice qué proceso tiene el puerto (lo averigua con `lsof` y `ps`). Si es Lynkeus, también dice qué versión es y de qué proyecto: `✗ port 8123 is taken by pid 13646 (npm exec lynkeus@0.7.6 mcp): Lynkeus 0.7.6 for another project, /Users/yo/app-vieja. …`. Con eso sabes qué detener (`kill 13646`) sin buscarlo a mano.
+
+Un servidor que quedó de otro proyecto no puede manejar tu app. Cada proyecto tiene su propio `.lynkeus/token`, y antes de atender nada la app y el driver se demuestran mutuamente que conocen el mismo token. Si los tokens no coinciden, el driver corta la conexión apenas la app presenta su prueba, y la app corta la de un driver cuya prueba no cierra. Tu app sigue intentando hasta que el puerto quede libre, y deja una sola advertencia en su log: `lynkeus: the driver at ws://localhost:8123 does not hold this app's token…`.
+
 Con `--host-command`, `case run` revisa los puertos de `--ports` antes de arrancar ningún host. Si alguno ya tiene a otro proceso escuchando, se niega con `port 8123 is already in use by another process …`: los hosts se conectarían a ese otro driver y la ejecución esperaría una app que nunca le llega. `lynkeus ci` no se detiene ahí: salta el puerto ocupado, toma el siguiente libre y avisa cuáles usa.
+
+### Se conectó una app con el token de otro proyecto
+
+**Qué ves.** `status` dice `✗ an app is attached (port 8123): one dialed in with another project's token and was refused`. Los demás comandos terminan con `An app dialed in once with another token and was refused…`.
+
+**Por qué pasa.** Llegó una app al driver, pero el token con el que se presentó no es el de este proyecto. Puede ser el development build de otro proyecto, o un bundle armado antes de que cambiara el token de este.
+
+**Cómo se arregla.** Abre el development build de este proyecto. Si ya es ese, reinicia Metro con `--reset-cache` para que el bundle tome el token de `.lynkeus/token`.
 
 ### Una advertencia sobre versiones distintas
 
