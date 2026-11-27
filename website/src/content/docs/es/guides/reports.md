@@ -72,6 +72,18 @@ Ese formato es un contrato. Los tipos (`RunManifest`, `RunCase`, `RunStep`, `Run
 Si solo necesitas un resumen para otra herramienta, `--report <archivo>` agrega una línea JSON por caso a un archivo, sin crear el directorio.
 :::
 
+## Mírala como página, sin conexión
+
+Cada ejecución guardada con `--out` deja al terminar una página en el mismo directorio, `report.html`, y la salida dice dónde quedó:
+
+```text
+report: /ruta/a/la/app/run/report.html (open it in a browser, offline)
+```
+
+La abres en cualquier navegador, sin red ni cuenta. Muestra cada caso con su último intento y dice cómo terminaron los anteriores. Cada paso aparece dentro de su sección, con la captura que se tomó después de él, y cada caso fallido explica por qué falló. Si filmaste con `--video`, un botón en cada paso reproduce la película desde ese punto. También están las peticiones de cada paso, con sus cuerpos, sus eventos, sus logs y lo que hizo el backend. Las capturas y la película son archivos del directorio y la página las enlaza, así que para compartirla compartes el directorio entero: un artifact de CI o un zip.
+
+`lynkeus report html <dir>` vuelve a escribir la página, por ejemplo para una ejecución que hizo una versión anterior. Con `--embed`, las capturas y la película quedan dentro de la página: es un solo archivo que puedes mandar, aunque más pesado. Por MCP, la herramienta es `report_html`.
+
 ## 3. Crea una clave para el servicio
 
 1. Entra a [lynkeus.io](https://lynkeus.io) con Google o GitHub. Obtienes una organización propia, o te unes a la que te invitó.

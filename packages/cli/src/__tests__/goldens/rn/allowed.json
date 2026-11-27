@@ -28,8 +28,8 @@
     "now": "44ea453085b4e4d4"
   },
   "surface/commands": {
-    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
-    "now": "1a81dab195ee463b"
+    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on. report html writes a run folder as an offline HTML page.",
+    "now": "1d84574617025de8"
   },
   "surface/help/fastsim start": {
     "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -40,8 +40,8 @@
     "now": "5186ac9dfb138829"
   },
   "surface/mcp/full": {
-    "why": "fastsim_start and fastsim_stop are served over MCP",
-    "now": "fc91aa1f80ae07f4"
+    "why": "fastsim_start and fastsim_stop are served over MCP. report_html is served over MCP.",
+    "now": "43a911ebfa2835e4"
   },
   "surface/mcp/tool/fastsim_start": {
     "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -52,12 +52,12 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
-    "now": "407c1b1b6a449896"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html.",
+    "now": "aad71dc70faa4336"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
-    "now": "2385fb16889d8a12"
+    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. A run with --out ends with the path of the report.html it wrote beside the run.",
+    "now": "2b4c29f7d0a26d78"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -240,8 +240,8 @@
     "now": "5a4e916cc8f1e627"
   },
   "surface/help/case impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
-    "now": "d617e7cc53854e58"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases that name a changed testID or label.",
+    "now": "e1a7c172e16ce733"
   },
   "surface/help/case new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
@@ -252,8 +252,8 @@
     "now": "c6ffaa28cd50c514"
   },
   "surface/mcp/tool/case_impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
-    "now": "c3b2929429626211"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels reaches only the cases that name them.",
+    "now": "a67d942684f17ec3"
   },
   "surface/mcp/tool/case_new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
@@ -278,5 +278,21 @@
   "surface/help/os push": {
     "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
     "now": "9ab10ba985eb7465"
+  },
+  "surface/help/map ci": {
+    "why": "map ci checks 4 imports away by default, as case impact and ci --affected do, so the PR comment and the affected cases agree; it used 2.",
+    "now": "bfd44894386639d4"
+  },
+  "surface/help/report html": {
+    "why": "report html is new: it writes a run folder as one HTML page to open offline (no reports service).",
+    "now": "95f46bc565b2dba6"
+  },
+  "surface/mcp/tool/report_html": {
+    "why": "report_html is new: it writes report.html into a run folder, to open offline.",
+    "now": "67fc0a3d81ab2bf0"
+  },
+  "report/files": {
+    "why": "A run with --out writes report.html beside run.json, a page to open offline.",
+    "now": "734cf4bae49dcb51"
   }
 }

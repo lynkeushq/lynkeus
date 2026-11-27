@@ -95,6 +95,26 @@ The TypeScript types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in t
 
 `progress.ndjson` is not part of the schema. It is one JSON event per line, written while the run goes on, and `lynkeus case status <dir>` reads it. See [Watch a long run](#watch-a-long-run).
 
+## Open the run as a page, offline
+
+Every run written with `--out` ends with a page beside it, `report.html`:
+
+```text
+run kept in /path/to/app/run
+report: /path/to/app/run/report.html (open it in a browser, offline)
+```
+
+Open it in any browser, with no network and no account. It shows each case by its last attempt, and earlier attempts are named. You see its steps under their sections with the frame after each step, and why a failed case failed. With `--video`, the film plays from any step at the press of a button. Each step lists the requests it sent, with their bodies, and its events, logs and backend spans. The frames and the film stay as files in the folder, so share the folder, for example as a CI artifact or a zip.
+
+To write the page again, or to write it for a run made by an older version:
+
+```bash
+npx lynkeus report html run
+npx lynkeus report html run --embed
+```
+
+`--embed` puts the frames and the film inside the page, so you can send one file. The page is larger that way. Over MCP the tool is `report_html`.
+
 ## Step 3: Get a key for the hosted service
 
 1. Sign in at lynkeus.io with Google or GitHub. You get an organization of your own, or join the one that invited you.

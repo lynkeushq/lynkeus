@@ -14,6 +14,7 @@ import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
 import { freePorts } from '../cases/portClaim.js';
 import { PROGRESS_FILE } from '../cases/progress.js';
 import { runtimeAt } from '../runtimes/index.js';
+import { REPORT_FILE } from './localReport.js';
 import { changedSources, reachOfChanges } from './map.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -32,7 +33,7 @@ export const resultsOf = (dir: string): { id: string; result: string; title?: st
 };
 
 /** The summary a CI job shows: how many passed, which failed, and the report. */
-export const summaryOf = (results: { id: string; result: string; title?: string }[], report: string | undefined, picked: string): string => {
+export const summaryOf = (results: { id: string; result: string; title?: string }[], report: string | undefined, picked: string, local?: string): string => {
   const failed = results.filter((r) => r.result === 'failed');
   const passed = results.filter((r) => r.result === 'passed').length;
   return [
@@ -40,6 +41,7 @@ export const summaryOf = (results: { id: string; result: string; title?: string 
     '',
     picked,
     ...(report ? ['', `[Open the report](${report})`] : []),
+    ...(local ? ['', `\`${local}\` in the run folder is a report to open offline: upload the folder as an artifact to keep it.`] : []),
     ...(failed.length ? ['', '| Failed | |', '|---|---|', ...failed.map((f) => `| \`${f.id}\` | ${f.title ?? ''} |`)] : []),
     '',
   ].join('\n');
@@ -246,7 +248,7 @@ export const ciCommands = [
         say(`running ${files.length} case file(s) on ${jobs} host(s): ${hostCommand}`);
         const run = await runSuite(process.execPath, [self, ...runArgs], ctx.root, hostsFileOf(path.join(out, PROGRESS_FILE)), say);
         if (run.signal) return { text: `stopped by ${run.signal}`, code: run.signal === 'SIGINT' ? 130 : 143 };
-        const summary = summaryOf(resultsOf(out), run.report, picked);
+        const summary = summaryOf(resultsOf(out), run.report, picked, fs.existsSync(path.join(out, REPORT_FILE)) ? REPORT_FILE : undefined);
         if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
         return { text: summary, code: run.code };
       } finally {

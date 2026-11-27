@@ -30,6 +30,7 @@ import type { FlagValues } from '../args.js';
 import { parseTargets, runOnTargets, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
 import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
+import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -675,6 +676,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     return reviving;
   };
   const reports: (CaseReport & { retried?: boolean })[] = [];
+  let localReport: ReturnType<typeof writeRunReport> | undefined;
   // Said again with the summary: over MCP the summary is all the caller reads.
   let rebundled: string | undefined;
   try {
@@ -960,6 +962,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     if (!halt.signal.aborted) await preparing;
     if (out) out.finish({ platform: seen?.platform, native: seen?.native, nativeValues: mergeNativeValues(reports.map((r) => r.nativeValues)) });
     native?.stop();
+    if (out) localReport = writeRunReport(out.directory, { project });
   } finally {
     stop();
     // Signalled is not gone: a run that ends while its hosts are still on their way out leaves them listed and
@@ -1003,6 +1006,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         : []),
     // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
     ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
+    // A push may have deleted the folder (report.afterPush: delete).
+    ...(localReport && 'file' in localReport && fs.existsSync(localReport.file) ? [`report: ${localReport.file} (open it in a browser, offline)`] : []),
     ...(rebundled ? [rebundled] : []),
     ...(out
       ? missingEvidence(reports, {
