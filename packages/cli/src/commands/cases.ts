@@ -962,6 +962,9 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     native?.stop();
   } finally {
     stop();
+    // Signalled is not gone: a run that ends while its hosts are still on their way out leaves them listed and
+    // alive for whoever started it (`lynkeus ci` stops "hosts the run left running").
+    await Promise.all([runHost, ...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
     active.delete(registered);
     settle();
   }

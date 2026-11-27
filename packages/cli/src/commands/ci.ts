@@ -45,6 +45,41 @@ export const summaryOf = (results: { id: string; result: string; title?: string 
   ].join('\n');
 };
 
+/**
+ * The `case run` a CI job makes: one kept host per job on its own port. Frames are asked for only from hosts the
+ * project names (`ci.hosts.command`, FastSim say): the default headless host draws nothing, so asking would only
+ * warn on every run that no frame was kept.
+ */
+export const suiteArgs = (o: {
+  files: string[];
+  jobs: number;
+  ports: number[];
+  hostCommand: string;
+  ownHosts: boolean;
+  timeoutMs?: number;
+  out: string;
+  push: boolean;
+  extra?: string[];
+}): string[] => [
+  'case',
+  'run',
+  ...o.files,
+  '--jobs',
+  String(o.jobs),
+  '--ports',
+  o.ports.join(','),
+  '--host-command',
+  o.hostCommand,
+  // The run keeps one host per job and starts it again when it dies or runs short of heap.
+  '--keep-hosts',
+  ...(o.timeoutMs ? ['--host-timeout', String(o.timeoutMs)] : []),
+  '--out',
+  o.out,
+  ...(o.ownHosts ? ['--screenshots'] : []),
+  ...(o.push ? ['--push'] : []),
+  ...(o.extra ?? []),
+];
+
 const waitFor = async (ok: () => boolean | Promise<boolean>, timeoutMs: number, every = 3000): Promise<boolean> => {
   const until = Date.now() + timeoutMs;
   for (;;) {
@@ -165,25 +200,7 @@ export const ciCommands = [
       if (ports.length < jobs) return { text: `no ${jobs} free driver port(s) from ${first} up: free some, or set LYNKEUS_PORT`, code: 1 };
       const moved = ports[0] !== first ? `port ${first} is in use or claimed by another run, so the hosts take ${ports.join(', ')}` : undefined;
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
-      // The run keeps one host per job and starts it again when it dies or runs short of heap.
-      const runArgs = [
-        'case',
-        'run',
-        ...files,
-        '--jobs',
-        String(jobs),
-        '--ports',
-        ports.join(','),
-        '--host-command',
-        hostCommand,
-        '--keep-hosts',
-        ...(ci.hosts?.timeoutMs ? ['--host-timeout', String(ci.hosts.timeoutMs)] : []),
-        '--out',
-        out,
-        '--screenshots',
-        ...(ci.push ? ['--push'] : []),
-        ...(ci.run ?? []),
-      ];
+      const runArgs = suiteArgs({ files, jobs, ports, hostCommand, ownHosts: ci.hosts?.command !== undefined, timeoutMs: ci.hosts?.timeoutMs, out, push: !!ci.push, extra: ci.run });
       if (ctx.flags['dry-run']) {
         const plan = [
           picked,
