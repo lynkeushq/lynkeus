@@ -16,7 +16,7 @@ import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { type Base, define } from '../registry.js';
 import { awayNote, onPhone, whyFor, whyScope } from '../runtime.js';
-import { bareWordNote, expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
+import { bareWordNote, expectedOf, isRoute, parseTarget, partMatchNote, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
 const SCOPE_FLAGS = {
@@ -193,10 +193,15 @@ export const driveCommands = [
         });
       const away = await awayAfter(device, result.opened);
       if (away) return { text: `! ${away}`, json: { ...result, away } };
-      if (!ctx.flags.settle) return { json: result };
+      const part = partMatchNote(scopedTarget(ctx.args[0]!, ctx.flags), result.element);
+      const pressed = part ? { ...result, part } : result;
+      const note = part ? `! pressed ${part}: if that is not the one, write its whole label or its testID` : undefined;
+      if (!ctx.flags.settle) return note ? { text: note, json: pressed } : { json: pressed };
       const screen = await settledScreen(device);
       const late = awayNote(device.server);
-      return late ? { text: `! ${late}`, json: { ...result, away: late } } : { text: describeScreen(screen), json: result };
+      return late
+        ? { text: `! ${late}`, json: { ...pressed, away: late } }
+        : { text: [note, describeScreen(screen)].filter(Boolean).join('\n'), json: pressed };
     },
   }),
   define({

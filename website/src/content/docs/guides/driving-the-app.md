@@ -60,7 +60,7 @@ A **target** is how you tell a command which element you mean. There are five sp
 | Spelling | Matches |
 |---|---|
 | `#next-button` | The element with that `testID`. |
-| `Continue` | A control (a button or an input) by exact label, then by substring. A paragraph matches only by its exact text. |
+| `Continue` | A control (a button or an input) by exact label, then by whole words of its label, then by substring. A paragraph matches only by its exact text. A press that matched by part says which element it pressed (`! pressed "Favorite" matched only part of "Only Show Favorites" (button #fav-toggle)…`), and a case run shows it as a warning. |
 | `"Continue"` | The same text, and only ever a text. See [Quoted targets](#quoted-targets). |
 | `12` | The element at that index in the last screen listing. |
 | `100,200` | A point, in window points. |

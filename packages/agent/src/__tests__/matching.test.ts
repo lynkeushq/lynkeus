@@ -40,6 +40,15 @@ describe('score', () => {
     const button = el({ kind: 'button', text: 'Submit via email' });
     expect(score(button, { text: 'submit' })).toBe(2);
   });
+
+  it('prefers part of a label as whole words over part of a word', () => {
+    const toggle = el({ kind: 'button', text: 'Only Show Favorites' });
+    const heart = el({ kind: 'button', accessibilityLabel: 'Add to Favorite list' });
+    expect(score(toggle, { text: 'Favorite' })).toBe(1);
+    expect(score(heart, { text: 'Favorite' })).toBe(2);
+    expect(pick([el({ ...heart, i: 0 }), el({ ...toggle, i: 1 })], { text: 'Favorite' })?.i).toBe(0);
+    expect(score(el({ kind: 'button', text: '¿Olvidaste la contraseña?' }), { text: 'contraseña' })).toBe(2);
+  });
 });
 
 describe('pick', () => {

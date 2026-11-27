@@ -1001,7 +1001,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await timed('target', () => pressable(d, target, params));
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
     try {
-      await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+      const outcome = await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+      const part = (outcome.json as { part?: unknown } | undefined)?.part;
+      if (typeof part === 'string') warn(`app.press ${part}: if that is not the one, write its whole label or its testID`);
     } catch (error) {
       // A one-time sheet can disappear between the presence check and the native press.
       if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';

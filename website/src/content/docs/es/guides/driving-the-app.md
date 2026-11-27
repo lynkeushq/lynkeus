@@ -63,7 +63,7 @@ Un objetivo es la forma de nombrar el elemento sobre el que actúa un comando. S
 | Forma | A qué corresponde |
 |---|---|
 | `#next-button` | El elemento con ese `testID`. |
-| `"Continue"` | Un control (botón o campo) cuyo texto es exactamente ese, o que lo contiene. Un párrafo solo coincide por texto exacto. |
+| `"Continue"` | Un control (botón o campo) cuyo texto es exactamente ese; si no hay, uno que lo contiene como palabras enteras, y recién después uno que lo contiene dentro de una palabra. Un párrafo solo coincide por texto exacto. Cuando un `press` coincidió solo con una parte de la etiqueta, la respuesta dice qué elemento tocó, y en un caso queda como advertencia. |
 | `12` | El elemento con ese índice en la última lectura de `screen`. |
 | `100,200` | Un punto de la ventana, en puntos. |
 
