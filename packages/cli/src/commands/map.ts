@@ -318,7 +318,7 @@ export const mapCommands = [
       if (affected.length) {
         const first = affected.slice(0, 5).map((a) => a.route);
         lines.push(
-          `next: run the cases that cover ${first.join(', ')}${affected.length > 5 ? ', …' : ''}; \`lynkeus lint --baseline <file>\` on those screens prints what is new`,
+          `next: run the cases that cover ${first.join(', ')}${affected.length > 5 ? ', …' : ''} on the project's targets (\`case run --on targets $(lynkeus case impact --files)\`, or \`lynkeus ci --affected\` in CI); \`lynkeus lint --baseline <file>\` on those screens prints what is new`,
         );
       }
       return { text: lines.join('\n'), json: { base, changed, affected, notes, graphDiff } };
