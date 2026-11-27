@@ -178,7 +178,7 @@ The host renders without `React.StrictMode`. Production has none, and its double
 
 ## The entry in detail
 
-`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
+`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, react-native-localize, expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
 
 The mocks for biometrics, in-app-review, vision-camera, image-picker, video, fast-image and the native half of vector-icons are opt-in. Pass the ones the app needs through `overrides`:
 
@@ -203,11 +203,13 @@ Its options:
 | `networkHosts` | local hosts only | The hosts that real requests and sockets may reach. Anything else is refused at once. |
 | `websocket` | `'stub'` | What `WebSocket` is. `'stub'` connects and stays silent; `'real'` is a real socket, restricted to `networkHosts`; `'none'` leaves it undefined. |
 | `animations` | `'deferred'` | Reanimated's mock completes `withTiming` and `withSpring` synchronously, which can loop forever when a completion triggers another animation. `'deferred'` moves completions to the next tick; `'sync'` leaves the mock as the app registered it. |
-| `locale` | US, `en-US`, `en` | The locale the localize mock reports, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. |
+| `locale` | US, `en-US`, `en`, America/New_York | The locale the app reads, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. `case run --locale` and `--time-zone` win over it. |
 | `deviceVersion` | version 9.9.9, build 9999, iOS | What the device-info mock reports. |
 | `initialUrl` | none | What `Linking.getInitialURL` answers: the deep link the app was opened with. |
 | `skip` | none | Modules to leave alone, so that you mock them yourself. |
 | `overrides` | none | Your own mock factories by module name. One wins over the default, and applies even when the module is not installed. |
+
+**Language and time zone.** A run started with `--locale es-AR` (or `launch.locale` in `lynkeus.config.json`) reaches the app wherever it asks: expo-localization, react-native-localize, and `Intl` itself, so `toLocaleString()` and `new Intl.NumberFormat()` with no locale format for es-AR. Separators, currency, 12- or 24-hour clock and first weekday are what Intl says a phone in that locale shows. `--time-zone` moves both what those libraries report and the zone `Date` runs in (the host's `TZ`). The `locale` option in the entry sets the same answers when no run says otherwise, but cannot move `Date`'s zone, which only the host's environment sets.
 
 Mocks for your own native modules are ordinary `jest.mock` calls in the entry, placed before the app is required:
 

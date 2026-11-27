@@ -4,6 +4,7 @@
 import type { ComponentType } from 'react';
 
 import { onReset, resolvable } from '../runtime.js';
+import { localeFacts } from './locale.js';
 
 export type MockFactory = () => unknown;
 
@@ -218,25 +219,30 @@ export const safeAreaContext: MockFactory = () => {
 
 export type LocaleDefault = { country?: string; languageTag?: string; languageCode?: string; timeZone?: string };
 
+// react-native-localize as a phone in the launch locale answers it (see locale.ts).
 export const localize =
-  ({ country = 'US', languageTag = 'en-US', languageCode = 'en', timeZone = 'America/New_York' }: LocaleDefault = {}): MockFactory =>
+  (base: LocaleDefault = {}): MockFactory =>
   () => {
+    const facts = localeFacts(base);
+    const { languageTag, languageCode } = facts;
+    const country = facts.regionCode ?? 'US';
+    const isRTL = facts.textDirection === 'rtl';
     // The real one answers with a tag the app supports (a plain 'fr' when that
     // is what it ships), never the device's own.
     const bestTag = (tags: string[]) => {
       const best = tags.find((t) => t === languageTag) ?? tags.find((t) => t.split('-')[0] === languageCode);
-      return best ? { languageTag: best, isRTL: false } : undefined;
+      return best ? { languageTag: best, isRTL } : undefined;
     };
     const api = {
       getCountry: () => country,
-      getLocales: () => [{ countryCode: country, languageTag, languageCode, isRTL: false }],
-      getNumberFormatSettings: () => ({ decimalSeparator: '.', groupingSeparator: ',' }),
-      getCurrencies: () => ['USD'],
+      getLocales: () => [{ countryCode: country, languageTag, languageCode, isRTL, ...(facts.scriptCode ? { scriptCode: facts.scriptCode } : {}) }],
+      getNumberFormatSettings: () => ({ decimalSeparator: facts.decimalSeparator, groupingSeparator: facts.groupingSeparator }),
+      getCurrencies: () => (facts.currencyCode ? [facts.currencyCode] : []),
       getCalendar: () => 'gregorian',
-      getTemperatureUnit: () => 'celsius',
-      getTimeZone: () => timeZone,
-      uses24HourClock: () => false,
-      usesMetricSystem: () => true,
+      getTemperatureUnit: () => facts.temperatureUnit,
+      getTimeZone: () => facts.timeZone,
+      uses24HourClock: () => facts.uses24hourClock,
+      usesMetricSystem: () => facts.measurementSystem === 'metric',
       usesAutoDateAndTime: () => undefined,
       usesAutoTimeZone: () => undefined,
       findBestLanguageTag: bestTag,

@@ -124,7 +124,7 @@ const { default: App } = require('../app/App');
 export { App };
 ```
 
-`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view y webview. Si una biblioteca trae su propio mock de jest o su archivo de setup para jest, se usa solo.
+`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, react-native-localize, expo-localization, async-storage, worklets, pager-view y webview. Si una biblioteca trae su propio mock de jest o su archivo de setup para jest, se usa solo.
 
 Los mocks de biometría, in-app-review, vision-camera, image-picker, video, fast-image y de la parte nativa de vector-icons hay que pedirlos. Se pasan en `overrides`:
 
@@ -139,6 +139,8 @@ Las pantallas de SDK nativos que jest no puede ejecutar (verificación de identi
 Reanimated y gesture-handler quedan intactos a propósito: su soporte para Jest es un plugin de Babel, no un `jest.mock`. Si tu app los quiere simulados, pásalos en `overrides`.
 
 Las opciones que acepta son `skip`, `overrides`, `network`, `networkHosts`, `websocket`, `animations`, `deviceVersion` y `locale`.
+
+**Idioma y zona horaria.** Si la ejecución arranca con `--locale es-AR` (o con `launch.locale` en `lynkeus.config.json`), la app ve ese idioma en todos los lugares donde lo consulta: expo-localization, react-native-localize y el propio `Intl`. Un `toLocaleString()` o un `new Intl.NumberFormat()` sin idioma da formato de es-AR. Los separadores, la moneda, el reloj de 12 o 24 horas y el primer día de la semana salen de lo que Intl dice que muestra un teléfono configurado así. `--time-zone` cambia a la vez la zona que informan esas bibliotecas y la zona en la que corre `Date` (el `TZ` del host). La opción `locale` de la entrada da las mismas respuestas cuando la ejecución no fija otra, pero no mueve la zona de `Date`: eso solo lo hace el entorno del host.
 
 La ruta del archivo puede ir en `lynkeus.config.json` como `entry`, para no repetir `--entry` en cada comando.
 

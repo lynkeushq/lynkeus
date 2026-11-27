@@ -64,8 +64,8 @@ export { App };
 ```
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
-Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view and webview. A library's own shipped jest mock or jest
+Node: MMKV, keychain, device-info, safe-area-context, react-native-localize,
+expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped jest mock or jest
 setup file is used automatically. Reanimated and gesture-handler are
 deliberately left alone (their jest story is a babel plugin, not
 `jest.mock`); pass `overrides` if your app wants them mocked.
@@ -83,6 +83,12 @@ installDefaultMocks({ overrides: { 'react-native-biometrics': biometrics } });
 axios, Reactotron and expo-linking work.
 Options: `skip`, `overrides`, `network` (`'real'` or `'banned'`), `networkHosts`, `websocket` (`'stub'`, `'real'` or `'none'`),
 `animations`, `deviceVersion`, `locale`, `initialUrl` (what `Linking.getInitialURL` answers).
+
+The launch locale (`case run --locale`, `launch.locale`, `LYNKEUS_LOCALE`) wins
+over `locale` and reaches expo-localization, react-native-localize and `Intl`'s
+default locale, all derived from the tag with Intl. The launch time zone
+(`--time-zone`, `LYNKEUS_TIME_ZONE`) also sets the host's `TZ`, so `Date` runs
+in it; an entry's `locale.timeZone` reaches the libraries only.
 
 `headless init` finds your App component through the app's own entry
 (`--component` otherwise), takes `--api-env <NAME>` to set the variable the

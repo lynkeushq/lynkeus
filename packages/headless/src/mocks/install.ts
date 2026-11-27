@@ -17,6 +17,7 @@ import {
   type LocaleDefault,
   type MockFactory,
 } from './factories.js';
+import { defaultIntlLocale, expoLocalization, localeFacts } from './locale.js';
 import { shippedMocks } from './shipped.js';
 
 // jest injects `jest` as a module-scoped local, not onto globalThis.
@@ -445,6 +446,19 @@ const installExpoConfig = () => {
   }
 };
 
+// The time zone Date runs in is the process's (TZ), which only the host's environment sets: `case run --time-zone`
+// and LYNKEUS_TIME_ZONE do; an entry's `locale.timeZone` reaches the localization libraries alone.
+const installLocale = (locale: LocaleDefault) => {
+  const facts = localeFacts(locale);
+  defaultIntlLocale(facts.languageTag);
+  const running = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (locale.timeZone && running !== locale.timeZone)
+    log(
+      `locale: the app is told the time zone is ${locale.timeZone} but Date runs in ${running}; start the host with LYNKEUS_TIME_ZONE (case run --time-zone) to move both`,
+    );
+  log(`locale: ${facts.languageTag}, ${facts.timeZone}`);
+};
+
 // Call at the top of the headless entry, before the app is required. Returns the modules it mocked.
 export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   if (typeof jest === 'undefined') throw new Error('installDefaultMocks must run under jest (lynkeus headless).');
@@ -452,6 +466,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   const skip = new Set(options.skip ?? []);
   const overrides = options.overrides ?? {};
   const hosts = options.networkHosts ?? LOCAL_HOSTS;
+  const locale = launchLocale(options.locale);
 
   // Applied only when the module resolves in the project, and only for libraries most apps have whose generic answer
   // breaks them: storage that must keep what was written, a client version above any server gate, insets that
@@ -463,7 +478,8 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     'react-native-keychain': keychain,
     'react-native-device-info': deviceInfo(options.deviceVersion),
     'react-native-safe-area-context': safeAreaContext,
-    'react-native-localize': localize(launchLocale(options.locale)),
+    'react-native-localize': localize(locale),
+    'expo-localization': expoLocalization(locale),
     '@react-native-async-storage/async-storage': asyncStorage,
     'react-native-worklets': worklets,
     'react-native-pager-view': pagerView,
@@ -491,6 +507,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   installNetInfo();
   installExpoConfig();
   installWebSocket(options.websocket ?? 'stub', hosts);
+  installLocale(locale);
 
   log(`mocked: ${installed.sort().join(', ') || '(none detected)'}`);
   if (Object.keys(shipped).length) log(`their own jest mocks: ${Object.keys(shipped).sort().join(', ')}`);
