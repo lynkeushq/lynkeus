@@ -328,6 +328,25 @@ A step the host cannot do, such as `app.network` or `app.clock` on a simulator o
 3/5 passed, 2 cannot run on this host
 ```
 
+### Every target at once
+
+A case is finished when it passes on every target it will run on. Check all of them in one run:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on all
+```
+
+```text
+✅ simulator  settings-dark-mode
+✅ headless   settings-dark-mode
+○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
+simulator 1/1 passed · headless 1/1 passed · fastsim not available
+```
+
+`--on` takes `simulator`, `fastsim` and `headless`, separated by commas, or `all`. `simulator` is the app attached to Lynkeus on a Simulator, an emulator or a phone; on Android its line reads `emulator`. The targets run side by side, so checking three costs about as long as the slowest one.
+
+A target the machine does not have is listed with the reason and does not fail the run: no app is attached, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. FastSim uses the bundle you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
+
 ### Several cases at once: jobs
 
 `--jobs <n>` runs n cases at the same time, each on its own host. Each job needs its own driver port, given with `--ports`.

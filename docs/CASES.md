@@ -157,6 +157,41 @@ differently in each case, as a fresh install would); a run records them as `laun
 under `launch.unsupported` the ones an attached Simulator or emulator could not
 apply.
 
+## On every target
+
+A case is done when it passes everywhere it will run: on a Simulator or emulator, on Lynkeus FastSim and on the
+headless host. `--on` checks that in one run:
+
+```sh
+npx lynkeus case run cases/login.md --on all
+```
+
+```text
+✅ simulator  login
+❌ headless   login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
+○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
+simulator 1/1 passed · headless 0/1 passed · fastsim not available
+a failure's screen and requests: run that target again alone, or with verbose
+```
+
+`--on` takes `simulator` (the app attached on the driver port, on a Simulator, an emulator or a phone; `emulator` and
+`device` name it too, and its line reads `emulator` on Android), `fastsim` and `headless`, comma-separated, or `all`.
+Every target that can run here takes the cases at the same time, as `case run` would on it alone: the attached app on
+its port, headless and FastSim on hosts kept for the run on free ports picked together (`--jobs` gives each of them
+that many). A target this machine lacks is named once with why and fails nothing: no app on a Simulator or emulator is
+attached (or the one attached runs on a host), headless is not set up (`lynkeus headless init`), or FastSim is not
+installed, has no bundle or gets no grant. FastSim runs `ci.hosts.command` when that starts `fastsim-run`, else the
+installed kit's `fastsim-run` on `--bundle`, else on the bundle made last under `.lynkeus`
+(`<kit>/bin/fastsim-bundle . .lynkeus/fastsim-ios ios`); a bundle older than the app's code is bundled again first.
+
+The answer is one line per case per target, with the failing step and the first line of its error; `--verbose` adds
+each failure in full, as a run on one target shows it, and notices a target gave (native values a host did not answer,
+the run folder) follow under its name. The run fails when a case fails on any target that ran, or a target could not
+start. `--out <dir>` keeps each target's run in `<dir>/<target>` (`--events` likewise), the hosts keep flake ledgers
+of their own (`.lynkeus/flakes.headless.json`, `.lynkeus/flakes.fastsim.json`), and `case status` and `case stop` see
+one run, each case named with its target. `--on` starts each target's hosts itself, so it refuses `--host`,
+`--host-command`, `--keep-hosts` and `--ports`.
+
 ## Several cases at once
 
 ```sh

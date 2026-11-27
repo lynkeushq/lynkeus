@@ -1051,7 +1051,7 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]
+lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
@@ -1064,6 +1064,8 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 
 | Flag | Default | Meaning |
 |---|---|---|
+| `--on <targets>` | | Run the cases on each of these targets at the same time: `simulator` (the attached Simulator, emulator or phone), `fastsim` and `headless`, separated by commas, or `all`. The answer is one line per case per target. A target this machine does not have is named with the reason and does not fail the run; a case that fails on any target that ran does. Cannot be combined with `--host`, `--host-command`, `--keep-hosts` or `--ports`. See [Every target at once](/guides/writing-cases/#every-target-at-once). |
+| `--bundle <dir>` | the last bundle under `.lynkeus` | With `--on fastsim`: the folder `fastsim-bundle` made. |
 | `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
 | `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |
 | `--once` | | No second chance for a case that fails. |
