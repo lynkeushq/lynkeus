@@ -980,6 +980,20 @@ test('a failed see says when the scrolls moved nothing and its target was never 
   assert.deepEqual(step.looked?.target, { found: false, seen: [{ atMs: step.looked!.target!.seen[0]!.atMs, scrolls: 0, state: 'not in the tree' }] });
 });
 
+test('a failed see whose target is hidden says so, as why does, not that it was never in the tree', async () => {
+  // The agent's find passes over what the platform hides (a closed drawer's row); the screen still lists it.
+  const c = parseCase('---\nid: hidden-row\n---\nsteps:\n  - app.see: { testId: how-it-works-button, timeoutMs: 100 }\n', 'hidden-row.md');
+  const { base } = await longPage(2000, 'stuck');
+  const device = (await base.device()) as unknown as { server: { call: (method: string, params: never) => Promise<unknown> } };
+  const call = device.server.call;
+  device.server.call = async (method, params) => (method === 'find' ? null : call(method, params));
+  const report = await runCase(c, { base, config, fixtures });
+  const step = report.steps[0]!;
+  assert.doesNotMatch(step.error!, /never in the tree/);
+  assert.match(step.error!, /\(found, below the window, hidden \(behind-modal\)/);
+  assert.equal(step.looked!.target?.found, true);
+});
+
 test('a failed wait for a target keeps the listing and where the target stands', async () => {
   const c = parseCase('---\nid: wait-found\n---\nsteps:\n  - app.wait: { what: "#how-it-works-button", timeoutMs: 100 }\n', 'wait-found.md');
   const { base } = await longPage(2000, 'stuck');

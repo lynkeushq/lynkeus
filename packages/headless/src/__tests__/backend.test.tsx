@@ -492,6 +492,36 @@ describe('headlessBackend with Yoga layout', () => {
     expect(fired[0]!.events.at(-1)?.translationX).toBe(-240);
   });
 
+  it('a swipe down a FlatList reports its layout, so the list renders the rows further down', async () => {
+    const { FlatList } = require('react-native') as typeof import('react-native');
+    const rows = Array.from({ length: 200 }, (_, i) => `Row ${i}`);
+    const { backend, snapshot, rendered } = await mount(
+      <View style={{ flex: 1 }}>
+        <FlatList
+          style={{ flex: 1 }}
+          data={rows}
+          initialNumToRender={10}
+          keyExtractor={(row) => row}
+          renderItem={({ item }) => (
+            <View style={{ height: 50 }}>
+              <Text>{item}</Text>
+            </View>
+          )}
+        />
+      </View>,
+      yoga,
+    );
+    const listed = () => snapshot().some((e) => e.text === 'Row 60');
+    expect(listed()).toBe(false);
+    for (let i = 0; i < 12 && !listed(); i++) {
+      await backend.swipe({ x: 195, y: 600 }, { x: 195, y: 200 }, 250);
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    expect(listed()).toBe(true);
+    // The list batches its renders on timers; unmounted, it leaves none for jest to wait on.
+    await rendered.unmount();
+  });
+
   it('an element whose centre is outside the window is offscreen', async () => {
     const { snapshot } = await mount(
       <View style={{ flex: 1 }}>

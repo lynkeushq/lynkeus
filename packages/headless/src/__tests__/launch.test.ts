@@ -7,7 +7,7 @@ import { frameNow, installControls } from '../mocks/controls.js';
 import { localize } from '../mocks/factories.js';
 import { launchLocale } from '../mocks/install.js';
 import { defaultIntlLocale, expoLocalization, localeFacts } from '../mocks/locale.js';
-import { reset } from '../runtime.js';
+import { installRuntime, reset } from '../runtime.js';
 
 const RealDate = Date;
 const RealRandom = Math.random;
@@ -104,5 +104,15 @@ describe('the launch locale everywhere the app reads it', () => {
     expect(run('new Intl.NumberFormat().resolvedOptions().locale')).toBe('es-AR');
     expect(run('Intl.DateTimeFormat().resolvedOptions().locale')).toBe('es-AR');
     expect(run("['b', 'a'].sort((x, y) => x.localeCompare(y)).join()")).toBe('a,b');
+  });
+});
+
+describe('image sizes', () => {
+  it("answers Image.getSize as a device does once the image loads, where jest's loader answers nothing", async () => {
+    installRuntime();
+    const { Image } = require('react-native') as { Image: { getSize: (uri: string, ok?: (w: number, h: number) => void) => unknown } };
+    await expect(Image.getSize('https://example.com/a.png')).resolves.toEqual({ width: expect.any(Number), height: expect.any(Number) });
+    const sizes = await new Promise<number[]>((resolve) => Image.getSize('https://example.com/a.png', (w, h) => resolve([w, h])));
+    expect(sizes).toHaveLength(2);
   });
 });

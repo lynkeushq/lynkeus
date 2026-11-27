@@ -369,14 +369,23 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     return Math.max(node.children.filter((c) => typeof c !== 'string').length, 1);
   };
 
-  // The deepest scroller on the axis whose rect holds the point; without layout, the deepest mounted.
+  // The scroller on the axis a finger at the point lands on: of those whose rect holds it, the one drawn on top (a
+  // closed drawer's list lies under its screen), and the innermost of nested ones; without layout, the deepest mounted.
   const scrollerAt = (point: Point, horizontal: boolean): ReactTestInstance | undefined => {
     let found: ReactTestInstance | undefined;
+    let foundPath: ReactTestInstance[] = [];
     const visit = (node: ReactTestInstance) => {
-      if (isUnrendered(node.type, liveProps(node))) return;
+      const p = liveProps(node);
+      if (isUnrendered(node.type, p) || blocksTouches(p)) return;
       if (scrollsAlong(node, horizontal)) {
         const rect = layoutRects?.get(node);
-        if (!rect || rect.w === 0 || rect.h === 0 || contains(rect, point)) found = node;
+        if (!rect || rect.w === 0 || rect.h === 0 || contains(rect, point)) {
+          const path = pathOf(node);
+          if (!found || path.includes(found) || drawsOver(path, foundPath)) {
+            found = node;
+            foundPath = path;
+          }
+        }
       }
       for (const child of node.children) if (typeof child !== 'string') visit(child);
     };
@@ -394,12 +403,62 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     return true;
   };
 
+  // What was last reported to each view's layout handlers, so an unchanged size is not sent again.
+  const reported = new WeakMap<ReactTestInstance, string>();
+  const report = (node: ReactTestInstance, key: string, send: () => void) => {
+    if (reported.get(node) === key) return;
+    reported.set(node, key);
+    send();
+  };
+
+  /**
+   * Jest's scroll view never measures anything, and a VirtualizedList (FlatList, SectionList) learns its content
+   * length and its cells' sizes only from layout events: without them it renders its first cells forever, whatever
+   * the scroll, and an item further down is never in the tree. Before a scroll the host reports what Yoga measured
+   * for the scroller, its content and the cells in it (the first views with an `onLayout` on each branch), as a
+   * device would have by then.
+   */
+  const reportLayouts = (node: ReactTestInstance, rect: Rect, extent: number, horizontal: boolean) => {
+    const rects = layoutRects;
+    if (!rects) return;
+    const p = node.props;
+    const width = horizontal ? extent : rect.w;
+    const height = horizontal ? rect.h : extent;
+    const onContentSizeChange = p.onContentSizeChange;
+    if (typeof onContentSizeChange === 'function')
+      report(node, `size ${width}x${height}`, () => (onContentSizeChange as (w: number, h: number) => void)(width, height));
+    const parent = node.parent ? rects.get(node.parent) : undefined;
+    const layout = (r: Rect, origin: { x: number; y: number } | undefined) => ({
+      x: r.x - (origin?.x ?? 0),
+      y: r.y - (origin?.y ?? 0),
+      width: r.w,
+      height: r.h,
+    });
+    const fire = (target: ReactTestInstance, r: Rect, origin: { x: number; y: number } | undefined) => {
+      const nativeEvent = { layout: layout(r, origin) };
+      report(target, JSON.stringify(nativeEvent.layout), () => fireEvent(rendererNode(target) as never, 'layout', { nativeEvent }));
+    };
+    if (typeof p.onLayout === 'function') fire(node, rect, parent);
+    const content = node.children.find((c): c is ReactTestInstance => typeof c !== 'string');
+    const origin = content ? rects.get(content) : undefined;
+    const cells = (n: ReactTestInstance) => {
+      for (const child of n.children) {
+        if (typeof child === 'string') continue;
+        const r = rects.get(child);
+        if (typeof child.props.onLayout === 'function' && r) fire(child, r, origin);
+        else cells(child);
+      }
+    };
+    if (content) cells(content);
+  };
+
   const scroll = async (node: ReactTestInstance, delta: Point) => {
     const horizontal = node.props.horizontal === true;
     const paged = Boolean(node.props.pagingEnabled);
     const rect = layoutRects?.get(node) ?? { x: 0, y: 0, w: window.w, h: window.h };
     const viewport = horizontal ? rect.w : rect.h;
     const extent = contentExtent(node, rect, horizontal);
+    await act(async () => reportLayouts(node, rect, extent, horizontal));
     const content = paged && viewport > 0 ? Math.min(extent, pageCount(node) * viewport) : extent;
     const along = horizontal ? delta.x : delta.y;
     const offsets = scrollOffsets.get(node);

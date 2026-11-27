@@ -26,7 +26,7 @@ Cada línea de su respuesta corresponde a una regla. Esta tabla dice qué signif
 | `the backend answered 5xx on …` | Un error del servidor, no de la app. | Reprodúcelo con `curl` antes de tocar el test. |
 | `a request answered 429` | El backend está limitando la frecuencia de peticiones de este cliente. | Espacia las ejecuciones o sube el límite en tu entorno local. |
 | `the host broke a render loop` | El host cortó un ciclo de renders sin fin: un componente cuyo efecto y cuyo store se alimentan entre sí. La pantalla queda inservible hasta un `reset`. | Corrige el componente que nombra el mensaje. |
-| `… is in the tree but not presented` | El elemento está montado, pero pertenece a una pantalla que la app no está mostrando. | Cierra lo que esté abierto encima, o apunta a algo dentro de eso. |
+| `… is in the tree but not presented` | El elemento está montado, pero algo lo oculta: una pantalla que la app no muestra, un cajón cerrado o una hoja abierta encima. La nota del paso lo indica como `found, hidden (a11y)`. | Abre lo que lo contiene (el cajón, la pestaña) o cierra lo que esté encima. |
 | `… is on the screen but covered` | Hay una hoja o una capa sobre el elemento. | Ciérrala, o pulsa lo que lo tapa. |
 | `… is on the screen but disabled` | Un formulario todavía no es válido, o hay en curso una petición de la que el control depende. | Completa lo que falta, o espera la petición. |
 | `"…" is not on screen; "…" is (the text may have changed)` | El texto que buscas no está, pero hay uno parecido: difiere en la redacción, en un acento o en las mayúsculas, o alguien cambió el texto de la app. Si hay cambios sin commitear que lo quitaron, una segunda línea dice en qué archivo y línea. | Corrige el texto del objetivo, o usa un `testID`. |

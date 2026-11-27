@@ -124,6 +124,11 @@ existing entry.
   get performance.now's clock, so a react-native-drawer-layout drawer opens,
   hides the screen behind it, and closes with `swipe left` (a swipe where
   nothing scrolls that way drives the gesture-handler pan under the finger).
+  Before a scroll the host reports Yoga's sizes to the list's layout handlers
+  (`onContentSizeChange`, `onLayout` of the scroller and its rows), so a
+  FlatList or SectionList renders the rows further down and `wait --scroll`
+  reaches them; the scroller a finger lands on is the one drawn on top there.
+  A list the app scrolls itself (`scrollToIndex`) does not move yet.
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 
