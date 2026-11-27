@@ -89,12 +89,21 @@ App → driver, whenever the focused route may have changed:
 
 ```json
 { "id": 7, "method": "press", "params": { "testId": "next-button" } }
-{ "id": 7, "result": { "x": 201, "y": 812, "mode": "native", "element": { … } } }
-{ "id": 8, "error": { "message": "No element matches {\"testId\":\"nope\"}" } }
+{ "id": 7, "method": "press", "result": { "x": 201, "y": 812, "mode": "native", "element": { … } } }
+{ "id": 8, "method": "find", "error": { "message": "No element matches {\"testId\":\"nope\"}" } }
 ```
 
-`id` is chosen by the driver and echoed back. Requests may be in flight
+`id` is chosen by the driver and echoed back, with the request's `method`
+(agents before 0.7.7 leave `method` out). Requests may be in flight
 concurrently; the app answers each when its work is done.
+
+Ids are unique per driver process, across every connection sharing a port:
+several drivers of one process (the MCP server's own connection, and one per
+`case run --on ios|android`) take turns with one app link and one session. The
+agent answers a request resent after a reconnect (same id, method and params)
+from the reply it recorded, so an action never runs twice; any other request
+runs. A driver fails a call whose reply names another method, and drops a reply
+no call waits for (one that came after its call timed out).
 
 ## Targets
 
