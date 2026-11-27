@@ -341,14 +341,15 @@ export type Request = {
 };
 export type Response = {
     id: number;
+    method?: string;
+} & ({
     result: unknown;
 } | {
-    id: number;
     error: {
         message: string;
         code?: string;
     };
-};
+});
 export type HelloEvent = {
     event: 'hello';
     protocolVersion: number;

@@ -391,6 +391,9 @@ importers:
       lynkeus-agent:
         specifier: workspace:^
         version: link:../agent
+      lynkeus-client:
+        specifier: workspace:^
+        version: link:../client
       react:
         specifier: 19.2.3
         version: 19.2.3

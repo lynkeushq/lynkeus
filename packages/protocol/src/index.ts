@@ -203,7 +203,11 @@ export type CoreMethods = {
 };
 
 export type Request = { id: number; method: string; params?: unknown };
-export type Response = { id: number; result: unknown } | { id: number; error: { message: string; code?: string } };
+/**
+ * `method` repeats the request's, so a driver can refuse a reply that answers another request instead of passing a step
+ * with it. Agents before 0.7.7 leave it out.
+ */
+export type Response = { id: number; method?: string } & ({ result: unknown } | { error: { message: string; code?: string } });
 
 export type HelloEvent = {
   event: 'hello';

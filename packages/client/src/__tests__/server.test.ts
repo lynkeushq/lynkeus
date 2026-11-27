@@ -130,6 +130,36 @@ test('a call gets the result the app sends back, and an error as an AgentError w
   app.socket.close();
 });
 
+test('a reply that says it answers another method fails the call instead of passing it', async () => {
+  const server = await serve();
+  const app = await fakeApp(server, (m) => (m.method === 'waitFor' ? { method: 'ping', result: { pong: true } } : { method: m.method, result: { ok: true } }));
+  await server.waitForApp(2000);
+  await assert.rejects(
+    server.call('waitFor', { route: 'Home' }),
+    (e: unknown) => e instanceof AgentError && e.code === 'mismatch' && /waitFor got the reply to ping/.test(e.message),
+  );
+  assert.deepEqual(await server.call('screen'), { ok: true });
+  app.socket.close();
+});
+
+test('servers of one process number their requests together, so no two send one id', async () => {
+  const one = await serve();
+  const two = await serve();
+  const ids: number[] = [];
+  const apps = await Promise.all(
+    [one, two].map((s) =>
+      fakeApp(s, (m) => {
+        ids.push(m.id!);
+        return { result: null };
+      }),
+    ),
+  );
+  await Promise.all([one.waitForApp(2000), two.waitForApp(2000)]);
+  for (let i = 0; i < 3; i++) await Promise.all([one.call('ping'), two.call('ping')]);
+  assert.equal(new Set(ids).size, 6);
+  for (const app of apps) app.socket.close();
+});
+
 test('a call the app never answers times out with the timeout code', async () => {
   const server = await serve();
   const app = await fakeApp(server, () => undefined);

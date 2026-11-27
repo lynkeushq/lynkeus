@@ -4,6 +4,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { debuglog } from 'node:util';
 
 import { WebSocket, WebSocketServer } from 'ws';
 
@@ -77,7 +78,23 @@ type Pending = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  method: string;
   request: string;
+};
+
+// NODE_DEBUG=lynkeus shows the replies a driver drops.
+const debug = debuglog('lynkeus');
+
+// One count for every server of the process: an app keeps its link while the drivers sharing a port take turns (the
+// MCP server's own connection, then one per run on a platform), and its agent replays the reply it recorded for a
+// request id it sees again. Ids each server counted from 1 handed a run the replies of the run before it. Kept on the
+// global, so two copies of this module in one process (a bundle beside a dependency) still count together.
+const REQUEST_IDS = Symbol.for('lynkeus.client.requestIds');
+const nextRequestId = (): number => {
+  const holder = globalThis as { [REQUEST_IDS]?: number };
+  const id = (holder[REQUEST_IDS] ?? 0) + 1;
+  holder[REQUEST_IDS] = id;
+  return id;
 };
 
 export class AgentError extends Error {
@@ -102,7 +119,6 @@ export class AgentServer extends EventEmitter {
   #accepts?: (hello: HelloEvent) => boolean;
   #socket: WebSocket | null = null;
   #pending = new Map<number, Pending>();
-  #nextId = 1;
   #hello: HelloEvent | null = null;
   #graceTimer: ReturnType<typeof setTimeout> | null = null;
   #reconnectGraceMs: number;
@@ -269,7 +285,7 @@ export class AgentServer extends EventEmitter {
       socket = this.#socket;
       if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) throw new AgentError('No app attached');
     }
-    const id = this.#nextId++;
+    const id = nextRequestId();
     const request = JSON.stringify({ id, method, params });
     const result = new Promise<unknown>((resolve, reject) => {
       const heardBefore = this.#heard;
@@ -280,7 +296,7 @@ export class AgentServer extends EventEmitter {
         },
         Math.max(1, deadline - Date.now()),
       );
-      this.#pending.set(id, { resolve, reject, timer, request });
+      this.#pending.set(id, { resolve, reject, timer, method, request });
     });
     socket.send(request);
     return result;
@@ -432,9 +448,22 @@ export class AgentServer extends EventEmitter {
       if (owner.#socket !== socket || !owner.#hello) return;
       owner.#heard++;
       const pending = owner.#pending.get(message.id);
-      if (!pending) return;
+      if (!pending) {
+        // The answer to a call that timed out or was failed: nobody waits for it, and no other call may take it.
+        debug('dropped a reply to request %s%s: no call waits for it', message.id, message.method ? ` (${message.method})` : '');
+        return;
+      }
       owner.#pending.delete(message.id);
       clearTimeout(pending.timer);
+      // An agent says which method it answers (agents before it do not): a reply to another one must fail the call,
+      // never pass it with what another command returned.
+      if (message.method !== undefined && message.method !== pending.method) {
+        debug('reply to request %s answers %s, not %s', message.id, message.method, pending.method);
+        pending.reject(
+          new AgentError(`${pending.method} got the reply to ${message.method}: the app answered another request. Relaunch the app if it repeats.`, 'mismatch'),
+        );
+        return;
+      }
       if ('error' in message) pending.reject(new AgentError(message.error.message, message.error.code));
       else pending.resolve(message.result);
     });

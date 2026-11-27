@@ -55,6 +55,9 @@ type Message = { event?: string; session?: string; nonce?: string; id?: number; 
 const fakeReactNativeApp = async (port: number, dir: string, loggedIn?: string) => {
   const socket = new WebSocket(`ws://127.0.0.1:${port}`);
   const sent: string[] = [];
+  // Request ids count across every server of the process, so a run's first id depends on what ran before it: recorded
+  // from 1, as one run alone numbers them, each later id still one more than the one before.
+  let firstId: number | undefined;
   let route = 'Auth.Login';
   const answer = (m: Message): unknown => {
     const p = m.params ?? {};
@@ -111,7 +114,12 @@ const fakeReactNativeApp = async (port: number, dir: string, loggedIn?: string) 
         }),
       );
     } else if (m.id !== undefined) {
-      sent.push(text.split(dir).join('<dir>'));
+      firstId ??= m.id;
+      sent.push(
+        JSON.stringify({ ...m, id: m.id - firstId + 1 })
+          .split(dir)
+          .join('<dir>'),
+      );
       socket.send(JSON.stringify({ id: m.id, result: answer(m) }));
     }
   });
