@@ -54,6 +54,7 @@
     "@types/ws": "^8.18.1",
     "jest": "^29.7.0",
     "lynkeus-agent": "workspace:^",
+    "lynkeus-client": "workspace:^",
     "react": "19.2.3",
     "react-native": "0.86.2",
     "test-renderer": "^1.2.0",
@@ -70,6 +71,7 @@
       ]
     },
     "moduleNameMapper": {
+      "^lynkeus-client$": "<rootDir>/../client/src/index.ts",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "modulePathIgnorePatterns": [

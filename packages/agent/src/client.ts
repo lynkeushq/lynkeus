@@ -144,14 +144,17 @@ export const start = (options: ClientOptions): (() => void) => {
 
   // The driver resends in-flight requests verbatim after a reconnect. One the
   // app already ran (only the reply was lost) answers from the recorded reply:
-  // a press is not idempotent. Keyed by driver session, since every driver
-  // numbers its requests from 1.
+  // a press is not idempotent. Keyed by driver session and by the request whole:
+  // drivers sharing a port share its session, and one older than 0.7.7 numbers
+  // its requests from 1, so an id alone may name another request already
+  // answered, whose reply would pass a step it never ran.
   const replies = new Map<string, Response>();
   const running = new Map<string, Promise<void>>();
   let session = '';
 
   const serve = async (request: Request) => {
-    const key = `${session}:${request.id}`;
+    // Parsed from JSON, so it serializes back.
+    const key = `${session}:${request.id}:${request.method}:${JSON.stringify(request.params)}`;
     const seen = replies.get(key);
     if (seen) {
       send(seen);
@@ -168,12 +171,12 @@ export const start = (options: ClientOptions): (() => void) => {
       try {
         const result = await dispatch(handlers, request.method, request.params, navigation);
         if (!UNTRACED.has(request.method)) trace({ kind: 'command', method: request.method, ms: Date.now() - started });
-        reply = { id: request.id, result };
+        reply = { id: request.id, method: request.method, result };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         trace({ kind: 'command', method: request.method, ms: Date.now() - started, error: message });
         options.onError?.(error, request.method);
-        reply = { id: request.id, error: { message } };
+        reply = { id: request.id, method: request.method, error: { message } };
       }
       replies.set(key, reply);
       if (replies.size > REPLAY_WINDOW) replies.delete(replies.keys().next().value as string);
@@ -248,7 +251,7 @@ export const start = (options: ClientOptions): (() => void) => {
         return;
       }
       if (!authenticated) {
-        send({ id: parsed.id, error: { message: 'Not authenticated', code: 'unauthenticated' } });
+        send({ id: parsed.id, method: parsed.method, error: { message: 'Not authenticated', code: 'unauthenticated' } });
         return;
       }
       void serve(parsed);

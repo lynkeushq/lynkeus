@@ -152,6 +152,32 @@ describe('replayed requests', () => {
     unregister();
     stop();
   });
+
+  it('runs another request that reuses an answered id, and says which method each reply answers', async () => {
+    const d = dialer();
+    const unregister = qa.register('say', (params) => params);
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    link.sent.length = 0;
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    };
+    // A driver older than 0.7.7 numbers its requests from 1, and drivers sharing a port share its session.
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'say', params: { word: 'one' } }) });
+    await settle();
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'ping' }) });
+    await settle();
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'say', params: { word: 'two' } }) });
+    await settle();
+    const replies = link.sent.map((line) => JSON.parse(line) as { id: number; method: string; result: Record<string, unknown> });
+    expect(replies.map((r) => r.method)).toEqual(['say', 'ping', 'say']);
+    expect(replies[0]!.result).toEqual({ word: 'one' });
+    expect(replies[1]!.result.pong).toBe(true);
+    expect(replies[2]!.result).toEqual({ word: 'two' });
+    unregister();
+    stop();
+  });
 });
 
 describe('hello', () => {
