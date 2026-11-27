@@ -52,6 +52,12 @@ export type CasesConfig = {
   nativeMocks?: Record<string, NativeMock | null>;
   /** Where cases live (default `cases`). */
   dir?: string;
+  /**
+   * Where a case must pass for the project, checked with `case run --on targets` and run by `lynkeus ci`: `headless`,
+   * `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone), `android` (the app on the
+   * Android emulator or a phone). A case's own `targets:` frontmatter replaces it for that case.
+   */
+  targets?: string[];
   /** Where the flows a case runs live (default `flows`). */
   flows?: string;
   /** The long-lived command that answers fixture steps, as JSON lines. */
