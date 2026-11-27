@@ -222,5 +222,9 @@
   "surface/mcp/tool/headless_init": {
     "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
     "now": "f07d7c562f25d929"
+  },
+  "surface/help/map build": {
+    "why": "map build's help says it is rarely needed by hand now: every command that reads the graph rebuilds it when it is missing or older than the source it was read from.",
+    "now": "578255ae89a274f1"
   }
 }
