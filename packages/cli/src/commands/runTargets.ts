@@ -1,4 +1,4 @@
-/** Where `status` says cases can run on this machine, and which of them to use day to day and in CI. */
+/** Where `status` says cases can run on this machine, where to write them, and which to use in CI. */
 import { androidDevices, bootedSimulators, type DeviceInfo } from '../device/devices.js';
 import type { SetupCheck } from './init.js';
 
@@ -59,15 +59,18 @@ export const runTargets = (facts: RunFacts): { checks: SetupCheck[]; advice: str
         },
   );
   const device = facts.simulators?.[0]?.name ?? facts.android?.[0]?.name;
-  const daily = facts.attached
-    ? `the attached app (${facts.attached})`
-    : device
-      ? `a development build on ${device}`
-      : facts.headless.ok
-        ? 'headless (`case run --host`)'
-        : 'a development build on a Simulator or emulator, or headless after `lynkeus headless init`';
+  // Write where a run is cheapest and has no system prompts or browsers to wander into; a device when the case needs one.
+  const write = facts.fastsim.length
+    ? 'FastSim'
+    : facts.headless.ok
+      ? 'headless (`case run --host`)'
+      : facts.attached
+        ? `the attached app (${facts.attached})`
+        : device
+          ? `a development build on ${device}`
+          : 'a development build on a Simulator or emulator, or headless after `lynkeus headless init`';
   const ci = facts.fastsim.length
     ? 'FastSim hosts side by side (`case run --jobs <n> --host-command`, see its README)'
     : `headless (\`case run --host\`, no simulator and no build${facts.headless.ok ? '' : ', after `lynkeus headless init`'})`;
-  return { checks, advice: `day to day: ${daily}; in CI: ${ci}` };
+  return { checks, advice: `write cases on ${write}; a case is done when \`case run --on all\` passes; in CI: ${ci}` };
 };

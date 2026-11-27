@@ -72,68 +72,68 @@
     "now": "c967c68bb87ee5e4"
   },
   "detect/empty/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/expo app/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "6695166aeae6fb74"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "e2842ebb1d98a249"
   },
   "detect/node package, no react-native/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/pubspec.yaml app beside a broken package.json/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/pubspec.yaml app beside a package.json without react-native/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/pubspec.yaml app with a tsconfig/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/pubspec.yaml app, inline sdk/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/pubspec.yaml app/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/pubspec.yaml package without an sdk/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/pubspec.yaml with an sdk only under dev_dependencies/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/react-native beside a pubspec.yaml app, inline sdk/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/react-native beside a pubspec.yaml app/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/react-native dependency/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/react-native dev dependency/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "detect/react-native peer dependency/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "57bfc37534bfc49a"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "5c28f219fc9bded7"
   },
   "detect/react-native with tsconfig/status": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "devices/reverse/no adb": {
     "why": "the adb reverse of the driver's port now covers emulators too and answers the serials it reversed (none without adb), so status can say which devices can reach the port.",
@@ -152,8 +152,8 @@
     "now": "d03e8dbb9477022e"
   },
   "surface/fails/status offline": {
-    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
-    "now": "2432312394237059"
+    "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
+    "now": "3d4fca09ffd26564"
   },
   "surface/help/case run": {
     "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",

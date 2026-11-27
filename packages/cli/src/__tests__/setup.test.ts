@@ -198,7 +198,7 @@ test('status lists where cases run, reverses Android to the port, and marks what
   const none = runTargets({ port: 8123, simulators: [], android: [], headless: { what: 'h', ok: false, fix: 'init' }, fastsim: [] });
   assert.ok(none.checks.every((c) => !c.ok && c.optional));
   assert.match(none.checks.find((c) => c.what.startsWith('Lynkeus FastSim'))!.what, /not installed/);
-  assert.match(none.advice, /^day to day: .*; in CI: headless/);
+  assert.match(none.advice, /^write cases on .*; a case is done when `case run --on all` passes; in CI: headless/);
   const up = runTargets({
     attached: 'shop-trial',
     port: 8200,
@@ -218,7 +218,7 @@ test('status lists where cases run, reverses Android to the port, and marks what
   );
   assert.equal(
     up.advice,
-    'day to day: the attached app (shop-trial); in CI: FastSim hosts side by side (`case run --jobs <n> --host-command`, see its README)',
+    'write cases on FastSim; a case is done when `case run --on all` passes; in CI: FastSim hosts side by side (`case run --jobs <n> --host-command`, see its README)',
   );
 });
 
