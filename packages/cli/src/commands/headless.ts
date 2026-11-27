@@ -252,7 +252,7 @@ export const headlessCommands = [
       'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.',
     flags: {
       'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' },
-      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill out (also LYNKEUS_NO_SKILL=1)' },
+      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1)' },
     },
     needs: 'nothing',
     mcp: 'core',

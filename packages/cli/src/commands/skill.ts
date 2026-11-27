@@ -8,9 +8,13 @@ import { define } from '../registry.js';
 
 // The same depth from src/commands and lib/commands: the skill ships beside both, in the package.
 const SOURCE = fileURLToPath(new URL('../../skill/lynkeus/', import.meta.url));
+const AGENTS_SOURCE = fileURLToPath(new URL('../../skill/agents/', import.meta.url));
 
 /** Where a project keeps it: Claude Code and other clients that read Agent Skills look there. */
 export const SKILL_DIR = path.join('.claude', 'skills', 'lynkeus');
+
+/** Where Claude Code finds project subagents; the person's own live there too, so only `lynkeus-*` files are ours. */
+export const AGENTS_DIR = path.join('.claude', 'agents');
 
 type Marker = { version: string; files: Record<string, string> };
 
@@ -98,23 +102,51 @@ const skillBundle = (): Bundle => ({
   foreign: (dir) => fs.existsSync(dir),
 });
 
-export type SkillInstall = BundleInstall & { text: string };
+const agentsBundle = (): Bundle => {
+  const files = markdownUnder(AGENTS_SOURCE);
+  return {
+    source: AGENTS_SOURCE,
+    dir: AGENTS_DIR,
+    marker: '.lynkeus-agents.json',
+    files,
+    foreign: (dir) => files.some((file) => fs.existsSync(path.join(dir, file))),
+  };
+};
+
+/** The subagents this CLI ships, by name. */
+export const shippedAgents = (): string[] => markdownUnder(AGENTS_SOURCE).map((file) => file.replace(/\.md$/, ''));
+
+export type SkillInstall = BundleInstall & { text: string; agents: BundleInstall };
 
 const shown = (dir: string) => dir.split(path.sep).join('/');
 
-/** Installs the Lynkeus skill this CLI ships into the project. */
+/**
+ * Installs the Lynkeus skill and the Claude Code subagents that go with it, each protected on its own: an edited
+ * skill does not hold back unedited agents.
+ */
 export const installSkill = (root: string, { force = false }: { force?: boolean } = {}): SkillInstall => {
   const skill = installBundle(root, skillBundle(), force);
+  const agents = installBundle(root, agentsBundle(), force);
+  const names = shippedAgents().join(', ');
   const forced = '`lynkeus skill install --force` replaces';
-  const text = () => {
+  const skillText = () => {
     if (skill.state === 'kept')
       return skill.edited
         ? `left the Lynkeus skill in ${shown(SKILL_DIR)} as it is: ${skill.edited.join(', ')} changed since Lynkeus wrote it (${forced} it with ${CLI_VERSION}'s)`
         : `left ${shown(SKILL_DIR)} as it is: Lynkeus did not write it (${forced} it)`;
     if (skill.state === 'current') return `the Lynkeus skill in ${shown(SKILL_DIR)} is ${CLI_VERSION}'s already`;
-    return `${skill.state} the Lynkeus skill ${CLI_VERSION} in ${shown(SKILL_DIR)}${skill.was ? ` (was ${skill.was})` : ''}: how to write, run and debug cases, read by Claude Code and other clients that load Agent Skills when a task needs it; commit it with the project (\`--no-skill\` leaves it out)`;
+    return `${skill.state} the Lynkeus skill ${CLI_VERSION} in ${shown(SKILL_DIR)}${skill.was ? ` (was ${skill.was})` : ''}: how to write, run and debug cases, read by Claude Code and other clients that load Agent Skills when a task needs it`;
   };
-  return { ...skill, text: text() };
+  const agentsText = () => {
+    if (agents.state === 'kept')
+      return agents.edited
+        ? `left the Lynkeus subagents as they are: ${agents.edited.join(', ')} changed since Lynkeus wrote them (${forced} them)`
+        : `left the Lynkeus subagents out: ${names} in ${shown(AGENTS_DIR)} are not Lynkeus's (${forced} them)`;
+    if (agents.state === 'current') return `its subagents (${names}) are current`;
+    return `${agents.state} its Claude Code subagents ${names} in ${shown(AGENTS_DIR)}, for setup and runs on a cheaper model`;
+  };
+  const wrote = [skill, agents].some((b) => b.state === 'installed' || b.state === 'updated');
+  return { ...skill, agents, text: `${skillText()}; ${agentsText()}${wrote ? '; commit them with the project (`--no-skill` leaves them out)' : ''}` };
 };
 
 const linkToSection = /\[([\w-]+)\]\(([\w-]+)\/([\w-]+)\.md\)/g;
@@ -175,10 +207,11 @@ export const skillCommands = [
   define({
     name: 'skill install',
     group: 'drive',
-    summary: "Install or update the Lynkeus skill in this project's .claude/skills/lynkeus, at this CLI's version",
+    summary:
+      "Install or update the Lynkeus skill in this project's .claude/skills/lynkeus and its Claude Code subagents in .claude/agents, at this CLI's version",
     details:
-      '`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same sections are served over MCP by the `guide` tool.',
-    flags: { force: { type: 'boolean', help: 'replace the skill even when its files were changed' } },
+      '`lynkeus init` does it too. The skill, or the subagents, whose files changed since Lynkeus wrote them, or that Lynkeus did not write, are left as they are unless --force. The same sections are served over MCP by the `guide` tool.',
+    flags: { force: { type: 'boolean', help: 'replace the skill and subagents even when their files were changed' } },
     needs: 'nothing',
     run: async (ctx) => {
       const done = installSkill(ctx.root, { force: !!ctx.flags.force });
