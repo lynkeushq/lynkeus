@@ -6,7 +6,7 @@ import { WebSocket } from 'ws';
 
 import { AgentServer } from '../index.js';
 
-let port = 19_100;
+let port = 20_000 + Math.floor(Math.random() * 20_000);
 const servers: AgentServer[] = [];
 after(async () => {
   for (const server of servers) await server.close();

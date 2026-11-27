@@ -57,7 +57,7 @@
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run.",
-    "now": "7484c0d2c829fd9b"
+    "now": "cd436d61d06e0286"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
