@@ -21,7 +21,14 @@ export type DraftInput = {
   fixturesSilent?: boolean;
   /** Where `from` came from when neither the author nor `cases.start` named it (the screen the app shows now…). */
   fromNote?: string;
+  /**
+   * What is known to be on `to` when no case goes there: testIDs in its source (`from` the file), what runs saw on it,
+   * and the presses that lead on from it. Offered as checks to keep, commented out.
+   */
+  known?: { ids: { id: string; from?: string }[]; texts: string[]; leadsTo: { press: string; to: string }[] };
 };
+
+const MAX_KNOWN = 6;
 
 const quote = (s: string) => JSON.stringify(s);
 
@@ -71,6 +78,15 @@ export const draftCase = (d: DraftInput): string => {
     }
   }
   if (!last || last.verb === 'app.nav' || routeOf(last) !== d.to) lines.push(`  - app.see: { route: ${d.to} }`);
+  const k = d.known;
+  if (!way && k && (k.ids.length || k.texts.length || k.leadsTo.length)) {
+    const sources = [...new Set(k.ids.flatMap((i) => (i.from ? [i.from] : [])))];
+    const said = [sources.length ? `its source (${sources.join(', ')})` : undefined, k.texts.length ? 'runs that saw it' : undefined].filter(Boolean);
+    lines.push(`  # What is on ${d.to}, from ${said.length ? said.join(' and ') : 'the route map'}: uncomment what the case is about.`);
+    for (const i of k.ids.slice(0, MAX_KNOWN)) lines.push(`  # - app.see: ${quote(`#${i.id}`)}`);
+    for (const t of k.texts.slice(0, MAX_KNOWN)) lines.push(`  # - app.see: ${quote(t)}`);
+    for (const l of k.leadsTo.slice(0, MAX_KNOWN)) lines.push(`  # - app.press: ${quote(`#${l.press}`)}    # leads to ${l.to}`);
+  }
   lines.push(
     '  # [What the person does here, and what must be on screen after.]',
     '',

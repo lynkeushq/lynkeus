@@ -292,7 +292,11 @@ npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: t
 ```
 
 `case new` begins at `--from`, else at `cases.start` in the config, else at the screen an attached app shows (in a
-session or over MCP), else at the first screen the navigator declares; a comment in the draft says which. It never
+session or over MCP), else at the first screen the navigator declares; a comment in the draft says which. Unless
+`--from` names it, a start with no known way to the screen gives way to `cases.start`, then the first declared screen,
+when the route map knows a way from there, and the comment says so (`no known way from DemoShowroom`). When no case
+reaches the screen, the draft lists under its route check, commented out, what is known to be on it: the testIDs its
+source writes, short texts runs saw there, and the presses its source has lead on. It never
 chooses the setup: one comment names the fixtures the project's server describes ([FIXTURES.md](FIXTURES.md)), and
 none while that server is still the example `case init` wrote.
 

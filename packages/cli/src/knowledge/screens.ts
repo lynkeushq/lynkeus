@@ -99,7 +99,12 @@ export type Observed = {
   seen: number;
   date: string;
   testIds: string[];
+  /** Short texts on it (labels, headings), not paragraphs: what a draft can offer to check. */
+  texts?: string[];
 };
+
+// A label or a heading; a paragraph is copy that is rewritten and breaks a check on any change.
+const MAX_LABEL = 60;
 
 /** What runs have seen, by route: the routes and interpolated testIDs a static parser cannot find. */
 export const observed = (lynkeusDir: string): Map<string, Observed> => {
@@ -119,11 +124,14 @@ export const observed = (lynkeusDir: string): Map<string, Observed> => {
     }
     if (!stored.route) continue;
     const testIds: string[] = [];
+    const texts: string[] = [];
     for (const e of stored.elements ?? []) {
-      if (!e.testId || e.hidden) continue;
-      if (!testIds.includes(e.testId)) testIds.push(e.testId);
+      if (e.hidden || e.system) continue;
+      if (e.testId && !testIds.includes(e.testId)) testIds.push(e.testId);
+      const text = e.text?.trim();
+      if (!e.testId && text && text.length > 1 && text.length <= MAX_LABEL && !texts.includes(text)) texts.push(text);
     }
-    out.set(stored.route, { route: stored.route, path: stored.path ?? [], seen: stored.seen ?? 1, date: stored.date, testIds });
+    out.set(stored.route, { route: stored.route, path: stored.path ?? [], seen: stored.seen ?? 1, date: stored.date, testIds, texts });
   }
   return out;
 };

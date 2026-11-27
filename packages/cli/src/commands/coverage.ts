@@ -2,17 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withIdCases, withTextCases } from '../cases/coverage.js';
-import { draftCase, hereCase } from '../cases/draft.js';
+import { type DraftInput, draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { FIXTURES } from '../cases/templates.js';
 import { readCases } from '../cases/format.js';
 import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
-import { edgesFile } from '../config.js';
+import { edgesFile, lynkeusDir } from '../config.js';
 import * as edges from '../knowledge/edges.js';
 import { navigatorRoutes } from '../knowledge/nesting.js';
 import { plan } from '../knowledge/plan.js';
+import { IMPACT_DEPTH, vocabularyOf } from '../knowledge/query.js';
+import * as screens from '../knowledge/screens.js';
 import type { ScreenGraph } from '../knowledge/types.js';
-import { IMPACT_DEPTH } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles, startHost, stopHost } from './cases.js';
@@ -44,6 +45,22 @@ const isTemplateServer = (command: string, home: string): boolean =>
   });
 
 const SCREEN_READ_MS = 1500;
+
+// What a draft can offer to check on a screen no case reaches: the testIDs its own file writes (else those of what it
+// imports), what runs saw on it, and the presses its source has lead on.
+const knownOn = (graph: ScreenGraph, route: string, seen: screens.Observed | undefined): NonNullable<DraftInput['known']> => {
+  const own = vocabularyOf(graph, route, 0);
+  const near = own?.selectors.length ? own : vocabularyOf(graph, route, 1);
+  const ids: { id: string; from?: string }[] = [...new Map((near?.selectors ?? []).map((s) => [s.id, { id: s.id, from: s.from }])).values()].filter(
+    (s) => !s.id.includes('${'),
+  );
+  for (const id of seen?.testIds ?? []) if (!ids.some((i) => i.id === id)) ids.push({ id });
+  const leadsTo = (own?.navigatesTo ?? []).flatMap((e) =>
+    e.via.kind === 'testId' && e.confidence === 'static' && graph.screens[e.to] && e.to !== route ? [{ press: e.via.testId, to: e.to }] : [],
+  );
+  const pressed = new Set(leadsTo.map((l) => l.press));
+  return { ids: ids.filter((i) => !pressed.has(i.id)), texts: seen?.texts ?? [], leadsTo };
+};
 
 /**
  * Where a draft begins when neither --from nor cases.start says: the screen an attached app shows now (asked only in a
@@ -189,29 +206,48 @@ export const coverageCommands = [
       const graph = ctx.graph();
       if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map screens lists them)`, code: 1 };
       const begin = (ctx.flags.from as string | undefined) ?? config.start;
-      const start = begin ? { route: begin } : await startOf(ctx, Object.keys(graph.screens));
-      if (!start) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json: the route graph has no screens to begin on', code: 2 };
-      const from = start.route;
-      const template = config.fixtures ? isTemplateServer(config.fixtures.command, config.base ?? ctx.root) : false;
-      const server = config.fixtures && !template ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
-      const described = server ? await server.describe().finally(() => server.close()) : undefined;
+      const first = begin ? { route: begin } : await startOf(ctx, Object.keys(graph.screens));
+      if (!first) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json: the route graph has no screens to begin on', code: 2 };
+      const observedEdges = edges.load(edgesFile(ctx.root));
       const read = coverageFor(ctx, undefined);
       // A project with no cases yet has no way to offer; the route map's plan still is one.
       const way =
         typeof read === 'string'
           ? undefined
           : wayTo(read.cases, read.seen, to, { from: ctx.flags.from as string | undefined, skip: id, macros: Object.keys(config.macros ?? {}) });
+      // A screen the app happens to show may lead nowhere the map knows: the configured start, then the first declared
+      // screen, may. Only when the author did not name where to begin.
+      const fallbacks = [
+        ...(config.start ? [{ route: config.start, why: 'cases.start' }] : []),
+        ...(Object.keys(graph.screens)[0] ? [{ route: Object.keys(graph.screens)[0]!, why: 'the first screen the navigator declares' }] : []),
+      ];
+      let start: { route: string; why?: string } = first;
+      let path = way ? undefined : (plan(graph, first.route, to, observedEdges) ?? undefined);
+      if (!way && !path && !ctx.flags.from)
+        for (const other of fallbacks.filter((f) => f.route !== first.route)) {
+          const found = plan(graph, other.route, to, observedEdges);
+          if (!found) continue;
+          const was = 'why' in first && first.why ? ` (${first.why})` : '';
+          start = { route: other.route, why: `${other.why}; no known way from ${first.route}${was}` };
+          path = found;
+          break;
+        }
+      const from = start.route;
+      const template = config.fixtures ? isTemplateServer(config.fixtures.command, config.base ?? ctx.root) : false;
+      const server = config.fixtures && !template ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
+      const described = server ? await server.describe().finally(() => server.close()) : undefined;
       const text = draftCase({
         id,
         title: ctx.flags.title as string | undefined,
         from,
         to,
         way,
-        path: way ? undefined : (plan(graph, from, to, edges.load(edgesFile(ctx.root))) ?? undefined),
+        path,
         fixtures: described?.details,
         fixturesSilent: !!server && !described,
         macros: Object.keys(config.macros ?? {}),
-        ...('why' in start ? { fromNote: start.why } : {}),
+        ...(start.why ? { fromNote: start.why } : {}),
+        ...(way ? {} : { known: knownOn(graph, to, screens.observed(lynkeusDir(ctx.root)).get(to)) }),
       });
       const reused = way ? { case: way.source, how: way.how, steps: way.setup.length + way.steps.length } : undefined;
       return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text, ...(reused ? { reused } : {}) } };
