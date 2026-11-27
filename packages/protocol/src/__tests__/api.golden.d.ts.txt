@@ -65,6 +65,7 @@ export type Element = {
         text: string;
         frame: Frame;
     }[];
+    system?: boolean;
 };
 export type Screen = {
     route?: string;
@@ -81,6 +82,9 @@ export type Screen = {
         i: number;
         modal: boolean;
         testId?: string;
+    };
+    system?: {
+        frame: Frame;
     };
     costMs: number;
 };
@@ -222,6 +226,7 @@ export type CoreMethods = {
             y: number;
             element?: Element;
             mode: 'native' | 'js';
+            opened?: string;
         };
     };
     type: {

@@ -6,7 +6,7 @@ import type { Element, Screen, Target } from 'lynkeus-protocol';
 import { PNG } from 'pngjs';
 
 import { lynkeusDir } from '../config.js';
-import { type Device, describeScreen, describeTrace, nativeCover } from '../device/driver.js';
+import { type Device, describeScreen, describeTrace, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
@@ -14,7 +14,7 @@ import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { define } from '../registry.js';
-import { whyFor, whyScope } from '../runtime.js';
+import { awayNote, onPhone, whyFor, whyScope } from '../runtime.js';
 import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
@@ -27,7 +27,7 @@ const coverOf = (device: Device): Promise<string | undefined> => device.screen()
 
 /** A press that failed while a native view covers the app says so: the agent alone only reads every control as covered. */
 const withCover = async (device: Device, error: unknown): Promise<unknown> => {
-  const cover = error instanceof Error ? await coverOf(device) : undefined;
+  const cover = error instanceof Error && !error.message.includes(NOT_DRAWN) ? await coverOf(device) : undefined;
   if (cover && error instanceof Error) error.message = `${error.message} (${cover})`;
   return error;
 };
@@ -42,14 +42,18 @@ const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutM
 export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
   const deadline = Date.now() + timeoutMs;
   const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
-  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does).
-  const underKeyboard = async (e: Element) => e.kind !== 'input' && (await device.screen()).elements.some((x) => x.focused);
+  // The keyboard of a focused field covers a control only until the press itself closes it (the agent does); a view
+  // the app did not draw stays until someone answers it, and the press then says so.
+  const stuck = async (e: Element) => {
+    const screen = await device.screen();
+    return !!screen.system || (e.kind !== 'input' && screen.elements.some((x) => x.focused));
+  };
   let found = await find();
   if (!found) {
     await device.waitFor({ target, timeoutMs }).catch(() => undefined);
     found = await find();
   }
-  while (found?.covered && Date.now() < deadline && !(await underKeyboard(found))) {
+  while (found?.covered && Date.now() < deadline && !(await stuck(found))) {
     await look(device, 50);
     found = await find();
   }
@@ -89,6 +93,25 @@ export const settledScreen = async (device: Device, timeoutMs = 3000): Promise<S
   return screen;
 };
 
+// The OS takes a moment to put the browser up once the app hands it a URL; the app says so when it steps back.
+const AWAY_WAIT_MS = 1500;
+
+/** Whether a press sent the app behind something else, and what: waited for only when the press opened a URL. */
+export const awayAfter = async (device: Device, opened: string | undefined): Promise<string | undefined> => {
+  if (opened && onPhone(device.server) && device.server.appState === 'active') {
+    await new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        device.server.off('appstate', done);
+        resolve();
+      };
+      const timer = setTimeout(done, AWAY_WAIT_MS);
+      device.server.on('appstate', done);
+    });
+  }
+  return awayNote(device.server, opened);
+};
+
 export const driveCommands = [
   define({
     name: 'screen',
@@ -108,13 +131,16 @@ export const driveCommands = [
     },
     needs: 'app',
     run: async (ctx) => {
-      const screen = await (await ctx.device()).screen();
+      const device = await ctx.device();
+      const screen = await device.screen();
+      const away = awayNote(device.server);
       if (ctx.flags.record || process.env.LYNKEUS_RECORD_SCREENS === '1') {
         const change = screens.record(lynkeusDir(ctx.root), screen);
         if (change) ctx.err(`screen changed since last read:\n${screens.describeChange(change)}`);
       }
       const options = { all: Boolean(ctx.flags.all), frames: Boolean(ctx.flags.frames), verbose: Boolean(ctx.flags.verbose) };
-      return { text: ctx.flags.tree ? screenTree(screen) : describeScreen(screen, options), json: screen };
+      const text = ctx.flags.tree ? screenTree(screen) : describeScreen(screen, options);
+      return { text: away ? `! ${away}\n${text}` : text, json: away ? { ...screen, away } : screen };
     },
   }),
   define({
@@ -144,8 +170,12 @@ export const driveCommands = [
         .catch(async (error: unknown) => {
           throw await withCover(device, error);
         });
+      const away = await awayAfter(device, result.opened);
+      if (away) return { text: `! ${away}`, json: { ...result, away } };
       if (!ctx.flags.settle) return { json: result };
-      return { text: describeScreen(await settledScreen(device)), json: result };
+      const screen = await settledScreen(device);
+      const late = awayNote(device.server);
+      return late ? { text: `! ${late}`, json: { ...result, away: late } } : { text: describeScreen(screen), json: result };
     },
   }),
   define({

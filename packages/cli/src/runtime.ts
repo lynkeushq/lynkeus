@@ -25,10 +25,27 @@ export type Outcome = { text?: string; json?: unknown; code: number; error?: str
  */
 export const unreachable = (server: Partial<Pick<AgentServer, 'gone' | 'appState' | 'hello'>> | undefined): string | undefined => {
   if (server?.gone) return 'the app is gone (crashed or closed)';
-  const hello = server?.hello;
-  if (server?.appState === 'background' && hello?.native && !hello.commands?.includes('clock'))
-    return 'the app went to the background (another app is in front)';
+  if (server?.appState === 'background' && onPhone(server)) return 'the app went to the background (another app is in front)';
   return undefined;
+};
+
+/** A simulator, an emulator or a phone, where the OS puts other apps in front; a host stands in for the OS and never does. */
+export const onPhone = (server: Partial<Pick<AgentServer, 'hello'>> | undefined): boolean =>
+  server?.hello?.native === true && !server.hello.commands?.includes('clock');
+
+/**
+ * What is in front of the app when the OS put something there, said to stand alone; undefined while the app is.
+ * `opened` is a URL the app handed the OS, which names what came up.
+ */
+export const awayNote = (server: Partial<Pick<AgentServer, 'appState' | 'hello'>> | undefined, opened?: string): string | undefined => {
+  if (!onPhone(server)) return undefined;
+  const state = server?.appState;
+  if (state !== 'background' && state !== 'inactive') return undefined;
+  const back = 'what it lists is not what is on screen; bring it back with os appstate active, or relaunch it';
+  if (opened)
+    return `the app went to the background: it opened ${opened}, and ${/^https?:/i.test(opened) ? 'the browser' : 'another app'} is in front; ${back}`;
+  if (state === 'inactive') return `the app is inactive: a system screen is in front of it (a permission prompt, Control Center); ${back}`;
+  return `the app went to the background: another app or a system screen is in front; ${back}`;
 };
 
 /**

@@ -40,6 +40,7 @@ Después viene un elemento por línea: su índice, su tipo (`button`, `input`, `
 | `!disabled` | El control no responde a un toque. |
 | `~covered` | Hay algo encima que detendría el toque: un toque en su centro caería en otro elemento. |
 | `~inert` | Se puede leer, pero no tocar. |
+| `~system` | No es de la app: es texto de una alerta del sistema o de una hoja nativa que está delante. Sus botones se pulsan por su texto. |
 
 :::note[Desde 0.3.0]
 Dos lecturas cambian con la versión 0.3.0, y las dos requieren recompilar la app después de actualizar `lynkeus-agent`. El valor de un campo se lee del campo nativo; antes salía de las propiedades de React, y un campo sin propiedad `value` se leía vacío después de escribir en él. Y en Android un control cuenta como `~covered` solo por lo que detendría un toque; antes, en un build de desarrollo, todos los controles se leían como cubiertos.

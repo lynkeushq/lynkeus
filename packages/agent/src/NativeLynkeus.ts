@@ -38,6 +38,12 @@ export interface Spec extends TurboModule {
    * its text in the view and nowhere in React.
    */
   texts(tags: number[]): string;
+  /**
+   * What windows the app's React tree did not draw show in front of it (a system alert or prompt, a native SDK's
+   * sheet), as JSON: `{ frame: [x, y, w, h], items: { text, kind: 'button' | 'text', frame }[] }`, or `null` when
+   * nothing is. `items` is empty when another process draws it (iOS's Save Password prompt).
+   */
+  systemViews(): string;
 }
 
 export default TurboModuleRegistry.get<Spec>('Lynkeus');

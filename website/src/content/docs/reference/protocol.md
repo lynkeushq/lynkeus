@@ -209,7 +209,7 @@ Takes a target, plus:
 | `holdMs` | number | `50` | How long the finger stays down. About 600 is a long press. |
 | `mode` | `"native"` or `"js"` | `"native"` | How to press. |
 
-It answers the point pressed, the element when the target named one, and the mode used.
+It answers the point pressed, the element when the target named one, and the mode used. When the press made the app open a URL (`Linking.openURL`), it also answers it as `opened`: the browser or another app is about to be in front.
 
 In `native` mode the app:
 
@@ -220,7 +220,7 @@ In `native` mode the app:
 
 In `js` mode the app calls the element's `onPress` directly. There is no touch, no gesture and no wait for animations. It refuses a control that is disabled or covered, so the app's own gates still mean something. Use it when you want the outcome, not the gesture.
 
-`press` refuses a hidden element with `<target> is not presented (<reason>)`, and a target that matches nothing with `No element matches <target>`.
+`press` refuses a hidden element with `<target> is not presented (<reason>)`, a target that matches nothing with `No element matches <target>`, and a control under a view the app did not draw (see `Screen.system`) with `<target> is under a view the app did not draw`, which names that view's buttons when it can read them.
 
 ### `type`
 
@@ -375,6 +375,7 @@ type Screen = {
   busy: boolean;
   window: { w: number; h: number };
   presenting?: { i: number; modal: boolean; testId?: string };
+  system?: { frame: { x: number; y: number; w: number; h: number } };
   costMs: number;
 };
 ```
@@ -388,6 +389,7 @@ type Screen = {
 | `busy` | True while requests are in flight, or while the app's `busy` command says so. |
 | `window` | The window's size, in points. |
 | `presenting` | The layer on top, when the app is presenting one over its screen: a sheet, a dialog. |
+| `system` | A view the app's React tree did not draw is in front of it, over this frame: a system alert or prompt, a native SDK's sheet. Its words are the elements marked `system`. There are none when another process draws it (iOS's "Save Password?"), and then no touch from inside the app reaches it. |
 | `costMs` | Milliseconds the app spent building this snapshot. |
 
 ### `Element`
@@ -412,6 +414,7 @@ type Element = {
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;
   texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];
+  system?: boolean;
 };
 ```
 
@@ -430,11 +433,12 @@ type Element = {
 | `covered` | A touch at its center would not reach it: something is on top. |
 | `hidden` | It is mounted but the app is not presenting it, and why. |
 | `offscreen` | Its frame lies outside the window: it is on screen only after scrolling. |
+| `system` | The words of a view the app did not draw (see `Screen.system`), listed after the app's own elements. A press by text reaches its buttons. |
 | `texts` | On a control that holds more than one piece of text (a card with a name and a balance), each piece and its frame. They are not elements: `see` and `find` still match the control's `text`. |
 
 `covered` and `hidden` mean different things, and both are reported.
 
-`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available. On Android the test asks React Native what a touch at that point would stop at, so a view that is drawn over the control but takes no touches, such as the invisible debugging overlay of a development build, does not cover it.
+`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available, in whichever of the app's windows is in front at that point: an alert or a prompt in a window of its own covers what is under it, the keyboard does not. On Android the test asks React Native what a touch at that point would stop at, so a view that is drawn over the control but takes no touches, such as the invisible debugging overlay of a development build, does not cover it; the native views of the window outside React Native (the system bars' backgrounds) count only when they would take the touch, and a `Modal`'s controls are tested in the dialog window that shows them.
 
 :::note[Since 0.3.0]
 Two reads moved to the native module in 0.3.0, and both need the app rebuilt after `lynkeus-agent` is updated. `value` was read from React's props, so a field with no `value` prop read as empty after typing and one with a `defaultValue` kept reading as that; an app that has not been rebuilt still answers that way. On Android, `covered` was true for any visible view over the point, which in a development build was every control.

@@ -11,6 +11,18 @@ lists them — they are in the tree but belong to a screen the app is not
 showing, so close what is open or target something inside it. `--js` presses through the React
 handler instead of the OS, which is a useful comparison, not a fix.
 
+**`+system` in the header, a `!` line about a view the app did not draw.** A
+system alert, a permission prompt or a native SDK's sheet is in front of the
+app. Its words are listed with `~system` when it runs in the app's process:
+press its button by its text, or add it to `cases.interruptions`. When another
+process draws it (iOS's "Save Password?" after a login form), nothing inside the
+app can read or tap it: relaunch the app or answer it on the device, and sign
+in through an app command so the suite does not meet it.
+
+**`! the app went to the background` after a press.** The control opened a link
+or another app; what the agent lists then is not what is on screen. Bring the
+app back with `lynkeus os appstate active`.
+
 **No keyboard on the simulator while typing.** `type` taps the field first,
 so it is focused the way a person focuses it and the system keyboard comes up.
 When it does not, the simulator is taking keys from the Mac instead: turn off

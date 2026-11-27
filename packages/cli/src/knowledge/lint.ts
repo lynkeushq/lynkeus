@@ -27,7 +27,8 @@ type LintOptions = {
 export const lintScreen = (screen: Screen, options: LintOptions = {}): Finding[] => {
   const minTouch = options.minTouchTarget ?? MIN_TOUCH;
   const out: Finding[] = [];
-  const els = (screen.elements ?? []).filter((e) => !e.hidden);
+  // A system alert's words are not the app's to fix.
+  const els = (screen.elements ?? []).filter((e) => !e.hidden && !e.system);
   const win = screen.window ?? { w: 0, h: 0 };
   for (const e of els) {
     const named = e.text ?? e.accessibilityLabel;

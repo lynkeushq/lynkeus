@@ -2,6 +2,7 @@ import { Linking } from 'react-native';
 
 import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
+import { openedSince } from './opened';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
 import { host } from './registry';
 import { recentRequests, requestsHeld, requestsInFlight } from './requests';
@@ -118,7 +119,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const screen = async (): Promise<Screen> => {
     const started = Date.now();
-    const { elements, presenting } = backend.snapshot();
+    const { elements, presenting, system } = backend.snapshot();
     const route = navigation.currentRoute();
     return {
       route: route?.name,
@@ -129,6 +130,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       busy: await busy(),
       window: backend.window(),
       presenting,
+      ...(system ? { system } : {}),
       costMs: Date.now() - started,
     };
   };
@@ -196,6 +198,25 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return previous ?? pointOf(target);
   };
 
+  // A finger would land on what another window shows there (a system alert, a prompt), and the app would never
+  // hear it: said, rather than a tap that answers as if it had worked.
+  const underSystemView = (target: Target, element: Element) => {
+    if (!element.covered || element.system) return;
+    const { system, elements: now } = backend.snapshot();
+    if (!system) return;
+    const { x, y } = centre(element);
+    const { frame } = system;
+    if (x < frame.x || y < frame.y || x > frame.x + frame.w || y > frame.y + frame.h) return;
+    const words = now.filter((e) => e.system && e.kind === 'button').map((e) => JSON.stringify(e.text));
+    throw new Error(
+      `${describeTarget(target)} is under a view the app did not draw (a system alert or prompt): ${
+        words.length > 0
+          ? `press one of its buttons first (${words.join(', ')})`
+          : 'another process draws it, so no touch from Lynkeus reaches it; relaunch the app, or answer it on the device'
+      }`,
+    );
+  };
+
   const pressNative = async (target: Target, holdMs: number) => {
     let point = await settled(target);
     // With the keyboard up, a tap outside the field only dismisses it (the
@@ -205,9 +226,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await sleep(300);
       point = await settled(target);
     }
+    if (point.element) underSystemView(target, point.element);
+    const pressedAt = Date.now();
     if (point.element) await backend.press(point.element, holdMs);
     else await backend.pressPoint(point.x, point.y, holdMs);
-    return { ...point, mode: 'native' as const };
+    const opened = openedSince(pressedAt);
+    return { ...point, mode: 'native' as const, ...(opened ? { opened } : {}) };
   };
 
   // No touch, no gesture recognizer, no settle wait; but a disabled or covered
@@ -216,8 +240,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const element = presented(target);
     if (!element.enabled) throw new Error(`${describeTarget(target)} is disabled`);
     if (element.covered) throw new Error(`${describeTarget(target)} is covered`);
+    const pressedAt = Date.now();
     await backend.pressJs(element);
-    return { ...centre(element), element, mode: 'js' as const };
+    const opened = openedSince(pressedAt);
+    return { ...centre(element), element, mode: 'js' as const, ...(opened ? { opened } : {}) };
   };
 
   const press = async ({ mode, holdMs, ...rest }: Target & PressOptions) => {

@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { test } from 'node:test';
 
 import type { Element, Screen } from 'lynkeus-protocol';
 
-import { settledScreen, untilUncovered } from '../commands/drive.js';
+import { awayAfter, settledScreen, untilUncovered } from '../commands/drive.js';
 import type { Device } from '../device/driver.js';
+import { awayNote } from '../runtime.js';
 
 const button = (covered: boolean): Element => ({
   i: 0,
@@ -49,10 +51,15 @@ test('a control covered for good does not hold the screen past a transition’s 
 });
 
 test('typing into a field waits until nothing covers it', async () => {
-  let reads = 0;
-  const { device, looks } = fake(() => ({ ...button(++reads <= 2), kind: 'input' }));
+  let finds = 0;
+  const { device, looks } = fake(() => ({ ...button(finds <= 2), kind: 'input' }));
+  const find = device.server.call;
+  device.server.call = (async (...args: Parameters<typeof find>) => {
+    finds++;
+    return find(...args);
+  }) as typeof find;
   await untilUncovered(device, { testId: 'logout' });
-  assert.equal(reads, 3);
+  assert.equal(finds, 3);
   assert.equal(looks(), 2);
 });
 
@@ -87,4 +94,55 @@ test('a press waits for a control a screen still slides over, but not for one on
   await untilUncovered(device, { testId: 'logout' });
   assert.equal(looks.n, 0);
   assert.ok(Date.now() - began < 500);
+});
+
+test('a press waits no transition out under a view the app did not draw: it stays until someone answers it', async () => {
+  let finds = 0;
+  const device = {
+    idle: async () => ({ commit: 1, idle: true }),
+    waitFor: async () => ({ waitedMs: 0 }),
+    screen: async () => ({ ...screenOf([button(true)]), system: { frame: { x: 0, y: 0, w: 390, h: 844 } } }),
+    server: {
+      call: async () => {
+        finds++;
+        return button(true);
+      },
+    },
+  } as unknown as Device;
+  const began = Date.now();
+  await untilUncovered(device, { testId: 'logout' });
+  assert.equal(finds, 1);
+  assert.ok(Date.now() - began < 500, `took ${Date.now() - began} ms`);
+});
+
+const phone = (appState: string) => {
+  const server = Object.assign(new EventEmitter(), { appState, hello: { native: true, commands: [] } });
+  return { device: { server } as unknown as Device, server };
+};
+
+test('a press that opens a URL says the app went behind the browser once the app steps back', async () => {
+  const { device, server } = phone('active');
+  setTimeout(() => {
+    server.appState = 'background';
+    server.emit('appstate', { event: 'appstate', state: 'background' });
+  }, 30);
+  const away = await awayAfter(device, 'https://github.com/infinitered/ignite');
+  assert.match(away ?? '', /^the app went to the background: it opened https:\/\/github\.com\/infinitered\/ignite, and the browser is in front/);
+});
+
+test('a press that leaves the app in front says nothing and waits for nothing', async () => {
+  const { device } = phone('active');
+  const began = Date.now();
+  assert.equal(await awayAfter(device, undefined), undefined);
+  assert.ok(Date.now() - began < 50);
+});
+
+test('a host never goes to the background, whatever its app state says', async () => {
+  const server = Object.assign(new EventEmitter(), { appState: 'background', hello: { native: true, commands: ['clock'] } });
+  assert.equal(await awayAfter({ server } as unknown as Device, 'myapp://x'), undefined);
+});
+
+test('a system screen over the app on iOS reads as inactive, not as another app', () => {
+  assert.match(awayNote({ appState: 'inactive', hello: { native: true, commands: [] } } as never) ?? '', /^the app is inactive: a system screen/);
+  assert.match(awayNote({ appState: 'background', hello: { native: true, commands: [] } } as never, 'tel:123') ?? '', /another app is in front/);
 });

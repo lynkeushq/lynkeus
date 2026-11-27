@@ -66,6 +66,39 @@ const contains = (r: Rect, p: Point) => p.x >= r.x && p.x <= r.x + r.w && p.y >=
 
 const centre = (r: Rect): Point => ({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
 
+const pathOf = (node: ReactTestInstance): ReactTestInstance[] => {
+  const path: ReactTestInstance[] = [];
+  for (let at: ReactTestInstance | null = node; at; at = at.parent) path.push(at);
+  return path.reverse();
+};
+
+const zIndexOf = (node: ReactTestInstance): number => {
+  const z = flatStyle(node.props).zIndex;
+  return typeof z === 'number' ? z : 0;
+};
+
+/**
+ * Whether `over` draws on top of `under`: where their branches part, the sibling with the higher zIndex, then the
+ * later one. An ancestor draws under its own subtree. React Native orders siblings by zIndex this way, so a drawer
+ * kept behind its screen (`zIndex: -1`) covers nothing on it.
+ */
+const drawsOver = (over: ReactTestInstance[], under: ReactTestInstance[]): boolean => {
+  let k = 0;
+  while (k < over.length && k < under.length && over[k] === under[k]) k++;
+  const a = over[k];
+  const b = under[k];
+  if (!a || !b || k === 0) return false;
+  const za = zIndexOf(a);
+  const zb = zIndexOf(b);
+  if (za !== zb) return za > zb;
+  const siblings = over[k - 1]!.children;
+  return siblings.indexOf(a) > siblings.indexOf(b);
+};
+
+// `box-none`: the view itself takes no touch, only its children do, so it covers nothing (a toast host, a layer
+// that only places its children).
+const passesTouches = (node: ReactTestInstance): boolean => node.props.pointerEvents === 'box-none' || flatStyle(node.props).pointerEvents === 'box-none';
+
 type Pager = { props: { children?: unknown }; state: { page: number }; setPage: (page: number) => void };
 
 const pagerOf = (host: ReactTestInstance): Pager | undefined => {
@@ -157,25 +190,19 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
       const c = centre(element.frame);
       if (c.x < 0 || c.y < 0 || c.x > window.w || c.y > window.h) element.offscreen = true;
     }
-    // Elements are in pre-order, so an element's descendants are the run right
-    // after it; whatever follows that run and is larger sits on top of it,
-    // whatever its kind (a bottom sheet is a scroll view, a backdrop a button).
-    const subtreeEnd = elements.map((e) => e.i);
-    for (let i = elements.length - 1; i >= 0; i--) {
-      const parent = elements[i]!.parent;
-      if (parent !== undefined) subtreeEnd[parent] = Math.max(subtreeEnd[parent]!, subtreeEnd[i]!);
-    }
+    // Whatever draws over an element and is larger covers it, whatever its kind (a bottom sheet is a scroll view, a
+    // backdrop a button), unless it lets touches through to what is under it.
+    const paths = instances.map(pathOf);
     for (const element of elements) {
       const area = element.frame.w * element.frame.h;
       if (element.hidden || element.offscreen || !placed[element.i] || area === 0) continue;
       const c = centre(element.frame);
-      for (let j = subtreeEnd[element.i]! + 1; j < elements.length; j++) {
-        const other = elements[j]!;
-        if (other.hidden || !placed[j] || other.frame.w * other.frame.h <= area) continue;
-        if (contains(other.frame, c)) {
-          element.covered = true;
-          break;
-        }
+      for (const other of elements) {
+        const j = other.i;
+        if (j === element.i || other.hidden || !placed[j] || other.frame.w * other.frame.h <= area) continue;
+        if (!contains(other.frame, c) || passesTouches(instances[j]!) || !drawsOver(paths[j]!, paths[element.i]!)) continue;
+        element.covered = true;
+        break;
       }
     }
   };

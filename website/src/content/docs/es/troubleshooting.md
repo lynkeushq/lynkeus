@@ -143,6 +143,7 @@ Cada línea del listado muestra el estado del elemento:
 | Marca | Qué significa | Qué hacer |
 |---|---|---|
 | `~covered` | Un toque en su centro caería sobre otra cosa. | Cierra lo que lo tapa. |
+| `~system` | Texto de una alerta del sistema o de una hoja nativa que está delante de la app; no es de la app. | Pulsa su botón por su texto. Mira [Hay una alerta del sistema delante de la app](#hay-una-alerta-del-sistema-delante-de-la-app). |
 | `!disabled` | El control no responde a toques. | Completa el formulario o espera la petición de la que depende. |
 | `~inert` | Él o un ancestro tiene `pointerEvents: 'none'`. | Apunta al control que lo contiene. |
 
@@ -154,6 +155,25 @@ Los errores correspondientes son:
 - `{"testId":"…"} is not presented (behind-overlay)`: existe, pero no se está mostrando. Entre paréntesis va el motivo.
 
 **Una comparación útil.** `--js` llama al `onPress` de React en lugar de sintetizar un toque. Si con `--js` funciona y sin él no, el control existe y algo se interpone entre el dedo y él. Es un diagnóstico, no un arreglo: un test que solo pasa con `--js` no está probando lo que haría un usuario.
+
+### Hay una alerta del sistema delante de la app
+
+**Qué ves.** El encabezado termina en `+system` y una línea que empieza con `!` avisa que delante de la app hay una vista que la app no dibujó. Pulsar un control que quedó debajo falla con `… is under a view the app did not draw`, en lugar de tocar la app por detrás de la alerta.
+
+**Por qué pasa.** Se está mostrando algo que no sale del árbol de React de la app: un `Alert.alert`, la hoja de un SDK nativo, un pedido de permiso, o el "¿Guardar contraseña?" que iOS muestra cuando un formulario con contraseña desaparece de la pantalla. Si esa vista vive en el proceso de la app, Lynkeus lee lo que dice y lo lista con `~system`.
+
+**Cómo se arregla.**
+
+- Si su texto aparece en el listado, pulsa el botón por su texto, como lo haría una persona: `lynkeus press "Ahora no"`. Para quitarla en cualquier paso de cualquier caso, agrégala a [`cases.interruptions`](/es/reference/configuration/#casesinterruptions): en `see` su texto, en `do` la pulsación.
+- Si la línea dice que la dibuja otro proceso (así lo hace iOS con "¿Guardar contraseña?"), nada desde dentro de la app puede leerla ni tocarla. Vuelve a abrir la app, o respóndela en el dispositivo. Para que una suite no se la cruce, inicia sesión con un comando de la app (`qa.register`) en lugar del formulario.
+
+### Un toque mandó la app a segundo plano
+
+**Qué ves.** `press` responde `! the app went to the background: it opened https://…, and the browser is in front`, o `screen` empieza con esa línea.
+
+**Por qué pasa.** El control abrió un enlace u otra app. Lo que lista el agente desde entonces es el árbol de la app, no lo que se ve en pantalla.
+
+**Cómo se arregla.** Si el caso lo buscaba, trae la app de vuelta con `lynkeus os appstate active` y sigue. Si no, el control pulsado no es el que el caso quería.
 
 ### En Android, todos los controles aparecen `~covered`
 

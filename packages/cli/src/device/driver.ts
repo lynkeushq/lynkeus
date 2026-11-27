@@ -216,19 +216,27 @@ type DescribeOptions = {
 export const NATIVE_COVER =
   'a native view outside React Native covers the app (the Expo dev menu’s sheet, a system alert, a permission prompt): every control reads ~covered, and that view’s own buttons are not in the tree; close it on the device, or relaunch the app';
 
+/** How the agent and these notes name a view outside the app's React tree; a message that has it already says why. */
+export const NOT_DRAWN = 'the app did not draw';
+
+export const SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it (a system alert, a native sheet): its words are listed ~system, and its buttons are pressed by their text`;
+
+export const REMOTE_SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it, drawn by another process (iOS's Save Password prompt after a login form, a permission prompt): Lynkeus can neither read nor tap it, and presses under it fail; relaunch the app, or answer it on the device`;
+
 /**
  * Whether something outside the app's React tree is over it. The agent marks a control covered when a touch at its
  * centre would land elsewhere; when every presented control is covered at once and the tree shows nothing on top,
  * what is over them is a native view of its own (expo-dev-client's onboarding sheet on a first launch, say).
  */
-export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting'>): string | undefined => {
+export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting' | 'system'>): string | undefined => {
+  if (screen.system) return screen.elements.some((e) => e.system) ? SYSTEM_VIEW : REMOTE_SYSTEM_VIEW;
   const controls = screen.elements.filter((e) => !e.hidden && (e.kind === 'button' || e.kind === 'input'));
   return !screen.presenting && controls.length > 0 && controls.every((e) => e.covered) ? NATIVE_COVER : undefined;
 };
 
 export const describeScreen = (screen: Screen, options: DescribeOptions = {}): string => {
   const { limit = 80, all = false, frames = false, verbose = false } = options;
-  const layer = screen.presenting ? ` +${screen.presenting.modal ? 'modal' : 'overlay'}${screen.presenting.testId ? `#${screen.presenting.testId}` : ''}` : '';
+  const layer = `${screen.presenting ? ` +${screen.presenting.modal ? 'modal' : 'overlay'}${screen.presenting.testId ? `#${screen.presenting.testId}` : ''}` : ''}${screen.system ? ' +system' : ''}`;
   // Plain views are layout; one that names itself (a testID, a label) is content.
   const named = screen.elements.filter((e) => e.kind !== 'view' || e.accessibilityLabel !== undefined || e.testId !== undefined);
   // What sits inside a button is the button: its icon is not something else to read or press.
@@ -266,7 +274,7 @@ export const describeScreen = (screen: Screen, options: DescribeOptions = {}): s
         : e.value !== undefined
           ? ` value=${quote(e.value)}` // a QR's encoded string, say
           : '';
-    const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}`;
+    const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}${e.system ? ' ~system' : ''}`;
     const at = frames ? ` @${Math.round(e.frame.x + e.frame.w / 2)},${Math.round(e.frame.y + e.frame.h / 2)}` : '';
     return `${index}${e.kind}${id}${label ? ` ${quote(shortened(label))}` : ''}${value}${state}${at}`;
   });

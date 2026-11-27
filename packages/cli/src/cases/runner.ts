@@ -11,7 +11,7 @@ import { promisify } from 'node:util';
 
 import type { Element, RequestRecord, RunEdges, RunLooked, RunNativeValue, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
 
-import { type Device, describeScreen, NATIVE_COVER, nativeCover } from '../device/driver.js';
+import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
@@ -1567,13 +1567,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       lookedScreen = undefined;
       const looked = await lookedAfter(step);
       // A see or wait has just read the screen; a press or a type reads it once more, only when it fails.
-      const cover = message.includes(NATIVE_COVER)
-        ? undefined
-        : lookedScreen
-          ? nativeCover(lookedScreen)
-          : step.verb === 'app.press' || step.verb === 'app.type'
-            ? await coverNow()
-            : undefined;
+      const cover =
+        message.includes(NATIVE_COVER) || message.includes(NOT_DRAWN)
+          ? undefined
+          : lookedScreen
+            ? nativeCover(lookedScreen)
+            : step.verb === 'app.press' || step.verb === 'app.type'
+              ? await coverNow()
+              : undefined;
       if (cover) broke.error = `${message} (${cover})`;
       if (looked) broke.looked = looked;
       if (step.verb === 'app.wait' && looked?.target) {

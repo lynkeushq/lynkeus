@@ -159,6 +159,7 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   busy: boolean             // requests in flight, or the app's `busy` command said so
   window: { w, h }          // points
   presenting?: { i, modal, testId? }   // the layer on top, when the app presents one
+  system?: { frame }        // a view the app's React tree did not draw is in front of it, over this frame
   costMs: number            // time spent building the snapshot
 }
 ```
@@ -185,11 +186,26 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   hidden?: HiddenReason     // not presented at all, and why
   offscreen?: boolean       // its rect is outside the window: on screen only after scrolling
   texts?: { text, frame }[] // a control's own texts with their frames, when it holds more than one
+  system?: boolean          // words of the view in `Screen.system`, listed after the app's own
 }
 ```
 
 `covered` comes from a native hit test at the element's centre (UIKit
-`hitTest:` / Android view tree) when the native module is available.
+`hitTest:` / Android view tree) when the native module is available. It runs in
+whichever of the app's windows is in front at that point, front to back: on iOS
+an alert or a prompt in a window of its own covers the app (the keyboard's
+windows count only for a prompt presented from them, such as AutoFill's Save
+Password); on Android the windows are the process's (a `Modal`'s dialog, an
+`AlertDialog`), React Native's own target search runs from each React root, and
+a native view outside React covers only when it is visible and clickable, as
+Android's dispatch would hand it a touch.
+
+`system` says what the app did not draw: the native module's `systemViews`
+reads the windows in front of the app's React window and lists their words
+(`UILabel`s, Android `TextView`s) as `system` elements, `button` when a control
+holds them. A remote view (iOS draws Save Password in another process) has no
+words to read and takes no touch synthesized in the app; `press` on a control
+under it is refused with `… is under a view the app did not draw`.
 
 `hidden` is the structural answer, and it is the stronger one: the element is
 mounted but the app is not presenting it. The reasons are `a11y` (hidden from
@@ -217,6 +233,9 @@ it.
   outside the focused field would only dismiss it, measures again, then puts a
   finger down for `holdMs` (50 by default; ~600 is a long press). Consecutive
   taps let the run loop turn between them.
+- `press` answers `opened` when the press made the app hand a URL to the OS
+  (`Linking.openURL`): the driver then waits for the app to report its
+  AppState and says that the app went to the background, and what is in front.
 - `press` with `mode: 'js'` calls the element's `onPress` directly. It needs a
   `testId`, refuses disabled or covered controls, and skips gestures and
   animations entirely. Use it when you want the outcome, not the gesture.
