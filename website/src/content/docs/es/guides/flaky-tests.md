@@ -42,6 +42,8 @@ Con ese historial, el resumen avisa cuando los resultados recientes de un caso s
 
 La condición es precisa. Un caso que falló o necesitó reintento en *algunas* de sus últimas ejecuciones es intermitente. Uno que falló en *todas* no recibe el aviso: no es intermitente, está roto.
 
+El aviso tampoco mezcla versiones ni roturas reales. Cuando cambia lo que el caso ejecuta (sus pasos, o un macro de `lynkeus.config.json` que usan), el historial vuelve a empezar; cambiar solo la descripción no lo borra. Y un fallo que se repite no cuenta ni para un lado ni para el otro: el que volvió a fallar en el reintento, o el que falló en el mismo paso y con el mismo error en otra ejecución guardada. Un caso que se rompió y después se arregló no es intermitente.
+
 `--flakes <archivo>` cambia dónde se guarda. El historial es un archivo local, así que un runner de CI que arranca limpio cada vez empieza sin él. Para ese caso está el historial alojado, más abajo.
 
 ## 3. Repetir hasta que falle: `flake`

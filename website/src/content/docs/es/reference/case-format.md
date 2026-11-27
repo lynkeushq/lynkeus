@@ -52,7 +52,7 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 | Sección | Qué contiene |
 |---|---|
 | `setup` | Los pasos que preparan el estado antes de que empiece lo que se quiere probar. |
-| `teardown` | Los pasos que devuelven lo que el caso cambió fuera de la app, por ejemplo una cara registrada en un Simulator compartido. Corren después de `steps`, hayan pasado, fallado o quedado omitidos. Un paso que falla aquí se avisa como advertencia y no cambia el resultado; no cuenta entre los pasos del caso. Una ejecución cortada por un timeout no llega a ellos. |
+| `teardown` | Los pasos que devuelven lo que el caso cambió fuera de la app, por ejemplo una cara registrada en un Simulator compartido. Corren después de `steps`, hayan pasado, fallado o quedado omitidos. Un paso que falla aquí no cambia el resultado ni cuenta entre los pasos del caso, pero el resultado lo nombra como advertencia (`warnings` en `cases.jsonl`, una línea con ⚠ en la respuesta). Una ejecución cortada por un timeout no llega a ellos. |
 | `steps` | Los pasos del test. |
 | `expected` | Un texto libre que dice qué demuestra el caso. Es para quien lo lee; no se ejecuta. |
 
@@ -114,7 +114,7 @@ En YAML, `#` empieza un comentario, así que un objetivo por `testID` va siempre
 
 Las comillas de YAML no llegan a lynkeus: `"Continuar"` y `Continuar` son el mismo valor. Un texto con **comillas propias**, dentro de las del YAML, es otra cosa: `'"Continuar"'` es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`. Hacen falta en dos situaciones:
 
-- En `app.wait` y `app.see`, una palabra con mayúscula inicial, como `Next`, se lee como una ruta. `'"Next"'` es el texto.
+- En `app.wait` y `app.see`, una palabra con mayúscula inicial, como `Next`, se lee como una ruta. `'"Next"'` es el texto. Si la espera falla, la app no tiene ninguna ruta con ese nombre que lynkeus conozca y la palabra (o una muy parecida) está en pantalla, el error lo dice y propone las comillas. `lynkeus why Next` avisa lo mismo.
 - Un texto hecho solo de dígitos, como `12`, se lee como un índice. `'"12"'` es el texto.
 
 Todo verbo que recibe `target` recibe también `testId` en su lugar, con el identificador sin `#`: `{ testId: pay-button }` equivale a `{ target: "#pay-button" }`.
@@ -252,11 +252,15 @@ Comprueba lo que la app muestra o hizo. Es la aserción principal de un caso. To
 - app.see: { target: "#balance", text: "25" }
 - app.see: { route: Checkout.Confirm, request: "GET /v1/cart" }
 - app.see: { target: "#error-banner", absent: true }
+- app.see: { target: "Renders a boolean input.", contains: true }
 ```
+
+Las mayúsculas y minúsculas nunca importan, ni los espacios al principio o al final. Un objetivo de texto tiene que ser el texto completo de un elemento (la etiqueta de un control también vale si solo lo contiene). Para encontrar una frase dentro de un párrafo más largo, agregá `contains: true`. `text` sin objetivo ya busca dentro de cualquier texto.
 
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `target` | objetivo | ninguno | Un elemento que tiene que estar en pantalla. También como `testId`. |
+| `contains` | booleano | `false` | Con un objetivo de texto: alcanza con que el texto de un elemento lo contenga. Respeta `within`, y `nth` cuenta entre esos elementos. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `text` | texto | ninguno | Solo: algún elemento presentado contiene ese texto. Con `target`: el texto del elemento, o el de un elemento que tiene dentro, lo contiene. |
 | `route` | texto | ninguno | La ruta actual es esta. |
@@ -305,6 +309,26 @@ Ejecuta un comando que la app registró con `qa.register`. La [API del agente](/
 | `as` | texto | ninguno | Guarda la respuesta bajo ese alias, para leerla después con `{{alias.campo}}`. |
 | `expect` | objeto | ninguno | Comprueba campos de la respuesta: cada clave es una ruta con puntos y cada valor lo que debe valer. `null` exige que el campo no exista. |
 | `timeoutMs` | número (ms) | `3000` | Con `expect`: cuánto seguir reintentando hasta que la respuesta coincida. |
+
+La app registra sus comandos mientras arranca. Si el paso llega en los 5 segundos que siguen a que la app se conectó (después de abrirla o de relanzarla) y el comando todavía no existe, lo vuelve a pedir hasta que aparezca. Pasado ese tiempo, o en un bundle de release que nunca lo registra, el paso queda `unsupported` sin esperar.
+
+### `app.relaunch`
+
+Vuelve a abrir la app como la encuentra un caso nuevo. No lleva valor.
+
+```yaml
+- app.relaunch
+```
+
+| Dónde corre | Qué hace |
+|---|---|
+| Simulator o emulador | Cierra la app y la abre de nuevo (`simctl launch --terminate-running-process`, o `am force-stop` y el launcher) y espera a que se conecte. Necesita `app` en `lynkeus.config.json`. |
+| Un host que arrancó la corrida (`--host-command`, `host_command`) | Detiene el host y lo arranca otra vez, igual que arrancó el del caso. |
+| Otro host (headless) | Monta la app desde cero (el `reset` del agente) y borra el estado nativo simulado del host. Un host que no puede hacerlo responde `unsupported`. |
+
+En un dispositivo, los mocks del caso se van con la app: si hacen falta, hay que volver a ponerlos después. Los `nativeMocks` de la configuración se mandan de nuevo.
+
+En un Simulator o emulador, un caso también relanza la app por su cuenta antes del primer paso si algo que la app no dibujó la tapa: el aviso de iOS para guardar la contraseña que dejó el caso anterior al iniciar sesión, un pedido de permisos, una alerta abierta. El resultado del caso lo cuenta en una advertencia, y avisa si la vista volvió a aparecer después del relanzamiento: en ese caso la muestra el propio arranque y el caso tiene que responderla.
 
 ### `app.run`
 
@@ -393,6 +417,8 @@ Para que un estado de carga se quede en pantalla, retén la petición, revisa la
 Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se pierde es solo la respuesta, y a la app le llega un fallo de red. Es lo mismo en el host sin pantalla y en un simulador, un emulador o un teléfono. Hasta 0.5 un dispositivo hacía fallar la petición sin enviarla.
 
 Una petición que contestó un mock (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y la evidencia de un caso fallido la lista con `(mocked)`. Las reglas que explican un fallo, como «el backend respondió 500 (error del servidor, no de la app)», leen solo lo que respondió el servidor: un 500 que puso el propio caso no se le atribuye al backend.
+
+Si al terminar el caso una regla no coincidió con ninguna petición, el resultado lo avisa y dice qué pidió la app a la red desde el primer mock: `mock rule GET /v1/feed.json never matched; GET /v1/api.json went to the network`. Casi siempre es una ruta mal escrita; `lynkeus requests` muestra lo que la app pide de verdad.
 
 Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <clave>`. Un verbo que no corresponde a ningún comando ni a ningún macro falla con `app.<nombre> is not a step: Lynkeus has no command <nombre>, and the project declares no macro for it`.
 
@@ -578,7 +604,7 @@ Un paso del macro puede ser condicional. Se escribe como un objeto con `do` y un
 | `do` | El paso que se ejecuta si las condiciones se cumplen. |
 | `when` | Ejecuta el paso solo si la condición se cumple. Con una lista, tienen que cumplirse todas. |
 | `unless` | Lo contrario: omite el paso si la condición se cumple. Con una lista, basta con que se cumpla una. |
-| `on` | Una condición de host, igual que [`on:`](#condiciones-on) en un caso. |
+| `on` | Una condición de host, igual que [`on:`](#condiciones-on) en un caso. `do` puede ser un paso o una lista de pasos. |
 
 Las condiciones de `when` y `unless` tienen tres formas:
 
@@ -651,4 +677,4 @@ Para revisar un caso sin ejecutarlo:
 npx lynkeus case run cases/points.md --dry-run
 ```
 
-`--dry-run` analiza el archivo, lista los pasos y marca los que nombran un verbo o una opción que no existe.
+`--dry-run` analiza el archivo, lista los pasos y marca los que nombran un verbo o una opción que no existe. Cada macro aparece abierto en los pasos que representa, con los `{{param.*}}` que pasó el caso ya completados, y cada bloque `on`, `when` o `unless` dice su condición.

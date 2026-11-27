@@ -1135,7 +1135,7 @@ What each host does with them:
 |---|---|---|---|---|
 | Headless (`--host`) | `Math.random` repeats from the same place at launch and after each case | `react-native-localize` answers it | the host process runs in it (`TZ`) | `Date` starts there and runs on; `lynkeus clock --reset` returns to it |
 | `--host-command` | passed in the environment and in `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
-| Simulator or emulator, attached | the cases' own `{{random.*}}` values | not applied | not applied | not applied |
+| Simulator or emulator, attached | the cases' own `{{random.*}}` values only; the app's `Math.random` is its own, so `seed` is listed as unsupported | not applied | not applied | not applied |
 
 A host started with `--host-command` receives `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (and `TZ`) and `LYNKEUS_EPOCH` in its environment, and the placeholders in the command. [Lynkeus FastSim](/guides/fastsim/) reads them as its defaults. A simulator or emulator that is only attached keeps the Mac's time zone and clock, so the run says on stderr which facts it could not pass on, and lists them under `launch.unsupported` in `run.json`. A run without the flags and without `launch` records nothing.
 
@@ -1252,7 +1252,7 @@ lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
 Drafts a case for a screen, for you to finish. It prints:
 
 - the frontmatter, with the questions a reader needs answered;
-- the setup that the project's fixtures server offers (from `lynkeus.describe`), commented out, because what state the case needs is your call;
+- one comment naming the fixtures the project's server offers (from `lynkeus.describe`), because what state the case needs is your call; none while the server is still the example `case init` wrote;
 - the way to the screen. When an existing case reaches it, that case's way, under a comment that names the case: its setup and its steps up to the screen, or with `--from` only the steps after that screen. A case reaches the screen when its last passing run was on it after a step (`.lynkeus/seen`), or when a step goes to it, waits for it or checks it. The shortest way wins. Otherwise, the presses from `--from` as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
 - the checks left to write.
 
@@ -1263,7 +1263,7 @@ Drafts a case for a screen, for you to finish. It prints:
 | Flag | Default | Meaning |
 |---|---|---|
 | `--to <Route>` | | Required. The screen the case is about. It must be in the route graph, which is built or rebuilt first when it is missing or older than the source. |
-| `--from <Route>` | `cases.start` | Where the case begins. One of the two is required. |
+| `--from <Route>` | `cases.start` | Where the case begins. Without either, the screen an attached app shows (in a session or over MCP), else the first screen the navigator declares; a comment in the draft says which. |
 | `--title <text>` | | What a person can do there, as the report will title it. |
 | `--write` | | Save it as `<cases dir>/<id>.md` instead of printing it. It never overwrites a file that is there. |
 

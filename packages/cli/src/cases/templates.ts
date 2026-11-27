@@ -40,7 +40,8 @@ and \`expected\`. \`lynkeus case run cases/example.md\` runs one; without files
 it runs every case in this folder. A step that fails stops the case, and the
 report carries the screen, the requests and the reason. An optional
 \`teardown\` list puts back what the case changed outside the app (a face
-enrolled on a shared Simulator); it runs after the steps, passed or failed.
+enrolled on a shared Simulator); it runs after the steps, passed or failed. A
+teardown step that fails does not change the result, and the result names it.
 
 ## Frontmatter
 
@@ -64,16 +65,17 @@ who never opened the file knows what they are looking at.
 | \`app.type\` | \`{ text, target?, submit?, clear?, timeoutMs? }\` | \`target\` is tapped first, once it is there (\`timeoutMs\` is how long that may take); \`submit\` ends with the return key. |
 | \`app.swipe\` | \`{ direction, target?, distance? }\` or \`{ from, to }\` | |
 | \`app.wait\` | route, target, ms, \`{ target, scroll? }\`, \`{ anyOf: [target, ...] }\` or \`{ request, status? }\` | \`scroll\` swipes until the target is in the window. \`anyOf\` accepts the first target present. A \`request\` is \`METHOD /path\`, and is waited for until it answers 2xx unless \`status\` names another (\`status: 500\`). |
-| \`app.see\` | target, or \`{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }\` | An assertion on what the app shows or did. Everything named must hold. A \`text\` matches whatever its case, so one drawn in capitals (\`textTransform\`) is found by the words the source writes. |
+| \`app.see\` | target, or \`{ testId?, text?, contains?, route?, request?, event?, layer?, absent?, timeoutMs? }\` | An assertion on what the app shows or did. Everything named must hold. Letter case never matters, so a text drawn in capitals (\`textTransform\`) is found by the words the source writes, and spaces around a text do not count. A target that is a text matches an element's whole text (a button's label also matches a part of it); \`contains: true\` finds it inside a longer text, a paragraph say. \`{ text }\` on its own finds it inside any text. |
 | \`app.nav\` | route, or \`{ route, params }\` | A teleport, for getting to where the case starts. |
 | \`app.back\` | | |
 | \`app.requests\` | \`mark\` | A \`request\` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered: \`qa.register('reset', async (params) => { … })\`, with \`qa\` from \`lynkeus-agent\`. What the function returns is what \`expect\` and \`as\` read. A command the app did not register fails, naming those it did. |
+| \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered: \`qa.register('reset', async (params) => { … })\`, with \`qa\` from \`lynkeus-agent\`. What the function returns is what \`expect\` and \`as\` read. Right after the app attached (a launch, a relaunch) a command it has not registered yet is asked for again for up to 5 s; then it fails, naming those it did. |
+| \`app.relaunch\` | | Starts the app again as a fresh case finds it: on a Simulator or emulator the app is terminated and launched, a host the run started (\`host_command\`) is started again, and any other host mounts the app again. The case's mocks go with it; set them after. |
 | \`app.run\` | \`{ flow, vars? }\` | A Lynkeus flow, from the flows folder. |
 | \`app.events\` / \`app.event\` | \`clear\` / \`{ name, props?, absent? }\` | What the app told its analytics. |
 | \`app.<command>\` | its arguments by name | Any other Lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |
 
-A target is \`#testId\`, a text (a field's placeholder too), an index or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A text inside quotes of its own (\`'"Next"'\`) is always a text, where \`app.wait: Next\` would wait for a route called \`Next\`.
+A target is \`#testId\`, a text (a field's placeholder too), an index (\`app.press: 7\`) or \`x,y\`. Where a step takes \`target\` it also takes \`testId\`. A bare word that starts with a capital is a route: \`app.wait: Next\` waits for a route called \`Next\`, and when the app has no such route but \`Next\` is on screen, the failure says so. A text inside quotes of its own (\`'"Next"'\`) is always a text.
 
 ## Sections
 
@@ -89,7 +91,9 @@ what must be true, so a reader can match one to the other.
 the server; with \`lost: true\` the request reaches the server and its answer is
 lost, as a dropped connection would. A request a mock answered is marked
 \`(mocked)\` in the evidence, and a failure is never blamed on the backend for an
-answer the case made.
+answer the case made. A rule no request matched is named in the case's result
+with what the app asked the network for instead
+(\`mock rule GET /v1/feed.json never matched; GET /v1/api.json went to the network\`).
 
 Every case starts with no mocks: Lynkeus clears the app's rules and holds before
 the first step and again after the last, so a mock never answers for another case
@@ -109,6 +113,15 @@ native screen the host never shows — is kept to it:
     do:
       - app.press: "364,84"
 \`\`\`
+
+A case starts on a Simulator or emulator with nothing in front of the app: when a
+view the app did not draw covers it (iOS's Save Password prompt after the case
+before signed in, an alert left open), the app is relaunched before the first
+step, and the case's result says so.
+
+\`lynkeus case run --dry-run\` runs nothing: it lists each case's steps as a run
+counts them, every macro opened into the steps it stands for, and marks a step
+that is not one.
 
 ## Steps that prepare and read the backend
 
@@ -148,6 +161,7 @@ is that alias.
 
 \`when\` runs a step only if the case passed that parameter (\`"when": "wait"\`)
 or passed that value (\`"when": "method=phone"\`); \`unless\` is the opposite.
+\`{ "on": "headless", "do": [ … ] }\` keeps steps to one kind of host, as in a case.
 
 \`cases.interruptions\` names what the app may put in the way of any step — a
 lock screen, a consent sheet — and the steps that get past it:

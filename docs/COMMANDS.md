@@ -782,7 +782,7 @@ The screens the diff against --base touches or imports (as `map check` finds the
 
 Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write
 
-Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Prints a case to finish: the frontmatter with the questions a reader needs answered, the names of the fixtures the project’s server offers (from `lynkeus.describe`, as a comment: what state the case needs is the author’s call; none while it is the example `case init` wrote), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|
@@ -791,7 +791,7 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 | Flag | |
 |---|---|
 | `--to <Route>` | the screen the case is about |
-| `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json) |
+| `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json, else the screen the app shows, else the first screen declared) |
 | `--title <text>` | what a person can do there, as the report will title it |
 | `--write` | save it in the cases folder instead of printing it |
 

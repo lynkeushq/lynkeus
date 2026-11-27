@@ -64,6 +64,8 @@ When a case's recent runs disagree with each other, the summary says so:
 
 The rule is simple. A case is called flaky when some, but not all, of its recorded runs failed or needed the retry. A case with no bad runs is healthy. A case whose every recorded run was bad is not called flaky either: it is failing consistently, which is a different problem.
 
+Two things keep the warning about flakes and not about breaks. The history starts again when the case changes what it runs: its steps, or a macro they call in `lynkeus.config.json` (a reworded description keeps it). And a failure that reproduced counts on neither side: one that failed again on its retry, or one that failed at the same step with the same error in another kept run. A test that broke and was fixed is not flaky.
+
 `--flakes <file>` puts the ledger somewhere else. The ledger is local to the machine that ran the cases, so on CI it only accumulates if you keep the file between jobs.
 
 The ledger also remembers how long each case took when it last passed. With `--jobs`, the runner uses that to start the longest cases first, and a run's status line and `lynkeus case status` use it to say how much time is left.
