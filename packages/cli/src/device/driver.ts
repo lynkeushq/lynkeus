@@ -4,13 +4,39 @@
  * only launching, screenshots and the status bar go through simctl or adb.
  */
 import { AgentServer } from 'lynkeus-client';
-import type { CoreMethods, Screen, TraceEvent } from 'lynkeus-protocol';
+import type { CoreMethods, HelloEvent, Screen, TraceEvent } from 'lynkeus-protocol';
 
 import { portFromEnv, readToken } from '../config.js';
 import { withoutHost } from '../knowledge/problems.js';
 import { viaOf, type Walk } from '../knowledge/walk.js';
+import { onPhone } from '../runtime.js';
 import type { DeviceInfo } from './devices.js';
 import { lifecycleFor, type PlatformLifecycle } from './platform.js';
+
+// The OS brings an app back to the front in well under a second; a suspended one may take a few to answer again.
+const FOREGROUND_MS = 8000;
+
+/** Whether the app says it is in front again within the time, from an AppState event or the hello of a reconnect. */
+const untilActive = (server: AgentServer, timeoutMs: number): { done: Promise<boolean>; cancel: () => void } => {
+  let finish: (back: boolean) => void = () => undefined;
+  const done = new Promise<boolean>((resolve) => {
+    const check = (event: { state?: string; appState?: string }) => {
+      const state = event.state ?? event.appState;
+      // An agent older than AppState says hello without one: being back on the line is all it can say.
+      if (state === undefined || state === 'active') finish(true);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    finish = (back) => {
+      clearTimeout(timer);
+      server.off('appstate', check);
+      server.off('hello', check);
+      resolve(back);
+    };
+    server.on('appstate', check);
+    server.on('hello', check);
+  });
+  return { done, cancel: () => finish(false) };
+};
 
 const OBSERVING = new Set([
   'events',
@@ -34,13 +60,16 @@ export class Device {
   #appId: string | null;
   #resolving?: Promise<DeviceInfo>;
   #walk?: Walk;
+  // A phone's app that let go of the driver in the background says hello no more; what it said last tells it was a phone.
+  #hello: HelloEvent | null = null;
+  #opened?: string;
 
-  constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo> } = {}) {
+  constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo>; lifecycle?: PlatformLifecycle } = {}) {
     this.info = info;
     this.#resolving = options.resolving;
     // The app serves commands only to a driver that presents its token; without one, anything on the loopback could drive a dev build.
     this.server = options.server ?? new AgentServer({ token: readToken(), port: portFromEnv() });
-    this.#lifecycle = lifecycleFor(info.platform);
+    this.#lifecycle = options.lifecycle ?? lifecycleFor(info.platform);
     this.#appId = options.appId ?? null;
   }
 
@@ -87,6 +116,47 @@ export class Device {
     await this.server.waitForApp();
   }
 
+  /** The OS put another app in front of this one (a press opened a link, say). Only a phone's app: a host stands in for the OS. */
+  get inBackground(): boolean {
+    this.#hello = this.server.hello ?? this.#hello;
+    return this.server.appState === 'background' && onPhone({ hello: this.#hello });
+  }
+
+  /** The last URL a press made the app hand the OS, until the app is brought back: what is in front of it. */
+  get opened(): string | undefined {
+    return this.#opened;
+  }
+
+  /**
+   * Brings the app back to the front after the OS put another app there, the way it is launched (simctl launch,
+   * the launcher intent), which keeps it as it was; only if it does not come back is it relaunched, losing its state.
+   */
+  async foreground(timeoutMs = FOREGROUND_MS): Promise<'returned' | 'relaunched'> {
+    const appId = this.#appId;
+    if (!appId)
+      throw new Error(
+        'the app is in the background and Lynkeus does not know its bundle id or application id to bring it back: set app in lynkeus.config.json, or pass --app',
+      );
+    const id = (await this.resolved()).id;
+    this.#opened = undefined;
+    const active = untilActive(this.server, timeoutMs);
+    const launched = await this.#lifecycle.launchApp(id, appId, false).then(
+      () => true,
+      () => false,
+    );
+    if (!launched) active.cancel();
+    if (await active.done) return 'returned';
+    // The old connection can outlive the relaunch for a moment and answer for an app that is not there any more.
+    const relaunched = untilActive(this.server, timeoutMs);
+    await this.launchApp(appId, { fresh: true }).catch((error: unknown) => {
+      relaunched.cancel();
+      throw error;
+    });
+    if (this.server.appState === 'background') await relaunched.done;
+    else relaunched.cancel();
+    return 'relaunched';
+  }
+
   async openUrl(url: string): Promise<void> {
     this.#walk?.acted(true);
     await this.server.call('deepLink', { url });
@@ -116,6 +186,7 @@ export class Device {
     this.#walk?.pressing();
     try {
       const result = await this.server.call<CoreMethods['press']['result']>('press', params);
+      this.#opened = result.opened;
       this.#walk?.pressed(viaOf(result.element) ?? ('testId' in params || 'text' in params ? viaOf(params) : undefined));
       return result;
     } catch (error) {

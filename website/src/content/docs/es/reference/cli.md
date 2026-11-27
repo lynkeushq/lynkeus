@@ -926,7 +926,9 @@ Pulsa todos los controles que encuentra y aprende adónde lleva cada uno. Lo que
 
 Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl` lo que no llegó a pulsar, así que una segunda ejecución continúa en lugar de repetir.
 
-Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas y toques que escribieron y por eso no siguió), no una línea por toque.
+Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas, toques que escribieron y por eso no siguió, y toques que sacaron a la app con lo que abrieron), no una línea por toque.
+
+Hay toques que mandan la app al fondo: un enlace que se abre en el navegador, un botón que abre otra app. Para `crawl` eso es una salida de la app. Anota qué se abrió, no vuelve a tocar ese control y trae la app de nuevo al frente como Lynkeus la lanza (`simctl launch` en el simulador, el intent del launcher en Android), así que la app conserva su estado. Solo si no vuelve, la relanza. Para eso necesita el bundle id o el application id de la app: `app` en `lynkeus.config.json` o `--app`.
 
 :::caution
 Por defecto, el recorrido es de solo lectura. En cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), `crawl` lo informa, deja de explorar más allá y no vuelve a pulsar ese control. Aun así, esa primera pulsación sí ocurre. Los controles que no deben pulsarse nunca van en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). Lynkeus no trae ninguna lista propia, porque cuáles controles son irreversibles depende de cada app.

@@ -170,6 +170,8 @@ lynkeus screen
 
 **Fix.** If the case meant it, bring the app back with `lynkeus os appstate active` and go on. If it did not, the control is not the one the case wanted.
 
+In a run, the case that leaves the app in the background is the one whose failure says so: `this case left the app in the background: a press opened https://…`. The next case does not inherit it. Before a case starts on a simulator, emulator or phone, Lynkeus brings the app back to the front the way it launches it (`simctl launch`, the launcher intent), so the app keeps its state, and relaunches it only if it does not come back. That needs the app's id: `app` in `lynkeus.config.json` or `--app`. A `crawl` does the same after each such press, and lists the press as one that left the app.
+
 ### On Android, every control reads `~covered`
 
 **What you see.** In a development build on Android, `lynkeus screen` marks every control `~covered`, and a case waits out its deadline before each press.

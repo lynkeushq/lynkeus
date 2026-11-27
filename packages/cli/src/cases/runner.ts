@@ -508,6 +508,10 @@ export const fileRequestsByTrace = (steps: StepReport[], spans: Map<string, { in
   });
 };
 
+/** Why a case failed when it ended with another app in front of its app: this case, not the ones after it. */
+export const leftOutside = (opened: string | undefined): string =>
+  `this case left the app in the background${opened ? `: a press opened ${opened}` : ' (another app or a system screen is in front)'}; the next case brings it back to the front before it starts`;
+
 export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport> => {
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
@@ -1125,6 +1129,21 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return void (await fixture(step.verb, value));
   };
 
+  // A case before this one may have left the app behind another app (a link it opened): every step of this one would
+  // wait out its whole timeout on an app that answers nothing. Known from what the app said last, at no cost.
+  if (!options.dry) {
+    const d = await base.device().catch(() => undefined);
+    if (d?.inBackground) {
+      await d.foreground().then(
+        (how) =>
+          log(
+            `  ↺ the app was in the background, left there before this case: brought it back to the front${how === 'relaunched' ? ' by relaunching it' : ''}`,
+          ),
+        (error: unknown) => log(`  ⚠ the app is in the background and could not be brought back: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    }
+  }
+
   if (options.events && !options.dry) {
     const d = await base.device().catch(() => undefined);
     sdkRecorded = !!d?.server.hello?.commands?.includes('analytics');
@@ -1671,7 +1690,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device().catch(() => undefined);
     const away = unreachable(d?.server);
     // A step that failed on its own reading of the screen left no reasons; ask for them, about this case only.
-    if (away) why = `  • ${away}`;
+    if (away) why = `  • ${d?.inBackground ? leftOutside(d.opened) : away}`;
     else if (!why && d?.server.connected) why = (await whyFor(base, undefined, started, mark).catch(() => '')) || undefined;
     if (d?.server.connected && !away) {
       const screen = await d.screen().catch(() => undefined);
@@ -1689,6 +1708,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       .map((l) => l.replace(/^\s*•\s*/, '').trim())
       .filter((l) => l.length > 0);
     if (reasons.length > 0) report.diagnosis = reasons;
+  }
+  if (!failed && !options.dry) {
+    const d = await device().catch(() => undefined);
+    if (d?.inBackground) log(`  ↪ ${leftOutside(d.opened)}`);
   }
   if (!options.dry && !options.setupOnly) {
     const broke = steps.find((s) => s.status === 'failed');

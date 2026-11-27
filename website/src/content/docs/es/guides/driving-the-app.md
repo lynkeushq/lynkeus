@@ -100,6 +100,8 @@ npx lynkeus press '#like-message-button' --nth 2
 
 `--in <objetivo>` elige la coincidencia más cercana a otro objetivo. `--nth <n>` elige por posición.
 
+Una tarjeta accesible junta en su etiqueta las palabras de todo lo que contiene, también las de sus botones. Por eso, dentro del ámbito gana el elemento cuya etiqueta es exactamente el texto buscado frente al que solo lo incluye, y entre dos que coinciden igual gana el de más adentro. Así, `press '"Favorite"' --in '"Offline first"'` toca el botón Favorite de ese episodio y no la tarjeta entera.
+
 ## Tocar, escribir y deslizar
 
 ### Tocar
