@@ -4,7 +4,7 @@ import path from 'node:path';
 import { casesNamingIds, type IdentifierNarrowing } from '../knowledge/identifiers.js';
 import type { Affected } from '../knowledge/query.js';
 import { casesNamingText, type StringNarrowing } from '../knowledge/stringTables.js';
-import type { Case, Step } from './format.js';
+import { type Case, expandMacros, type Step } from './format.js';
 
 const ROUTE = /^[A-Z][\w.]+$/;
 
@@ -24,8 +24,10 @@ export const routeOf = (step: Step): string | undefined => {
   return undefined;
 };
 
-/** The routes a case names in its steps. */
-export const routesNamed = (c: Case): string[] => [...new Set([...c.setup, ...c.steps].map(routeOf).filter((r): r is string => !!r))];
+/** The routes a case names in its steps, and in the steps of the macros they call (with what the case passes them). */
+export const routesNamed = (c: Case, macros: Record<string, unknown[]> = {}): string[] => [
+  ...new Set(expandMacros([...c.setup, ...c.steps], macros).map(routeOf).filter((r): r is string => !!r)),
+];
 
 /** A step of a passing run as `case run` labels it, and the screen the app was on when it ended. */
 export type WalkedStep = { step: string; route?: string };
@@ -67,7 +69,12 @@ export type Coverage = {
 };
 
 /** Which cases touch which of the app's routes, by what they name and what they went through last time they passed. */
-export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<string, string[]> = {}): Coverage => {
+export const coverageOf = (
+  cases: Case[],
+  graphRoutes: string[],
+  seen: Record<string, string[]> = {},
+  macros: Record<string, unknown[]> = {},
+): Coverage => {
   const byRoute: Record<string, string[]> = {};
   const files: Record<string, string> = {};
   const add = (route: string, id: string) => {
@@ -76,7 +83,7 @@ export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<st
   };
   for (const c of cases) {
     files[c.id] = c.file;
-    for (const r of routesNamed(c)) add(r, c.id);
+    for (const r of routesNamed(c, macros)) add(r, c.id);
     for (const r of seen[c.id] ?? []) add(r, c.id);
   }
   const known = new Set(graphRoutes);

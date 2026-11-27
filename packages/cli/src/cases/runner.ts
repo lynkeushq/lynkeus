@@ -35,7 +35,7 @@ import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { liveCommands } from './liveCommands.js';
-import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
+import { type Case, dig, fillParams, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
   result?: unknown;
@@ -537,18 +537,6 @@ const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
     return (error as Error).message;
   }
   return undefined;
-};
-
-// `{{param.x}}` in a macro's step as the case passed it, for a listing; anything else stays as written.
-const fillParams = (value: unknown, given: Record<string, unknown>): unknown => {
-  if (typeof value === 'string')
-    return value.replace(/\{\{\s*param\.([\w.*-]+)\s*\}\}/g, (ref, at: string) => {
-      const found = dig(given, at);
-      return found === undefined || found === null ? ref : typeof found === 'object' ? JSON.stringify(found) : String(found);
-    });
-  if (Array.isArray(value)) return value.map((v) => fillParams(v, given));
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillParams(v, given)]));
-  return value;
 };
 
 const listStep = (step: Step, config: CasesConfig, within: string[]): string[] => {

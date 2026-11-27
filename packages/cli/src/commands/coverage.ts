@@ -26,7 +26,7 @@ const coverageFor = (ctx: Base & { graph: () => { screens: Record<string, unknow
   const cases = files.flatMap(readCases);
   const seen = readSeenRuns(path.resolve(ctx.root, typeof seenFlag === 'string' ? seenFlag : SEEN_DIR));
   const routes = Object.fromEntries(Object.entries(seen).map(([id, s]) => [id, s.routes]));
-  return { cases, seen, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), routes) };
+  return { cases, seen, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), routes, config.macros) };
 };
 
 // The fixtures server `case init` writes, still as written: its fixtures are an example, not this app's backend.
@@ -69,7 +69,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has',
     details:
-      'A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.',
+      'A screen counts as touched when a case, or a macro it calls, goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.',
     flags: {
       route: { type: 'string', help: 'only this screen: the cases that touch it', value: 'Route' },
       seen: { type: 'string', help: 'where `case run` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },

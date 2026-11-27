@@ -240,7 +240,7 @@ export const ciCommands = [
       if (ctx.flags.affected && !blind) {
         const cases = all.flatMap(readCases);
         const graph = ctx.graph();
-        const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')));
+        const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')), config.macros);
         const runtime = await runtimeAt(ctx.root);
         const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, runtime.sources);
         const reach = await reachOfChanges(ctx.root, graph, changed, { base: String(ctx.flags.base), runtime, relative: runtime.sources.relative });

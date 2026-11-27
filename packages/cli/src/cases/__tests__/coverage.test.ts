@@ -17,6 +17,19 @@ test('a case touches the routes it goes to, waits for or checks', () => {
   assert.deepEqual(routesNamed(k), ['Home.Main', 'Pay.Main', 'Pay.Done']);
 });
 
+test('a case touches the routes its macros reach, through nested macros and their params', () => {
+  const macros = {
+    'app.inDemo': ['app.signedIn', { 'app.wait': 'Demo' }, { 'app.wait': '{{param.screen}}' }],
+    'app.signedIn': [{ do: [{ 'app.nav': 'Welcome' }], unless: 'x' }],
+    'app.loop': ['app.loop', { 'app.nav': 'Loop' }],
+  };
+  const k = c('showroom', [{ verb: 'app.inDemo', value: { screen: 'DemoShowroom' } }, { verb: 'app.loop', value: null }]);
+  assert.deepEqual(routesNamed(k), []);
+  assert.deepEqual(routesNamed(k, macros), ['Welcome', 'Demo', 'DemoShowroom', 'Loop']);
+  const cov = coverageOf([k], ['Welcome', 'DemoShowroom'], {}, macros);
+  assert.deepEqual(cov.covered, ['Welcome', 'DemoShowroom']);
+});
+
 test('coverage counts named and seen routes, and flags names the app does not know', () => {
   const cov = coverageOf(
     [c('a', [{ verb: 'app.nav', value: 'Home.Main' }]), c('b', [{ verb: 'app.nav', value: 'Old.Screen' }])],
