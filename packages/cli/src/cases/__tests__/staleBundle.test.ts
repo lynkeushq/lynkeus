@@ -190,7 +190,10 @@ test('an edit after the load with no Fast Refresh since is old code on the devic
   at(path.join(root, 'app', 'i18n', 'en.ts'), 9_900);
   const stale = staleDeviceJs(root, { loadedMs: 600_000 }, NOW * 1000);
   assert.deepEqual(stale, { newest: path.join('app', 'i18n', 'en.ts'), changedAgoS: 100, codeAgoS: 600, refreshed: false });
-  assert.match(staleJsWarning(stale!, 'iPhone 17 Pro'), /^⚠ the app on iPhone 17 Pro runs JavaScript older than app\/i18n\/en\.ts \(changed 100 s ago; .*no Fast Refresh since\)/);
+  assert.match(
+    staleJsWarning(stale!, 'iPhone 17 Pro'),
+    /^⚠ the app on iPhone 17 Pro runs JavaScript older than app\/i18n\/en\.ts \(changed 100 s ago; .*no Fast Refresh since\)/,
+  );
 });
 
 test('a Fast Refresh after the edit makes the code current again', () => {
@@ -201,8 +204,7 @@ test('a Fast Refresh after the edit makes the code current again', () => {
 
 test('root config files, the cases folder and tests do not make the code on a device old', () => {
   const root = device();
-  for (const file of ['package.json', 'lynkeus.config.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js'])
-    at(path.join(root, file), 9_990);
+  for (const file of ['package.json', 'lynkeus.config.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js']) at(path.join(root, file), 9_990);
   at(path.join(root, 'cases', 'sign-in.json'), 9_990);
   at(path.join(root, 'app', 'screens', 'Home.test.tsx'), 9_990);
   assert.equal(staleDeviceJs(root, { loadedMs: 500_000 }, NOW * 1000, [path.join(root, 'cases')]), undefined);
