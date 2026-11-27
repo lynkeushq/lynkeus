@@ -22,7 +22,10 @@ export type Evidence = {
   fetchedBefore?: boolean;
   /** The app's uncommitted source changes as `git diff -U0` prints them, to find where a sought text was rewritten. */
   sourceDiff?: string;
+  /** What the app wrote to its console while the command ran (warnings and errors are read), oldest first. */
+  logs?: { level: string; text: string }[];
 };
+
 
 export type Finding = { rule: string; message: string };
 
@@ -287,6 +290,32 @@ export const explain = (e: Evidence): Finding[] => {
       message: `${refused.length} request(s) were refused by the host (${[...new Set(refused.map((r) => r.url.replace(/^https?:\/\//, '').split('/')[0]))].slice(0, 3).join(', ')}): if the screen needs one of them, allow the host in networkHosts or mock it.`,
     });
 
+  // A 2xx whose body the app could not use: it logs the parse or type error, and shows its empty state.
+  const answered = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 300);
+  const complaints = (e.logs ?? []).filter((l) => l.level === 'error' || l.level === 'warn').map((l) => clip(l.text.split('\n')[0]!));
+  if (missing && complaints.length && answered.length && !out.some((f) => f.rule === 'request-failed' || f.rule === 'backend-error')) {
+    const mocked = answered.some((r) => r.mocked);
+    out.push({
+      rule: 'bad-body',
+      message: `${target ? `${target} is not on screen; ` : ''}${answered
+        .slice(-3)
+        .map(describeRequest)
+        .join(', ')} answered, and then the app logged ${complaints
+        .slice(-2)
+        .map((t) => JSON.stringify(t))
+        .join(
+          ', ',
+        )}: the body is likely not the shape the app reads (a parse or type error), so the screen shows its empty or error state. ${mocked ? 'The mocked body is the case’s own (app.mock): give it the fields the app reads.' : 'Compare the body with what the app expects.'}`,
+    });
+  } else if (complaints.length && out.length === 0)
+    out.push({
+      rule: 'app-logged',
+      message: `the app logged ${complaints
+        .slice(-2)
+        .map((t) => JSON.stringify(t))
+        .join(', ')} while this ran`,
+    });
+
   const lastCommand = e.trace
     ?.slice()
     .reverse()
@@ -295,16 +324,16 @@ export const explain = (e: Evidence): Finding[] => {
     out.push({ rule: 'last-error', message: `the last command that failed was ${lastCommand.method}: ${lastCommand.error}` });
 
   // Said only when nothing else is: that the data came is worth knowing, and no reason by itself.
-  const answered = served.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 400);
-  if (out.length === 0 && target && missing && answered.length && e.inFlight === 0)
+  const came = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 400);
+  if (out.length === 0 && target && missing && came.length && e.inFlight === 0)
     out.push({
       rule: 'requests-ok',
-      message: `${target} is not on screen, though the screen's requests answered (${answered
+      message: `${target} is not on screen, though the screen's requests answered (${came
         .slice(-3)
         .map(describeRequest)
         .join(
           ', ',
-        )}${answered.length > 3 ? `, ${answered.length - 3} more` : ''}): the data came, so look at what the screen made of it (an empty list from the backend, a filter, a wording).`,
+        )}${came.length > 3 ? `, ${came.length - 3} more` : ''}): the data came, so look at what the screen made of it (an empty list, a body of another shape than the app reads, a filter, a wording).${came.some((r) => r.mocked) ? ' A mocked body is the case’s own (app.mock): check it has the fields the app reads.' : ''}`,
     });
 
   return out;

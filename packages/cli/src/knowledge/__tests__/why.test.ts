@@ -159,3 +159,37 @@ test('a diff that took the sought text out names its file and line, and what rep
   assert.equal(elsewhere[0]?.rule, 'text-changed');
   assert.match(elsewhere[0]?.message ?? '', /^"Community" is not on screen; app\/i18n\/en\.ts:12 changed it/);
 });
+
+test('a 2xx the app logged an error about is named as a body of the wrong shape', () => {
+  const s = screen([el({ kind: 'text', text: 'So empty... so sad' }, 0)], 'DemoPodcastList');
+  const feed = { ...req(200, 'http://x/v1/api.json'), mocked: true };
+  const found = explain({
+    screen: s,
+    requests: [feed],
+    inFlight: 0,
+    target: { text: 'RNR 1: Episode' },
+    logs: [
+      { level: 'info', text: 'loaded' },
+      { level: 'error', text: 'Error fetching episodes: bad-data\n  at getEpisodes' },
+    ],
+  });
+  assert.deepEqual(rules(found), ['bad-body']);
+  assert.match(found[0]!.message, /GET \/v1\/api\.json 200 \(mocked\) answered, and then the app logged "Error fetching episodes: bad-data"/);
+  assert.match(found[0]!.message, /mocked body is the case’s own/);
+  // Without the console, a mocked 2xx still says the data came and that its body is the case's.
+  const quiet = explain({ screen: s, requests: [feed], inFlight: 0, target: { text: 'RNR 1: Episode' } });
+  assert.deepEqual(rules(quiet), ['requests-ok']);
+  assert.match(quiet[0]!.message, /mocked body is the case’s own/);
+  // A request that failed outright is that request's doing, not its body's.
+  assert.ok(
+    !rules(
+      explain({
+        screen: s,
+        requests: [req(500, 'http://x/v1/a'), req(200, 'http://x/v1/b')],
+        inFlight: 0,
+        target: { text: 'X' },
+        logs: [{ level: 'error', text: 'boom' }],
+      }),
+    ).includes('bad-body'),
+  );
+});

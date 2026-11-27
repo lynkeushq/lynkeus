@@ -161,8 +161,9 @@ Moving around
 When something fails
 - Call `why` instead of reading the screen again. It says whether the target is
   covered, hidden behind a layer, disabled or not there (and the nearest
-  match), and whether the session is gone, the backend failed, or requests are
-  still in flight.
+  match), and whether the session is gone, the backend failed, requests are
+  still in flight, or a request answered 2xx and the app logged an error about
+  its body.
 ```
 
 Two points from that text deserve an explanation.

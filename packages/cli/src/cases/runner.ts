@@ -28,7 +28,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import { execute, notePrinted, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -1573,6 +1573,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           : [],
       );
       if (logs.length > 0) report.logs = logs;
+      notePrinted(d.server.port, logs);
     }
     const native = options.nativeLogs?.take() ?? [];
     // In the order they were printed, whichever side printed them.

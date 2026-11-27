@@ -61,6 +61,31 @@ export const scopeWhy = (port: number | undefined, scope: WhyScope): void => {
 };
 export const whyScope = (port: number | undefined): WhyScope | undefined => scopes.get(port);
 
+type Printed = { at: number; level: string; text: string };
+// A run that keeps the console takes it from the app after each step: the lines it took are kept here a while, so
+// `why` still reads what the app logged during the step before (where a fetch whose body it could not use failed).
+const printed = new Map<number | undefined, Printed[]>();
+const PRINTED_KEPT = 200;
+export const notePrinted = (port: number | undefined, lines: Printed[]): void => {
+  if (lines.length) printed.set(port, [...(printed.get(port) ?? []), ...lines].slice(-PRINTED_KEPT));
+};
+
+// What the app logged from `startedAt` on: lines a run already took, and those the app still holds (read, not taken).
+const printedSince = async (device: Awaited<ReturnType<Base['device']>>, startedAt: number | undefined): Promise<Printed[]> => {
+  const held = device.server.hello?.commands?.includes('logs')
+    ? await device.command('logs').then(
+        (raw) =>
+          (Array.isArray(raw) ? (raw as Partial<Printed>[]) : []).flatMap((l) =>
+            typeof l?.text === 'string' && typeof l.at === 'number' ? [{ at: l.at, level: String(l.level ?? 'info'), text: l.text }] : [],
+          ),
+        () => [],
+      )
+    : [];
+  const all = [...(printed.get(device.server.port) ?? []), ...held];
+  const unique = all.filter((l, i) => all.findIndex((o) => o.at === l.at && o.text === l.text) === i);
+  return fromStart(unique, startedAt, (l) => l.at);
+};
+
 /**
  * The screen, requests and trace after a failure, read as rules; empty when there is nothing to read. Only what
  * happened from `startedAt` on (from trace sequence `since` on, where given) counts.
@@ -74,6 +99,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
     const [screen, requests, trace] = await Promise.all([device.screen(), device.requests(), device.trace(since)]);
     const sourceDiff = expected?.text ? uncommittedDiff(base.root) : undefined;
     const during = duringCommand(requests.requests, startedAt);
+    const logs = await printedSince(device, startedAt).catch(() => []);
     const events = since === undefined ? fromStart(trace.events, startedAt, (e) => e.t) : trace.events;
     return describeWhy(
       explain({
@@ -86,6 +112,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         target: expected,
         fetchedBefore: during.length < requests.requests.length,
         ...(sourceDiff ? { sourceDiff } : {}),
+        ...(logs.length ? { logs: logs.slice(-40) } : {}),
       }),
     );
   } catch {
