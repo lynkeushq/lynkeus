@@ -190,6 +190,8 @@ Los errores correspondientes son:
 - Si su texto aparece en el listado, pulsa el botón por su texto, como lo haría una persona: `lynkeus press "Ahora no"`. Para quitarla en cualquier paso de cualquier caso, agrégala a [`cases.interruptions`](/es/reference/configuration/#casesinterruptions): en `see` su texto, en `do` la pulsación.
 - Si la línea dice que la dibuja otro proceso (así lo hace iOS con "¿Guardar contraseña?"), nada desde dentro de la app puede leerla ni tocarla. Vuelve a abrir la app, o respóndela en el dispositivo. Para que una suite no se la cruce, inicia sesión con un comando de la app (`qa.register`) en lugar del formulario.
 
+El aviso de desarrollo de React Native ("Refreshing...", "Loading from Metro..."), que una app de desarrollo o el Expo dev client muestran arriba mientras Metro manda código nuevo, no es una vista del sistema: Lynkeus reconoce su ventana por la clase que atiende sus toques y la deja fuera, e `idle` (y con él cada captura de una ejecución) espera a que desaparezca. Una app compilada con un `lynkeus-agent` anterior la sigue mostrando como `+system` hasta que la vuelvas a compilar.
+
 ### Un toque mandó la app a segundo plano
 
 **Qué ves.** `press` responde `! the app went to the background: it opened https://…, and the browser is in front`, o `screen` empieza con esa línea.

@@ -4,6 +4,7 @@ import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
 import { openedSince } from './opened';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
+import { devLoadingShowing } from './devLoading';
 import { jsAge } from './jsAge';
 import { host } from './registry';
 import { recentRequests, requestsHeld, requestsInFlight } from './requests';
@@ -498,7 +499,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await sleep(30);
       const commit = backend.commitCount();
       if (after !== undefined && commit > after) arrived = true;
-      if (commit !== lastCommit || (await busy())) {
+      // React Native's "Refreshing..." banner over the app is not the app at rest: a frame taken now would show it.
+      if (commit !== lastCommit || devLoadingShowing() || (await busy())) {
         lastCommit = commit;
         quietSince = Date.now();
       } else if (arrived && Date.now() - quietSince >= quietMs) {
