@@ -4,6 +4,7 @@ import path from 'node:path';
 import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withTextCases } from '../cases/coverage.js';
 import { draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
+import { FIXTURES } from '../cases/templates.js';
 import { readCases } from '../cases/format.js';
 import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
@@ -25,6 +26,40 @@ const coverageFor = (ctx: Base & { graph: () => { screens: Record<string, unknow
   const seen = readSeenRuns(path.resolve(ctx.root, typeof seenFlag === 'string' ? seenFlag : SEEN_DIR));
   const routes = Object.fromEntries(Object.entries(seen).map(([id, s]) => [id, s.routes]));
   return { cases, seen, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), routes) };
+};
+
+// The fixtures server `case init` writes, still as written: its fixtures are an example, not this app's backend.
+const isTemplateServer = (command: string, home: string): boolean =>
+  command.split(/\s+/).some((word) => {
+    try {
+      const file = path.resolve(home, word);
+      return fs.statSync(file).isFile() && fs.readFileSync(file, 'utf8') === FIXTURES;
+    } catch {
+      return false;
+    }
+  });
+
+const SCREEN_READ_MS = 1500;
+
+/**
+ * Where a draft begins when neither --from nor cases.start says: the screen an attached app shows now (asked only in a
+ * session or over MCP, where a connection may already be there, and briefly), else the first screen the navigator declares.
+ */
+const startOf = async (ctx: Base, routes: string[]): Promise<{ route: string; why: string } | undefined> => {
+  if (ctx.attached) {
+    const shown = await Promise.race([
+      ctx
+        .device()
+        .then((d) => d.screen())
+        .then(
+          (sc) => sc.route,
+          () => undefined,
+        ),
+      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), SCREEN_READ_MS).unref()),
+    ]);
+    if (shown && routes.includes(shown)) return { route: shown, why: 'the screen the app shows now' };
+  }
+  return routes[0] ? { route: routes[0], why: 'the first screen the navigator declares' } : undefined;
 };
 
 export const coverageCommands = [
@@ -120,11 +155,15 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write',
     details:
-      'Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
+      'Prints a case to finish: the frontmatter with the questions a reader needs answered, the names of the fixtures the project’s server offers (from `lynkeus.describe`, as a comment: what state the case needs is the author’s call; none while it is the example `case init` wrote), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
     positionals: [{ name: 'id', help: 'the case id, which is also its file name', required: true }],
     flags: {
       to: { type: 'string', help: 'the screen the case is about', value: 'Route' },
-      from: { type: 'string', help: 'where it begins (default: cases.start in lynkeus.config.json)', value: 'Route' },
+      from: {
+        type: 'string',
+        help: 'where it begins (default: cases.start in lynkeus.config.json, else the screen the app shows, else the first screen declared)',
+        value: 'Route',
+      },
       title: { type: 'string', help: 'what a person can do there, as the report will title it', value: 'text' },
       write: { type: 'boolean', help: 'save it in the cases folder instead of printing it' },
     },
@@ -136,12 +175,15 @@ export const coverageCommands = [
       const id = ctx.args[0]!;
       if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) return { text: `${id}: an id is lower case letters, digits, dots, dashes and underscores`, code: 2 };
       const to = ctx.flags.to as string | undefined;
-      const from = (ctx.flags.from as string | undefined) ?? config.start;
       if (!to) return { text: 'case new needs --to <Route>, the screen the case is about; `case here` drafts one from the screen the app shows now', code: 2 };
-      if (!from) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json', code: 2 };
       const graph = ctx.graph();
       if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map screens lists them)`, code: 1 };
-      const server = config.fixtures ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
+      const begin = (ctx.flags.from as string | undefined) ?? config.start;
+      const start = begin ? { route: begin } : await startOf(ctx, Object.keys(graph.screens));
+      if (!start) return { text: 'case new needs --from <Route>, or cases.start in lynkeus.config.json: the route graph has no screens to begin on', code: 2 };
+      const from = start.route;
+      const template = config.fixtures ? isTemplateServer(config.fixtures.command, config.base ?? ctx.root) : false;
+      const server = config.fixtures && !template ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
       const described = server ? await server.describe().finally(() => server.close()) : undefined;
       const read = coverageFor(ctx, undefined);
       // A project with no cases yet has no way to offer; the route map's plan still is one.
@@ -159,6 +201,7 @@ export const coverageCommands = [
         fixtures: described?.details,
         fixturesSilent: !!server && !described,
         macros: Object.keys(config.macros ?? {}),
+        ...('why' in start ? { fromNote: start.why } : {}),
       });
       const reused = way ? { case: way.source, how: way.how, steps: way.setup.length + way.steps.length } : undefined;
       return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text, ...(reused ? { reused } : {}) } };

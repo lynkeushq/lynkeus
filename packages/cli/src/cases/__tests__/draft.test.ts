@@ -28,17 +28,23 @@ test('a draft is a case that parses: the presses to the screen, then the check t
   );
 });
 
-test('the setup offers what the fixtures server describes, commented out, and never picks for the author', () => {
+test('the setup names the fixtures the server describes in one comment, and never picks for the author', () => {
   const text = draftCase({
     id: 'x',
     from: 'A.Main',
     to: 'B.Main',
     path: undefined,
-    fixtures: [{ name: 'create_user', summary: 'A user who can sign in', params: { country: { values: ['ar', 'mx'] } }, example: { country: 'ar' } }],
+    fixtures: [
+      { name: 'create_user', summary: 'A user who can sign in', params: { country: { values: ['ar', 'mx'] } }, example: { country: 'ar' } },
+      { name: 'give_points' },
+    ],
+    fromNote: 'the screen the app shows now',
   });
-  assert.match(text, /# - create_user: \{country: "ar"\}\s+# A user who can sign in — country \(ar\|mx\)/);
+  assert.match(text, /^ {2}# The state the case needs, from the backend's fixtures \(lynkeus fixtures describe\): create_user, give_points$/m);
+  assert.doesNotMatch(text, /country/);
   assert.deepEqual(parse(text).setup, []);
   assert.match(text, /lynkeus crawl --to B\.Main/);
+  assert.match(text, /# Begins on A\.Main: the screen the app shows now; cases\.start/);
 });
 
 const element = (i: number, extra: Record<string, unknown>) => ({ i, kind: 'text', frame: { x: 0, y: 0, w: 10, h: 10 }, enabled: true, depth: 1, ...extra });
