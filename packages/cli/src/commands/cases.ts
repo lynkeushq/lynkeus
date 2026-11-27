@@ -139,10 +139,20 @@ export const hostLost = async (
  * A case that found no app while the host it started still runs: the host loaded the app, and the app's agent never
  * dialed in. That is a bundle with the agent off or left out, which the client's own hint (a dev build) does not name.
  */
-export const agentSilent = (report: Pick<CaseReport, 'result' | 'steps'>, host: ChildProcess | undefined): string | undefined =>
-  report.result === 'failed' && host && !exited(host) && report.steps.some((s) => s.error?.startsWith('No app attached'))
-    ? 'is running the app, but no Lynkeus agent dialed in: the bundle has the agent off (auto() or <Lynkeus> with enabled false; before lynkeus-agent 0.7.6 a FastSim bundle, a release build, left it off unless enabled said otherwise) or was made without it'
-    : undefined;
+export const agentSilent = (report: Pick<CaseReport, 'result' | 'steps'>, host: ChildProcess | undefined, headless = false): string | undefined => {
+  if (!(report.result === 'failed' && host && !exited(host) && report.steps.some((s) => s.error?.startsWith('No app attached')))) return undefined;
+  // A headless host runs the agent whatever the bundle says: an app that never attached dialed elsewhere or was still starting.
+  if (headless)
+    return "is running, but its app never attached on this case's port: a headless host always runs the agent, so it dials another port (its LYNKEUS_PORT) or had not finished starting";
+  return 'is running the app, but no Lynkeus agent dialed in: the bundle has the agent off (auto() or <Lynkeus> with enabled false; before lynkeus-agent 0.7.6 a FastSim bundle, a release build, left it off unless enabled said otherwise) or was made without it';
+};
+
+/** The command a run uses to start a headless host of its own on a port: this same CLI, so the host matches it. */
+export const selfHeadlessCommand = (): string =>
+  `LYNKEUS_PORT={port} ${JSON.stringify(process.execPath)} ${JSON.stringify(process.argv[1] ?? 'lynkeus')} headless start`;
+
+/** A host command that starts a headless host (ours, `npx lynkeus headless start`, …), whose agent is always on. */
+export const startsHeadless = (command: string | undefined): boolean => command !== undefined && /\bheadless(\s+start)?\b/.test(command);
 
 export type HostMemory = { heapUsedMb?: number; heapLimitMb?: number };
 
@@ -346,14 +356,22 @@ const prepareAhead = async (cases: Case[], o: PrepareOptions): Promise<{ made: n
 };
 
 /** A host for one case, started by the project's own command: `{port}` is where it dials the driver; `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` are the launch facts (also in the environment), with the seed made the case's own by `caseLaunch`. */
-const spawnHost = (command: string, port: number, job: number, cwd: string, env: NodeJS.ProcessEnv, launch?: RunLaunch): ChildProcess =>
-  spawn('/bin/sh', ['-c', fillLaunch(command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job)), launch)], {
+const spawnHost = (command: string, port: number, job: number, cwd: string, env: NodeJS.ProcessEnv, launch?: RunLaunch, logFile?: string): ChildProcess => {
+  // The run's own headless hosts (`--host` with jobs) keep a log, as the single `--host` does; a project's command logs where it says.
+  const out = logFile ? fs.openSync(logFile, 'w') : 'ignore';
+  const host = spawn('/bin/sh', ['-c', fillLaunch(command.replaceAll('{port}', String(port)).replaceAll('{job}', String(job)), launch)], {
     cwd,
     env: { ...env, ...launchEnv(launch) },
     // stdin stays open for the host's life: a host that serves until its stdin closes stops with the case.
-    stdio: ['pipe', 'ignore', 'ignore'],
+    stdio: ['pipe', out, out],
     detached: true,
   });
+  if (typeof out === 'number') {
+    fs.closeSync(out);
+    lastWords.set(host, () => `exited (${host.exitCode ?? host.signalCode}) (its log: ${logFile})`);
+  }
+  return host;
+};
 
 /** A run that could not be uploaded still ran: the failure is said, not raised. */
 // A run that kept evidence but none of a kind says so when it ends, not only as a gap in the report.
@@ -556,9 +574,12 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       ? path.join(out.directory, PROGRESS_FILE)
       : path.join(ctx.root, '.lynkeus', `last-run.${as.target ? `${as.target}.` : ''}${PROGRESS_FILE}`);
   const hostPids = new HostPids(progressFile ? hostsFileOf(progressFile) : undefined);
+  // `--host` with several jobs starts a host per job on that job's port, as `lynkeus ci` does: one host dialing the
+  // configured port would attach to no job's driver, and every case would fail with "No app attached".
+  const hostPerJob = !!ctx.flags.host && jobsAsked > 1 && typeof ctx.flags['host-command'] !== 'string' && !dry;
   let runHost: ChildProcess | undefined;
   try {
-    runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
+    runHost = ctx.flags.host && !dry && !hostPerJob ? await startHost(ctx.root, ctx.err, launch) : undefined;
     if (runHost) hostPids.add(runHost);
   } catch (error) {
     letGo();
@@ -687,8 +708,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     }
     const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
     const ports = runPorts ?? [];
-    const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : undefined;
-    const keepHosts = !!ctx.flags['keep-hosts'] && hostCommand !== undefined;
+    const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : hostPerJob ? selfHeadlessCommand() : undefined;
+    const keepHosts = (!!ctx.flags['keep-hosts'] || hostPerJob) && hostCommand !== undefined;
+    const headlessHosts = !!runHost || startsHeadless(hostCommand);
+    if (hostPerJob) ctx.err(`--host with --jobs ${jobs}: one headless host per job, on ports ${ports.slice(0, jobs).join(', ')}, kept for the run`);
     // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
     // which finds nothing when lynkeus itself runs from the npx cache.
     let hostEnv: NodeJS.ProcessEnv = process.env;
@@ -722,7 +745,9 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         log(`host on port ${port}: ${full ? `its heap is at ${full}` : 'is running but its app is not attached'}; starting it again`);
         await stopHost(host);
       } else if (host) log(`host on port ${port}: exited (${host.exitCode ?? host.signalCode}); starting it again`);
-      const started = spawnHost(hostCommand!, port, index, ctx.root, hostEnv, launch);
+      const logFile = hostPerJob ? path.join(os.tmpdir(), `lynkeus-headless-${process.pid}-${port}.log`) : undefined;
+      const started = spawnHost(hostCommand!, port, index, ctx.root, hostEnv, launch, logFile);
+      if (logFile) log(`host on port ${port}: starting (its log: ${logFile})`);
       hostPids.add(started);
       kept[index] = started;
       const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
@@ -876,7 +901,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                 const mine = keepHosts ? kept[index] : (host ?? runHost);
                 const lost =
                   report.result === 'failed' && mine
-                    ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine))
+                    ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine, headlessHosts))
                     : undefined;
                 if (lost) {
                   report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
@@ -1176,7 +1201,7 @@ export const caseCommands = [
         value: 'targets',
       },
       bundle: { type: 'string', help: 'with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus)', value: 'dir' },
-      host: { type: 'boolean', help: 'start `headless start` for the run and stop it after' },
+      host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs) and stop it after' },
       'host-heap': {
         type: 'number',
         help: 'with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit',
@@ -1303,7 +1328,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`, and `host_command` to start one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

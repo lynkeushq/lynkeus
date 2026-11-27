@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-import { agentSilent, heapPast, hostLost } from '../commands/cases.js';
+import { agentSilent, heapPast, hostLost, selfHeadlessCommand, startsHeadless } from '../commands/cases.js';
 
 const server = (connected: boolean, attachesWithin?: number) => ({
   connected,
@@ -54,10 +54,22 @@ test('a running host whose app never attached names the agent, not a dev build',
     // A case that failed on its own checks says nothing about the agent.
     assert.equal(agentSilent({ result: 'failed', steps: [{ step: 'app.see Hi', status: 'failed', ms: 1, error: 'not on screen' }] }, host), undefined);
     assert.equal(agentSilent(unattached, undefined), undefined);
+    // A headless host always runs the agent: the bundle is never the reason there.
+    const headless = agentSilent(unattached, host, true) ?? '';
+    assert.match(headless, /another port/);
+    assert.doesNotMatch(headless, /agent off/);
   } finally {
     host.kill();
   }
   await once(host, 'exit');
   // A host that exited has its own words (hostLost); this is only for one still running.
   assert.equal(agentSilent(unattached, host), undefined);
+});
+
+test('a host command that starts headless is told from one that does not', () => {
+  assert.equal(startsHeadless('LYNKEUS_PORT={port} npx -y lynkeus headless start'), true);
+  assert.equal(startsHeadless(selfHeadlessCommand()), true);
+  assert.match(selfHeadlessCommand(), /^LYNKEUS_PORT=\{port\} /);
+  assert.equal(startsHeadless('/opt/fastsim/bin/fastsim-run bundle {port}'), false);
+  assert.equal(startsHeadless(undefined), false);
 });

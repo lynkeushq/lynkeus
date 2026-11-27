@@ -280,7 +280,7 @@ LYNKEUS_PORT=8201 npx lynkeus screen
 
 `LYNKEUS_HOST` tells a host where its driver is listening, for a host that does not run in the same place as its driver, such as a container dialing out.
 
-`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
+`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. With `--host`, the run starts one headless host per job, each dialing its job's port (picked free when `--ports` is left out), keeps it for the run and starts it again when it dies; each writes its log to the system's temporary folder, named after the run and the port. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
 
 ## Security
 

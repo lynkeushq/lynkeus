@@ -102,6 +102,8 @@ API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 
 Verás `host: up (its log: …)` cuando esté listo; esa ruta es el registro de todo lo que imprime el host. Si el host no arranca en 180 segundos, la ejecución termina con las últimas líneas de su salida.
 
+Con `--jobs <n>`, `--host` levanta un host por trabajo, cada uno conectado al puerto de su trabajo (Lynkeus elige puertos libres si no pasas `--ports`). Cada host sirve a los casos de su trabajo durante toda la ejecución y escribe su registro en la carpeta temporal del sistema, con el número de puerto en el nombre.
+
 Si el host muere a mitad de la ejecución (se queda sin memoria, un fallo), o está vivo pero su app dejó de contestar, `case run --host` arranca otro antes del caso siguiente, en lugar de dejar que todos los demás fallen con `No app attached`. Antes de cada caso también le pregunta al host cuánto heap usa y lo reinicia pasado el `--host-heap` por ciento de su límite (60 si no dices otra cosa). El caso que perdió el host sigue fallando, y sus razones dicen cómo terminó el host, con sus últimas líneas y la ruta de su registro; el host nuevo escribe un registro propio.
 
 ## El archivo de entrada
