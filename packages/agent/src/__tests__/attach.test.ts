@@ -212,6 +212,33 @@ describe('the handshake', () => {
     stop();
   });
 
+  it("warns once when a driver holding another project's token refuses the app or fails its own proof", () => {
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's', nonce: DRIVER_NONCE }) });
+    // The driver checks the app's proof against its own token and drops the link without a word.
+    link.socket.onclose?.();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0]![0])).toContain("does not hold this app's token");
+    expect(String(spy.mock.calls[0]![0])).toContain('ws://localhost:8123');
+    stop();
+    spy.mockRestore();
+  });
+
+  it('does not warn when a proven link drops, as a relaunch does', () => {
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    link.socket.onclose?.();
+    expect(spy).not.toHaveBeenCalled();
+    stop();
+    spy.mockRestore();
+  });
+
   it('says nothing to a driver of the old handshake, which would have taken the token', () => {
     const d = dialer();
     const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });

@@ -9,8 +9,9 @@ import { AgentError } from 'lynkeus-client';
 
 import { freePorts } from '../cases/portClaim.js';
 import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
+import { PROGRESS_FILE } from '../cases/progress.js';
 import { caseCommands } from '../commands/cases.js';
-import { ciCommands, runSuite } from '../commands/ci.js';
+import { ciCommands, runSuite, suiteArgs } from '../commands/ci.js';
 import { type Base, register } from '../registry.js';
 import { execute } from '../runtime.js';
 
@@ -86,6 +87,40 @@ test('a kept host that cannot attach is waited for at a bounded pace, not in a t
   await new Promise((r) => setTimeout(r, 300));
   assert.ok(p.hostPids().length >= 1);
   for (const pid of p.hostPids()) assert.equal(alive(pid), false, `host ${pid} outlived the run`);
+});
+
+test('a run that ends normally waits for its kept hosts to exit, so it leaves none listed or running', async () => {
+  const [port] = await freePorts(1, 20_100 + (process.pid % 200));
+  const p = project(() => Promise.reject(new AgentError('No app attached')));
+  const out = path.join(p.root, 'run');
+  // A host that takes a moment to exit once told to, as a jest host does.
+  const slow = "trap 'sleep 0.4; exit 0' TERM; echo $$ > pids/$$; sleep 30 & wait";
+  await execute(['case', 'run', '--once', '--ports', String(port), '--host-command', slow, '--keep-hosts', '--host-timeout', '600', '--out', out], p.base);
+  assert.ok(p.hostPids().length >= 1);
+  for (const pid of p.hostPids()) assert.equal(alive(pid), false, `host ${pid} was still running when the run returned`);
+  assert.equal(fs.existsSync(hostsFileOf(path.join(out, PROGRESS_FILE))), false);
+});
+
+test('ci asks for frames only from hosts the project names, not from the headless host that draws none', () => {
+  const base = { files: ['cases/a.md'], jobs: 2, ports: [8124, 8125], hostCommand: 'h', out: 'lynkeus-run', push: false };
+  assert.ok(!suiteArgs({ ...base, ownHosts: false }).includes('--screenshots'));
+  assert.ok(suiteArgs({ ...base, ownHosts: true }).includes('--screenshots'));
+  assert.deepEqual(suiteArgs({ ...base, ownHosts: false, timeoutMs: 9, push: true, extra: ['--seed', '1'] }).slice(3), [
+    '--jobs',
+    '2',
+    '--ports',
+    '8124,8125',
+    '--host-command',
+    'h',
+    '--keep-hosts',
+    '--host-timeout',
+    '9',
+    '--out',
+    'lynkeus-run',
+    '--push',
+    '--seed',
+    '1',
+  ]);
 });
 
 test('a --ports entry another process listens on is refused before any host starts', async () => {

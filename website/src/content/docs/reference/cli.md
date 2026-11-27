@@ -1084,7 +1084,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
 | `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
 | `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (Lynkeus FastSim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |
-| `--video` | | With `--out`: film each case, where the host offers a `record` command (it names it in `hello`). The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no film. A host on another machine, such as FastSim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
+| `--video` | | With `--out`: film each case. A host that offers a `record` command (it names it in `hello`) films it; a Simulator is filmed with `xcrun simctl io recordVideo` and an emulator or Android phone with `adb shell screenrecord` (3 minutes at most), pulled when the case ends. The built-in headless host draws nothing, so a run there keeps no film. A host on another machine, such as FastSim in a Linux VM or on a server, films there, and the CLI fetches the film. Each step says at what second it began. |
 | `--traces` | | Listen for the backend's OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it. Point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:<traces-port>`. |
 | `--traces-port <port>` | `4318` | Where `--traces` listens. |
 | `--push` | | With `--out`: upload the run to the report service and print the report's address. The report is made when the run starts and fills case by case, so the address works from the first case. See [Reports](/guides/reports/). |
@@ -1230,7 +1230,7 @@ Lists the cases a branch's changes reach, so that you can run only those, and th
 
 It takes the screens that the diff against `--base` touches or imports, as [`map check`](#lynkeus-map-check) finds them, and crosses them with what each case covers, as [`case coverage`](#lynkeus-case-coverage) finds it.
 
-A changed string table (a file of object literals of strings, such as the app's translations) reaches only the files that name its changed keys and the cases whose steps name a changed text. When a changed key is not named anywhere by its whole key, every importer counts and a line says why. `map check`, `map impact` and `ci --affected` narrow string tables the same way.
+A changed string table (a file of object literals of strings, such as the app's translations) reaches only the files that name its changed keys and the cases whose steps name a changed text. When a changed key is not named anywhere by its whole key, every importer counts and a line says why. A file whose change is only testIDs, accessibility labels, comments or formatting reaches no screen; it reaches the cases whose steps (or macros) name a changed testID, old or new, or a changed label's text. `map check`, `map impact` and `ci --affected` narrow string tables and testIDs the same way.
 
 | Flag | Default | Meaning |
 |---|---|---|

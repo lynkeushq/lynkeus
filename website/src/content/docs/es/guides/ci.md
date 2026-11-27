@@ -179,7 +179,7 @@ El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, rep
           LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
 ```
 
-`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Si en uno ya escucha otro proceso (un `lynkeus mcp` que dejaste abierto en el proyecto, por ejemplo) o lo tiene reservado otra ejecución de casos, `lynkeus ci` lo salta y avisa qué puertos tomaron sus hosts. Al terminar, al fallar o al recibir Ctrl-C o SIGTERM detiene todos los hosts que arrancó, incluso si `case run` murió antes de hacerlo. Su código de salida es el de la suite. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
+`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run` (más `--screenshots` si `hosts.command` arranca hosts que dibujan, como Lynkeus FastSim, `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`; el host headless por defecto no dibuja nada, así que no se le piden capturas) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Si en uno ya escucha otro proceso (un `lynkeus mcp` que dejaste abierto en el proyecto, por ejemplo) o lo tiene reservado otra ejecución de casos, `lynkeus ci` lo salta y avisa qué puertos tomaron sus hosts. Al terminar, al fallar o al recibir Ctrl-C o SIGTERM detiene todos los hosts que arrancó, incluso si `case run` murió antes de hacerlo. Cuando la ejecución termina bien, `case run` espera a que sus hosts se cierren; el aviso `▸ stopped N host(s) the run left running` solo aparece si `case run` murió o lo mataron. Su código de salida es el de la suite. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
 
 Dos opciones útiles:
 
@@ -208,10 +208,12 @@ npx lynkeus map ci
 ```
 
 ```text
-wrote .github/workflows/lynkeus-map-check.yml
+wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)
 ```
 
-En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira (2 por defecto) y `--force` sobrescribe el archivo si ya existe.
+En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira. Por defecto son 4, igual que en `case impact` y `ci --affected`: así el comentario y los casos que corre el pipeline coinciden. `--force` sobrescribe el archivo si ya existe.
+
+La versión de lynkeus que usa el flujo sale de tu `package.json`: el rango que declares para `lynkeus` o, si no está, para `lynkeus-agent` o `lynkeus-headless`, que se publican juntos. Si no hay ninguno, usa la versión del CLI que lo escribió. Un build de desarrollo o una ruta local no se pueden instalar en CI. En ese caso el flujo usa la versión publicada a la que corresponden (`0.7.7-dev.…` pasa a ser `^0.7.7`), y el comando lo avisa.
 
 ## Si usas un simulador o un emulador
 
@@ -229,7 +231,7 @@ Con la app instalada, el comando cambia poco:
 npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --push
 ```
 
-`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` filma solo donde el host ofrece un comando `record`, y una sesión de simulador o de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
+`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` también filma cada caso: en un simulador con `xcrun simctl io recordVideo` y en un emulador con `adb shell screenrecord`, que se corta a los 3 minutos.
 
 ## Cómo funciona
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { casesNamingIds, type IdentifierNarrowing } from '../knowledge/identifiers.js';
 import type { Affected } from '../knowledge/query.js';
 import { casesNamingText, type StringNarrowing } from '../knowledge/stringTables.js';
 import type { Case, Step } from './format.js';
@@ -128,6 +129,16 @@ export const impactOf = (affected: Affected[], coverage: Coverage, everything?: 
     }
   }
   return { cases: [...byCase.values()].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)), untested: untested.sort() };
+};
+
+/** The impact, with the cases whose steps (or the macros they call) name a testID that went or came (`casesNamingIds`). */
+export const withIdCases = (impact: Impact, cases: Case[], ids: IdentifierNarrowing['ids'], macros?: Record<string, unknown[]>): Impact => {
+  if (impact.reason || !ids.length) return impact;
+  const known = new Set(impact.cases.map((c) => c.id));
+  const added = casesNamingIds(cases, ids, macros)
+    .filter((hit) => !known.has(hit.case.id))
+    .map((hit) => ({ id: hit.case.id, file: hit.case.file, routes: [], distance: 0, via: `#${hit.id} in ${hit.file}` }));
+  return { ...impact, cases: [...added, ...impact.cases].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)) };
 };
 
 /** The impact, with the cases that check a changed string's old or new text (`casesNamingText`) among those to run. */

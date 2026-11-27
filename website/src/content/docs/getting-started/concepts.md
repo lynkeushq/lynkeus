@@ -165,7 +165,7 @@ Each case ends with one of three results: passed, failed, or unsupported on this
 
 As it goes, a run writes where it stands to `progress.ndjson`: in the `--out` directory, else as `.lynkeus/last-run.progress.ndjson`. `lynkeus case status` reads it from another terminal, during the run or after it.
 
-With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case where the host offers a `record` command; the headless host and a simulator or emulator session offer none.
+With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case: a host that films (Lynkeus FastSim) films it, a Simulator is filmed with `simctl io recordVideo` and an emulator with `adb shell screenrecord`; the headless host draws nothing to film. Every `--out` run also writes `report.html`, a page of the run to open offline.
 
 ### Report
 

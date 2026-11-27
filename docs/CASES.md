@@ -269,6 +269,14 @@ prefix such as `` t(`settings.${name}`) ``) and the cases whose steps name the c
 not every screen that imports it. When a changed key is named nowhere by its whole key (a hook bound to a prefix, a
 key built at runtime), every importer counts as before and a line names the key.
 
+A file whose change is only the values of `testID`, `nativeID`, `accessibilityLabel` or `aria-label` (string
+literals or templates, as JSX props or object properties), or only comments and formatting, reaches no screen
+through imports. A renamed or removed testID reaches the cases whose steps name it, old or new (`#id`, `#id[2]`, a
+`testId` field, or a macro the case calls that names it; a template's `${…}` matches any text). A changed label
+reaches the cases that name its old or new text. Any other change in the file, even a testID now read from a
+variable, keeps every screen that imports it, and other changed files still reach theirs. The comparison prints both
+versions without comments or formatting, so swapped testIDs count as changed.
+
 When three or more case files open their setup or their steps with the same app steps (two at least; key order,
 spacing and `timeoutMs` aside), `case coverage` ends with one hint: the cases, how many steps, and the entry to put
 under `cases.macros` so each case says them in one step. It names a macro already declared with those steps instead.
@@ -479,6 +487,7 @@ did. What turns each on:
 | In the report | How |
 | --- | --- |
 | Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
+| A page to open offline | `report.html`, written beside every `--out` run; `lynkeus report html <dir> [--embed]` writes it again |
 | Film | `--video`, on a host that films: FastSim. A simulator, an emulator and headless keep frames only. |
 | Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
 | The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on FastSim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |

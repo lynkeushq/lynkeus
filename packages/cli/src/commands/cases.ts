@@ -31,6 +31,7 @@ import type { FlagValues } from '../args.js';
 import { parseTargets, runOnTargets, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
 import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
+import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
 import { megabytes, sizeOf } from '../cases/runDirs.js';
@@ -415,7 +416,7 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; 
       ? [
           asked.ownHost
             ? '⚠ --video kept no film: the host this run started does not film. Lynkeus FastSim films when its bundle has the host’s controls (lynkeus-agent 0.7.6 or newer, bundled again with a current fastsim-bundle); headless keeps nothing.'
-            : '⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).',
+            : '⚠ --video kept no film: the app’s host does not film and neither `xcrun simctl io recordVideo` (a Simulator) nor `adb shell screenrecord` (an emulator or phone) gave one. Headless keeps nothing.',
         ]
       : []),
   ];
@@ -679,6 +680,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     return reviving;
   };
   const reports: (CaseReport & { retried?: boolean })[] = [];
+  let localReport: ReturnType<typeof writeRunReport> | undefined;
   // Said again with the summary: over MCP the summary is all the caller reads.
   let rebundled: string | undefined;
   try {
@@ -986,8 +988,12 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     if (!halt.signal.aborted) await preparing;
     if (out) out.finish({ platform: seen?.platform, native: seen?.native, nativeValues: mergeNativeValues(reports.map((r) => r.nativeValues)) });
     native?.stop();
+    if (out) localReport = writeRunReport(out.directory, { project });
   } finally {
     stop();
+    // Signalled is not gone: a run that ends while its hosts are still on their way out leaves them listed and
+    // alive for whoever started it (`lynkeus ci` stops "hosts the run left running").
+    await Promise.all([runHost, ...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
     active.delete(registered);
     settle();
   }
@@ -1026,6 +1032,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         : []),
     // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
     ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
+    // A push may have deleted the folder (report.afterPush: delete).
+    ...(localReport && 'file' in localReport && fs.existsSync(localReport.file) ? [`report: ${localReport.file} (open it in a browser, offline)`] : []),
     ...(rebundled ? [rebundled] : []),
     ...(out
       ? missingEvidence(reports, {
@@ -1270,7 +1278,10 @@ export const caseCommands = [
         default: 'avif',
         value: 'avif|png',
       },
-      video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
+      video: {
+        type: 'boolean',
+        help: 'with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began',
+      },
       traces: {
         type: 'boolean',
         help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',

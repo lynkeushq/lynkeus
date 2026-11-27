@@ -9,6 +9,7 @@ import type { HelloEvent } from 'lynkeus-protocol';
 import { nativeValuesEnv } from '../cases/nativeValues.js';
 import { DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
 import { prepareDevMenu } from '../device/devMenu.js';
+import { describeHolder, portHolder } from '../device/portHolder.js';
 import { reverseAndroid } from '../device/devices.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
@@ -178,11 +179,20 @@ export const attachedCheck = (hello: HelloEvent | null, attachFix: string): { wh
   return { what: `an app is attached (${name === hello.platform ? name : `${name}, ${hello.platform}`})`, ok: true };
 };
 
-/** The status line when connecting to the app failed: a port another run holds says so, as `screen` does. */
-export const attachFailureCheck = (error: unknown, port: number, attachFix: string): { what: string; ok: boolean; fix?: string } =>
-  error instanceof AgentError && error.code === 'port-in-use'
-    ? { what: error.message, ok: false }
-    : { what: `an app is attached (Lynkeus listens on port ${port})`, ok: false, fix: attachFix };
+/**
+ * The status line when connecting to the app failed. A port another process holds names that process (`holder`,
+ * from `describeHolder`) when it can be told, else says so as `screen` does; an app refused for another token says that.
+ */
+export const attachFailureCheck = (error: unknown, port: number, attachFix: string, holder?: string): { what: string; ok: boolean; fix?: string } => {
+  if (error instanceof AgentError && error.code === 'port-in-use') return { what: holder ?? error.message, ok: false };
+  if (error instanceof AgentError && error.code === 'wrong-token')
+    return {
+      what: `an app is attached (port ${port}): one dialed in with another project's token and was refused`,
+      ok: false,
+      fix: "open this project's development build (the app's token comes from this project's .lynkeus/token through Metro: restart it with --reset-cache)",
+    };
+  return { what: `an app is attached (Lynkeus listens on port ${port})`, ok: false, fix: attachFix };
+};
 
 /**
  * The host file is named so that no default \`testMatch\` takes it (no __tests__, no .test.): the app's own \`jest\` run
@@ -243,7 +253,11 @@ export const headlessCommands = [
           const device = await ctx.device();
           // Over MCP the connection outlives the app: it is asked again, and named from its latest hello, since
           // another app (another platform) may have taken the port since.
-          const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
+          const waited: HelloEvent | null | Error = device.server.connected
+            ? device.server.hello
+            : await device.server.waitForApp(3000).catch((error: unknown) => (error instanceof Error ? error : null));
+          if (waited instanceof AgentError && waited.code === 'wrong-token') throw waited;
+          const hello = waited instanceof Error ? null : waited;
           const check = attachedCheck(hello, runtime.attachFix);
           if (check.ok) {
             attached = String(hello?.app?.name ?? hello?.platform);
@@ -251,7 +265,8 @@ export const headlessCommands = [
           }
           checks.push(check);
         } catch (error) {
-          checks.push(attachFailureCheck(error, port, runtime.attachFix));
+          const taken = error instanceof AgentError && error.code === 'port-in-use';
+          checks.push(attachFailureCheck(error, port, runtime.attachFix, taken ? describeHolder(port, await portHolder(port), ctx.root) : undefined));
         }
       }
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');

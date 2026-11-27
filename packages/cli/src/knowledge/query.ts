@@ -92,7 +92,10 @@ export const pathsTo = (graph: ScreenGraph, destination: RouteName, observed: Ob
 export type Affected = { route: RouteName; distance: number; via: SourcePath; through: SourcePath[] };
 
 /** Screens a change can reach, nearest first; `distance` is how many imports separate the screen's file from a changed one. */
-export const screensAffectedBy = (graph: ScreenGraph, changedFiles: SourcePath[], maxDepth = 4): Affected[] => {
+/** How many imports away a change still reaches a screen, unless told: one number for every command, so a PR comment and the cases it runs agree. */
+export const IMPACT_DEPTH = 4;
+
+export const screensAffectedBy = (graph: ScreenGraph, changedFiles: SourcePath[], maxDepth = IMPACT_DEPTH): Affected[] => {
   const importedBy = new Map<SourcePath, SourcePath[]>();
   for (const [file, facts] of Object.entries(graph.files)) {
     for (const target of facts.imports) {

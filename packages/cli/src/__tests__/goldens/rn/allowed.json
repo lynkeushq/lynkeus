@@ -12,8 +12,8 @@
     "now": "7ec7d02793a599a3"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole. Where to run now says to write a case where it is cheapest and most reliable (FastSim when the organization has it, else headless; a Simulator or emulator when the case needs a device), and that a case is done when it passes on every available target, checked with one case_run with on: all.",
-    "now": "3ad362fe1e6f488f"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole. Where to run now says to write a case where it is cheapest and most reliable (FastSim when the organization has it, else headless; a Simulator or emulator when the case needs a device), and that a case is done when it passes on every available target, checked with one case_run with on: all. The instructions say case_run with out writes report.html to open offline, and that film is taken on FastSim, a Simulator or an emulator.",
+    "now": "e735b107e30f1c58"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -28,8 +28,8 @@
     "now": "44ea453085b4e4d4"
   },
   "surface/commands": {
-    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
-    "now": "1a81dab195ee463b"
+    "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on. report html writes a run folder as an offline HTML page.",
+    "now": "1d84574617025de8"
   },
   "surface/help/fastsim start": {
     "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -40,8 +40,8 @@
     "now": "5186ac9dfb138829"
   },
   "surface/mcp/full": {
-    "why": "fastsim_start and fastsim_stop are served over MCP",
-    "now": "fc91aa1f80ae07f4"
+    "why": "fastsim_start and fastsim_stop are served over MCP. report_html is served over MCP.",
+    "now": "43a911ebfa2835e4"
   },
   "surface/mcp/tool/fastsim_start": {
     "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
@@ -52,11 +52,11 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
-    "now": "407c1b1b6a449896"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html.",
+    "now": "aad71dc70faa4336"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
+    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run.",
     "now": "7484c0d2c829fd9b"
   },
   "surface/help/case stop": {
@@ -156,12 +156,12 @@
     "now": "3d4fca09ffd26564"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
-    "now": "748f77907f71e1b0"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator (simctl io recordVideo) and an emulator (adb shell screenrecord) too, not only on a host that films.",
+    "now": "c0ab1b6c51bc5bf8"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
-    "now": "817ff3ab06a6c532"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator and an emulator too.",
+    "now": "0f45f718c09e0ef6"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
@@ -240,8 +240,8 @@
     "now": "5a4e916cc8f1e627"
   },
   "surface/help/case impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
-    "now": "d617e7cc53854e58"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases that name a changed testID or label.",
+    "now": "e1a7c172e16ce733"
   },
   "surface/help/case new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
@@ -252,8 +252,8 @@
     "now": "c6ffaa28cd50c514"
   },
   "surface/mcp/tool/case_impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
-    "now": "c3b2929429626211"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels reaches only the cases that name them.",
+    "now": "a67d942684f17ec3"
   },
   "surface/mcp/tool/case_new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
@@ -282,5 +282,21 @@
   "report/file/run.json": {
     "why": "An attached simulator or emulator lists seed under launch.unsupported: the seed makes the cases' {{random.*}} repeatable, but the app's Math.random is its own, and a trial read the old manifest as the app being seeded.",
     "now": "a09a0ff219a9340a"
+  },
+  "surface/help/map ci": {
+    "why": "map ci checks 4 imports away by default, as case impact and ci --affected do, so the PR comment and the affected cases agree; it used 2.",
+    "now": "bfd44894386639d4"
+  },
+  "surface/help/report html": {
+    "why": "report html is new: it writes a run folder as one HTML page to open offline (no reports service).",
+    "now": "95f46bc565b2dba6"
+  },
+  "surface/mcp/tool/report_html": {
+    "why": "report_html is new: it writes report.html into a run folder, to open offline.",
+    "now": "67fc0a3d81ab2bf0"
+  },
+  "report/files": {
+    "why": "A run with --out writes report.html beside run.json, a page to open offline.",
+    "now": "734cf4bae49dcb51"
   }
 }

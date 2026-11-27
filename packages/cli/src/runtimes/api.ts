@@ -6,6 +6,7 @@
 import type { LynkeusConfig } from '../config.js';
 import type { SetupCheck } from '../commands/init.js';
 import type { RouteParamsInfo } from '../knowledge/route-params.js';
+import type { IdentifierChange } from '../knowledge/identifiers.js';
 import type { StringEntry } from '../knowledge/stringTables.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import type { Ctx, Result } from '../registry.js';
@@ -18,6 +19,7 @@ export type { SetupCheck } from '../commands/init.js';
 export type { FileFacts, NavigationEdge, NavigationTrigger, ScreenGraph, ScreenNode, Selector, SourcePath } from '../knowledge/types.js';
 export type { RouteParamsInfo } from '../knowledge/route-params.js';
 export type { StringEntry } from '../knowledge/stringTables.js';
+export { type IdentifierChange, SUBSTITUTION } from '../knowledge/identifiers.js';
 export type { Ctx, Result } from '../registry.js';
 export { runtimeOf, type RuntimeId } from './detect.js';
 
@@ -55,6 +57,13 @@ export type RuntimeAdapter = {
    * every changed file reaches all its importers.
    */
   stringTable?: (source: string, file: string) => Promise<StringEntry[] | undefined>;
+  /**
+   * When two versions of a source file differ only in comments, formatting, or the values that name or label its
+   * elements (React Native's testID and accessibilityLabel): the values that went and came; undefined when anything
+   * else changed. Such a change reaches the cases that name those values, not every importer. Without it, every
+   * changed file reaches all its importers.
+   */
+  identifierChange?: (before: string, after: string, file: string) => Promise<IdentifierChange | undefined>;
   /** What each route needs to open, for `smoke`. */
   routeParams: (appRoot: string, paramsFile: string | undefined, graph: ScreenGraph) => RouteParamsInfo[];
   /** The FastSim build for `--platform`: a platform per build, or one build for both. Throws on a platform it lacks. */

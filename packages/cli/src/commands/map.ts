@@ -7,8 +7,9 @@ import { CLI_VERSION } from '../device/agentVersion.js';
 import { readJson, writeJson } from '../files.js';
 import * as edges from '../knowledge/edges.js';
 import { describePlan, plan } from '../knowledge/plan.js';
-import { type Affected, pathsTo, screensAffectedBy, vocabularyOf } from '../knowledge/query.js';
+import { type Affected, IMPACT_DEPTH, pathsTo, screensAffectedBy, vocabularyOf } from '../knowledge/query.js';
 import * as screens from '../knowledge/screens.js';
+import { type IdentifierNarrowing, narrowIdentifierChanges } from '../knowledge/identifiers.js';
 import { narrowStringTables, type StringNarrowing } from '../knowledge/stringTables.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
@@ -56,43 +57,47 @@ export const changedSources = (root: string, base: string, err: (line: string) =
 };
 
 /**
- * The screens `changed` reaches through imports, with each changed string table narrowed to the files naming its
- * changed keys (`narrowStringTables`). `base` is what the diff is against (`changedSources`); `relative` says the
- * names are from the app's folder rather than the repository's root.
+ * The screens `changed` reaches through imports. A file whose change is only testIDs or labels (`narrowIdentifierChanges`)
+ * reaches only the cases naming them, and each changed string table only the files naming its changed keys
+ * (`narrowStringTables`). `base` is what the diff is against (`changedSources`); `relative` says the names are from
+ * the app's folder rather than the repository's root.
  */
 export const reachOfChanges = async (
   root: string,
   graph: ScreenGraph,
   changed: string[],
-  options: { base: string; depth?: number; runtime: Pick<RuntimeAdapter, 'stringTable'>; relative: boolean },
-): Promise<{ affected: Affected[]; texts: StringNarrowing['texts']; notes: string[] }> => {
-  const table = options.runtime.stringTable;
+  options: { base: string; depth?: number; runtime: Pick<RuntimeAdapter, 'stringTable' | 'identifierChange'>; relative: boolean },
+): Promise<{ affected: Affected[]; texts: StringNarrowing['texts']; ids: IdentifierNarrowing['ids']; notes: string[] }> => {
+  const { stringTable: table, identifierChange } = options.runtime;
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  const narrowed = table
-    ? await (async () => {
-        try {
-          const top = options.relative ? root : git('rev-parse', '--show-toplevel').trim();
-          const at = git('merge-base', options.base, 'HEAD').trim();
-          return await narrowStringTables(changed, graph, {
-            now: (f) => (fs.existsSync(path.join(top, f)) ? fs.readFileSync(path.join(top, f), 'utf8') : undefined),
-            before: (f) => {
-              try {
-                return git('show', `${at}:${options.relative ? `./${f}` : f}`);
-              } catch {
-                return undefined;
-              }
-            },
-            table,
-          });
-        } catch {
-          return undefined;
-        }
-      })()
-    : undefined;
+  const sources = (() => {
+    if (!table && !identifierChange) return undefined;
+    try {
+      const top = options.relative ? root : git('rev-parse', '--show-toplevel').trim();
+      const at = git('merge-base', options.base, 'HEAD').trim();
+      return {
+        now: (f: string) => (fs.existsSync(path.join(top, f)) ? fs.readFileSync(path.join(top, f), 'utf8') : undefined),
+        before: (f: string) => {
+          try {
+            return git('show', `${at}:${options.relative ? `./${f}` : f}`);
+          } catch {
+            return undefined;
+          }
+        },
+      };
+    } catch {
+      return undefined;
+    }
+  })();
+  const identifiers =
+    sources && identifierChange ? await narrowIdentifierChanges(changed, { ...sources, change: identifierChange }).catch(() => undefined) : undefined;
+  const rest = identifiers?.files ?? changed;
+  const narrowed = sources && table ? await narrowStringTables(rest, graph, { ...sources, table }).catch(() => undefined) : undefined;
   return {
-    affected: screensAffectedBy(graph, narrowed?.files ?? changed, options.depth),
-    texts: narrowed?.texts ?? [],
-    notes: narrowed?.notes ?? [],
+    affected: screensAffectedBy(graph, narrowed?.files ?? rest, options.depth),
+    texts: [...(narrowed?.texts ?? []), ...(identifiers?.labels ?? [])],
+    ids: identifiers?.ids ?? [],
+    notes: [...(identifiers?.notes ?? []), ...(narrowed?.notes ?? [])],
   };
 };
 
@@ -230,7 +235,7 @@ export const mapCommands = [
     summary: 'Screens a change can reach, nearest first',
     positionals: [{ name: 'file', help: 'changed source files', required: true, rest: true }],
     flags: {
-      depth: { type: 'number', help: 'how many imports away to look', default: 4, value: 'n' },
+      depth: { type: 'number', help: 'how many imports away to look', default: IMPACT_DEPTH, value: 'n' },
       direct: { type: 'boolean', help: 'only the screen and its importers' },
     },
     needs: 'graph',
@@ -266,15 +271,21 @@ export const mapCommands = [
       'Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--force` overwrites an existing file.',
     flags: {
       force: { type: 'boolean', help: 'overwrite the workflow if it exists' },
-      depth: { type: 'number', help: 'how many imports away the check looks', default: 2, value: 'n' },
+      depth: { type: 'number', help: 'how many imports away the check looks (as `case impact`)', default: IMPACT_DEPTH, value: 'n' },
     },
     needs: 'nothing',
     run: async (ctx) => {
       const file = path.join(ctx.root, '.github', 'workflows', 'lynkeus-map-check.yml');
       if (fs.existsSync(file) && !ctx.flags.force) return { text: `${path.relative(ctx.root, file)} exists; --force overwrites it`, code: 1 };
+      const version = ciVersion(ctx.root);
       fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, mapCheckWorkflow(ctx.flags.depth as number));
-      return { text: `wrote ${path.relative(ctx.root, file)}`, json: { file } };
+      fs.writeFileSync(file, mapCheckWorkflow(ctx.flags.depth as number, version.range));
+      return {
+        text: [`wrote ${path.relative(ctx.root, file)} (lynkeus@${version.range}, --depth ${ctx.flags.depth})`, ...(version.note ? [version.note] : [])].join(
+          '\n',
+        ),
+        json: { file, version: version.range, depth: ctx.flags.depth },
+      };
     },
   }),
   define({
@@ -284,7 +295,7 @@ export const mapCommands = [
     flags: {
       base: { type: 'string', help: 'git ref to diff against', default: 'main', value: 'ref' },
       'graph-base': { type: 'string', help: 'graph to diff against (default .lynkeus/graph.base.json)', value: 'file' },
-      depth: { type: 'number', help: 'how many imports away to look', default: 4, value: 'n' },
+      depth: { type: 'number', help: 'how many imports away to look', default: IMPACT_DEPTH, value: 'n' },
     },
     needs: 'graph',
     run: async (ctx) => {
@@ -327,8 +338,46 @@ export const mapCommands = [
   }),
 ];
 
-// Pinned to the CLI that wrote it: an unpinned npx takes whatever is latest on the day CI runs, which can read the map differently.
-export const mapCheckWorkflow = (depth: number, version = CLI_VERSION): string => `name: lynkeus map check
+const DEPENDENCIES = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
+
+/** `0.7.7-dev.2026…` → `^0.7.7`: what npm will have once that release is out, never a build only this machine has. */
+const released = (version: string): string => `^${version.replace(/^[\^~=v]+/, '').split(/[-+]/)[0]}`;
+
+/**
+ * The lynkeus a generated workflow runs: the range the app depends on (lynkeus, else lynkeus-agent or
+ * lynkeus-headless, which are released together with it), else the CLI's own release. A dev build or a local
+ * path (`file:`, `link:`, `workspace:`) is never written: CI cannot fetch it, so the release it leads to is.
+ */
+export const ciVersion = (root: string, cli = CLI_VERSION): { range: string; note?: string } => {
+  let pkg: Partial<Record<(typeof DEPENDENCIES)[number], Record<string, string>>> = {};
+  try {
+    pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  } catch {
+    // No package.json: the CLI's own release.
+  }
+  for (const name of ['lynkeus', 'lynkeus-agent', 'lynkeus-headless']) {
+    const spec = DEPENDENCIES.map((d) => pkg[d]?.[name]).find((v) => typeof v === 'string');
+    if (!spec) continue;
+    if (/^(file|link|workspace|portal|git\+?|https?):/.test(spec) || /\d+\.\d+\.\d+-/.test(spec)) {
+      const base = /\d+\.\d+\.\d+/.exec(spec)?.[0] ?? cli;
+      const range = released(base);
+      return {
+        range,
+        note: `${name} is ${spec} in package.json, which CI cannot install: the workflow runs lynkeus@${range}, published once that release is out`,
+      };
+    }
+    return { range: spec };
+  }
+  if (/\d+\.\d+\.\d+-/.test(cli))
+    return {
+      range: released(cli),
+      note: `this lynkeus is a dev build (${cli}): the workflow runs lynkeus@${released(cli)}, published once that release is out`,
+    };
+  return { range: `^${cli}` };
+};
+
+// A range the project depends on, never "latest": an unpinned npx takes whatever is out the day CI runs, which can read the map differently.
+export const mapCheckWorkflow = (depth: number, version: string): string => `name: lynkeus map check
 on:
   pull_request:
 
@@ -348,8 +397,8 @@ jobs:
           node-version: 22
       - name: Build the map and check the diff
         run: |
-          npx --yes lynkeus@${version} map build > /dev/null
-          npx --yes lynkeus@${version} map check --base origin/\${{ github.base_ref }} --depth ${depth} > map-check.txt
+          npx --yes 'lynkeus@${version}' map build > /dev/null
+          npx --yes 'lynkeus@${version}' map check --base origin/\${{ github.base_ref }} --depth ${depth} > map-check.txt
       - name: Comment on the pull request
         env:
           GH_TOKEN: \${{ github.token }}

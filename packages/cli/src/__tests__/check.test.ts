@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import type { Screen } from 'lynkeus-protocol';
 
 import { diffGraphs, newFindings } from '../commands/check.js';
-import { mapCheckWorkflow } from '../commands/map.js';
+import { ciVersion, mapCheckWorkflow } from '../commands/map.js';
 import { summarizeRuns } from '../commands/flake.js';
 import type { FlowReport } from '../flow/types.js';
 import { lintScreen } from '../knowledge/lint.js';
@@ -86,10 +89,27 @@ test('flake runs are summarized by the step and error they died on', () => {
 });
 
 test('the map check workflow diffs against the pull request base and keeps one comment', () => {
-  const yml = mapCheckWorkflow(2, '0.7.5');
-  assert.match(yml, /lynkeus@0\.7\.5 map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 2/);
+  const yml = mapCheckWorkflow(4, '^0.7.5');
+  assert.match(yml, /'lynkeus@\^0\.7\.5' map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 4/);
   // Pinned: an unpinned npx would run whatever is latest the day CI runs.
   assert.doesNotMatch(yml, /npx --yes lynkeus /);
   assert.match(yml, /--edit-last/);
   assert.match(yml, /pull-requests: write/);
+});
+
+test('the map check workflow runs the lynkeus range the app depends on, never a dev build CI cannot fetch', () => {
+  const app = (deps: Record<string, Record<string, string>>) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-'));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(deps));
+    return root;
+  };
+  assert.deepEqual(ciVersion(app({ devDependencies: { lynkeus: '^0.7.6' } }), '0.7.7'), { range: '^0.7.6' });
+  // The agent is released with the CLI: an app that has only the agent gets the same range.
+  assert.deepEqual(ciVersion(app({ dependencies: { 'lynkeus-agent': '~0.7.5' } }), '0.7.7'), { range: '~0.7.5' });
+  const dev = ciVersion(app({ dependencies: { 'lynkeus-agent': '0.7.7-dev.20261127010441' } }), '0.7.7-dev.20261127010441');
+  assert.equal(dev.range, '^0.7.7');
+  assert.match(dev.note ?? '', /lynkeus-agent is 0\.7\.7-dev\.20261127010441 in package\.json, which CI cannot install/);
+  assert.equal(ciVersion(app({ devDependencies: { lynkeus: 'file:../lynkeus' } }), '0.7.6').range, '^0.7.6');
+  assert.deepEqual(ciVersion(app({}), '0.7.6'), { range: '^0.7.6' });
+  assert.equal(ciVersion(app({}), '0.7.7-dev.1').range, '^0.7.7');
 });

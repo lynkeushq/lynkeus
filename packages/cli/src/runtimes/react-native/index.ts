@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { headlessMissing, installAgent, mountAgent, reactNativeExtractor, readRouteParams, type RuntimeAdapter, setupChecks } from '../api.js';
+import { readIdentifierChange } from './identifiers.js';
 import { readStringTable } from './strings.js';
 
 export const reactNative: RuntimeAdapter = {
@@ -31,6 +32,7 @@ export const reactNative: RuntimeAdapter = {
   buildGraph: async (root) => (await reactNativeExtractor()).extractScreenGraph({ root }),
   sources: { pattern: /\.[cm]?[jt]sx?$/, relative: false },
   stringTable: readStringTable,
+  identifierChange: readIdentifierChange,
   routeParams: (appRoot, paramsFile) => readRouteParams(appRoot, paramsFile),
   fastsimBuild: (platform) => {
     if (platform !== 'ios' && platform !== 'android') throw new Error(`the platform is ios or android, not ${platform}`);

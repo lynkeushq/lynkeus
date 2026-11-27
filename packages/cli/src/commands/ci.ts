@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeen, withTextCases } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeen, withIdCases, withTextCases } from '../cases/coverage.js';
 import { readCases } from '../cases/format.js';
 import { readJson } from '../files.js';
 import type { ScreenGraph } from '../knowledge/types.js';
@@ -14,6 +14,7 @@ import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
 import { freePorts } from '../cases/portClaim.js';
 import { PROGRESS_FILE } from '../cases/progress.js';
 import { runtimeAt } from '../runtimes/index.js';
+import { REPORT_FILE } from './localReport.js';
 import { changedSources, reachOfChanges } from './map.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -32,7 +33,7 @@ export const resultsOf = (dir: string): { id: string; result: string; title?: st
 };
 
 /** The summary a CI job shows: how many passed, which failed, and the report. */
-export const summaryOf = (results: { id: string; result: string; title?: string }[], report: string | undefined, picked: string): string => {
+export const summaryOf = (results: { id: string; result: string; title?: string }[], report: string | undefined, picked: string, local?: string): string => {
   const failed = results.filter((r) => r.result === 'failed');
   const passed = results.filter((r) => r.result === 'passed').length;
   return [
@@ -40,10 +41,46 @@ export const summaryOf = (results: { id: string; result: string; title?: string 
     '',
     picked,
     ...(report ? ['', `[Open the report](${report})`] : []),
+    ...(local ? ['', `\`${local}\` in the run folder is a report to open offline: upload the folder as an artifact to keep it.`] : []),
     ...(failed.length ? ['', '| Failed | |', '|---|---|', ...failed.map((f) => `| \`${f.id}\` | ${f.title ?? ''} |`)] : []),
     '',
   ].join('\n');
 };
+
+/**
+ * The `case run` a CI job makes: one kept host per job on its own port. Frames are asked for only from hosts the
+ * project names (`ci.hosts.command`, FastSim say): the default headless host draws nothing, so asking would only
+ * warn on every run that no frame was kept.
+ */
+export const suiteArgs = (o: {
+  files: string[];
+  jobs: number;
+  ports: number[];
+  hostCommand: string;
+  ownHosts: boolean;
+  timeoutMs?: number;
+  out: string;
+  push: boolean;
+  extra?: string[];
+}): string[] => [
+  'case',
+  'run',
+  ...o.files,
+  '--jobs',
+  String(o.jobs),
+  '--ports',
+  o.ports.join(','),
+  '--host-command',
+  o.hostCommand,
+  // The run keeps one host per job and starts it again when it dies or runs short of heap.
+  '--keep-hosts',
+  ...(o.timeoutMs ? ['--host-timeout', String(o.timeoutMs)] : []),
+  '--out',
+  o.out,
+  ...(o.ownHosts ? ['--screenshots'] : []),
+  ...(o.push ? ['--push'] : []),
+  ...(o.extra ?? []),
+];
 
 const waitFor = async (ok: () => boolean | Promise<boolean>, timeoutMs: number, every = 3000): Promise<boolean> => {
   const until = Date.now() + timeoutMs;
@@ -149,7 +186,12 @@ export const ciCommands = [
         const runtime = await runtimeAt(ctx.root);
         const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, runtime.sources);
         const reach = await reachOfChanges(ctx.root, graph, changed, { base: String(ctx.flags.base), runtime, relative: runtime.sources.relative });
-        const impact = withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts);
+        const impact = withIdCases(
+          withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts),
+          cases,
+          reach.ids,
+          config.macros,
+        );
         if (!impact.reason) reach.notes.forEach(say);
         files = [...new Set(impact.cases.map((c) => c.file))];
         picked = `${files.length} of ${all.length} case files: the ones the ${changed.length} changed source file(s) against ${ctx.flags.base} reach.`;
@@ -165,25 +207,17 @@ export const ciCommands = [
       if (ports.length < jobs) return { text: `no ${jobs} free driver port(s) from ${first} up: free some, or set LYNKEUS_PORT`, code: 1 };
       const moved = ports[0] !== first ? `port ${first} is in use or claimed by another run, so the hosts take ${ports.join(', ')}` : undefined;
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
-      // The run keeps one host per job and starts it again when it dies or runs short of heap.
-      const runArgs = [
-        'case',
-        'run',
-        ...files,
-        '--jobs',
-        String(jobs),
-        '--ports',
-        ports.join(','),
-        '--host-command',
+      const runArgs = suiteArgs({
+        files,
+        jobs,
+        ports,
         hostCommand,
-        '--keep-hosts',
-        ...(ci.hosts?.timeoutMs ? ['--host-timeout', String(ci.hosts.timeoutMs)] : []),
-        '--out',
+        ownHosts: ci.hosts?.command !== undefined,
+        timeoutMs: ci.hosts?.timeoutMs,
         out,
-        '--screenshots',
-        ...(ci.push ? ['--push'] : []),
-        ...(ci.run ?? []),
-      ];
+        push: !!ci.push,
+        extra: ci.run,
+      });
       if (ctx.flags['dry-run']) {
         const plan = [
           picked,
@@ -224,7 +258,7 @@ export const ciCommands = [
         say(`running ${files.length} case file(s) on ${jobs} host(s): ${hostCommand}`);
         const run = await runSuite(process.execPath, [self, ...runArgs], ctx.root, hostsFileOf(path.join(out, PROGRESS_FILE)), say);
         if (run.signal) return { text: `stopped by ${run.signal}`, code: run.signal === 'SIGINT' ? 130 : 143 };
-        const summary = summaryOf(resultsOf(out), run.report, picked);
+        const summary = summaryOf(resultsOf(out), run.report, picked, fs.existsSync(path.join(out, REPORT_FILE)) ? REPORT_FILE : undefined);
         if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
         return { text: summary, code: run.code };
       } finally {

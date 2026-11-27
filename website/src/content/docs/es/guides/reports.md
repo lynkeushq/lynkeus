@@ -41,7 +41,7 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 
 La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye Lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
-La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye Lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
+La película se hace donde se pueda. Un host que filma por su cuenta lo dice al presentarse con un comando llamado `record` (lo lista `lynkeus hello`); Lynkeus FastSim es uno. En un simulador de iOS filma el sistema, con `xcrun simctl io recordVideo`. En un emulador o un teléfono Android filma `adb shell screenrecord`, que se corta a los 3 minutos, y el CLI se trae el archivo al terminar el caso. Cada paso anota en qué segundo de la película empezó. El host sin pantalla que incluye Lynkeus no dibuja nada: ahí una ejecución con `--video` no tiene película, y al terminar lo avisa con `⚠ --video kept no film: …`.
 
 Si el host que filma está en otra máquina (Lynkeus FastSim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
 
@@ -71,6 +71,18 @@ Ese formato es un contrato. Los tipos (`RunManifest`, `RunCase`, `RunStep`, `Run
 :::tip
 Si solo necesitas un resumen para otra herramienta, `--report <archivo>` agrega una línea JSON por caso a un archivo, sin crear el directorio.
 :::
+
+## Mírala como página, sin conexión
+
+Cada ejecución guardada con `--out` deja al terminar una página en el mismo directorio, `report.html`, y la salida dice dónde quedó:
+
+```text
+report: /ruta/a/la/app/run/report.html (open it in a browser, offline)
+```
+
+La abres en cualquier navegador, sin red ni cuenta. Muestra cada caso con su último intento y dice cómo terminaron los anteriores. Cada paso aparece dentro de su sección, con la captura que se tomó después de él, y cada caso fallido explica por qué falló. Si filmaste con `--video`, un botón en cada paso reproduce la película desde ese punto. También están las peticiones de cada paso, con sus cuerpos, sus eventos, sus logs y lo que hizo el backend. Las capturas y la película son archivos del directorio y la página las enlaza, así que para compartirla compartes el directorio entero: un artifact de CI o un zip.
+
+`lynkeus report html <dir>` vuelve a escribir la página, por ejemplo para una ejecución que hizo una versión anterior. Con `--embed`, las capturas y la película quedan dentro de la página: es un solo archivo que puedes mandar, aunque más pesado. Por MCP, la herramienta es `report_html`.
 
 ## 3. Crea una clave para el servicio
 

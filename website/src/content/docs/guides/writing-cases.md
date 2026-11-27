@@ -384,6 +384,8 @@ npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the 
 
 A change to a string table, such as the app's translations, does not reach every screen that imports it. Lynkeus recognizes the file by its shape (top-level object literals of strings, nested or not), compares its strings with the base, and keeps the files that name a changed key (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) and the cases whose steps mention the old or the new text. If a changed key is not written out whole anywhere, for example because a hook is bound to a prefix, the change reaches every importer as before and the output names that key.
 
+A change that only renames or removes testIDs is narrowed the same way. When the only differences in a file are the values of `testID`, `nativeID`, `accessibilityLabel` or `aria-label`, or comments and formatting, the file reaches no screen through its imports. Instead it reaches the cases whose steps name a changed testID, old or new, directly or through a macro, and the cases that name a changed label's text. Any other change in the file keeps every screen that imports it, and the other changed files in the diff still reach their screens.
+
 ## How it works
 
 The runner opens one connection to the app and keeps it for the whole case. `app.` steps go through the same code as the terminal commands. Any step name that is not `app.`, `assert`, `exec` or a macro is sent to your fixtures command.

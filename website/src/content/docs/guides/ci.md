@@ -143,9 +143,9 @@ A long-lived host clears what the app's jest mocks record about their calls ever
 npx lynkeus ci
 ```
 
-Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
+Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it), and with `ci.push` it is pushed. Frames are kept when `ci.hosts.command` names hosts that draw, such as Lynkeus FastSim; the default headless host draws nothing, so the run asks it for none. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
 
-`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told). A port that another process listens on, such as a `lynkeus mcp` server you left running in the project, or that another case run has claimed, is passed over, and the run says which ports its hosts took. When the run ends, fails or is stopped with Ctrl-C or SIGTERM, every host it started is stopped, even when `case run` itself died.
+`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told). A port that another process listens on, such as a `lynkeus mcp` server you left running in the project, or that another case run has claimed, is passed over, and the run says which ports its hosts took. When the run ends, fails or is stopped with Ctrl-C or SIGTERM, every host it started is stopped, even when `case run` itself died. On a normal end `case run` waits for its hosts to exit, so the `▸ stopped N host(s) the run left running` line appears only after a run that died or was killed.
 
 `--affected` runs only the cases that a branch's changes reach:
 
@@ -197,7 +197,7 @@ Store the organization's API key as a secret and add `--push`:
 
 The report is made when the run starts and fills case by case, so its link works from the first case: the step prints it right away, and you can open it while the suite is still running. A send that fails along the way is tried again at the end. At the end the step prints the link again, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
 
-On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
+On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case: on a Simulator with `xcrun simctl io recordVideo`, on an emulator with `adb shell screenrecord` (3 minutes at most), and on a host that offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so a run there has no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
 
 ### Comment on the pull request
 
@@ -240,9 +240,11 @@ One check runs on every pull request with no app, no device and no backend. `map
 npx lynkeus map ci
 ```
 
-You should see `wrote .github/workflows/lynkeus-map-check.yml`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
+You should see `wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
 
-`--depth <n>` sets how many imports away the check looks (2 by default). `--force` overwrites an existing workflow file.
+The workflow runs the lynkeus your app depends on: the range in `package.json` for `lynkeus`, or else for `lynkeus-agent` or `lynkeus-headless`, which are released with it. Without one, it runs the release of the CLI that wrote it. CI cannot install a development build or a local path, so for those the workflow names the release they lead to (`0.7.7-dev.…` becomes `^0.7.7`) and the command says so.
+
+`--depth <n>` sets how many imports away the check looks. The default is 4, the same as `case impact` and `ci --affected`, so the comment and the cases the pipeline runs agree. `--force` overwrites an existing workflow file.
 
 Reviewers use the comment to know where to look, and a pipeline can use the same list to decide which cases to run.
 

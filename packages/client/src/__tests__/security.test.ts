@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHmac } from 'node:crypto';
 import { after, test } from 'node:test';
 
 import { WebSocket } from 'ws';
@@ -71,4 +72,25 @@ test('a peer that has not proved the token cannot send a large frame, and a refu
   const first = await new Promise<Record<string, unknown>>((resolve) => ninth.once('message', (data) => resolve(JSON.parse(String(data)))));
   assert.equal(first.event, 'auth');
   ninth.close();
+});
+
+test("an app holding another project's token is refused, and the driver says why", async () => {
+  const server = await serve();
+  const other = new WebSocket(`ws://127.0.0.1:${server.port}`);
+  const closed = new Promise<{ code: number; reason: string }>((resolve) => other.once('close', (code, reason) => resolve({ code, reason: String(reason) })));
+  other.on('message', (data) => {
+    const message = JSON.parse(String(data));
+    if (message.event !== 'auth') return;
+    // A real agent's proof, made with the token of another project's .lynkeus/token.
+    const nonce = 'c'.repeat(32);
+    const proof = createHmac('sha256', 'another-project').update(`lynkeus/app/${message.session}/${message.nonce}/${nonce}`).digest('hex');
+    other.send(JSON.stringify({ event: 'hello', protocolVersion: 2, platform: 'ios', native: true, commands: [], nonce, proof }));
+  });
+  assert.deepEqual(await closed, { code: 1008, reason: 'invalid token' });
+  assert.equal(server.connected, false);
+  await assert.rejects(server.waitForApp(50), (error: Error & { code?: string }) => {
+    assert.equal(error.code, 'wrong-token');
+    assert.match(error.message, /dialed in once with another token and was refused: it is another project's app/);
+    return true;
+  });
 });

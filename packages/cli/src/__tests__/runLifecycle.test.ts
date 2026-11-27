@@ -191,6 +191,15 @@ test('status says a port another run holds, as screen does, and keeps the generi
   });
 });
 
+test('status names the process holding the port, and an app refused for another token', () => {
+  const taken = new AgentError('Port 8123 is already taken: …', 'port-in-use');
+  assert.deepEqual(attachFailureCheck(taken, 8123, 'open the app', 'port 8123 is taken by pid 1 (x)'), { what: 'port 8123 is taken by pid 1 (x)', ok: false });
+  const refused = attachFailureCheck(new AgentError('No app attached…', 'wrong-token'), 8123, 'open the app');
+  assert.equal(refused.ok, false);
+  assert.match(refused.what, /dialed in with another project's token and was refused/);
+  assert.match(refused.fix ?? '', /this project's development build/);
+});
+
 const SCREEN = {
   route: 'Home',
   path: ['Home'],
