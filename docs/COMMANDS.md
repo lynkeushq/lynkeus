@@ -235,7 +235,7 @@ React Native or Expo (an Expo Router app gets an entry of its own). Safe to run 
 | Flag | |
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
-| `--no-skill` | leave the Lynkeus skill out (also LYNKEUS_NO_SKILL=1) |
+| `--no-skill` | leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1) |
 
 ### `lynkeus status [--offline]`
 
@@ -247,25 +247,26 @@ The first thing to call in a project you do not know: each line that fails says 
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
 
-### `lynkeus guide [topic]`
+### `lynkeus guide [topic] [section]`
 
-How to work with Lynkeus, one short topic per call: the Lynkeus skill's text, for what the MCP instructions leave out
+How to work with Lynkeus, one short section per call: the Lynkeus skill's text, for what the MCP instructions leave out
 
-Without a topic, the index: the cheap way to write a case and what each topic holds. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
+A topic alone lists its sections; a topic and a section answer that section only. Neither gives the index. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
 
 | Argument | |
 |---|---|
 | `topic` | none for the index (optional) |
+| `section` | a section id from the topic's list (optional) |
 
 ### `lynkeus skill install [--force]`
 
-Install or update the Lynkeus skill in this project's .claude/skills/lynkeus, at this CLI's version
+Install or update the Lynkeus skill in this project's .claude/skills/lynkeus and its Claude Code subagents in .claude/agents, at this CLI's version
 
-`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same topics are served over MCP by the `guide` tool.
+`lynkeus init` does it too. The skill, or the subagents, whose files changed since Lynkeus wrote them, or that Lynkeus did not write, are left as they are unless --force. The same sections are served over MCP by the `guide` tool.
 
 | Flag | |
 |---|---|
-| `--force` | replace the skill even when its files were changed |
+| `--force` | replace the skill and subagents even when their files were changed |
 
 ## os
 

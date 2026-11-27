@@ -109,7 +109,9 @@ A native module or value the app reads that nobody provides is answered empty (h
 
 Lynkeus FastSim is optional and paid (Team plan): use it when the person asks or their organization has it. When the service refuses (no plan, no seat, no key), tell the person what it said and carry on with headless or a device; never retry with other credentials.
 
-Everything else is in the guide tool, one short topic per call: read the one the task needs before guessing. cases: the format, text matching, app commands, macros, on: blocks, interruptions, mocks, app.relaunch, teardown. targets: cases.targets, hosts, host_command, jobs, FastSim setup. evidence: frames, film, report.html, sharing a run. ci: case_impact, lynkeus ci, map ci. determinism: seed, locale, time zone, epoch. troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.`;
+Everything else is in the guide tool: a topic lists its sections, topic and section answer one. Read a section when the task reaches it, not up front. Topics: cases (format, text matching, steps, app commands, macros, on: blocks, interruptions, mocks, app.relaunch), targets (cases.targets, on: targets, headless, FastSim, jobs), evidence (out, film, report.html, sharing, reading a failure), ci, determinism, troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.
+
+Routine work (setup, status, running suites, gathering evidence) runs well on a smaller model or lower effort; writing and debugging cases gains from a stronger one. With subagents, hand the routine work to lynkeus-setup and lynkeus-runner (lynkeus init installs them for Claude Code): their output stays out of your context. Lynkeus suggests; the person decides.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };

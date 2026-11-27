@@ -369,7 +369,7 @@ Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agen
 | Opción | Qué hace |
 |---|---|
 | `--no-install` | No agrega `lynkeus-agent` a la app; solo lo monta. |
-| `--no-skill` | No instala el skill de Lynkeus. |
+| `--no-skill` | No instala el skill de Lynkeus ni sus subagentes. `LYNKEUS_NO_SKILL=1` tiene el mismo efecto. |
 
 Lo que hace depende del proyecto:
 
@@ -398,7 +398,7 @@ No repite un cambio que ya está: `index.js already mounts the agent`, `babel.co
 
 El plugin es lo que hace llegar el token a una app de React Native. Lo explica la [API del agente](/es/reference/agent-api/#el-token-tiene-que-llegar-a-la-app).
 
-Por último deja el skill de Lynkeus en `.claude/skills/lynkeus`, igual que [`lynkeus skill install`](#lynkeus-skill-install). Conviene sumarlo al repositorio.
+Por último deja el skill de Lynkeus en `.claude/skills/lynkeus` y dos subagentes de Claude Code, `lynkeus-setup` y `lynkeus-runner`, en `.claude/agents`, igual que [`lynkeus skill install`](#lynkeus-skill-install). Conviene sumar ambas carpetas al repositorio.
 
 ### `lynkeus status`
 
@@ -421,10 +421,10 @@ Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto>
 ### `lynkeus guide`
 
 ```bash
-lynkeus guide [tema]
+lynkeus guide [tema] [sección]
 ```
 
-Muestra un tema del skill de Lynkeus: `cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`. Sin tema, muestra el índice, con el camino barato para escribir un caso y qué cubre cada tema. Por MCP es la herramienta `guide`, pensada para los clientes que no cargan skills. Más detalles en [Agentes de IA](/es/guides/ai-agents/#el-skill-de-lynkeus).
+Muestra una sección del skill de Lynkeus. Los temas son `cases`, `targets`, `evidence`, `ci`, `determinism` y `troubleshooting`. Con solo el tema, lista sus secciones, una por línea; con tema y sección, imprime esa sección y nada más, por ejemplo `lynkeus guide targets headless`. Sin argumentos, muestra el índice: el camino barato para escribir un caso y las secciones de cada tema. Por MCP es la herramienta `guide`, pensada para los clientes que no cargan skills. Más detalles en [Agentes de IA](/es/guides/ai-agents/#el-skill-de-lynkeus).
 
 ### `lynkeus skill install`
 
@@ -432,11 +432,11 @@ Muestra un tema del skill de Lynkeus: `cases`, `targets`, `evidence`, `ci`, `det
 lynkeus skill install [--force]
 ```
 
-Instala el skill de Lynkeus en `.claude/skills/lynkeus`, o lo lleva a la versión de esta CLI. [`lynkeus init`](#lynkeus-init) también lo hace. En `.lynkeus-skill.json` el skill guarda qué archivos escribió Lynkeus y con qué contenido. Si alguno cambió o ya no está, o si la carpeta no la escribió Lynkeus, no toca nada y avisa.
+Instala el skill de Lynkeus en `.claude/skills/lynkeus` y los subagentes `lynkeus-setup` y `lynkeus-runner` en `.claude/agents`, o los lleva a la versión de esta CLI. [`lynkeus init`](#lynkeus-init) también lo hace. Lynkeus anota qué archivos escribió y con qué contenido: los del skill en `.lynkeus-skill.json`, los de los subagentes en `.claude/agents/.lynkeus-agents.json`. Si alguno cambió o ya no está, o si no lo escribió Lynkeus, deja esa parte como está y lo avisa. Más en [Subagentes para el trabajo de rutina](/es/guides/ai-agents/#subagentes-para-el-trabajo-de-rutina).
 
 | Opción | Qué hace |
 |---|---|
-| `--force` | Reemplaza el skill aunque alguien haya cambiado sus archivos. |
+| `--force` | Reemplaza el skill y los subagentes aunque alguien haya cambiado sus archivos. |
 
 ## Sistema operativo (`os`)
 

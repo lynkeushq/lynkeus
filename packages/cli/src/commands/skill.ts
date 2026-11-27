@@ -8,28 +8,34 @@ import { define } from '../registry.js';
 
 // The same depth from src/commands and lib/commands: the skill ships beside both, in the package.
 const SOURCE = fileURLToPath(new URL('../../skill/lynkeus/', import.meta.url));
+const AGENTS_SOURCE = fileURLToPath(new URL('../../skill/agents/', import.meta.url));
 
 /** Where a project keeps it: Claude Code and other clients that read Agent Skills look there. */
 export const SKILL_DIR = path.join('.claude', 'skills', 'lynkeus');
 
-/** What was installed, so an update can tell the files Lynkeus wrote from files the person changed since. */
-const MARKER = '.lynkeus-skill.json';
+/** Where Claude Code finds project subagents; the person's own live there too, so only `lynkeus-*` files are ours. */
+export const AGENTS_DIR = path.join('.claude', 'agents');
 
 type Marker = { version: string; files: Record<string, string> };
 
 export const GUIDE_TOPICS = ['cases', 'targets', 'evidence', 'ci', 'determinism', 'troubleshooting'] as const;
 
-const shipped = (): string[] =>
+/** Every markdown file under `dir`, as forward-slash paths relative to it. */
+const markdownUnder = (dir: string, prefix = ''): string[] =>
   fs
-    .readdirSync(SOURCE)
-    .filter((f) => f.endsWith('.md'))
+    .readdirSync(path.join(dir, prefix), { withFileTypes: true })
+    .flatMap((entry) => {
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) return markdownUnder(dir, rel);
+      return entry.name.endsWith('.md') ? [rel] : [];
+    })
     .sort();
 
 const digest = (body: Buffer | string): string => createHash('sha256').update(body).digest('hex');
 
-const readMarker = (dir: string): Marker | undefined => {
+const readMarker = (file: string): Marker | undefined => {
   try {
-    const parsed = JSON.parse(fs.readFileSync(path.join(dir, MARKER), 'utf8')) as Partial<Marker>;
+    const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as Partial<Marker>;
     return typeof parsed.version === 'string' && parsed.files && typeof parsed.files === 'object' ? (parsed as Marker) : undefined;
   } catch {
     return undefined;
@@ -48,79 +54,164 @@ const editedFiles = (dir: string, marker: Marker): string[] =>
     })
     .map(([file]) => file);
 
-export type SkillInstall = { state: 'installed' | 'updated' | 'current' | 'kept'; dir: string; text: string };
+type Bundle = {
+  source: string;
+  /** Relative to the project. */
+  dir: string;
+  /** What was installed, so an update can tell the files Lynkeus wrote from files the person changed since. */
+  marker: string;
+  files: string[];
+  /** Whether something Lynkeus did not write is there already: then it is the person's. */
+  foreign: (dir: string) => boolean;
+};
+
+type BundleInstall = { state: 'installed' | 'updated' | 'current' | 'kept'; dir: string; was?: string; edited?: string[] };
 
 /**
- * Copies the skill this CLI ships into the project, at this CLI's version. A skill the person edited, or one
- * Lynkeus did not write, is theirs: it is left as it is unless `force`.
+ * Copies a bundle this CLI ships into the project, at this CLI's version. One the person edited, or one Lynkeus did
+ * not write, is theirs: it is left as it is unless `force`.
  */
-export const installSkill = (root: string, { force = false }: { force?: boolean } = {}): SkillInstall => {
-  const dir = path.join(root, SKILL_DIR);
-  const shown = SKILL_DIR.split(path.sep).join('/');
-  const marker = readMarker(dir);
-  const exists = fs.existsSync(dir);
-  if (exists && !force) {
-    if (!marker) return { state: 'kept', dir, text: `left ${shown} as it is: Lynkeus did not write it (\`lynkeus skill install --force\` replaces it)` };
-    const edited = editedFiles(dir, marker);
-    if (edited.length)
-      return {
-        state: 'kept',
-        dir,
-        text: `left the Lynkeus skill in ${shown} as it is: ${edited.join(', ')} changed since Lynkeus wrote it (\`lynkeus skill install --force\` replaces it with ${CLI_VERSION}'s)`,
-      };
+const installBundle = (root: string, bundle: Bundle, force: boolean): BundleInstall => {
+  const dir = path.join(root, bundle.dir);
+  const markerFile = path.join(dir, bundle.marker);
+  const marker = readMarker(markerFile);
+  if (!force) {
+    if (!marker && bundle.foreign(dir)) return { state: 'kept', dir };
+    const edited = marker ? editedFiles(dir, marker) : [];
+    if (edited.length) return { state: 'kept', dir, edited };
   }
-  const files = shipped();
-  const bodies = new Map(files.map((file) => [file, fs.readFileSync(path.join(SOURCE, file))]));
-  if (marker && marker.version === CLI_VERSION && files.every((file) => marker.files[file] === digest(bodies.get(file)!)) && !force)
-    return { state: 'current', dir, text: `the Lynkeus skill in ${shown} is ${CLI_VERSION}'s already` };
-  fs.mkdirSync(dir, { recursive: true });
-  for (const [file, body] of bodies) fs.writeFileSync(path.join(dir, file), body);
-  // A topic an older release shipped and this one does not would be read as current.
+  const bodies = new Map(bundle.files.map((file) => [file, fs.readFileSync(path.join(bundle.source, file))]));
+  if (!force && marker && marker.version === CLI_VERSION && bundle.files.every((file) => marker.files[file] === digest(bodies.get(file)!)))
+    return { state: 'current', dir };
+  for (const [file, body] of bodies) {
+    fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+    fs.writeFileSync(path.join(dir, file), body);
+  }
+  // A file an older release shipped and this one does not would be read as current.
   for (const file of Object.keys(marker?.files ?? {})) if (!bodies.has(file)) fs.rmSync(path.join(dir, file), { force: true });
   const next: Marker = { version: CLI_VERSION, files: Object.fromEntries([...bodies].map(([file, body]) => [file, digest(body)])) };
-  fs.writeFileSync(path.join(dir, MARKER), `${JSON.stringify(next, null, 2)}\n`);
-  const state = exists ? 'updated' : 'installed';
-  const was = marker && marker.version !== CLI_VERSION ? ` (was ${marker.version})` : '';
+  fs.writeFileSync(markerFile, `${JSON.stringify(next, null, 2)}\n`);
+  return { state: marker ? 'updated' : 'installed', dir, ...(marker && marker.version !== CLI_VERSION ? { was: marker.version } : {}) };
+};
+
+const skillBundle = (): Bundle => ({
+  source: SOURCE,
+  dir: SKILL_DIR,
+  marker: '.lynkeus-skill.json',
+  files: markdownUnder(SOURCE),
+  foreign: (dir) => fs.existsSync(dir),
+});
+
+const agentsBundle = (): Bundle => {
+  const files = markdownUnder(AGENTS_SOURCE);
   return {
-    state,
-    dir,
-    text: `${state} the Lynkeus skill ${CLI_VERSION} in ${shown}${was}: how to write, run and debug cases, read by Claude Code and other clients that load Agent Skills when a task needs it; commit it with the project (\`--no-skill\` leaves it out)`,
+    source: AGENTS_SOURCE,
+    dir: AGENTS_DIR,
+    marker: '.lynkeus-agents.json',
+    files,
+    foreign: (dir) => files.some((file) => fs.existsSync(path.join(dir, file))),
   };
 };
 
-/** One topic of the skill, or its index, as a client without skills reads it: links to topics name the topic. */
-export const guideText = (topic?: string): string => {
-  const file = topic ? `${topic}.md` : 'SKILL.md';
-  const body = fs.readFileSync(path.join(SOURCE, file), 'utf8');
-  return body
+/** The subagents this CLI ships, by name. */
+export const shippedAgents = (): string[] => markdownUnder(AGENTS_SOURCE).map((file) => file.replace(/\.md$/, ''));
+
+export type SkillInstall = BundleInstall & { text: string; agents: BundleInstall };
+
+const shown = (dir: string) => dir.split(path.sep).join('/');
+
+/**
+ * Installs the Lynkeus skill and the Claude Code subagents that go with it, each protected on its own: an edited
+ * skill does not hold back unedited agents.
+ */
+export const installSkill = (root: string, { force = false }: { force?: boolean } = {}): SkillInstall => {
+  const skill = installBundle(root, skillBundle(), force);
+  const agents = installBundle(root, agentsBundle(), force);
+  const names = shippedAgents().join(', ');
+  const forced = '`lynkeus skill install --force` replaces';
+  const skillText = () => {
+    if (skill.state === 'kept')
+      return skill.edited
+        ? `left the Lynkeus skill in ${shown(SKILL_DIR)} as it is: ${skill.edited.join(', ')} changed since Lynkeus wrote it (${forced} it with ${CLI_VERSION}'s)`
+        : `left ${shown(SKILL_DIR)} as it is: Lynkeus did not write it (${forced} it)`;
+    if (skill.state === 'current') return `the Lynkeus skill in ${shown(SKILL_DIR)} is ${CLI_VERSION}'s already`;
+    return `${skill.state} the Lynkeus skill ${CLI_VERSION} in ${shown(SKILL_DIR)}${skill.was ? ` (was ${skill.was})` : ''}: how to write, run and debug cases, read by Claude Code and other clients that load Agent Skills when a task needs it`;
+  };
+  const agentsText = () => {
+    if (agents.state === 'kept')
+      return agents.edited
+        ? `left the Lynkeus subagents as they are: ${agents.edited.join(', ')} changed since Lynkeus wrote them (${forced} them)`
+        : `left the Lynkeus subagents out: ${names} in ${shown(AGENTS_DIR)} are not Lynkeus's (${forced} them)`;
+    if (agents.state === 'current') return `its subagents (${names}) are current`;
+    return `${agents.state} its Claude Code subagents ${names} in ${shown(AGENTS_DIR)}, for setup and runs on a cheaper model`;
+  };
+  const wrote = [skill, agents].some((b) => b.state === 'installed' || b.state === 'updated');
+  return { ...skill, agents, text: `${skillText()}; ${agentsText()}${wrote ? '; commit them with the project (`--no-skill` leaves them out)' : ''}` };
+};
+
+const linkToSection = /\[([\w-]+)\]\(([\w-]+)\/([\w-]+)\.md\)/g;
+
+const body = (file: string): string =>
+  fs
+    .readFileSync(file, 'utf8')
     .replace(/^---\n[\s\S]*?\n---\n+/, '')
-    .replace(/\[([\w-]+)\.md\]\(\1\.md\)/g, (_, name: string) => `\`${name}\` (guide topic)`)
     .trimEnd();
+
+/** A topic's section ids, in the order SKILL.md lists them. */
+export const guideSections = (topic: string): string[] => {
+  const order = [...fs.readFileSync(path.join(SOURCE, 'SKILL.md'), 'utf8').matchAll(linkToSection)].filter((m) => m[2] === topic).map((m) => m[3]!);
+  const rank = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
+  return markdownUnder(path.join(SOURCE, topic))
+    .map((file) => file.replace(/\.md$/, ''))
+    .sort((a, b) => rank(a) - rank(b));
+};
+
+/**
+ * The skill as a client without skills reads it: no topic gives SKILL.md, a topic gives its sections one line each
+ * (the heading names what the section answers), a section gives only that section.
+ */
+export const guideText = (topic?: string, section?: string): string => {
+  if (!topic) return body(path.join(SOURCE, 'SKILL.md')).replace(linkToSection, (_, id: string) => `\`${id}\``);
+  if (section) return body(path.join(SOURCE, topic, `${section}.md`));
+  const lines = guideSections(topic).map((id) => {
+    const heading = fs
+      .readFileSync(path.join(SOURCE, topic, `${id}.md`), 'utf8')
+      .split('\n', 1)[0]!
+      .replace(/^#\s*/, '');
+    return `- ${id}: ${heading}`;
+  });
+  return [`${topic}: call guide with this topic and one section.`, ...lines].join('\n');
 };
 
 export const skillCommands = [
   define({
     name: 'guide',
     group: 'drive',
-    summary: "How to work with Lynkeus, one short topic per call: the Lynkeus skill's text, for what the MCP instructions leave out",
-    details: `Without a topic, the index: the cheap way to write a case and what each topic holds. Topics: ${GUIDE_TOPICS.join(', ')}.`,
-    positionals: [{ name: 'topic', help: 'none for the index', choices: [...GUIDE_TOPICS] }],
+    summary: "How to work with Lynkeus, one short section per call: the Lynkeus skill's text, for what the MCP instructions leave out",
+    details: `A topic alone lists its sections; a topic and a section answer that section only. Neither gives the index. Topics: ${GUIDE_TOPICS.join(', ')}.`,
+    positionals: [
+      { name: 'topic', help: 'none for the index', choices: [...GUIDE_TOPICS] },
+      { name: 'section', help: "a section id from the topic's list" },
+    ],
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
-      const topic = ctx.args[0];
+      const [topic, section] = ctx.args;
       if (topic !== undefined && !(GUIDE_TOPICS as readonly string[]).includes(topic))
         return { text: `no topic ${topic}: ${GUIDE_TOPICS.join(', ')}, or none for the index`, code: 2 };
-      return { text: guideText(topic) };
+      if (topic && section !== undefined && !guideSections(topic).includes(section))
+        return { text: `no section ${section} in ${topic}.\n${guideText(topic)}`, code: 2 };
+      return { text: guideText(topic, section) };
     },
   }),
   define({
     name: 'skill install',
     group: 'drive',
-    summary: "Install or update the Lynkeus skill in this project's .claude/skills/lynkeus, at this CLI's version",
+    summary:
+      "Install or update the Lynkeus skill in this project's .claude/skills/lynkeus and its Claude Code subagents in .claude/agents, at this CLI's version",
     details:
-      '`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same topics are served over MCP by the `guide` tool.',
-    flags: { force: { type: 'boolean', help: 'replace the skill even when its files were changed' } },
+      '`lynkeus init` does it too. The skill, or the subagents, whose files changed since Lynkeus wrote them, or that Lynkeus did not write, are left as they are unless --force. The same sections are served over MCP by the `guide` tool.',
+    flags: { force: { type: 'boolean', help: 'replace the skill and subagents even when their files were changed' } },
     needs: 'nothing',
     run: async (ctx) => {
       const done = installSkill(ctx.root, { force: !!ctx.flags.force });

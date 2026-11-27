@@ -20,16 +20,20 @@ Spend in this order and stop as soon as you know enough:
 
 A failed step answers with its error and the screen it failed on (`--verbose` for all of it); `why` explains the last failure. Fix the case or report the app's bug; never weaken the check.
 
-## Topics
+## Sections
 
-Read the one the task needs:
+Read a section when the task reaches it, not up front: each answers one question in a few lines.
 
-- [cases.md](cases.md): the format, targets and text matching, app commands, macros, `on:` blocks, interruptions, mocks, `app.relaunch`, teardown.
-- [targets.md](targets.md): Simulator or emulator, FastSim, headless; `cases.targets` and `--on targets`; hosts, `--host-command` and `--jobs`.
-- [evidence.md](evidence.md): frames, film, `report.html`, sharing a run, backend traces.
-- [ci.md](ci.md): `case impact`, `lynkeus ci --affected`, `map ci`.
-- [determinism.md](determinism.md): seed, locale, time zone and epoch; frames two runs can be compared by.
-- [troubleshooting.md](troubleshooting.md): a press that does nothing, system prompts, a held port, the app gone to another app, headless native values.
+- cases: [format](cases/format.md), [targets](cases/targets.md) (testIDs, text matching), [steps](cases/steps.md), [commands](cases/commands.md) (`qa.register`, `app.call`), [relaunch](cases/relaunch.md), [on-blocks](cases/on-blocks.md), [macros](cases/macros.md), [interruptions](cases/interruptions.md), [mocks](cases/mocks.md)
+- targets: [overview](targets/overview.md) (which target for a case), [project-targets](targets/project-targets.md) (`cases.targets`, `--on targets`), [on-all](targets/on-all.md), [headless](targets/headless.md), [device](targets/device.md), [fastsim](targets/fastsim.md), [one-run](targets/one-run.md) (`case status`, `case stop`)
+- evidence: [keep](evidence/keep.md) (`--out`, frames, film, traces), [share](evidence/share.md), [failure](evidence/failure.md), [slow-step](evidence/slow-step.md)
+- ci: [impact](ci/impact.md), [ci-job](ci/ci-job.md), [map-check](ci/map-check.md)
+- determinism: [launch-facts](determinism/launch-facts.md) (seed, locale, zone, epoch), [randomness](determinism/randomness.md), [frames](determinism/frames.md)
+- troubleshooting: [press](troubleshooting/press.md), [system-view](troubleshooting/system-view.md), [background](troubleshooting/background.md), [text-match](troubleshooting/text-match.md), [port](troubleshooting/port.md), [native-values](troubleshooting/native-values.md), [headless-start](troubleshooting/headless-start.md), [shared-state](troubleshooting/shared-state.md)
+
+## Routine work on a cheaper model
+
+Setup, `status`, running suites and gathering evidence are routine and run well on a smaller, faster model or at lower effort; writing and debugging cases gains from a stronger one. Where subagents exist, hand the routine ones to `lynkeus-setup` (connect the app, report status) and `lynkeus-runner` (run cases, return a short summary): their long output stays out of your context. A suggestion: you and the person decide.
 
 ## Rules
 

@@ -42,7 +42,7 @@ Con palabras comunes:
 Configura lynkeus en esta app.
 ```
 
-Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo. De paso deja el [skill de Lynkeus](#el-skill-de-lynkeus) en `.claude/skills/lynkeus`.
+Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo. De paso deja el [skill de Lynkeus](#el-skill-de-lynkeus) en `.claude/skills/lynkeus` y dos [subagentes](#subagentes-para-el-trabajo-de-rutina) en `.claude/agents`.
 
 El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
 
@@ -118,7 +118,7 @@ Las herramientas básicas son:
 | `map_show` | Qué botones tiene una pantalla y a dónde llevan, según el código. |
 | `map_plan` | Indicaciones para ir de una ruta a otra. |
 | `crawl` | Recorre la pantalla actual: toca cada control y anota a dónde lleva. Por MCP es corto: un nivel y 12 toques. |
-| `guide` | Un tema del [skill de Lynkeus](#el-skill-de-lynkeus), para un cliente que no carga skills. |
+| `guide` | Una sección del [skill de Lynkeus](#el-skill-de-lynkeus), o la lista de secciones de un tema, para un cliente que no carga skills. |
 
 Si `lynkeus.config.json` declara `language` o `locale`, aparece una más, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
 
@@ -182,11 +182,26 @@ Además, cuando una herramienta falla, la respuesta de error ya trae ese diagnó
 
 Lo que el servidor le dice al modelo al conectarse es corto a propósito. El cliente lo vuelve a leer en cada llamada, así que cada línea de más se paga muchas veces en una misma sesión. Todo lo demás que un agente necesita para escribir buenos casos vive en el skill de Lynkeus, que no cuesta nada hasta que una tarea lo pide. Ahí están el formato de los casos y cómo se comparan los textos, las macros y los bloques `on:`, `app.relaunch`, dónde corre cada caso y cómo repartir una suite en paralelo, la evidencia y cómo compartir una corrida, la integración continua y las corridas que se repiten idénticas.
 
-`lynkeus init` lo instala en `.claude/skills/lynkeus` y lo menciona en lo que imprime. Súmalo al repositorio: así lo tiene cualquiera que trabaje en la app. Claude Code y los demás clientes compatibles con Agent Skills guardan en contexto solo la descripción del skill, que es una línea, y abren el archivo del tema cuando la tarea lo necesita.
+`lynkeus init` lo instala en `.claude/skills/lynkeus` y lo menciona en lo que imprime. Súmalo al repositorio: así lo tiene cualquiera que trabaje en la app. Claude Code y los demás clientes compatibles con Agent Skills guardan en contexto solo la descripción del skill, que es una línea, hasta que una tarea lo necesita.
 
-Si no lo quieres, usa `lynkeus init --no-skill`. Para pasarlo a la versión de la CLI que tienes, `lynkeus skill install`. Lynkeus anota en `.lynkeus-skill.json` qué archivos escribió; si cambiaste alguno, no lo pisa y te dice cuál. Con `--force` lo reemplaza igual.
+Cada tema está partido en secciones cortas, un archivo por sección, de unos cientos de bytes hasta 1,4 KB como mucho: `cases/mocks.md`, `targets/fastsim.md`, `troubleshooting/press.md`. `SKILL.md` las ordena por tema. Tanto el skill como las instrucciones del servidor le piden al modelo que abra una sección cuando la tarea llega a ella y no antes. El motivo es el costo: todo lo que entra a la conversación se vuelve a pagar en cada llamada siguiente. En una prueba con Claude Code, el agente leyó cuatro temas enteros al empezar (26 KB, unos 7.000 tokens) y los arrastró durante unas 215 llamadas.
 
-Los clientes que no cargan skills tienen el mismo texto en la herramienta `guide`. Con `topic` (`cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`) devuelve ese tema; sin `topic`, el índice. Las instrucciones del servidor le piden al modelo que lea el tema que necesita antes de adivinar. En una terminal, `npx lynkeus guide cases` muestra lo mismo.
+Si no lo quieres, usa `lynkeus init --no-skill`, que deja fuera también los subagentes; `LYNKEUS_NO_SKILL=1` hace lo mismo para cualquier `init`. Para pasar el skill y los subagentes a la versión de la CLI que tienes, `lynkeus skill install`. Lynkeus anota en `.lynkeus-skill.json` y en `.claude/agents/.lynkeus-agents.json` qué archivos escribió; si cambiaste alguno, no pisa esa parte y te dice cuál. Con `--force` la reemplaza igual.
+
+Los clientes que no cargan skills tienen el mismo texto en la herramienta `guide`. Sin argumentos devuelve el índice. Con `topic` (`cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`) devuelve la lista de secciones de ese tema, una línea por sección. Con `topic` y `section` devuelve solo esa sección: `topic: "targets"`, `section: "headless"`. En una terminal, `npx lynkeus guide targets headless` muestra lo mismo.
+
+### Subagentes para el trabajo de rutina
+
+Buena parte de una sesión es mecánica: conectar la app, ver dónde pueden correr los casos, correr la suite, juntar la evidencia. Para eso `lynkeus init` deja, junto al skill, dos subagentes de Claude Code en `.claude/agents`:
+
+- `lynkeus-setup` llama a `status` y a `init`, compila la app y arranca Metro hasta que la app se conecta, y resume en pocas líneas dónde pueden correr los casos. Usa las herramientas de Lynkeus, Bash y Read.
+- `lynkeus-runner` corre casos o la suite en los destinos del proyecto y devuelve los totales y una línea por cada fallo. No toca casos ni código. Usa las herramientas de Lynkeus y Read.
+
+Los dos declaran `model: sonnet`, así que la rutina corre en un modelo más chico que el que escribe los casos. Pero el ahorro mayor está en el contexto: los logs de compilación, las pantallas y la salida de las corridas se quedan en el subagente, y la conversación principal recibe solo el resumen. Puedes cambiar el modelo o las herramientas en esos archivos; a partir de ahí Lynkeus no los toca.
+
+Las herramientas figuran como `mcp__lynkeus__*`, lo que supone que agregaste el servidor con el nombre `lynkeus`, como en el [paso 1](#1-conecta-el-servidor). Si usaste otro nombre, corrige la línea `tools` de los dos archivos.
+
+Las instrucciones del servidor dicen lo mismo a cualquier cliente: preparar el proyecto, revisar el estado, correr suites y juntar evidencia anda bien con un modelo más chico o con menos esfuerzo de razonamiento, y escribir o depurar casos rinde más con uno más capaz. Es una sugerencia; la decisión es tuya o del agente.
 
 ## Un ciclo completo: revisar un pull request
 
