@@ -14,6 +14,7 @@
   },
   "files": [
     "lib",
+    "skill",
     "src",
     "!**/__tests__"
   ],
