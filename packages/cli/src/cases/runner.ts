@@ -16,7 +16,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute, scopeWhy, unreachable, whyFor } from '../runtime.js';
-import { isRoute, parseTarget, scopedTarget } from '../targets.js';
+import { type Expected, isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
@@ -335,6 +335,22 @@ const presented = (screen: Screen): Element[] => screen.elements.filter((e) => !
 const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 // Letter case aside, as the agent matches a target: a text drawn in capitals (`textTransform`) reads in capitals, and
 // the words as the source writes them still find it.
+/** What a failed `app.see` looked for, as `why` reads it: a step that failed on its own reading of the screen names no target otherwise. */
+const soughtBy = (step: Step): Expected | undefined => {
+  if (step.verb !== 'app.see') return undefined;
+  const v = step.value;
+  const params = typeof v === 'string' ? { target: v } : v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  if (params.absent === true) return undefined;
+  const named = typeof params.target === 'string' ? parseTarget(params.target) : undefined;
+  const text = typeof params.text === 'string' ? params.text : named && 'text' in named ? named.text : undefined;
+  const testId = typeof params.testId === 'string' ? params.testId : named && 'testId' in named ? named.testId : undefined;
+  const sought: Expected = {
+    ...(text !== undefined ? { text } : {}),
+    ...(testId !== undefined ? { testId } : {}),
+  };
+  return Object.keys(sought).length ? sought : undefined;
+};
+
 const says = (e: Element, text: string) => textOf(e).toLowerCase().includes(text.toLowerCase());
 
 const MAX_SCROLLS_KEPT = 20;
@@ -537,6 +553,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   let requestsAfter: number | undefined;
   let markedByHand = false;
   let why: string | undefined;
+  let sought: Expected | undefined;
   const recorded: RunEvent[] = [];
   let buffer: AppEvent[] = [];
   // A host that records what each SDK was handed (fastsim, the headless host) already has every event. Asking the
@@ -1580,6 +1597,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         ended('unsupported');
         continue;
       }
+      if (!failed && !why) sought = soughtBy(step);
       failed = true;
       if (index < setupLength) setupFailed = true;
       const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
@@ -1691,7 +1709,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const away = unreachable(d?.server);
     // A step that failed on its own reading of the screen left no reasons; ask for them, about this case only.
     if (away) why = `  • ${d?.inBackground ? leftOutside(d.opened) : away}`;
-    else if (!why && d?.server.connected) why = (await whyFor(base, undefined, started, mark).catch(() => '')) || undefined;
+    else if (!why && d?.server.connected) why = (await whyFor(base, sought, started, mark).catch(() => '')) || undefined;
     if (d?.server.connected && !away) {
       const screen = await d.screen().catch(() => undefined);
       const events = await d.trace(mark).catch(() => undefined);

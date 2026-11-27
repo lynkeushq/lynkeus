@@ -3,6 +3,7 @@
  * evidence. The terminal, session lines, a recording's stdin, cases and the
  * MCP server all come through here.
  */
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -71,6 +72,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
     const away = unreachable(device.server);
     if (away) return `  • ${away}: nothing on its screen can be read`;
     const [screen, requests, trace] = await Promise.all([device.screen(), device.requests(), device.trace(since)]);
+    const sourceDiff = expected?.text ? uncommittedDiff(base.root) : undefined;
     const during = duringCommand(requests.requests, startedAt);
     const events = since === undefined ? fromStart(trace.events, startedAt, (e) => e.t) : trace.events;
     return describeWhy(
@@ -83,10 +85,26 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         trace: events.slice(-40),
         target: expected,
         fetchedBefore: during.length < requests.requests.length,
+        ...(sourceDiff ? { sourceDiff } : {}),
       }),
     );
   } catch {
     return '';
+  }
+};
+
+/** The app folder's uncommitted changes, staged or not, with no context lines; undefined outside a git checkout or when git is slow. */
+const uncommittedDiff = (root: string): string | undefined => {
+  try {
+    return execFileSync('git', ['diff', '-U0', '--no-color', '--no-ext-diff', '--relative', 'HEAD'], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 3000,
+      maxBuffer: 4 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    return undefined;
   }
 };
 

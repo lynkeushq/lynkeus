@@ -206,7 +206,7 @@ In a run, the case that leaves the app in the background is the one whose failur
 
 A text that looks like something else is read as that. `12` is an index, and to `wait` and `see` a capitalized word is a route.
 
-**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. Put a text that could be mistaken in quotes of its own, inside the shell's: `lynkeus press '"12"'`. Since 0.3.0 the quotes mean "this is a text"; before, they stayed in the text and matched nothing. Prefer a `testID` for anything a test presses.
+**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. After a case fails at an `app.see` of a text, the run's `why` does it for you: `"Community" is not on screen; "Meet the community" is (the text may have changed)`. When the app folder has uncommitted changes, a second line names the file and line that took the old text out and the line that replaced it, which is usually the translation or the copy someone just edited. Put a text that could be mistaken in quotes of its own, inside the shell's: `lynkeus press '"12"'`. Since 0.3.0 the quotes mean "this is a text"; before, they stayed in the text and matched nothing. Prefer a `testID` for anything a test presses.
 
 ### A wait times out on a screen that is clearly there
 
@@ -516,7 +516,8 @@ The errors it recognizes:
 | `… is in the tree but not presented` | The target belongs to a screen the app is not showing. | Close what is open, or target something inside it. |
 | `… is on the screen but covered` | A sheet or an overlay is over it. | Close it, or press what covers it. |
 | `… is on the screen but disabled` | A form is not valid yet, or a request it depends on is in flight. | Wait for what it depends on. |
-| `the text is not there, but "…" is` | A wording, accent or case difference. | Correct the text, or use a `testID`. |
+| `"…" is not on screen; "…" is (the text may have changed)` | A wording, accent or case difference, or the copy changed. A second line names the uncommitted change that took the text out, when there is one. | Correct the text, or use a `testID`. |
+| `"…" is not on screen; file:line changed it in the working tree` | An uncommitted change took the text out, and nothing close to it is on screen. | Check the change, then update the case or the app. |
 | `the list shows N near matches and yours is not among them` | The data has accumulated look-alikes and the list is capped. | Search by something unique, or reset the data. |
 | `the app was on X and moved to Y` | Something navigated after the step: a redirect, a gate, a modal. | Read the order in `lynkeus trace`. |
 | `N request(s) still in flight when the command gave up` | The screen had not finished loading. | Use a longer timeout, or wait for the request it needs. |

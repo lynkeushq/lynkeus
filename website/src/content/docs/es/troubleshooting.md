@@ -29,7 +29,8 @@ Cada línea de su respuesta corresponde a una regla. Esta tabla dice qué signif
 | `… is in the tree but not presented` | El elemento está montado, pero pertenece a una pantalla que la app no está mostrando. | Cierra lo que esté abierto encima, o apunta a algo dentro de eso. |
 | `… is on the screen but covered` | Hay una hoja o una capa sobre el elemento. | Ciérrala, o pulsa lo que lo tapa. |
 | `… is on the screen but disabled` | Un formulario todavía no es válido, o hay en curso una petición de la que el control depende. | Completa lo que falta, o espera la petición. |
-| `the text is not there, but "…" is` | El texto que buscas no está, pero hay uno parecido: difiere en la redacción, en un acento o en las mayúsculas. | Corrige el texto del objetivo, o usa un `testID`. |
+| `"…" is not on screen; "…" is (the text may have changed)` | El texto que buscas no está, pero hay uno parecido: difiere en la redacción, en un acento o en las mayúsculas, o alguien cambió el texto de la app. Si hay cambios sin commitear que lo quitaron, una segunda línea dice en qué archivo y línea. | Corrige el texto del objetivo, o usa un `testID`. |
+| `"…" is not on screen; file:line changed it in the working tree` | Un cambio sin commitear quitó ese texto y en pantalla no hay nada parecido. | Revisa el cambio y después actualiza el caso o la app. |
 | `the list shows N near matches and yours is not among them` | Los datos acumularon elementos parecidos y la lista está recortada. | Busca por algo único, o limpia los datos. |
 | `the app was on X and moved to Y` | La app llegó a la ruta que esperabas y después se fue: una redirección, una barrera, un modal. | Mira el orden en `lynkeus trace`. |
 | `N request(s) still in flight when the command gave up` | La pantalla no había terminado de cargar. | Dale más tiempo con `--timeout`, o espera la petición que necesita. |
@@ -204,6 +205,8 @@ En una corrida, el fallo lo carga el caso que dejó la app en segundo plano, y l
 ```bash
 npx lynkeus why '"Continuar"'
 ```
+
+Cuando un caso falla en un `app.see` de un texto, `why` lo hace solo y busca el texto más cercano en esa pantalla: `"Community" is not on screen; "Meet the community" is (the text may have changed)`. Si la carpeta de la app tiene cambios sin commitear, agrega una línea con el archivo y la línea que quitaron el texto viejo, que suele ser la traducción que alguien acaba de tocar.
 
 Si el texto cambia con el idioma o con el contenido, un `testID` es un objetivo más estable.
 

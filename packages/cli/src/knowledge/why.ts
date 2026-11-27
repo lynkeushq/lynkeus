@@ -20,6 +20,8 @@ export type Evidence = {
   target?: { testId?: string; text?: string; route?: string };
   /** Whether the app made any request before `requests` begins: `requests` may be only those of the failed command. */
   fetchedBefore?: boolean;
+  /** The app's uncommitted source changes as `git diff -U0` prints them, to find where a sought text was rewritten. */
+  sourceDiff?: string;
 };
 
 export type Finding = { rule: string; message: string };
@@ -42,10 +44,76 @@ const distance = (a: string, b: string): number => {
   }
   return prev[n]!;
 };
-const similar = (a: string, b: string): boolean => {
-  if (a.includes(b) || b.includes(a)) return true;
-  if (a.length > 200 || b.length > 200) return false;
-  return distance(a, b) <= Math.max(2, Math.floor(Math.max(a.length, b.length) * 0.25));
+const words = (t: string) => new Set(t.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+
+/**
+ * How close a text on screen is to the one sought, 0 when not close enough to name: a few edits away (a typo, an
+ * accent), one inside the other (a title that grew words), or sharing most of their words (a title reworded).
+ */
+const closeness = (a: string, b: string): number => {
+  const short = a.length <= b.length ? a : b;
+  const long = short === a ? b : a;
+  const edits = a.length > 200 || b.length > 200 ? Infinity : distance(a, b);
+  // Two edits turn most short words into others ("ok" into "book"): a short text gets one.
+  const allowed = long.length <= 4 ? 1 : Math.max(2, Math.floor(long.length * 0.25));
+  const byEdits = edits <= allowed ? 1 - edits / Math.max(long.length, 1) : 0;
+  const inside = short.length >= 3 && long.includes(short) ? 0.5 + short.length / long.length / 2 : 0;
+  const wa = words(a);
+  const wb = words(b);
+  const shared = [...wa].filter((w) => wb.has(w)).length;
+  const union = new Set([...wa, ...wb]).size;
+  const byWords = shared >= 2 && shared / union >= 0.5 ? shared / union : 0;
+  return Math.max(byEdits, inside, byWords);
+};
+
+/** The text on screen closest to the one sought, when one is close enough. */
+const closestText = (sought: string, texts: string[]): string | undefined => {
+  const want = fold(sought);
+  let best: { text: string; score: number } | undefined;
+  for (const t of new Set(texts)) {
+    if (t === sought) continue;
+    const score = closeness(fold(t), want);
+    if (score > 0 && (!best || score > best.score)) best = { text: t, score };
+  }
+  return best?.text;
+};
+
+const clip = (line: string) => {
+  const t = line.trim();
+  return t.length > 80 ? `${t.slice(0, 77)}…` : t;
+};
+
+/**
+ * Where a diff took a text out: the file and line it was on, and the line that replaced it. Read from `git diff -U0`,
+ * so each hunk's removed lines are followed by the lines put in their place.
+ */
+export const textChangeIn = (diff: string, text: string): { file: string; line: number; before: string; after?: string } | undefined => {
+  if (!text.trim()) return undefined;
+  let file = '';
+  let removed: string[] = [];
+  let added: string[] = [];
+  let at = 0;
+  const found = () => {
+    const i = removed.findIndex((l) => l.includes(text));
+    if (i < 0 || added.some((l) => l.includes(text))) return undefined;
+    const after = added[i] ?? added[0];
+    return { file, line: at + Math.min(i, Math.max(added.length - 1, 0)), before: clip(removed[i]!), ...(after !== undefined ? { after: clip(after) } : {}) };
+  };
+  for (const line of diff.split('\n')) {
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (line.startsWith('+++ ') || hunk || line.startsWith('diff --git')) {
+      const hit = found();
+      if (hit) return hit;
+      removed = [];
+      added = [];
+      if (line.startsWith('+++ ')) file = line.slice(4).replace(/^b\//, '');
+      if (hunk) at = Number(hunk[1]);
+      continue;
+    }
+    if (line.startsWith('-') && !line.startsWith('---')) removed.push(line.slice(1));
+    else if (line.startsWith('+')) added.push(line.slice(1));
+  }
+  return found();
 };
 
 const isTarget = (el: Element, { testId, text }: NonNullable<Evidence['target']>): boolean =>
@@ -141,12 +209,18 @@ export const explain = (e: Evidence): Finding[] => {
       });
     if (!sought && text) {
       const want = fold(text);
-      const near = els
-        .map((el) => el.text ?? el.accessibilityLabel)
-        .filter((t): t is string => !!t)
-        .find((t) => similar(fold(t), want));
-      if (near && near !== text)
-        out.push({ rule: 'near-match', message: `the text is not there, but ${JSON.stringify(near)} is: a wording, accent or case difference?` });
+      const near = closestText(
+        text,
+        els.map((el) => el.text ?? el.accessibilityLabel).filter((t): t is string => !!t),
+      );
+      const change = e.sourceDiff ? textChangeIn(e.sourceDiff, text) : undefined;
+      const where = change && `${change.file}:${change.line} changed it in the working tree: ${change.before}${change.after ? ` → ${change.after}` : ''}`;
+      if (near)
+        out.push({
+          rule: 'near-match',
+          message: `${JSON.stringify(text)} is not on screen; ${JSON.stringify(near)} is (the text may have changed)${where ? `\n    ${where}` : ''}`,
+        });
+      else if (where) out.push({ rule: 'text-changed', message: `${JSON.stringify(text)} is not on screen; ${where}` });
       const listed = els.filter((el) => el.testId && /-\d+-item$/.test(el.testId));
       const prefix = want.slice(0, 4);
       if (listed.length >= 10 && prefix && listed.filter((el) => fold(el.text ?? '').includes(prefix)).length >= listed.length / 2)
