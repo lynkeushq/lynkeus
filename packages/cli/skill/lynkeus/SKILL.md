@@ -31,6 +31,10 @@ Read a section when the task reaches it, not up front: each answers one question
 - determinism: [launch-facts](determinism/launch-facts.md) (seed, locale, zone, epoch), [randomness](determinism/randomness.md), [frames](determinism/frames.md)
 - troubleshooting: [press](troubleshooting/press.md), [system-view](troubleshooting/system-view.md), [background](troubleshooting/background.md), [text-match](troubleshooting/text-match.md), [port](troubleshooting/port.md), [native-values](troubleshooting/native-values.md), [headless-start](troubleshooting/headless-start.md), [shared-state](troubleshooting/shared-state.md)
 
+## Routine work on a cheaper model
+
+Setup, `status`, running suites and gathering evidence are routine and run well on a smaller, faster model or at lower effort; writing and debugging cases gains from a stronger one. Where subagents exist, hand the routine ones to `lynkeus-setup` (connect the app, report status) and `lynkeus-runner` (run cases, return a short summary): their long output stays out of your context. A suggestion: you and the person decide.
+
 ## Rules
 
 - Lynkeus never boots or closes a device. Shut down the Simulators and emulators you booted when you are done (`xcrun simctl shutdown <udid>`, `adb -s <serial> emu kill`), never one that was already running.

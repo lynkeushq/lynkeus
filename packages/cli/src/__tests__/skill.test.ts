@@ -174,6 +174,7 @@ test('guide answers a topic with its section list and a section alone, and refus
   assert.doesNotMatch(index, /^---|\]\([\w/-]+\.md\)/m);
   assert.match(index, /targets: `overview`/);
   assert.match(index, /not up front/);
+  assert.match(index, /`lynkeus-setup`.*`lynkeus-runner`/);
   const answer = (await guide.run(ctxFor(tmpApp(), {}))) as { text: string };
   assert.equal(answer.text, index);
   const one = (await guide.run({ ...ctxFor(tmpApp(), {}), args: ['cases', 'mocks'] })) as { text: string };
