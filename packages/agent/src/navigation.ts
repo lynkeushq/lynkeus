@@ -17,7 +17,7 @@ export type NavigationAdapter = {
   subscribe(listener: () => void): () => void;
 };
 
-type NavState = { index: number; routes: { name: string; state?: unknown }[] };
+type NavState = { index: number; routes: { name: string; state?: unknown }[]; routeNames?: string[] };
 
 export type ContainerRef = {
   isReady(): boolean;
@@ -45,6 +45,28 @@ const routePath = (state: NavState | undefined): string[] => {
   return path;
 };
 
+/**
+ * The screens every mounted navigator declares, focused or not; undefined when a navigator's state does not list them
+ * (a partial state, a router of its own), since then nothing can be said about a name.
+ */
+export const mountedRouteNames = (state: NavState | undefined): Set<string> | undefined => {
+  if (!state) return undefined;
+  const names = new Set<string>();
+  const stack = [state];
+  while (stack.length) {
+    const current = stack.pop()!;
+    if (!Array.isArray(current.routeNames)) return undefined;
+    for (const name of current.routeNames) names.add(name);
+    for (const route of current.routes) if (route.state) stack.push(route.state as NavState);
+  }
+  return names;
+};
+
+// React Navigation drops a navigate to a screen no mounted navigator declares (a dev warning, nothing else), which
+// would leave the caller waiting for a screen that never comes.
+const unreachable = (name: string, state: NavState | undefined): string =>
+  `No mounted navigator has a screen named ${name} (the root's: ${(state?.routeNames ?? []).join(', ')}). A screen in a navigator that is not open yet is reached through its parent: navigate to the parent route with { screen: '${name}' } in its params. Lynkeus's nav finds the parent itself once a run has seen the screen or the route graph is built (lynkeus map build).`;
+
 /** Adapter for a `NavigationContainer` ref from `@react-navigation/native`. */
 export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => {
   // An app resets its own stack (after login, say), so routes[0] stops being the
@@ -60,7 +82,11 @@ export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => 
     },
     currentRoute: () => (ref.isReady() ? ref.getCurrentRoute() : undefined),
     path: () => (ref.isReady() ? routePath(ref.getRootState()) : []),
-    navigate: (name, params) => (ref as unknown as { navigate: (n: string, p?: object) => void }).navigate(name, params),
+    navigate: (name, params) => {
+      const state = ref.isReady() ? ref.getRootState() : undefined;
+      if (mountedRouteNames(state)?.has(name) === false) throw new Error(unreachable(name, state));
+      (ref as unknown as { navigate: (n: string, p?: object) => void }).navigate(name, params);
+    },
     canGoBack: () => ref.isReady() && ref.canGoBack(),
     goBack: () => ref.goBack(),
     resetToRoot: () => {

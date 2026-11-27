@@ -497,6 +497,7 @@ const screen = await server.call('screen');
 | `port` | `8123` | El puerto donde escucha. |
 | `host` | `127.0.0.1` | La interfaz donde escucha. |
 | `token` | ninguno | Tiene que coincidir con el `token` de la app. |
+| `accepts` | cualquier app | Una función que recibe el `hello` de la app y decide si este servidor la maneja, por ejemplo `(hello) => hello.platform === 'android'`. Con ella, varios servidores de un mismo proceso pueden compartir un puerto: cada app va al servidor que la acepta o, si ninguno la acepta, al que no tiene `accepts`; si no queda ninguno, se la desconecta. Todos deben tener el mismo token. Así es como `case run --on ios,android` maneja a la vez la app del simulador de iOS y la del emulador. |
 
 | Método | Qué hace |
 |---|---|

@@ -220,7 +220,10 @@ resolves `undefined`. Each run and `lynkeus headless doctor` list those modules 
 Under jest a native property nothing answers reads as `undefined`: `NativeModules.RNFoo.isTablet` is undefined, a
 module that is not there is undefined, `TurboModuleRegistry.get` answers null and `getEnforcing` throws. On a device
 the property has a value, and Lynkeus FastSim answers it with a function, which reads as true: the two hosts guess in
-opposite ways, so the app can take another path than on a phone.
+opposite ways, so the app can take another path than on a phone. FastSim records whether the app called each such
+function: one it called was a method. One read and never called is a constant or a method the app only took a
+reference to, and `case run` reads the module's TurboModule spec (under `codegenConfig.jsSrcsDir`) to tell which: a
+method is not listed.
 
 `installDefaultMocks` therefore wraps `NativeModules` and records each property or module the app reads that is not
 there (once each; `then`, `toJSON` and the event emitter's probes are not reads). The `nativeValues` command returns

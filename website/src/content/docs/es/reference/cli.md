@@ -141,7 +141,9 @@ Salta directamente a una ruta. Es un atajo, no una acción de usuario: úsalo pa
 | Argumento | Qué es |
 |---|---|
 | `route` | El nombre de la ruta, por ejemplo `Settings.Main`. |
-| `params` | Opcional. Los parámetros de la ruta, en JSON. |
+| `params` | Opcional. Los parámetros de la ruta, en JSON. Con `{"screen":"Interna"}` abre una pantalla anidada de un navegador. |
+
+Una pantalla de un navegador anidado se puede pedir por su nombre solo: Lynkeus pasa por los navegadores que la contienen, que conoce por el camino en el que una ejecución la vio o por el grafo de rutas. La respuesta trae la pantalla a la que llegó en `route` y los navegadores por los que pasó en `via`.
 
 ```bash
 lynkeus nav Checkout.Confirm '{"id":"abc"}'
@@ -1030,7 +1032,7 @@ Opciones que deciden qué se ejecuta y cómo:
 
 | Opción | Qué hace |
 |---|---|
-| `--on <destinos>` | Corre los casos a la vez en cada destino: `simulator` (la app conectada en un simulador, un emulador o un teléfono), `fastsim` y `headless`, separados por comas, o `all`. Responde con una línea por caso y por destino. Un destino que esta máquina no tiene aparece con el motivo y no hace fallar la ejecución; un caso que falla en cualquier destino que corrió, sí. No se combina con `--host`, `--host-command`, `--keep-hosts` ni `--ports`. |
+| `--on <destinos>` | Corre los casos a la vez en cada destino: `ios` (la app en el simulador de iOS), `android` (la app en el emulador de Android o en un teléfono), `fastsim` y `headless`, separados por comas, o `all` para esos cuatro. Las apps de iOS y de Android corren en paralelo sobre el mismo puerto, cada una con su propia conexión. `simulator` (o `emulator`, o `device`) es la app de dispositivo que esté conectada, de cualquier plataforma. Responde con una línea por caso y por destino. Un destino que esta máquina no tiene aparece con el motivo y no hace fallar la ejecución; un caso que falla en cualquier destino que corrió, sí. No se combina con `--host`, `--host-command`, `--keep-hosts` ni `--ports`. |
 | `--bundle <dir>` | Con `--on fastsim`: la carpeta que hizo `fastsim-bundle`. Por defecto, el último bundle dentro de `.lynkeus`. |
 | `--host` | Arranca `headless start` para la ejecución y lo detiene al terminar. Si el host muere en medio de un caso, o su app deja de contestar, se arranca otro antes del caso siguiente (ver [Si el host se cae](#si-el-host-se-cae)). |
 | `--host-heap <percent>` | Con `--host` o `--keep-hosts`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |

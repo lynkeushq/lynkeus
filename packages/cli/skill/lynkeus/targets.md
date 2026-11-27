@@ -11,10 +11,10 @@
 ## Every target at once
 
 ```sh
-npx lynkeus case run cases/sign-out.md --on all      # or --on simulator,headless
+npx lynkeus case run cases/sign-out.md --on all      # or --on ios,android,headless
 ```
 
-One line per case per target. A target this machine lacks is named with why and fails nothing. `--on` starts its own hosts, so it refuses `--host`, `--host-command`, `--keep-hosts` and `--ports`; `--jobs` gives each target that many.
+One line per case per target. `ios` and `android` are the apps on the iOS Simulator and the Android emulator, run side by side (both dial the driver port; each gets its own connection); `simulator` is whichever device app is attached. A target this machine lacks is named with why and fails nothing. `--on` starts its own hosts, so it refuses `--host`, `--host-command`, `--keep-hosts` and `--ports`; `--jobs` gives each target that many.
 
 ## Headless
 

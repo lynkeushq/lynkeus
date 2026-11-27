@@ -79,6 +79,8 @@ Pop the current route
 
 Jump straight to a route (a teleport, not a user action)
 
+A screen inside a nested navigator is reached through its parents, which nav finds itself: from the path the screen had when a run last saw it, else from the route graph (`lynkeus map build`). `{ "screen": "Inner" }` in the params names the nested screen of a navigator route, as React Navigation takes it. The answer names the screen it lands on, and `via` the parents it went through.
+
 | Argument | |
 |---|---|
 | `route` | e.g. Settings.Main |
@@ -681,7 +683,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
-A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the attached Simulator or emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing.
+A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the app on the iOS Simulator, the app on the Android emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
 
 | Argument | |
 |---|---|
@@ -689,7 +691,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 
 | Flag | |
 |---|---|
-| `--on <targets>` | run the cases on each target at once: simulator (the attached Simulator or emulator), fastsim, headless, comma-separated, or all; a target this machine lacks is said, not failed |
+| `--on <targets>` | run the cases on each target at once: ios (the app on the iOS Simulator), android (the app on the Android emulator or phone), fastsim, headless, simulator (whichever device app is attached; emulator and device are the same), comma-separated, or all (ios, android, fastsim, headless); a target this machine lacks is said, not failed |
 | `--bundle <dir>` | with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus) |
 | `--host` | start `headless start` for the run (one per job with --jobs) and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |

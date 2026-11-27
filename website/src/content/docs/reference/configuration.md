@@ -283,7 +283,7 @@ Native mocks need a host whose app answers the `nativeMocks` command. Where it d
 
 A key can also name a constant instead of a method: `Module.name`, read as `NativeModules.Module.name`. Lynkeus FastSim and the headless host do not know every value a device gives its apps. A property nothing answers reads as `true` on Lynkeus FastSim (it answers with a function, which is truthy) and as `undefined` on headless, and either can send the app down the wrong path: a tablet layout, a skipped animation.
 
-After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed; one that was only read is almost always a constant.
+After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed. One the app read and never called is either a constant that read as `true` or a method the app only took a reference to (`setFocusTo: Native.setFocusTo`), which is fine. Lynkeus tells them apart by the module's TurboModule spec, found where codegen finds it (`codegenConfig.jsSrcsDir` in the library's `package.json`): a method there is not listed, and a constant there is listed as one. A property no spec covers is listed as possibly either, and its snippet is meant for a constant only, since a method given a value can no longer be called.
 
 | Key | Type | Meaning |
 |---|---|---|

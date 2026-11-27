@@ -288,6 +288,10 @@ Salta directamente a una ruta. Es un atajo para llegar adonde empieza el caso, n
 
 Después de saltar, espera a que la app esté en esa ruta y a que se aquiete.
 
+Para una pantalla que vive dentro de un navegador anidado alcanza con su nombre: `app.nav: DemoPodcastList`. React Navigation no llega a una pantalla de un navegador que todavía no está montado, así que Lynkeus entra por los padres (aquí, `Demo`). Los saca del camino en el que una ejecución vio esa pantalla por última vez o, si no la vio nunca, del grafo de rutas (`lynkeus map build`). Si no tiene ninguna de las dos fuentes, el agente avisa qué navegador falta en lugar de agotar el tiempo.
+
+También se puede nombrar la pantalla anidada a mano, con `params: { screen: DemoPodcastList }` sobre la ruta del navegador. En ese caso el paso espera a esa pantalla, la más interna, y no al navegador. Si lo que se nombra es el navegador mismo (`app.nav: Demo`), basta con que la pantalla enfocada quede adentro.
+
 ### `app.back`
 
 Vuelve a la pantalla anterior. No lleva valor.

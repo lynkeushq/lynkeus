@@ -156,12 +156,12 @@
     "now": "3d4fca09ffd26564"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator (simctl io recordVideo) and an emulator (adb shell screenrecord) too, not only on a host that films.",
-    "now": "131db73a657422c1"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator (simctl io recordVideo) and an emulator (adb shell screenrecord) too, not only on a host that films. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached.",
+    "now": "4dde475cc4b55e10"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case).",
-    "now": "31c701f30478172c"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case). Its description says a member read and never called that the library's TurboModule spec declares a method is left out of the native values notice. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached.",
+    "now": "5c9d94316c29b84f"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
@@ -382,5 +382,9 @@
   "detect/react-native with tsconfig/init": {
     "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
     "now": "886bc68881c1ff30"
+  },
+  "surface/help/nav": {
+    "why": "nav reaches a screen inside a nested navigator through its parents (from the path a run saw or the route graph), and its help says so, with the screen it lands on and via.",
+    "now": "a5c71b0e9b570f90"
   }
 }

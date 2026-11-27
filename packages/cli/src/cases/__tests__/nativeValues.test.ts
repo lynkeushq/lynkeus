@@ -58,7 +58,10 @@ test('a property read in several cases is listed once, and called when any case 
 test('FastSim says what read as true and gives a snippet to paste, leaving out what the app called', () => {
   const lines = describeNativeValues([fastsim('isTablet'), fastsim('addCard', { called: true })]);
   const text = lines.join('\n');
-  assert.match(text, /your app read RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; it read as true/);
+  assert.match(
+    text,
+    /your app read RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; it read as a function and was never called: a constant read as true/,
+  );
   assert.doesNotMatch(text, /addCard/);
   assert.match(text, /"nativeMocks": \{\s+"RNFoo\.isTablet": \{\s+"value": null/);
 });
@@ -131,4 +134,29 @@ test('a module the cases config declares absent is not listed as one the host do
   assert.match(text, /EXOther/);
   assert.match(text, /EXAndroidOnly/);
   assert.deepEqual(describeNativeValues([read('EXDevLauncher', 'ios')], { nativeMocks: { EXDevLauncher: { absent: true } } }), []);
+});
+
+test('a member read and never called that the spec declares a method is not a finding; a declared constant is', () => {
+  const specs = new Map([
+    [
+      'RNFoo',
+      new Map([
+        ['setFocusTo', 'method' as const],
+        ['isTablet', 'constant' as const],
+      ]),
+    ],
+  ]);
+  assert.deepEqual(describeNativeValues([fastsim('setFocusTo')], { specs }), []);
+  const text = describeNativeValues([fastsim('setFocusTo'), fastsim('isTablet')], { specs }).join('\n');
+  assert.doesNotMatch(text, /setFocusTo/);
+  assert.match(text, /RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; its spec declares it a constant, and it read as true/);
+  assert.doesNotMatch(text, /for a constant only/);
+});
+
+test('a member no spec covers is told as a constant or a reference, and its snippet is for a constant only', () => {
+  const text = describeNativeValues([fastsim('hasNotch')]).join('\n');
+  assert.match(text, /it read as a function and was never called: a constant read as true, or a method the app only took a reference to/);
+  assert.doesNotMatch(text, /a constant with a wrong value/);
+  assert.match(text, /for a constant only: a method given a value stops being callable/);
+  assert.match(text, /"RNFoo\.hasNotch": \{\s+"value": null/);
 });

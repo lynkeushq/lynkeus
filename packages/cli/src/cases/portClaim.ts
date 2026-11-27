@@ -12,27 +12,41 @@ const alive = (pid: number): boolean => {
   }
 };
 
-// The runs of this process by port, described: an MCP server or a session runs case_run calls side by side in one
-// process, so the pid in a claim file cannot tell them apart.
-const ours = new Map<number, string>();
+// The runs of this process by port (and by the apps of it they drive, when they share it), described: an MCP server or
+// a session runs case_run calls side by side in one process, so the pid in a claim file cannot tell them apart.
+const ours = new Map<string, string>();
+// How many runs of this process hold each port's claim file.
+const files = new Map<number, number>();
+
+const claimKey = (port: number, share?: string) => (share ? `${port}:${share}` : String(port));
 
 /**
  * A run lets go of its driver port between cases, and the app dials whichever driver is listening: two runs
  * on one port take turns at the app, and each reports steps the other drove. A run claims its ports for as
  * long as it lasts; what it answers is the release, or why another run holds one. `run` describes this run, for
- * the refusal another run of this process gets.
+ * the refusal another run of this process gets. `share` names the apps of the port this run drives when runs of this
+ * process share it (the iOS Simulator's app and the emulator's, each on its own connection): those of other apps do
+ * not keep it out, a run that drives any app there does.
  */
-export const claimPorts = (ports: number[], dir = os.tmpdir(), run = 'a case run'): { release: () => void } | { refused: string } => {
-  const busy = ports.find((port) => ours.has(port));
+export const claimPorts = (ports: number[], dir = os.tmpdir(), run = 'a case run', share?: string): { release: () => void } | { refused: string } => {
+  const holder = (port: number) =>
+    share ? (ours.get(claimKey(port)) ?? ours.get(claimKey(port, share))) : [...ours].find(([key]) => key === String(port) || key.startsWith(`${port}:`))?.[1];
+  const busy = ports.find((port) => holder(port) !== undefined);
   if (busy !== undefined)
     return {
-      refused: `port ${busy} is driving the app for another case run of this Lynkeus, still going: ${ours.get(busy)}. Wait for it (case status), or stop it (case stop; case_stop over MCP), then run again`,
+      refused: `port ${busy} is driving the app for another case run of this Lynkeus, still going: ${holder(busy)}. Wait for it (case status), or stop it (case stop; case_stop over MCP), then run again`,
     };
-  const held: string[] = [];
-  const mine: number[] = [];
+  const held: { port: number; file: string }[] = [];
+  const mine: string[] = [];
   const release = () => {
-    for (const port of mine.splice(0)) ours.delete(port);
-    for (const file of held) {
+    for (const key of mine.splice(0)) ours.delete(key);
+    for (const { port, file } of held.splice(0)) {
+      const users = (files.get(port) ?? 1) - 1;
+      if (users > 0) {
+        files.set(port, users);
+        continue;
+      }
+      files.delete(port);
       try {
         if (fs.readFileSync(file, 'utf8').trim() === String(process.pid)) fs.unlinkSync(file);
       } catch {
@@ -42,12 +56,21 @@ export const claimPorts = (ports: number[], dir = os.tmpdir(), run = 'a case run
   };
   for (const port of ports) {
     const file = path.join(dir, `lynkeus-port-${port}.pid`);
+    // Another run of this process sharing the port holds the file already.
+    if ((files.get(port) ?? 0) > 0) {
+      files.set(port, files.get(port)! + 1);
+      held.push({ port, file });
+      mine.push(claimKey(port, share));
+      ours.set(claimKey(port, share), run);
+      continue;
+    }
     for (;;) {
       try {
         fs.writeFileSync(file, String(process.pid), { flag: 'wx' });
-        held.push(file);
-        mine.push(port);
-        ours.set(port, run);
+        files.set(port, 1);
+        held.push({ port, file });
+        mine.push(claimKey(port, share));
+        ours.set(claimKey(port, share), run);
         break;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;

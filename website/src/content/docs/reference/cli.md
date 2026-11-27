@@ -184,7 +184,9 @@ Jumps straight to a route. This is a teleport, not something a user does: use it
 | Argument | Meaning |
 |---|---|
 | `route` | The route name, such as `Settings.Main`. |
-| `params` | Optional. The route's params, as JSON. |
+| `params` | Optional. The route's params, as JSON. `{"screen":"Inner"}` opens a nested screen of a navigator route. |
+
+A screen inside a nested navigator can be named on its own. Lynkeus goes through its parent navigators, which it knows from the path a run last saw the screen at or from the route graph. The answer gives the screen it lands on as `route`, and the parents it went through as `via`.
 
 ```bash
 lynkeus nav Checkout.Confirm '{"id":"abc"}'
@@ -1086,7 +1088,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--on <targets>` | | Run the cases on each of these targets at the same time: `simulator` (the attached Simulator, emulator or phone), `fastsim` and `headless`, separated by commas, or `all`. The answer is one line per case per target. A target this machine does not have is named with the reason and does not fail the run; a case that fails on any target that ran does. Cannot be combined with `--host`, `--host-command`, `--keep-hosts` or `--ports`. See [Every target at once](/guides/writing-cases/#every-target-at-once). |
+| `--on <targets>` | | Run the cases on each of these targets at the same time: `ios` (the app on the iOS Simulator), `android` (the app on the Android emulator or a phone), `fastsim` and `headless`, separated by commas, or `all` for those four. The iOS and Android apps run side by side on the same driver port, each on its own connection. `simulator` (also `emulator`, `device`) is whichever device app is attached. The answer is one line per case per target. A target this machine does not have is named with the reason and does not fail the run; a case that fails on any target that ran does. Cannot be combined with `--host`, `--host-command`, `--keep-hosts` or `--ports`. See [Every target at once](/guides/writing-cases/#every-target-at-once). |
 | `--bundle <dir>` | the last bundle under `.lynkeus` | With `--on fastsim`: the folder `fastsim-bundle` made. |
 | `--host` | | Start `lynkeus headless start` for the run and stop it afterwards. If the host dies during a case, or its app stops answering, it is started again before the next case. See [Hosts that die](#hosts-that-die). |
 | `--host-heap <percent>` | `60` | With `--host` or `--keep-hosts`: before each case, ask the host how full its heap is, and start it again when it is past this percent of its limit. |

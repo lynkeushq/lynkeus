@@ -15,9 +15,10 @@ import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } fro
 import type { Recording } from '../device/platform.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
+import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
-import { type Expected, isRoute, parseTarget, scopedTarget } from '../targets.js';
+import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
@@ -1165,9 +1166,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return undefined;
       }
       case 'nav': {
-        const route = typeof value === 'string' ? value : String(params?.route);
+        const route = leafOf(routeOf(typeof value === 'string' ? value : String(params?.route)), params?.params);
         await cli(argvFor(find('nav')!, value));
-        await d.waitFor({ route, timeoutMs: 8000 });
+        // A navigator's own name is reached once the focused screen is inside it; an agent from before 0.7.7 only
+        // compares the focused screen, so its timeout is checked against the path.
+        await d.waitFor({ route, timeoutMs: 8000 }).catch(async (error: unknown) => {
+          const path = (await d.screen().catch(() => undefined))?.path;
+          if (!path?.includes(route)) throw error;
+        });
         await d.idle({ quietMs: 300, timeoutMs: 8000 });
         return undefined;
       }

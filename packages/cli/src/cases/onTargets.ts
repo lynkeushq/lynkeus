@@ -1,21 +1,35 @@
 /**
- * `case run --on`: the same cases on several targets at once (the attached Simulator or emulator, Lynkeus FastSim,
- * the headless host), each run as `case run` runs on it alone, and answered with one line per case per target. A
- * target this machine cannot run on is said once, with why, and fails nothing.
+ * `case run --on`: the same cases on several targets at once (the app on the iOS Simulator, the app on the Android
+ * emulator, Lynkeus FastSim, the headless host), each run as `case run` runs on it alone, and answered with one line
+ * per case per target. A target this machine cannot run on is said once, with why, and fails nothing. `simulator` is
+ * whichever device's app is attached, as before there were two.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 
 import type { FlagValues } from '../args.js';
-import type { Ctx, Result } from '../registry.js';
+import type { Base, Ctx, Result } from '../registry.js';
 import type { ProgressEvent } from './progress.js';
 import { writeLastRun } from './progress.js';
 import type { CaseReport } from './runner.js';
 
-export const TARGETS = ['simulator', 'fastsim', 'headless'] as const;
+export const TARGETS = ['simulator', 'ios', 'android', 'fastsim', 'headless'] as const;
 export type TargetName = (typeof TARGETS)[number];
+/** The targets that drive an app on a Simulator, emulator or phone, which dials the driver's own port. */
+export const DEVICE_TARGETS: readonly TargetName[] = ['simulator', 'ios', 'android'];
+// `all` names each platform's device once: `simulator` would be one of them again.
+const ALL: readonly TargetName[] = ['ios', 'android', 'fastsim', 'headless'];
 
-const NAMES: Record<string, TargetName> = { simulator: 'simulator', emulator: 'simulator', device: 'simulator', fastsim: 'fastsim', headless: 'headless' };
+const NAMES: Record<string, TargetName> = {
+  simulator: 'simulator',
+  emulator: 'simulator',
+  device: 'simulator',
+  ios: 'ios',
+  android: 'android',
+  fastsim: 'fastsim',
+  headless: 'headless',
+};
+const NAMED = 'ios, android, fastsim, headless, simulator (the attached app on either platform; emulator and device stand for it)';
 
 /** The targets `--on` names, in the order the answer lists them; a sentence when one is not a target. */
 export const parseTargets = (value: string): TargetName[] | string => {
@@ -25,11 +39,11 @@ export const parseTargets = (value: string): TargetName[] | string => {
     .filter(Boolean);
   const picked = new Set<TargetName>();
   for (const word of words) {
-    if (word === 'all') for (const t of TARGETS) picked.add(t);
+    if (word === 'all') for (const t of ALL) picked.add(t);
     else if (NAMES[word]) picked.add(NAMES[word]);
-    else return `--on ${word}: not a target. Name ${TARGETS.join(', ')} (emulator and device stand for simulator), comma-separated, or all`;
+    else return `--on ${word}: not a target. Name ${NAMED}, comma-separated, or all`;
   }
-  if (picked.size === 0) return `--on: name ${TARGETS.join(', ')}, comma-separated, or all`;
+  if (picked.size === 0) return `--on: name ${NAMED}, comma-separated, or all`;
   return TARGETS.filter((t) => picked.has(t));
 };
 
@@ -37,8 +51,11 @@ export type SuiteReport = CaseReport & { retried?: boolean };
 /** What one target's run answers: `reports` is missing when it could not start (its `text` says why). */
 export type SuiteResult = Result & { reports?: SuiteReport[]; notes?: string[] };
 
-/** How a target runs here: the flags its run takes over the caller's, or why it cannot. `label` is how the answer names it. */
-export type TargetPlan = { flags: FlagValues; jobs: number; label?: string } | { unavailable: string };
+/**
+ * How a target runs here: the flags its run takes over the caller's, or why it cannot. `label` is how the answer names
+ * it; `base`, the connection its run drives instead of the caller's, stopped with `stop` when the run ends.
+ */
+export type TargetPlan = { flags: FlagValues; jobs: number; label?: string; base?: Base; stop?: () => Promise<void> } | { unavailable: string };
 
 export type OnTargetsOptions = {
   targets: TargetName[];
@@ -79,6 +96,9 @@ const indent = (text: string, by: string) =>
     .map((l) => `${by}${l}`)
     .join('\n');
 
+const stopPlans = (planned: { plan: TargetPlan }[]) =>
+  Promise.all(planned.map(({ plan }) => ('stop' in plan && plan.stop ? plan.stop().catch(() => undefined) : undefined)));
+
 export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Result> => {
   const startedAt = Date.now();
   const planned = await Promise.all(
@@ -92,11 +112,14 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
   // Each target's jobs get their own numbers in the events, after the targets before it.
   const lanes = planned.flatMap(({ target, plan }) => {
     if ('unavailable' in plan) return [];
-    const lane = { target, label: plan.label ?? target, flags: plan.flags, jobs: plan.jobs, offset };
+    const lane = { target, label: plan.label ?? target, flags: plan.flags, jobs: plan.jobs, offset, base: plan.base };
     offset += plan.jobs;
     return [lane];
   });
-  if (lanes.length === 0) return { text: [...missing, 'no target could run the cases'].join('\n'), code: 1 };
+  if (lanes.length === 0) {
+    await stopPlans(planned);
+    return { text: [...missing, 'no target could run the cases'].join('\n'), code: 1 };
+  }
 
   const halt = new AbortController();
   const stopAll = (why: string) => {
@@ -141,6 +164,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
       lanes.map(async (lane) => {
         const sub: Ctx = {
           ...ctx,
+          ...(lane.base ? { device: lane.base.device, forPort: lane.base.forPort, forApp: lane.base.forApp, shares: lane.base.shares } : {}),
           flags: { ...ctx.flags, on: undefined, bundle: undefined, progress: 'none', ...lane.flags },
           err: (line) => ctx.err(indent(line, `${lane.label}: `)),
           // A target's own start and end are not the run's: the run starts and ends once, for all of them.
@@ -158,6 +182,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
   } finally {
     if (watching) clearInterval(watching);
     ctx.signal?.removeEventListener('abort', cancelled);
+    await stopPlans(planned);
   }
 
   const width = Math.max(...lanes.map((l) => l.label.length));

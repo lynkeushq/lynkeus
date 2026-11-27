@@ -20,6 +20,7 @@ import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { caseVersion, Flakes } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
 import { SEEN_DIR } from '../cases/coverage.js';
+import { readNativeSpecs } from '../cases/nativeSpecs.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -29,7 +30,7 @@ import { androidDevices, bootedSimulators } from '../device/devices.js';
 import { onPhone } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import type { FlagValues } from '../args.js';
-import { parseTargets, runOnTargets, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
+import { DEVICE_TARGETS, parseTargets, runOnTargets, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
 import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
@@ -46,13 +47,24 @@ let started = 0;
 
 const QUICK_ATTACH_MS = 3000;
 
-/** Why the simulator target cannot be there, decided without waiting for an app: no Simulator or emulator is up. */
-const phoneProbe = async (ctx: Ctx): Promise<string | undefined> => {
+/** What the device targets ask the OS for; tests stand in for the Simulators and emulators of the machine. */
+export const deviceProbes = { ios: bootedSimulators, android: androidDevices };
+
+/** Why a device target cannot be there, decided without waiting for an app: no Simulator or emulator (of the platform asked for) is up. */
+const phoneProbe = async (ctx: Ctx, platform?: 'ios' | 'android'): Promise<string | undefined> => {
   if (ctx.flags.launch) return undefined;
-  const [ios, android] = await Promise.all([bootedSimulators().catch(() => null), androidDevices().catch(() => null)]);
+  const [ios, android] = await Promise.all([
+    platform === 'android' ? [] : deviceProbes.ios().catch(() => null),
+    platform === 'ios' ? [] : deviceProbes.android().catch(() => null),
+  ]);
   // A probe that failed is not proof of nothing running.
   if (!ios || !android) return undefined;
-  return ios.length + android.length === 0 ? 'no Simulator or emulator is running' : undefined;
+  if (ios.length + android.length > 0) return undefined;
+  return platform === 'ios'
+    ? 'no iOS Simulator is booted'
+    : platform === 'android'
+      ? 'no Android emulator or phone is up (adb devices lists none)'
+      : 'no Simulator or emulator is running';
 };
 
 export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
@@ -577,7 +589,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const runLabel = `${cases.length === 1 ? cases[0]!.id : `${cases.length} cases (${cases[0]?.id ?? 'none'}…)`}, started ${new Date().toLocaleTimeString()}${out ? `, out ${out.directory}` : ''}`;
   const claimed = dry
     ? undefined
-    : claimPorts(runPorts ? runPorts.filter(Number.isInteger).slice(0, jobsAsked) : [portFromEnv(ctx.config) ?? DEFAULT_PORT], undefined, runLabel);
+    : claimPorts(runPorts ? runPorts.filter(Number.isInteger).slice(0, jobsAsked) : [portFromEnv(ctx.config) ?? DEFAULT_PORT], undefined, runLabel, ctx.shares);
   if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
   // Another process's driver on a host's port (a `lynkeus mcp` server on 8123) would take that host's app: the
   // run would wait on an app that never reaches it.
@@ -1086,6 +1098,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     ...(uploaded?.url ? { report: uploaded.url } : {}),
     ...(stoppedBy ? { stopped: stoppedBy } : {}),
   });
+  const nativeReads = mergeNativeValues(reports.map((r) => r.nativeValues));
   const notes = [
     ...(fatal
       ? [`✖ the run could not go on after ${reports.length} of ${cases.length} cases: ${fatal}`]
@@ -1109,9 +1122,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       : []),
     ...onceUnlessVerbose(
       `native values the ${as.target ? `${as.target} ` : ''}host did not answer`,
-      describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), {
+      describeNativeValues(nativeReads, {
         entry: headlessEntryOf(ctx.root, ctx.config),
         nativeMocks: ctx.config.cases?.nativeMocks,
+        specs: readNativeSpecs(ctx.root, new Set(nativeReads.filter((r) => r.readAs === 'function' && !r.called).map((r) => r.module))),
       }),
       verbose,
     ),
@@ -1205,7 +1219,7 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
   const cases = files.flatMap(readCases);
   const port = portFromEnv(ctx.config) ?? DEFAULT_PORT;
   const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
-  const hostTargets: TargetName[] = targets.filter((t) => t !== 'simulator');
+  const hostTargets: TargetName[] = targets.filter((t) => !DEVICE_TARGETS.includes(t));
   // Picked together, so two targets starting side by side cannot pick the same free port.
   const hostPorts = hostTargets.length > 0 ? await freePorts(jobs * hostTargets.length, port) : [];
   const portsOf = (t: TargetName) => hostPorts.slice(hostTargets.indexOf(t) * jobs, (hostTargets.indexOf(t) + 1) * jobs);
@@ -1224,34 +1238,51 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
     if (ports.length < jobs) return { unavailable: `no ${jobs} free driver port(s) past ${port}` };
     return { flags: { ...own(t), 'host-command': command, 'keep-hosts': true, ports: ports.join(','), jobs }, jobs };
   };
+  // `ios` and `android` each attach their own platform's app on the same port, side by side (the driver hands each app
+  // to the connection that takes its platform); `simulator` takes whichever app is attached.
+  const onDevice = async (t: TargetName): Promise<TargetPlan> => {
+    const platform = t === 'ios' || t === 'android' ? t : undefined;
+    const probe = await phoneProbe(ctx, platform);
+    if (probe) return { unavailable: probe };
+    const where = platform === 'ios' ? 'the iOS Simulator' : platform === 'android' ? 'the Android emulator or phone' : 'a booted Simulator or emulator';
+    const scoped = platform ? ctx.forApp?.((hello) => hello.platform === platform && onPhone({ hello }), platform) : undefined;
+    if (platform && !scoped)
+      return { unavailable: `cannot attach the ${platform} app on a connection of its own here: run --on ${platform} from the CLI or the MCP server` };
+    const base = scoped?.base ?? ctx;
+    const unavailable = async (why: string): Promise<TargetPlan> => {
+      await scoped?.stop().catch(() => undefined);
+      return { unavailable: why };
+    };
+    const asking = base.device().catch((error: unknown) => (error as Error).message.split('\n')[0] ?? 'no app');
+    // Something is running, but a development build already open dials in within a second or two: waiting the
+    // whole attach timeout is for an app being launched.
+    const patient =
+      ctx.flags.launch ||
+      ctx.flags['attach-timeout'] !== undefined ||
+      process.env.LYNKEUS_ATTACH_TIMEOUT_MS !== undefined ||
+      ctx.config.attachTimeout !== undefined;
+    const device = patient
+      ? await asking
+      : await Promise.race([
+          asking,
+          new Promise<string>((resolve) => setTimeout(() => resolve(`none within ${QUICK_ATTACH_MS / 1000} s`), QUICK_ATTACH_MS).unref()),
+        ]);
+    if (typeof device === 'string') return unavailable(`no app attached from ${where} on port ${port} (${device}): open the development build there`);
+    const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
+    if (!hello) return unavailable(`the app on port ${port} is gone: open the development build on ${where} again`);
+    if (!onPhone({ hello }))
+      return unavailable(
+        `the app on port ${port} runs on ${hello.app?.runtime === 'headless' ? 'the headless host' : 'a host (FastSim)'}, not on a Simulator or emulator`,
+      );
+    return {
+      flags: { ...own(t), jobs: 1 },
+      jobs: 1,
+      label: platform ?? (hello.platform === 'android' ? 'emulator' : 'simulator'),
+      ...(scoped ? { base: scoped.base, stop: scoped.stop } : {}),
+    };
+  };
   const plan = async (t: TargetName): Promise<TargetPlan> => {
-    if (t === 'simulator') {
-      const probe = await phoneProbe(ctx);
-      if (probe) return { unavailable: probe };
-      const asking = ctx.device().catch((error: unknown) => (error as Error).message.split('\n')[0] ?? 'no app');
-      // Something is running, but a development build already open dials in within a second or two: waiting the
-      // whole attach timeout is for an app being launched.
-      const patient =
-        ctx.flags.launch ||
-        ctx.flags['attach-timeout'] !== undefined ||
-        process.env.LYNKEUS_ATTACH_TIMEOUT_MS !== undefined ||
-        ctx.config.attachTimeout !== undefined;
-      const device = patient
-        ? await asking
-        : await Promise.race([
-            asking,
-            new Promise<string>((resolve) => setTimeout(() => resolve(`none within ${QUICK_ATTACH_MS / 1000} s`), QUICK_ATTACH_MS).unref()),
-          ]);
-      if (typeof device === 'string')
-        return { unavailable: `no app attached on port ${port} (${device}): open the development build on a booted Simulator or emulator` };
-      const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
-      if (!hello) return { unavailable: `the app on port ${port} is gone: open the development build on a booted Simulator or emulator again` };
-      if (!onPhone({ hello }))
-        return {
-          unavailable: `the app on port ${port} runs on ${hello.app?.runtime === 'headless' ? 'the headless host' : 'a host (FastSim)'}, not on a Simulator or emulator`,
-        };
-      return { flags: { ...own(t), jobs: 1 }, jobs: 1, label: hello.platform === 'android' ? 'emulator' : 'simulator' };
-    }
+    if (DEVICE_TARGETS.includes(t)) return onDevice(t);
     if (t === 'headless') {
       const check = (await runtimeAt(ctx.root)).headlessCheck(ctx.root, headlessEntryOf(ctx.root, ctx.config));
       if (!check.ok) return { unavailable: `not set up${check.fix ? `: ${check.fix}` : ''}` };
@@ -1285,12 +1316,12 @@ export const caseCommands = [
     group: 'runs',
     summary: 'Run cases: setup through fixtures, steps against the app, the evidence when one fails',
     details:
-      'A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the attached Simulator or emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing.',
+      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the app on the iOS Simulator, the app on the Android emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       on: {
         type: 'string',
-        help: 'run the cases on each target at once: simulator (the attached Simulator or emulator), fastsim, headless, comma-separated, or all; a target this machine lacks is said, not failed',
+        help: 'run the cases on each target at once: ios (the app on the iOS Simulator), android (the app on the Android emulator or phone), fastsim, headless, simulator (whichever device app is attached; emulator and device are the same), comma-separated, or all (ios, android, fastsim, headless); a target this machine lacks is said, not failed',
         value: 'targets',
       },
       bundle: { type: 'string', help: 'with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus)', value: 'dir' },
@@ -1424,7 +1455,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the app on the iOS Simulator and the app on the Android emulator side by side, FastSim, headless; `simulator` is whichever device app is attached) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

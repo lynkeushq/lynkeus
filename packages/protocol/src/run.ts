@@ -146,7 +146,8 @@ export type RunLaunch = {
 /**
  * A native property the app read that its host could not answer, so the host's own default stood in: Lynkeus FastSim
  * (`host: 'fastsim'`) answers with a function, which reads as true, and headless with undefined. `called` says whether
- * the app ever called that function: one read and never called is a constant with a wrong value. A read of a whole
+ * the app ever called that function: one read and never called is a constant with a wrong value, or a method the app
+ * only took a reference to (the CLI tells them apart by the module's TurboModule spec, when it finds one). A read of a whole
  * module that does not exist has no `property`. The cases config's `nativeMocks` sets it.
  *
  * `readAs: 'empty'` is a whole module headless's fallback answered, because the library that needs it has no mock:

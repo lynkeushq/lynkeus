@@ -309,7 +309,11 @@ Jumps straight to a route, then waits for the route and for the app to settle. T
 | Parameter | Type | Meaning |
 |---|---|---|
 | `route` | string | The route name. A plain string value is the route. |
-| `params` | object | Optional. The route's params. |
+| `params` | object | Optional. The route's params. `{ screen: Inner }` opens a nested screen of a navigator route, as React Navigation takes it. |
+
+A screen that lives inside a nested navigator (a tab of a tab navigator, say) can be named on its own: `app.nav: DemoPodcastList`. React Navigation cannot reach a screen of a navigator that is not mounted yet, so Lynkeus goes through its parents, `Demo` here. It knows them from the path a run last saw the screen at, and otherwise from the route graph (`lynkeus map build`). When it knows neither, the agent says which navigator is missing instead of timing out.
+
+The step waits for the screen it lands on: the innermost `screen` in the params, or the route itself. A navigator's own name, such as `app.nav: Demo`, counts as reached as soon as the focused screen is inside it.
 
 ### `app.back`
 
