@@ -414,7 +414,7 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; 
       ? [
           asked.ownHost
             ? '⚠ --video kept no film: the host this run started does not film. Lynkeus FastSim films when its bundle has the host’s controls (lynkeus-agent 0.7.6 or newer, bundled again with a current fastsim-bundle); headless keeps nothing.'
-            : '⚠ --video kept no film: this host does not film (Lynkeus FastSim does; a simulator, an emulator or headless keep frames only).',
+            : '⚠ --video kept no film: the app’s host does not film and neither `xcrun simctl io recordVideo` (a Simulator) nor `adb shell screenrecord` (an emulator or phone) gave one. Headless keeps nothing.',
         ]
       : []),
   ];
@@ -1247,7 +1247,7 @@ export const caseCommands = [
         default: 'avif',
         value: 'avif|png',
       },
-      video: { type: 'boolean', help: 'with --out: film each case, where the host films (the step says at what second it began)' },
+      video: { type: 'boolean', help: 'with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began' },
       traces: {
         type: 'boolean',
         help: 'listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port>',

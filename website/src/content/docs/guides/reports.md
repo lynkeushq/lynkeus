@@ -267,7 +267,7 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no screenshots.** The host takes none. The headless host renders nothing to capture; use a simulator or an emulator for runs that need pictures.
 
-**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
+**The run has no video.** A case is filmed by a host that offers a `record` command (run `npx lynkeus hello` and look for `record` among its `commands`), as Lynkeus FastSim does. On a Simulator it is filmed with `xcrun simctl io recordVideo`. On an emulator or Android phone it is filmed with `adb shell screenrecord`, which stops after 3 minutes. The built-in headless host draws nothing, so a run there keeps no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
 
 ## Next steps
 

@@ -1122,3 +1122,34 @@ test('a text check finds a text drawn in capitals by the words the source writes
     ['passed', 'failed'],
   );
 });
+
+test('on a simulator or emulator a case asked to film is filmed by the OS, and each app step says its second in the film', async () => {
+  const { base } = fakeApp();
+  const device = (await base.device()) as unknown as { server: { hello?: unknown }; recordVideo?: (file: string) => Promise<unknown> };
+  device.server.hello = { native: true, commands: [] };
+  const filmed: string[] = [];
+  let stopped = false;
+  device.recordVideo = async (file: string) => {
+    filmed.push(file);
+    return {
+      file,
+      startedAt: Date.now() - 1500,
+      stop: async () => {
+        stopped = true;
+        fs.writeFileSync(file, 'film');
+        return true;
+      },
+    };
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } } });
+  assert.deepEqual(filmed, [path.join(dir, 'video.mp4')]);
+  assert.ok(stopped);
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.ok((report.steps[0]!.videoS ?? 0) >= 1.5, `step began at ${report.steps[0]!.videoS}`);
+  // A run that started its own host never films whatever Simulator happens to be booted.
+  filmed.length = 0;
+  await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
+  assert.deepEqual(filmed, []);
+});

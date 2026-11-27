@@ -197,7 +197,7 @@ Store the organization's API key as a secret and add `--push`:
 
 The report is made when the run starts and fills case by case, so its link works from the first case: the step prints it right away, and you can open it while the suite is still running. A send that fails along the way is tried again at the end. At the end the step prints the link again, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
 
-On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
+On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case: on a Simulator with `xcrun simctl io recordVideo`, on an emulator with `adb shell screenrecord` (3 minutes at most), and on a host that offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so a run there has no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
 
 ### Comment on the pull request
 

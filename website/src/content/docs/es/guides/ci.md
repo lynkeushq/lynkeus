@@ -231,7 +231,7 @@ Con la app instalada, el comando cambia poco:
 npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --push
 ```
 
-`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` filma solo donde el host ofrece un comando `record`, y una sesión de simulador o de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
+`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` también filma cada caso: en un simulador con `xcrun simctl io recordVideo` y en un emulador con `adb shell screenrecord`, que se corta a los 3 minutos.
 
 ## Cómo funciona
 

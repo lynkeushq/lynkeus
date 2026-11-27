@@ -93,6 +93,9 @@ const phoneApp = (options: { opensWith: 'url' | 'appstate'; comesBack?: boolean 
       }, 5);
     },
     screenshot: async () => undefined,
+    recordVideo: async () => {
+      throw new Error('not filmed here');
+    },
     freezeChrome: async () => undefined,
   };
   const device = new Device({ id: 'sim-1', name: 'iPhone', platform: 'ios', type: 'simulator', connected: true } as never, {

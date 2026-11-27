@@ -377,11 +377,11 @@ give_points is not a step Lynkeus has, and the project declares no fixtures (cas
 
 ### `--video kept no film`
 
-**What you see.** The run ends with `⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).`
+**What you see.** The run ends with `⚠ --video kept no film: the app’s host does not film and neither xcrun simctl io recordVideo (a Simulator) nor adb shell screenrecord (an emulator or phone) gave one. Headless keeps nothing.`
 
-**Why.** A case is filmed only where the host offers a `record` command, which it names in `hello`.
+**Why.** A host that films offers a `record` command, which it names in `hello`. Lynkeus FastSim does. On a Simulator the case is filmed with `xcrun simctl io <udid> recordVideo`, and on an emulator or Android phone with `adb shell screenrecord`, pulled at the end of the case. The headless host draws nothing, and a run that starts its own hosts (`--host`, `--host-command`) never films whatever Simulator happens to be booted.
 
-**Fix.** Nothing failed. Use a host that films, such as Lynkeus FastSim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
+**Fix.** Nothing failed. Check that `xcrun` or `adb` is on your `PATH` and that the Simulator or emulator is the one the app is attached to. `screenrecord` stops by itself after 3 minutes, so a longer case keeps only its first 3 minutes. The Simulator writes a frame only when the screen changes, so a film ends at the last change.
 
 ### A case fails and its evidence shows `(mocked)` on a request
 

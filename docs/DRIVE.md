@@ -323,9 +323,13 @@ and a histogram of where it died and with what.
   emulator's is. An iPhone is not supported: simctl drives only simulators, so
   iOS needs a booted simulator.
 - **Film**: `case run --video` films a case where the host offers a `record`
-  command, which it names in `hello`. The built-in headless host draws
-  nothing and a simulator or emulator session offers none, so there a run
-  keeps its screenshots and no film.
+  command, which it names in `hello` (Lynkeus FastSim). On a Simulator the OS
+  films it (`xcrun simctl io <udid> recordVideo`, stopped with SIGINT so the
+  file is finished); on an emulator or Android phone `adb shell screenrecord`
+  films on the device (3 minutes at most) and the file is pulled when the case
+  ends. Each step's `videoS` counts from the recorder's first frame. The
+  built-in headless host draws nothing, and a run that starts its own hosts
+  never films whatever Simulator is booted.
 
 ### Security posture
 

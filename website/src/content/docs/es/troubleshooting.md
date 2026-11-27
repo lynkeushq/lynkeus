@@ -428,11 +428,11 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 ### Una ejecución con `--video` no tiene película
 
-**Qué ves.** `⚠ --video kept no film: this host does not film …`, o un reporte sin película.
+**Qué ves.** `⚠ --video kept no film: the app’s host does not film …`, o un reporte sin película.
 
-**Por qué pasa.** `--video` filma solo donde el host ofrece un comando `record`, y el host sin pantalla incluido, un simulador y un emulador no lo ofrecen. Si el host que filma está en otra máquina, la película se hace allá y el CLI la trae en trozos al terminar cada caso; si no llega, el caso no falla, y la película queda fuera.
+**Por qué pasa.** Un host que filma lo dice al presentarse con un comando `record`, como hace Lynkeus FastSim. En un simulador de iOS, Lynkeus filma con `xcrun simctl io <udid> recordVideo`. En un emulador o un teléfono Android usa `adb shell screenrecord` y se trae el archivo al terminar el caso. El host sin pantalla no dibuja nada, así que no hay qué filmar. Una ejecución que arranca sus propios hosts (`--host`, `--host-command`) tampoco filma el simulador que esté encendido, porque no es donde corre la app. Si el host que filma está en otra máquina, la película se hace allá y el CLI la trae en trozos al terminar cada caso. En ningún caso la falta de película hace fallar el caso: simplemente queda fuera.
 
-**Cómo se arregla.** Usa un host que filme. Con la película en un host remoto, confirma que el host sigue conectado hasta que termina el caso.
+**Cómo se arregla.** Revisa que `xcrun` o `adb` estén en el `PATH` y que el simulador o el emulador sea el mismo al que está conectada la app. Ten en cuenta dos límites. `screenrecord` se corta solo a los 3 minutos. Y el simulador solo graba un cuadro cuando la pantalla cambia, así que la película termina en el último cambio. Con un host remoto, confirma que sigue conectado hasta que termina el caso.
 
 ### `not kept on this plan: …`
 

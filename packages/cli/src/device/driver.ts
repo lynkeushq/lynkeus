@@ -11,7 +11,7 @@ import { withoutHost } from '../knowledge/problems.js';
 import { viaOf, type Walk } from '../knowledge/walk.js';
 import { onPhone } from '../runtime.js';
 import type { DeviceInfo } from './devices.js';
-import { lifecycleFor, type PlatformLifecycle } from './platform.js';
+import { lifecycleFor, type PlatformLifecycle, type Recording } from './platform.js';
 
 // The OS brings an app back to the front in well under a second; a suspended one may take a few to answer again.
 const FOREGROUND_MS = 8000;
@@ -174,6 +174,11 @@ export class Device {
       return;
     }
     await this.#lifecycle.screenshot((await this.resolved()).id, destination);
+  }
+
+  /** Films the simulator or emulator the app is on, through its OS; a host films with its own `record` command instead. */
+  async recordVideo(destination: string): Promise<Recording> {
+    return this.#lifecycle.recordVideo((await this.resolved()).id, destination);
   }
 
   async screen(): Promise<Screen> {

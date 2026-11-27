@@ -41,7 +41,7 @@ Hay tres opciones de evidencia, y las tres necesitan `--out`:
 
 La película de cada caso queda como `video.mp4` en la carpeta del caso. Cada tipo de evidencia se toma solo donde el host puede. El host sin pantalla que incluye Lynkeus no dibuja nada que capturar, así que ahí no habrá imágenes; en un simulador o un emulador sí.
 
-La película depende de otra cosa: de que el host ofrezca un comando llamado `record`, que nombra al presentarse (lo lista `lynkeus hello`). El host sin pantalla que incluye Lynkeus no lo ofrece, y una sesión de simulador o de emulador tampoco. En esos hosts, una ejecución con `--video` conserva sus capturas y no tiene película, y al terminar la ejecución lo avisa: `⚠ --video kept no film: this host does not film …`.
+La película se hace donde se pueda. Un host que filma por su cuenta lo dice al presentarse con un comando llamado `record` (lo lista `lynkeus hello`); Lynkeus FastSim es uno. En un simulador de iOS filma el sistema, con `xcrun simctl io recordVideo`. En un emulador o un teléfono Android filma `adb shell screenrecord`, que se corta a los 3 minutos, y el CLI se trae el archivo al terminar el caso. Cada paso anota en qué segundo de la película empezó. El host sin pantalla que incluye Lynkeus no dibuja nada: ahí una ejecución con `--video` no tiene película, y al terminar lo avisa con `⚠ --video kept no film: …`.
 
 Si el host que filma está en otra máquina (Lynkeus FastSim en una VM de Linux o en un servidor), la película se hace allá, en una ruta que no existe en la tuya. Al terminar el caso, el CLI le pide al host cuánto pesa la película y se la trae en trozos al directorio de la ejecución, de modo que el reporte la tiene. Si la película no llega, el caso no falla: simplemente queda fuera del reporte.
 

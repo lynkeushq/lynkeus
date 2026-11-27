@@ -12,10 +12,11 @@ import { promisify } from 'node:util';
 import type { Element, RequestRecord, RunEdges, RunLooked, RunNativeValue, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
 
 import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } from '../device/driver.js';
+import type { Recording } from '../device/platform.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import { execute, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
 import { type Expected, isRoute, parseTarget, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -1174,6 +1175,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
   let filming = false;
+  // A simulator or emulator the app runs on, as against a host that films itself: its OS films it (simctl, screenrecord).
+  let osFilm: Recording | undefined;
+  if (evidence?.video && !film && !options.ownHost) {
+    const d = await device().catch(() => undefined);
+    if (d && onPhone(d.server)) osFilm = await d.recordVideo(path.join(evidence.dir, 'video.mp4')).catch(() => undefined);
+  }
   if (film && evidence?.video) {
     const d = await device();
     // A host that films at one size only ignores the scale.
@@ -1220,6 +1227,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     );
   }
   const frameAt = async (): Promise<number | undefined> => {
+    if (osFilm) return Math.max(0, Math.round((Date.now() - osFilm.startedAt) / 10) / 100);
     if (!filming || !evidence?.video) return undefined;
     const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
     return typeof answer?.frames === 'number' ? Math.round((answer.frames / evidence.video.fps) * 100) / 100 : undefined;
@@ -1704,6 +1712,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (film && !fs.existsSync(film) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, film, stopped.bytes);
     if (film && fs.existsSync(film)) report.video = film;
   }
+  if (osFilm && (await osFilm.stop().catch(() => false))) report.video = osFilm.file;
   if (failed && !options.dry && !options.setupOnly && !options.signal?.aborted) {
     const d = await device().catch(() => undefined);
     const away = unreachable(d?.server);
