@@ -215,7 +215,8 @@ export const probeReport = async (): Promise<Entries> => {
   const device = new DeviceClass({ id: 'fake', name: 'Fake', platform: 'ios', type: 'simulator', connected: true }, { server: fake as unknown as AgentServer });
   const base: Base = {
     root,
-    config: {},
+    // The run claims its port like a real one; 8123 may belong to a Lynkeus run on this machine.
+    config: { port: 18_000 + (process.pid % 1000) },
     attached: true,
     err: () => undefined,
     graph: () => {
