@@ -15,7 +15,10 @@ npx lynkeus case run --out run/            # the run as a directory a report can
 A case is a markdown file: frontmatter that names it, then `setup`, `steps`
 and `expected`. `lynkeus case run cases/example.md` runs one; without files
 it runs every case in this folder. A step that fails stops the case, and the
-report carries the screen, the requests and the reason.
+report carries the screen, the requests and the reason. An optional `teardown`
+list puts back what the case changed outside the app; it runs after the steps,
+passed or failed, and a teardown step that fails leaves the result as it was
+and is named in it.
 
 ## Steps that drive the app
 
@@ -25,11 +28,12 @@ report carries the screen, the requests and the reason.
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | `target` is tapped first, once it is there (`timeoutMs` is how long that may take); `submit` ends with the return key. |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` | |
 | `app.wait` | route, target, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `enabled` waits until the target is there, enabled and taking touches (not inert). `anyOf` accepts the first target present; an item is a string, `{ testId }` or `{ text, nth? }`, and `gone` cannot go with it. A `request` is `METHOD /path`, and a trailing slash on either side does not matter; it is waited for until it answers 2xx unless `status` names another. |
-| `app.see` | target, or `{ testId?, text?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. A `text` matches whatever its case, so one drawn in capitals (`textTransform`) is found by the words the source writes. |
+| `app.see` | target, or `{ testId?, text?, contains?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. Letter case never matters, so a text drawn in capitals (`textTransform`) is found by the words the source writes, and spaces around a text do not count. A target that is a text matches an element's whole text (a button's label also matches a part of it); `contains: true` finds it inside a longer text, a paragraph say. `{ text }` on its own finds it inside any text. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. |
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
-| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered: `qa.register('reset', async (params) => { … })`, with `qa` from `lynkeus-agent`. What the function returns is what `expect` and `as` read. A command the app did not register fails, naming those it did. |
+| `app.call` | `{ command, params?, expect?, as? }` | A command the app registered: `qa.register('reset', async (params) => { … })`, with `qa` from `lynkeus-agent`. What the function returns is what `expect` and `as` read. Right after the app attached (a launch, a relaunch) a command it has not registered yet is asked for again for up to 5 s; then it fails, naming those it did. |
+| `app.relaunch` | | Starts the app again as a fresh case finds it: on a Simulator or emulator the app is terminated and launched, a host the run started (`host_command`) is started again, and any other host mounts the app again. The case's mocks go with it; set them after. |
 | `app.run` | `{ flow, vars? }` | A Lynkeus flow, from the flows folder. |
 | `app.events` / `app.event` | `clear` / `{ name, props?, absent? }` | What the app told its analytics. |
 | `app.<command>` | its arguments by name | Any other Lynkeus command: `app.mock`, `app.network`, `app.appstate`, `app.deeplink`… |
@@ -46,9 +50,11 @@ backend for the 500 the case asked for.
 Every case starts with no mocks: Lynkeus clears the app's rules and holds before
 the first step and again after the last, so a mock never answers for another case
 or for the app driven by hand. `app.mock: { clear: true }` drops them in the
-middle of a case.
+middle of a case. A rule no request matched is a warning in the case's result,
+with what the app asked the network for instead:
+`mock rule GET /v1/feed.json never matched; GET /v1/api.json went to the network`.
 
-A target is `#testId`, a text (a field's placeholder too), an index or `x,y`. Where a step takes `target` it also takes `testId`. A text inside quotes of its own (`'"Next"'`) is always a text, where `app.wait: Next` would wait for a route called `Next`.
+A target is `#testId`, a text (a field's placeholder too), an index (`app.press: 7`) or `x,y`. Where a step takes `target` it also takes `testId`. A bare word that starts with a capital is a route: `app.wait: Next` waits for a route called `Next`, and when the app has no such route but `Next` is on screen, the failure says so. A text inside quotes of its own (`'"Next"'`) is always a text.
 
 One case runs on a host and on a device. What only one of them needs — closing a
 native screen the host never shows — is kept to it; everywhere else it is
@@ -59,6 +65,13 @@ skipped:
     do:
       - app.press: "364,84"
 ```
+
+A case starts on a Simulator or emulator with nothing in front of the app. When
+a view the app did not draw covers it before the first step (iOS's Save Password
+prompt after the case before signed in, a permission prompt, an alert left
+open), Lynkeus relaunches the app and the case's result says so; if the view is
+there again after the relaunch, the launch itself shows it and the case has to
+answer it. Within a case, `app.relaunch` does the same on purpose.
 
 On a device, a swipe is followed by a wait for the screen to stop moving, since
 a pager keeps going after the finger lifts and swallows a swipe sent into that
@@ -130,6 +143,9 @@ is that alias.
 
 `when` runs a step only if the case passed that parameter (`"when": "wait"`)
 or passed that value (`"when": "method=phone"`); `unless` is the opposite.
+`{ "on": "headless", "do": [ … ] }` keeps steps to one kind of host, as in a case
+(`do` is one step or a list). `case run --dry-run` lists every case's steps with
+each macro opened into the ones it stands for.
 
 `cases.interruptions` names what the app may put in the way of any step — a
 lock screen, a consent sheet — and the steps that get past it:
@@ -155,7 +171,8 @@ them in its environment (a host `--host-command` starts for a case gets the seed
 made the case's own, `<seed>:<case id>`, so `Math.random` in the app draws
 differently in each case, as a fresh install would); a run records them as `launch` in `run.json`, and lists
 under `launch.unsupported` the ones an attached Simulator or emulator could not
-apply.
+apply. On an attached app that includes the seed: it still makes the case's own
+`{{random.*}}` repeatable, but the app's `Math.random` is its own.
 
 ## On every target
 
@@ -226,8 +243,10 @@ npx lynkeus case run $(npx lynkeus case impact --files)   # only the cases a bra
 npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: the way there and the setup to pick
 ```
 
-`case new` begins at `--from`, or at `cases.start` in the config. It never chooses the setup: it lists, commented out,
-what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and the author keeps what the case needs.
+`case new` begins at `--from`, else at `cases.start` in the config, else at the screen an attached app shows (in a
+session or over MCP), else at the first screen the navigator declares; a comment in the draft says which. It never
+chooses the setup: one comment names the fixtures the project's server describes ([FIXTURES.md](FIXTURES.md)), and
+none while that server is still the example `case init` wrote.
 
 When an existing case already reaches the screen, `case new` offers that case's way there instead of a plan from the
 route map: its setup and its steps up to the screen, under a comment that names the case, and with `--from` only the
@@ -317,7 +336,16 @@ list counted, not repeated; testIDs and controls before texts; twenty lines), th
 requests that failed, never answered or were mocked, and why. A notice the last
 run in the same process gave word for word (the native values a host did not
 answer) is one line. `--verbose` (`verbose` over MCP) answers with all of it;
-`cases.jsonl`, `--report` and `--json` always keep everything.
+`cases.jsonl`, `--report` and `--json` always keep everything. What the run
+noticed without changing a case's result (a teardown step that failed, a mock
+rule nothing matched, a relaunch before the first step) follows the case's line
+with ⚠, and is `warnings` in `cases.jsonl`.
+
+The summary calls a case flaky when its recent runs (the ledger `--flakes` keeps)
+disagree. A run of another version of the case does not count: the history
+starts again when its steps, or a macro they call, change. Nor does a failure
+that reproduced, failing again on its second chance or failing the same step
+with the same error in another run: that is a break, not a flake.
 
 A failed `app.see`, or `app.wait` for a target, also keeps under its step in
 `cases.jsonl` a `looked` object: `listing`, every element of the screen at the

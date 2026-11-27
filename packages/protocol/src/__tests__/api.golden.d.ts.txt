@@ -480,6 +480,7 @@ export type RunCase = {
         why?: string;
     };
     video?: string;
+    warnings?: string[];
 };
 export type RunLaunchFact = 'seed' | 'locale' | 'timeZone' | 'epoch';
 export type RunLaunch = {

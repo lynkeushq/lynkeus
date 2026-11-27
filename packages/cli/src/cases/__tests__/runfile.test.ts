@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { RUN_SCHEMA, type RunCase, type RunManifest } from 'lynkeus-protocol';
 
 import { parseCase } from '../format.js';
-import { toRunCase, RunFile, webOf } from '../runfile.js';
+import { porcelainFiles, toRunCase, RunFile, webOf } from '../runfile.js';
 import type { CaseReport } from '../runner.js';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-run-'));
@@ -169,4 +169,9 @@ test('the run file keeps the launch facts the run asked for', () => {
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-nolaunch-'));
   new RunFile(plain, root);
   assert.equal('launch' in (JSON.parse(fs.readFileSync(path.join(plain, 'run.json'), 'utf8')) as object), false);
+});
+
+test('the files git status lists keep their first letter, the first line included, and a rename names the new file', () => {
+  assert.deepEqual(porcelainFiles(' M lynkeus.config.json\nM  src/app.tsx\nR  old.ts -> new.ts\n'), ['lynkeus.config.json', 'src/app.tsx', 'new.ts']);
+  assert.deepEqual(porcelainFiles(''), []);
 });

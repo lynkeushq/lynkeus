@@ -129,6 +129,8 @@ export type CaseReport = {
   routes?: string[];
   /** Why it failed, read as rules from the screen, the requests and the trace (`lynkeus why`). */
   diagnosis?: string[];
+  /** What the run noticed that does not change the result: a teardown step that failed, a mock nothing asked for, a relaunch before the first step. */
+  warnings?: string[];
 };
 
 /** Where a case keeps what it can show of itself: a frame per step, a film. Each is taken only where the host can. */
@@ -181,6 +183,11 @@ export type RunOptions = {
   ownHost?: boolean;
   /** Aborted when the run is stopped: no step after it starts, and the case ends without its teardown. */
   signal?: AbortSignal;
+  /**
+   * Starts the app again the way the run starts it for a fresh case, where the run started the host itself (a host
+   * per case, a kept host): `app.relaunch` and the relaunch before a covered first step use it instead of their own.
+   */
+  relaunch?: () => Promise<void>;
 };
 
 /**
@@ -338,8 +345,7 @@ const textOf = (e: Element) => e.text ?? e.value ?? e.accessibilityLabel ?? '';
 /** What a failed `app.see` looked for, as `why` reads it: a step that failed on its own reading of the screen names no target otherwise. */
 const soughtBy = (step: Step): Expected | undefined => {
   if (step.verb !== 'app.see') return undefined;
-  const v = step.value;
-  const params = typeof v === 'string' ? { target: v } : v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+  const params = targetParams(step.value);
   if (params.absent === true) return undefined;
   const named = typeof params.target === 'string' ? parseTarget(params.target) : undefined;
   const text = typeof params.text === 'string' ? params.text : named && 'text' in named ? named.text : undefined;
@@ -451,7 +457,18 @@ const LOOKING = new Set(['see', 'wait', 'event', 'requests', 'events']);
 /** Steps whose effect reaches the screen through the platform, a render or more after they return. */
 const ACTING = /^app\.(press|type|swipe|back|nav|deeplink)$/;
 
-const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event'];
+const BUILT_IN = ['press', 'type', 'swipe', 'see', 'requests', 'wait', 'nav', 'call', 'run', 'events', 'event', 'relaunch'];
+
+/** A step's value as named parameters: a bare target (`"#save"`, or an index written as a number) is `target`. */
+const targetParams = (value: StepValue): Record<string, unknown> =>
+  typeof value === 'string' || typeof value === 'number'
+    ? { target: String(value) }
+    : value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+/** How long after the app attached `app.call` waits for it to register a command it does not have yet: an app registers them as it starts. */
+const REGISTRATION_MS = 5000;
 
 const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
   if (config.macros?.[step.verb] || !step.verb.startsWith('app.')) return undefined;
@@ -465,6 +482,66 @@ const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
     return (error as Error).message;
   }
   return undefined;
+};
+
+// `{{param.x}}` in a macro's step as the case passed it, for a listing; anything else stays as written.
+const fillParams = (value: unknown, given: Record<string, unknown>): unknown => {
+  if (typeof value === 'string')
+    return value.replace(/\{\{\s*param\.([\w.*-]+)\s*\}\}/g, (ref, at: string) => {
+      const found = dig(given, at);
+      return found === undefined || found === null ? ref : typeof found === 'object' ? JSON.stringify(found) : String(found);
+    });
+  if (Array.isArray(value)) return value.map((v) => fillParams(v, given));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillParams(v, given)]));
+  return value;
+};
+
+const listStep = (step: Step, config: CasesConfig, within: string[]): string[] => {
+  const macro = config.macros?.[step.verb];
+  const problem = macro ? (within.includes(step.verb) ? `${step.verb} calls itself` : undefined) : unknownStep(step, config);
+  const head = `${step.on ? `[on ${step.on}] ` : ''}${label(step)}${problem ? `  ✗ ${problem}` : ''}`;
+  if (!macro || problem) return [head];
+  const given = step.value && typeof step.value === 'object' && !Array.isArray(step.value) ? (step.value as Record<string, unknown>) : { value: step.value };
+  const lines = [head];
+  for (const raw of macro) {
+    const entry = raw as Record<string, unknown>;
+    const block = entry && typeof entry === 'object' && 'do' in entry;
+    const when = block
+      ? (['on', 'when', 'unless'] as const).filter((k) => k in entry).map((k) => `${k} ${(Array.isArray(entry[k]) ? entry[k] : [entry[k]]).join(', ')}`)
+      : [];
+    for (const inner of block ? (Array.isArray(entry.do) ? entry.do : [entry.do]) : [entry]) {
+      let sub: Step;
+      try {
+        sub = stepOf(inner, `a step of ${step.verb}`);
+      } catch (error) {
+        lines.push(`  ↳ ✗ ${(error as Error).message}`);
+        continue;
+      }
+      const [first = '', ...rest] = listStep({ ...sub, value: fillParams(sub.value, given) as StepValue }, config, [...within, step.verb]);
+      lines.push(`  ↳ ${when.length ? `[${when.join('; ')}] ` : ''}${first}`, ...rest.map((l) => `    ${l}`));
+    }
+  }
+  return lines;
+};
+
+/**
+ * A case's steps as a dry run lists them: numbered as a run counts them, each macro opened into the steps it stands for
+ * (its `{{param.*}}` filled with what the case passed), each `on`, `when` or `unless` named, and what cannot run marked ✗.
+ */
+export const expandSteps = (c: Pick<Case, 'setup' | 'steps' | 'teardown'>, config: CasesConfig): string[] => {
+  let n = 0;
+  const part = (name: string, list: Step[], numbered: boolean) =>
+    list.length
+      ? [
+          `  ${name}:`,
+          ...list.flatMap((step) => {
+            const [first = '', ...rest] = listStep(step, config, []);
+            const mark = numbered ? `${++n}.` : '-';
+            return [`    ${mark} ${first}`, ...rest.map((l) => `    ${' '.repeat(mark.length + 1)}${l}`)];
+          }),
+        ]
+      : [];
+  return [...part('setup', c.setup, true), ...part('steps', c.steps, true), ...part('teardown', c.teardown, false)];
 };
 
 /**
@@ -537,6 +614,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const latest: Record<string, unknown> = structuredClone(options.prepared?.latest ?? {});
   const started = Date.now();
   const steps: StepReport[] = [];
+  const warnings: string[] = [];
+  const warn = (line: string) => {
+    warnings.push(line);
+    log(`  ⚠ ${line}`);
+  };
   let mark: number | undefined;
   // Where the trace stood as the last action began: a screen it led to that closes itself (a success screen) can
   // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
@@ -577,6 +659,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // waits out its whole timeout (20 s). An app away that long meets its screen lock when it comes back.
   let away = false;
   let mocksSet = false;
+  // The app's last request when the case set its first mock: what it asked for after that is what the mocks were for.
+  let mockedFrom: number | undefined;
   const lastRequest = async (d: Device): Promise<number> => Math.max(0, ...(await d.requests()).requests.map((r) => r.id));
   const markRequests = async (d: Device, byHand = false): Promise<void> => {
     if (markedByHand && !byHand) return;
@@ -665,6 +749,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     trail.seen.push({ atMs: Date.now() - trail.startedMs, scrolls: trail.scrollsTotal, state });
   };
 
+  /**
+   * `contains: true`: the element whose own text holds the target's, ignoring case, where a target otherwise matches
+   * a whole text. Inside `within`'s element when it names one; `nth` counts among those that hold it.
+   */
+  const containing = async (screen: Screen, target: Extract<Target, { text: string }>): Promise<Element | null> => {
+    const d = await device();
+    const scope = target.within ? ((await d.server.call('find', target.within)) as Element | null) : undefined;
+    if (scope === null) return null;
+    const inside = (e: Element) => {
+      if (!scope) return true;
+      for (let at: number | undefined = e.i; at !== undefined; at = screen.elements[at]?.parent) if (at === scope.i) return true;
+      return false;
+    };
+    return presented(screen).filter((e) => inside(e) && says(e, target.text))[target.nth ?? 0] ?? null;
+  };
+
   /** Every condition a `see` names, read off one screen and the trace since the mark; what is missing, or nothing. */
   const seen = async (params: Record<string, unknown>): Promise<string | undefined> => {
     const d = await device();
@@ -679,7 +779,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     }
     const target = targetIn(params);
     const text = typeof params.text === 'string' ? params.text : undefined;
-    if (target) {
+    if (target && params.contains === true && 'text' in target) {
+      const found = await containing(screen, target);
+      note(found, screen.window);
+      if (!found) return `not on screen: ${JSON.stringify(target)} (inside any text)`;
+    } else if (target) {
       const found = (await d.server.call('find', target)) as Element | null;
       note(found, screen.window);
       if (!found || (found.hidden && found.hidden !== 'inert')) return `not on screen: ${JSON.stringify(target)}`;
@@ -749,7 +853,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const see = async (value: StepValue): Promise<void> => {
-    const params = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    const params = targetParams(value);
     const absent = params.absent === true;
     startTrail();
     const wait = typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000;
@@ -767,14 +871,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (looks < 3 && what && missing?.startsWith('not on screen')) {
         const d = await device();
         looks += 1;
-        if (looks === 1) await d.waitFor({ target: what, timeoutMs: 1500 }).catch(() => undefined);
+        // The agent's own wait matches a whole text: a part of one is looked for here, through the app's idle so a
+        // host with its own clock still moves on.
+        const arriving = async (timeoutMs: number) => {
+          if (params.contains !== true) return void (await d.waitFor({ target: what, timeoutMs }).catch(() => undefined));
+          const until = Date.now() + timeoutMs;
+          while (Date.now() < until && (await seen(params)) !== undefined) await d.idle({ quietMs: 100, timeoutMs: 300 }).catch(() => sleep(150));
+        };
+        if (looks === 1) await arriving(1500);
         else if (looks === 2) {
           if (await scrollTo(async () => (await seen(params)) === undefined)) return;
         } else {
           // A step that names its own timeout gets no more than what is left of it; one that does not may
           // wait for a carousel to come round.
-          const long = typeof params.timeoutMs === 'number' ? Math.max(0, deadline - Date.now()) : 20_000;
-          await d.waitFor({ target: what, timeoutMs: long }).catch(() => undefined);
+          await arriving(typeof params.timeoutMs === 'number' ? Math.max(0, deadline - Date.now()) : 20_000);
         }
         continue;
       }
@@ -815,7 +925,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const press = async (value: StepValue): Promise<'skipped' | undefined> => {
-    const given = typeof value === 'string' ? { target: value } : ((value ?? {}) as Record<string, unknown>);
+    const given = targetParams(value);
     const { text, ...named } = given;
     const params: Record<string, unknown> = 'target' in given || 'testId' in given || typeof text !== 'string' ? given : { ...named, target: text };
     const target = targetIn(params);
@@ -887,8 +997,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device();
     const deadline = Date.now() + (typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000);
     const expect = (params.expect ?? {}) as Record<string, unknown>;
+    // Only an app that has just attached may still be registering; one that attached long ago never will.
+    const registeredBy = (d.attachedAt ?? 0) + REGISTRATION_MS;
     for (;;) {
-      const answer = await d.command(String(params.command), params.params);
+      let answer: unknown;
+      try {
+        answer = await d.command(String(params.command), params.params);
+      } catch (error) {
+        // Right after a launch the app may not have registered its commands yet: an unknown one is asked for again
+        // for a while, as a press waits for its control. A release bundle that never registers it says so at once.
+        const message = error instanceof Error ? error.message : String(error);
+        if (lacking(message) !== String(params.command) || message.includes('release bundle') || Date.now() > registeredBy) throw error;
+        await d.idle({ quietMs: 100, timeoutMs: 300 }).catch(() => sleep(200));
+        continue;
+      }
       if (typeof params.as === 'string') scope[params.as] = answer;
       const miss = Object.entries(expect).find(([p, wanted]) => {
         const got = dig(answer, p);
@@ -928,7 +1050,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (!found || found.hidden) continue;
       handling = true;
       try {
-        for (const raw of one.do) await perform(stepOf(raw));
+        await performAll(one.do);
       } catch (error) {
         const still = (await d.server.call('find', target).catch(() => null)) as Element | null;
         if (still && !still.hidden) throw error;
@@ -1033,6 +1155,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       case 'call':
         await call(params);
         return undefined;
+      case 'relaunch':
+        log(`  ↺ ${await relaunch()}`);
+        return undefined;
       case 'run': {
         const flow = typeof value === 'string' ? value : String(params?.flow);
         const file = path.isAbsolute(flow) ? flow : path.resolve(config.base ?? base.root, config.flows ?? 'flows', flow);
@@ -1051,7 +1176,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       default: {
         const command = find(name) ?? find(`os ${name}`);
         if (!command) throw new Error(`app.${name} is not a step: Lynkeus has no command ${name}, and the project declares no macro for it`);
-        if (name === 'mock') mocksSet = true;
+        if (name === 'mock') {
+          mocksSet = true;
+          if (mockedFrom === undefined) mockedFrom = await lastRequest(d).catch(() => undefined);
+        }
         await cli(argvFor(command, value));
         if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
@@ -1065,6 +1193,40 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (typeof params.as !== 'string') return;
     const json = /\{[\s\S]*\}/.exec(stdout)?.[0];
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
+  };
+
+  /**
+   * Starts the app again as a fresh case finds it: the host started again where the run started one for the case, the
+   * app terminated and launched on a simulator or an emulator, and mounted again (`reset`) on a host it did not start.
+   * The native mocks of the config are sent again; the case's own mocks went with the app on a device.
+   */
+  const relaunch = async (): Promise<string> => {
+    let how: string;
+    if (options.relaunch) {
+      await options.relaunch();
+      how = 'started the host again';
+    } else {
+      const d = await device();
+      if (onWallClock(d)) {
+        await d.relaunch();
+        how = 'relaunched the app';
+      } else {
+        await d.command('reset').catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!/no command reset registered|Unknown method reset/.test(message)) throw error;
+          throw new Error(
+            'Unknown method relaunch (this host cannot start the app again by itself: run the case with host_command, which starts a host per case and again for a relaunch)',
+          );
+        });
+        how = 'mounted the app again';
+      }
+    }
+    away = false;
+    requestsAfter = 0;
+    const d = await device();
+    await d.idle({ quietMs: 300, timeoutMs: 8000 }).catch(() => undefined);
+    if (config.nativeMocks) await d.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
+    return how;
   };
 
   // A macro is one step of the case: the requests it waits for are the ones it set off, from its first
@@ -1089,18 +1251,23 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const outer = scope.param;
     scope.param = param;
     try {
-      for (const raw of steps) {
-        const entry = raw as Record<string, unknown>;
-        if ('do' in entry) {
-          const all = (v: unknown) => (Array.isArray(v) ? v : [v]).map(String);
-          if ('when' in entry && !all(entry.when).every((c) => holds(c, param, ran))) continue;
-          if ('unless' in entry && all(entry.unless).some((c) => holds(c, param, ran))) continue;
-          if ('on' in entry && !(await runsHere(String(entry.on)))) continue;
-          await perform(stepOf(entry.do));
-        } else await perform(stepOf(entry));
-      }
+      await performAll(steps, param);
     } finally {
       scope.param = outer;
+    }
+  };
+
+  /** A list of steps as a macro or an interruption writes them: a step, or a `do` block (one step or a list) under `when`, `unless` or `on`. */
+  const performAll = async (steps: unknown[], param: Record<string, unknown> = {}): Promise<void> => {
+    for (const raw of steps) {
+      const entry = raw as Record<string, unknown>;
+      if (entry && typeof entry === 'object' && 'do' in entry) {
+        const all = (v: unknown) => (Array.isArray(v) ? v : [v]).map(String);
+        if ('when' in entry && !all(entry.when).every((c) => holds(c, param, ran))) continue;
+        if ('unless' in entry && all(entry.unless).some((c) => holds(c, param, ran))) continue;
+        if ('on' in entry && !(await runsHere(String(entry.on)))) continue;
+        for (const inner of Array.isArray(entry.do) ? entry.do : [entry.do]) await perform(stepOf(inner));
+      } else await perform(stepOf(entry));
     }
   };
 
@@ -1158,6 +1325,34 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           ),
         (error: unknown) => log(`  ⚠ the app is in the background and could not be brought back: ${error instanceof Error ? error.message : String(error)}`),
       );
+    }
+  }
+
+  // A view the app did not draw over it before the first step (iOS's Save Password prompt after the case before signed
+  // in, an alert that case left open) would fail every press of this one: the case starts on a fresh launch instead.
+  // Only a phone's app outlives the case before it; a host has no other process to draw over it.
+  if (!options.dry && !options.setupOnly && !options.signal?.aborted) {
+    const d = await base.device().catch(() => undefined);
+    const phone = d?.server.connected && !unreachable(d.server) && onWallClock(d);
+    const covered = phone
+      ? await d.screen().then(
+          (sc) => sc.system,
+          () => undefined,
+        )
+      : undefined;
+    if (covered) {
+      const said = await relaunch().then(
+        async (how) => {
+          const again = await (await device()).screen().then(
+            (sc) => sc.system,
+            () => undefined,
+          );
+          return `a view the app did not draw covered it before the first step (a system prompt or alert left from before): ${how}${again ? '; it is there again, so the launch itself shows it: answer it in the case' : ''}`;
+        },
+        (error: unknown) =>
+          `a view the app did not draw covers it before the first step, and starting it again failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      warn(said);
     }
   }
 
@@ -1452,6 +1647,38 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     steps.push(...options.prepared.steps);
     log(`  ⚡ setup made ahead (${options.prepared.steps.length} steps)`);
   }
+  // What the case mocked that the app never asked for, and what it asked the network for instead: a rule with a path
+  // the app does not use passes quietly and leaves the case testing the real server.
+  const unmatchedMocks = async (): Promise<string[]> => {
+    if (options.dry || away) return [];
+    const d = await device().catch(() => undefined);
+    if (!d?.server.connected || unreachable(d.server)) return [];
+    const listed = (await d.command('netmock', { action: 'list' }).catch(() => undefined)) as
+      | { rules?: { method?: string; path?: string; hits?: number }[]; holds?: { method?: string; path?: string; hits?: number }[] }
+      | undefined;
+    const idle = [
+      ...(listed?.rules ?? []).filter((r) => r.hits === 0).map((r) => `mock rule ${r.method && r.method !== '*' ? `${r.method} ` : ''}${r.path}`),
+      ...(listed?.holds ?? []).filter((r) => r.hits === 0).map((r) => `mock hold ${r.method && r.method !== '*' ? `${r.method} ` : ''}${r.path}`),
+    ];
+    if (idle.length === 0) return [];
+    const asked =
+      mockedFrom === undefined
+        ? []
+        : await d.requests(mockedFrom).then(
+            (r) => r.requests,
+            () => [],
+          );
+    const pathOf = (url: string) => {
+      try {
+        return new URL(url).pathname;
+      } catch {
+        return url.split('?')[0]!;
+      }
+    };
+    const real = [...new Set(asked.filter((r) => !r.mocked).map((r) => `${r.method.toUpperCase()} ${pathOf(r.url)}`))];
+    const network = real.length ? `; ${real.slice(0, 3).join(', ')}${real.length > 3 ? ` and ${real.length - 3} more` : ''} went to the network` : '';
+    return idle.map((rule) => `${rule} never matched${network}`);
+  };
   // A mock answers for the case that set it: one an earlier case or a hand left on the app would make this case pass
   // or fail on an answer it never asked for. Cleared again once a case that set one is done, so neither the next case
   // nor the app driven by hand meets it.
@@ -1636,11 +1863,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         const outcome = await perform(step);
         log(`  ${outcome === 'skipped' ? '⏭️' : '↩️'} teardown ${label(step)}`);
       } catch (error) {
-        log(`  ⚠️ teardown ${label(step)}  — ${(error instanceof Error ? error.message : String(error)).split('\n')[0]}`);
+        warn(`teardown ${label(step).trim()} failed: ${(error instanceof Error ? error.message : String(error)).split('\n')[0]}`);
       }
     }
   }
-  if (mocksSet) await clearMocks();
+  if (mocksSet) {
+    for (const line of await unmatchedMocks()) warn(line);
+    await clearMocks();
+  }
   if (requestsSeen !== undefined) {
     const d = await device().catch(() => undefined);
     // The last answers of the case, given a moment to arrive.
@@ -1678,6 +1908,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     result: failed ? 'failed' : unsupported ? 'unsupported' : 'passed',
     ms: Date.now() - started,
     steps,
+    ...(warnings.length ? { warnings } : {}),
   };
   if (options.events) report.events = recorded;
   if (routesFrom !== undefined) {

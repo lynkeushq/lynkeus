@@ -65,3 +65,29 @@ test('a run with no app attached, or a case that cannot run as written, is not c
   ledger.note(report('failed'));
   assert.deepEqual(ledger.flaky(['pay']), ['⚠ pay is flaky: 1 of its last 3 runs failed or needed a second chance']);
 });
+
+test('a macro the case calls is part of what it runs: changing it in the config starts the history again', () => {
+  const c = { setup: [], steps: [{ verb: 'app.login', value: {} }], teardown: [] };
+  const one = caseVersion(c, { 'app.login': [{ 'app.press': '#a' }], 'app.other': [] });
+  assert.equal(one, caseVersion(c, { 'app.login': [{ 'app.press': '#a' }], 'app.other': [{ 'app.press': '#z' }] }));
+  assert.notEqual(one, caseVersion(c, { 'app.login': [{ 'app.press': '#b' }] }));
+  // A macro another macro calls counts too.
+  const nested = (inner: string) => caseVersion(c, { 'app.login': [{ 'app.reset': {} }], 'app.reset': [{ 'app.press': inner }] });
+  assert.notEqual(nested('#a'), nested('#b'));
+});
+
+test('a failure that reproduces is a break, not a flake', () => {
+  const ledger = new Flakes(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flakes-')), 'flakes.json'));
+  ledger.note(report('passed'));
+  // Failed on its second chance too.
+  ledger.note(report('failed', true));
+  ledger.note(report('passed'));
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  // The same step failing the same way in two runs, then fixed.
+  ledger.note(report('failed', false, 'not on screen: Total'));
+  ledger.note(report('failed', false, 'not on screen: Total'));
+  ledger.note(report('passed'));
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  ledger.note(report('passed', true));
+  assert.deepEqual(ledger.flaky(['pay']), ['⚠ pay is flaky: 1 of its last 4 runs failed or needed a second chance']);
+});

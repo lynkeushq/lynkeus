@@ -1131,7 +1131,7 @@ Qué hace cada host con ellos:
 |---|---|---|---|---|
 | Sin pantalla (`--host`) | `Math.random` repite desde el mismo punto al arrancar y tras cada caso | lo responde `react-native-localize` | el proceso del host corre en esa zona (`TZ`) | `Date` empieza ahí y sigue corriendo; `lynkeus clock --reset` vuelve a ese instante |
 | `--host-command` | va en el entorno y en `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
-| Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos | no se aplica | no se aplica | no se aplica |
+| Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos: el `Math.random` de la app no cambia, por eso `seed` figura en `launch.unsupported` | no se aplica | no se aplica | no se aplica |
 
 Un host que arranca `--host-command` recibe `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (y `TZ`) y `LYNKEUS_EPOCH` en su entorno, además de los marcadores del comando. [Lynkeus FastSim](/es/guides/fastsim/) los usa como valores por defecto. Un simulador o emulador que solo está conectado conserva la zona horaria y el reloj del Mac; en ese caso la ejecución avisa por stderr qué datos no pudo pasar y los anota en `launch.unsupported` de `run.json`. Sin opciones y sin `launch`, `run.json` no lleva nada de esto.
 
@@ -1260,7 +1260,7 @@ lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
 
 Redacta un caso para una pantalla: el camino hasta ella, el `setup` del backend para elegir y las comprobaciones que quedan por escribir.
 
-Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), el camino hasta la pantalla y un lugar para las comprobaciones.
+Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, un comentario con los nombres de las fixtures que ofrece el servidor del proyecto (lo que contesta a `lynkeus.describe`; qué estado necesita el caso lo decide quien lo escribe, y si el servidor sigue siendo el de ejemplo de `case init`, no aparece), el camino hasta la pantalla y un lugar para las comprobaciones.
 
 El camino sale de un caso existente cuando alguno llega a esa pantalla: su `setup` y sus pasos hasta ahí, o con `--from` solo los pasos posteriores a esa pantalla, bajo un comentario que nombra el caso. Llega si en su última ejecución aprobada estuvo en la pantalla después de un paso (`.lynkeus/seen`) o si un paso va a ella, la espera o la comprueba; gana el camino más corto. Si ningún caso llega, son las pulsaciones desde `--from` que conoce `map plan`.
 
@@ -1271,7 +1271,7 @@ El camino sale de un caso existente cuando alguno llega a esa pantalla: su `setu
 | Opción | Qué hace |
 |---|---|
 | `--to <Route>` | La pantalla de la que trata el caso. Obligatoria (sin ella, `case here` redacta uno desde la pantalla actual). |
-| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`; si no hay ninguno de los dos, el comando se detiene y lo pide. |
+| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`. Si no hay ninguno de los dos, la pantalla que muestra la app conectada (en una sesión o por MCP) y, si no, la primera pantalla que declara el navegador; el borrador dice en un comentario cuál usó. |
 | `--title <text>` | Qué puede hacer una persona ahí, como lo titulará el reporte. |
 | `--write` | Lo guarda como `<carpeta de casos>/<id>.md` en lugar de imprimirlo. Nunca pisa un archivo que ya existe. |
 

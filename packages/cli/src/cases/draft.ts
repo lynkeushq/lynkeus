@@ -19,14 +19,11 @@ export type DraftInput = {
   macros?: string[];
   /** The project declares a fixtures server that did not describe itself. */
   fixturesSilent?: boolean;
+  /** Where `from` came from when neither the author nor `cases.start` named it (the screen the app shows now…). */
+  fromNote?: string;
 };
 
 const quote = (s: string) => JSON.stringify(s);
-
-const paramsHint = (c: FixtureCommand) => {
-  const params = Object.entries(c.params ?? {}).map(([k, p]) => `${k}${p.values ? ` (${p.values.join('|')})` : ''}`);
-  return params.length ? ` — ${params.join(', ')}` : '';
-};
 
 /**
  * A case to finish: its frontmatter with the questions a reader needs answered, the backend's setup offered (never
@@ -46,18 +43,17 @@ export const draftCase = (d: DraftInput): string => {
     '---',
     'setup:',
   ];
-  if (d.fixtures?.length) {
-    lines.push('  # Pick what the case needs; the backend answers these (lynkeus fixtures describe):');
-    for (const c of d.fixtures) {
-      const example = c.example ? ` ${JSON.stringify(c.example).replace(/"(\w+)":/g, '$1: ')}` : ' {}';
-      lines.push(`  # - ${c.name}:${example}${c.summary ? `    # ${c.summary}` : ''}${paramsHint(c)}`);
-    }
-  } else if (d.fixturesSilent)
+  // Names only: what each takes is one `lynkeus fixtures describe` away, and a list of every fixture's example is noise
+  // in a case that needs one or none of them.
+  if (d.fixtures?.length)
+    lines.push(`  # The state the case needs, from the backend's fixtures (lynkeus fixtures describe): ${d.fixtures.map((c) => c.name).join(', ')}`);
+  else if (d.fixturesSilent)
     lines.push('  # The fixtures server did not answer lynkeus.describe (lynkeus fixtures check says why): the setup options are not listed.');
   else lines.push('  # The state the case needs, through the project’s fixtures (cases.fixtures).');
   const way = d.way;
   if (way?.setup.length) lines.push(`  # What ${way.source} sets up on its way to ${d.to}:`, ...way.setup.map((s) => `  ${stepLine(s)}`));
   lines.push('', 'steps:');
+  if (d.fromNote) lines.push(`  # Begins on ${d.from}: ${d.fromNote}; cases.start in lynkeus.config.json sets where drafts begin.`);
   if (d.macros?.length) lines.push(`  # The project's own steps: ${d.macros.join(', ')}`);
   const last = way ? [...way.setup, ...way.steps].at(-1) : undefined;
   if (way) {

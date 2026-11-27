@@ -56,8 +56,8 @@
     "now": "407c1b1b6a449896"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
-    "now": "2385fb16889d8a12"
+    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
+    "now": "7484c0d2c829fd9b"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -68,8 +68,8 @@
     "now": "87d4605d6f7ddbc9"
   },
   "wire/press-by-number": {
-    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause.",
-    "now": "c967c68bb87ee5e4"
+    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause. A target written as a bare number is an index: app.press: 2 presses element 2 instead of failing with \"Cannot use 'in' operator\".",
+    "now": "4dc3626a9bc425e7"
   },
   "detect/empty/status": {
     "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
@@ -144,12 +144,12 @@
     "now": "f2d22b677976ddbe"
   },
   "report/file/cases.jsonl": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds.",
-    "now": "cd52c9bdda95f585"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
+    "now": "1642c1554f7fa85f"
   },
   "report/file/progress.ndjson": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. case run reads the trace and the screen once more at a case's first step, to keep the screens the case goes through by default; that moves the virtual clock by two milliseconds.",
-    "now": "d03e8dbb9477022e"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. case run reads the trace and the screen once more at a case's first step, to keep the screens the case goes through by default; that moves the virtual clock by two milliseconds. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
+    "now": "4ca2808b92ce247f"
   },
   "surface/fails/status offline": {
     "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
@@ -196,20 +196,20 @@
     "now": "9bfb78881d182c35"
   },
   "wire/macros-blocks-and-commands": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "cdb41b0060c163c2"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. A case that set a mock asks the app for its rules (netmock list) before it clears them, to warn about a rule no request matched.",
+    "now": "07f8249d89850c3b"
   },
   "wire/native-window-scrolls": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "ebd35f1d65aae5b1"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. On a phone, a case reads the screen once before its first step: a view the app did not draw over it (a Save Password prompt left by the case before) is relaunched away.",
+    "now": "91451ba3fed9ed7d"
   },
   "wire/retries-until-enabled-and-listed": {
     "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
     "now": "75662c85c309bd73"
   },
   "wire/screenshots-each-step": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
-    "now": "162773e89fd5f0c6"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press. On a phone, a case reads the screen once before its first step, to relaunch an app a view it did not draw covers.",
+    "now": "36efed228464b7a7"
   },
   "wire/unsupported-command": {
     "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
@@ -244,8 +244,8 @@
     "now": "d617e7cc53854e58"
   },
   "surface/help/case new": {
-    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
-    "now": "b543d0141a2b8b6b"
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
+    "now": "1017186a35af7c53"
   },
   "surface/mcp/tool/case_coverage": {
     "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
@@ -256,8 +256,8 @@
     "now": "c3b2929429626211"
   },
   "surface/mcp/tool/case_new": {
-    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
-    "now": "2233f6771ea1573e"
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
+    "now": "1bb5058c63e1fd67"
   },
   "surface/help/os appearance": {
     "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
@@ -278,5 +278,9 @@
   "surface/help/os push": {
     "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
     "now": "9ab10ba985eb7465"
+  },
+  "report/file/run.json": {
+    "why": "An attached simulator or emulator lists seed under launch.unsupported: the seed makes the cases' {{random.*}} repeatable, but the app's Math.random is its own, and a trial read the old manifest as the app being seeded.",
+    "now": "a09a0ff219a9340a"
   }
 }

@@ -72,13 +72,14 @@ export const fillLaunch = (command: string, launch: RunLaunch | undefined): stri
     .replaceAll('{epoch}', launch?.epoch ?? '');
 
 /**
- * What the manifest records. With a host the run started (`--host`, `--host-command`) every fact is passed on; on an
- * app that was attached, only the seed, which the CLI applies to the values it draws itself. A simulator or emulator
- * keeps the Mac's time zone and clock and its own language, so the rest is listed as `unsupported`.
+ * What the manifest records. With a host the run started (`--host`, `--host-command`) every fact is passed on. An app
+ * that was attached (a simulator, an emulator) keeps the Mac's time zone and clock, its own language and its own
+ * `Math.random`: all four are listed as `unsupported`. The seed still makes the case's own `{{random.*}}` repeatable,
+ * which the CLI draws, but nothing the app draws.
  */
 export const recordLaunch = (launch: RunLaunch | undefined, startedHost: boolean): RunLaunch | undefined => {
   if (!launch || Object.keys(launch).length === 0) return undefined;
   if (startedHost) return launch;
-  const unsupported = (['locale', 'timeZone', 'epoch'] as RunLaunchFact[]).filter((fact) => launch[fact] !== undefined);
+  const unsupported = (['seed', 'locale', 'timeZone', 'epoch'] as RunLaunchFact[]).filter((fact) => launch[fact] !== undefined);
   return unsupported.length ? { ...launch, unsupported } : launch;
 };
