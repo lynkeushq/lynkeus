@@ -24,6 +24,18 @@ const fromGraph = (route: string, graph: ScreenGraph): string[] | undefined => {
   return chain;
 };
 
+/**
+ * The routes bound to a navigator rather than a screen (a tab or stack nested under a route): the ones whose component
+ * file declares other routes. Nobody tests a navigator itself, only the screens inside it.
+ */
+export const navigatorRoutes = (graph: ScreenGraph): string[] => {
+  const declaring = new Set(Object.values(graph.screens).map((s) => s.declaredIn));
+  return Object.values(graph.screens)
+    .filter((s) => s.file !== null && declaring.has(s.file))
+    .map((s) => s.route)
+    .sort();
+};
+
 /** The route names from the root navigator down to `route`, itself included; undefined when nothing says. */
 export const routeChain = (route: string, sources: NestingSources): string[] | undefined => {
   const seen = sources.observed?.get(route)?.path;

@@ -64,6 +64,8 @@ export type Coverage = {
   uncovered: string[];
   /** Routes a case names that the graph does not know: renamed, or a typo. */
   unknown: string[];
+  /** Routes bound to a navigator: known, but neither covered nor uncovered, since a case tests the screens inside. */
+  navigators: string[];
   byRoute: Record<string, string[]>;
   files: Record<string, string>;
 };
@@ -73,8 +75,10 @@ export const coverageOf = (
   cases: Case[],
   graphRoutes: string[],
   seen: Record<string, string[]> = {},
-  macros: Record<string, unknown[]> = {},
+  o: { macros?: Record<string, unknown[]>; navigators?: string[] } = {},
 ): Coverage => {
+  const navigators = graphRoutes.filter((r) => o.navigators?.includes(r));
+  const screens = graphRoutes.filter((r) => !navigators.includes(r));
   const byRoute: Record<string, string[]> = {};
   const files: Record<string, string> = {};
   const add = (route: string, id: string) => {
@@ -83,18 +87,18 @@ export const coverageOf = (
   };
   for (const c of cases) {
     files[c.id] = c.file;
-    for (const r of routesNamed(c, macros)) add(r, c.id);
+    for (const r of routesNamed(c, o.macros)) add(r, c.id);
     for (const r of seen[c.id] ?? []) add(r, c.id);
   }
   const known = new Set(graphRoutes);
-  const covered = graphRoutes.filter((r) => byRoute[r]?.length);
   return {
-    routes: graphRoutes.length,
-    covered,
-    uncovered: graphRoutes.filter((r) => !byRoute[r]?.length),
+    routes: screens.length,
+    covered: screens.filter((r) => byRoute[r]?.length),
+    uncovered: screens.filter((r) => !byRoute[r]?.length),
     unknown: Object.keys(byRoute)
       .filter((r) => !known.has(r))
       .sort(),
+    navigators,
     byRoute,
     files,
   };
@@ -127,7 +131,7 @@ export const impactOf = (affected: Affected[], coverage: Coverage, everything?: 
   const untested: string[] = [];
   for (const [route, hit] of nearest) {
     const ids = coverage.byRoute[route] ?? [];
-    if (!ids.length) untested.push(route);
+    if (!ids.length && !coverage.navigators.includes(route)) untested.push(route);
     for (const id of ids) {
       const c = byCase.get(id) ?? { id, file: coverage.files[id] ?? '', routes: [], distance: hit.distance, via: hit.via };
       c.routes.push(route);

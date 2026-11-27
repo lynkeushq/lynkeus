@@ -9,7 +9,9 @@ import { readCases } from '../cases/format.js';
 import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
 import * as edges from '../knowledge/edges.js';
+import { navigatorRoutes } from '../knowledge/nesting.js';
 import { plan } from '../knowledge/plan.js';
+import type { ScreenGraph } from '../knowledge/types.js';
 import { IMPACT_DEPTH } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
@@ -18,15 +20,16 @@ import { runtimeAt } from '../runtimes/index.js';
 import { changedSources, reachOfChanges } from './map.js';
 
 // The project's cases and what they cover, read the way `case run` reads them.
-const coverageFor = (ctx: Base & { graph: () => { screens: Record<string, unknown> } }, seenFlag: unknown) => {
+const coverageFor = (ctx: Base & { graph: () => ScreenGraph }, seenFlag: unknown) => {
   const config = ctx.config.cases ?? {};
   const home = config.base ?? ctx.root;
   const files = caseFiles([], home, config.dir);
   if (typeof files === 'string') return files;
   const cases = files.flatMap(readCases);
+  const graph = ctx.graph();
   const seen = readSeenRuns(path.resolve(ctx.root, typeof seenFlag === 'string' ? seenFlag : SEEN_DIR));
   const routes = Object.fromEntries(Object.entries(seen).map(([id, s]) => [id, s.routes]));
-  return { cases, seen, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), routes, config.macros) };
+  return { cases, seen, coverage: coverageOf(cases, Object.keys(graph.screens).sort(), routes, { macros: config.macros, navigators: navigatorRoutes(graph) }) };
 };
 
 // The fixtures server `case init` writes, still as written: its fixtures are an example, not this app's backend.
@@ -100,6 +103,7 @@ export const coverageCommands = [
         `${coverage.uncovered.length} screen${coverage.uncovered.length === 1 ? '' : 's'} no case touches${coverage.uncovered.length ? ':' : ''}`,
         ...coverage.uncovered.slice(0, 30).map((r) => `  ${r}`),
         ...(coverage.uncovered.length > 30 ? [`  … ${coverage.uncovered.length - 30} more (--json)`] : []),
+        ...(coverage.navigators.length ? [`not counted, navigators whose screens are counted instead: ${coverage.navigators.join(', ')}`] : []),
       ];
       const repeated = repeatedOpening(cases, macros);
       if (repeated)
@@ -146,7 +150,7 @@ export const coverageCommands = [
       );
       if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: { ...impact, notes } };
       const lines = [
-        `${changed.length} source file${changed.length === 1 ? '' : 's'} changed against ${base}; they reach ${new Set(affected.map((a) => a.route)).size} screen(s)`,
+        `${changed.length} source file${changed.length === 1 ? '' : 's'} changed against ${base}; they reach ${new Set(affected.map((a) => a.route).filter((r) => !read.coverage.navigators.includes(r))).size} screen(s)`,
         ...(impact.reason ? [`every case is affected: ${impact.reason}`] : notes),
         ...(impact.cases.length
           ? [`cases to run (${impact.cases.length}):`, ...impact.cases.map((c) => `  ${c.id.padEnd(46)} ${c.routes.join(', ')} (via ${c.via})`)]

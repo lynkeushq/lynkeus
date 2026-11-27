@@ -304,7 +304,10 @@ rewritten: the draft is the author's to keep or change.
 
 A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), in its own
 steps or in a macro it calls (through macros that call macros, with the `{{param.*}}` it passes), and every screen a
-passing run went through. Without `.lynkeus/seen` (a fresh CI checkout) the steps and macros are all there is. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
+passing run went through. Without `.lynkeus/seen` (a fresh CI checkout) the steps and macros are all there is. A
+route bound to a navigator (its component declares other routes, as a tab navigator nested under `Demo` does) is not
+counted as a screen: coverage leaves it out of both counts and names it on a line of its own, and `case impact` never
+lists it as reached and touched by no case. Its screens are counted instead. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
 the screens of the case, and the screen the app was on after each step, read off trace marks the steps take anyway.
 The screens come from the route graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check`
 does. A change to the file that registers the app or to the root
