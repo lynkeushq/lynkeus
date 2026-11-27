@@ -411,26 +411,35 @@ export const reportCommands = [
     group: 'runs',
     summary: 'Write a run as one HTML page in its folder, to open offline or share: cases, steps, frames, film, requests, failures',
     details:
-      'Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry them inside the page. `case run --out` writes it by itself at the end of every run.',
+      'Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry the frames inside the page as stored (the film stays a file beside it; --embed-film carries it too). `case run --out` writes it by itself at the end of every run.',
     positionals: [{ name: 'dir', help: 'the run directory `case run --out` wrote', required: true }],
     flags: {
-      embed: { type: 'boolean', help: 'carry the frames and films inside the page, for one file to send (larger)' },
+      embed: { type: 'boolean', help: 'carry the frames inside the page as stored (the film stays a file beside it unless --embed-film)' },
+      'embed-film': { type: 'boolean', help: 'carry the film inside the page too (much larger)' },
       project: { type: 'string', help: 'the name the page shows (default: the app’s folder name)', value: 'name' },
     },
     needs: 'nothing',
     session: false,
     mcp: 'core',
     mcpDetails:
-      'Writes report.html into a run folder `case_run` with `out` made (it already writes one at the end of each run): a page to open offline or share, with each case, its steps and frames, the film, the requests and why a case failed. `embed` puts the frames and the film inside the page, for one file to send.',
+      'Writes report.html into a run folder `case_run` with `out` made (it already writes one at the end of each run): a page to open offline or share, with each case, its steps and frames, the film, the requests and why a case failed. `embed` puts the frames inside the page as stored, the film stays a file beside it; `embedFilm` inlines the film too (much larger).',
     run: async (ctx) => {
       const dir = path.resolve(ctx.args[0]!);
       const written = writeRunReport(dir, {
         embed: !!ctx.flags.embed,
+        embedFilm: !!ctx.flags['embed-film'],
         project: typeof ctx.flags.project === 'string' ? ctx.flags.project : path.basename(ctx.root),
       });
       if ('error' in written) return { text: written.error, code: 2 };
       const size = fs.statSync(written.file).size;
-      return { text: `${written.file} (${megabytes(size)}; open it in a browser, no network needed)`, json: { ...written, bytes: size } };
+      const embedded = !!ctx.flags.embed || !!ctx.flags['embed-film'];
+      const film = embedded && !ctx.flags['embed-film'];
+      const warn =
+        embedded && size > 10_000_000 ? `\nwarning: ${megabytes(size)} is large for one file; drop --embed-film or --embed and share the folder instead.` : '';
+      return {
+        text: `${written.file} (${megabytes(size)}; open it in a browser, no network needed${film ? '; the film stays a file beside the page, so send the folder or pass --embed-film' : ''})${warn}`,
+        json: { ...written, bytes: size },
+      };
     },
   }),
   define({

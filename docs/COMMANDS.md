@@ -898,11 +898,11 @@ Tell whether the project’s fixtures server keeps the fixtures protocol
 
 Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.
 
-### `lynkeus report html <dir> [--embed] [--project <name>]`
+### `lynkeus report html <dir> [--embed] [--embed-film] [--project <name>]`
 
 Write a run as one HTML page in its folder, to open offline or share: cases, steps, frames, film, requests, failures
 
-Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry them inside the page. `case run --out` writes it by itself at the end of every run.
+Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry the frames inside the page as stored (the film stays a file beside it; --embed-film carries it too). `case run --out` writes it by itself at the end of every run.
 
 | Argument | |
 |---|---|
@@ -910,7 +910,8 @@ Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `r
 
 | Flag | |
 |---|---|
-| `--embed` | carry the frames and films inside the page, for one file to send (larger) |
+| `--embed` | carry the frames inside the page as stored (the film stays a file beside it unless --embed-film) |
+| `--embed-film` | carry the film inside the page too (much larger) |
 | `--project <name>` | the name the page shows (default: the app’s folder name) |
 
 ### `lynkeus report prune [dir] [--older <age>] [--dry-run]`

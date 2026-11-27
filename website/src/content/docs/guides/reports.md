@@ -114,7 +114,7 @@ npx lynkeus report html run
 npx lynkeus report html run --embed
 ```
 
-`--embed` puts the frames and the film inside the page, so you can send one file. The page is larger that way. Over MCP the tool is `report_html`.
+`--embed` puts the frames inside the page exactly as stored (AVIF or PNG, never re-encoded) and leaves the film as a file beside it, so send the folder if you want the film. `--embed-film` inlines the film too, which makes the page much larger. The command prints the size and warns above 10 MB. Over MCP the tool is `report_html`.
 
 ## Step 3: Get a key for the hosted service
 

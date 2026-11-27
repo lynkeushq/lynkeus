@@ -113,15 +113,15 @@ const stepExtras = (s: RunStep) => {
   return parts.length ? `<details class="more"><summary>details</summary>${parts.join('')}</details>` : '';
 };
 
-const caseSection = (dir: string, attempts: RunCase[], embed: boolean, index: number) => {
+const caseSection = (dir: string, attempts: RunCase[], embed: { frames: boolean; film: boolean }, index: number) => {
   const c = attempts.at(-1)!;
-  const video = source(dir, c.video, embed);
+  const video = source(dir, c.video, embed.film);
   const about = c.about ?? (c.description ? { description: c.description } : undefined);
   const id = `case-${index}`;
   let heading: string | undefined;
   const rows = c.steps
     .map((s, i) => {
-      const frame = source(dir, s.screenshot, embed);
+      const frame = source(dir, s.screenshot, embed.frames);
       const group = s.section === 'setup' ? 'Setup' : (s.heading ?? 'Steps');
       const head = group !== heading ? `<li class="group">${esc(group)}</li>` : '';
       heading = group;
@@ -182,7 +182,7 @@ const d=document.querySelector('dialog');document.querySelectorAll('[data-zoom]'
 `;
 
 /** The page for a run: its cases by their last attempt, in the order they ran, each with its steps and what they kept. */
-export const renderRunReport = (dir: string, run: RunRead, o: { project?: string; embed?: boolean } = {}): string => {
+export const renderRunReport = (dir: string, run: RunRead, o: { project?: string; embed?: boolean; embedFilm?: boolean } = {}): string => {
   const { manifest } = run;
   const byId = new Map<string, RunCase[]>();
   for (const c of run.cases) byId.set(c.id, [...(byId.get(c.id) ?? []), c]);
@@ -228,14 +228,14 @@ ${totals.unsupported ? `<button data-show="unsupported" aria-pressed="false">can
 </div>
 ${native}
 <ul class="toc">${last.map((c, i) => `<li><a href="#case-${i}">${status(c.result)} ${esc(c.title ?? c.id)}</a></li>`).join('')}</ul>
-${groups.map((g, i) => caseSection(dir, g, !!o.embed, i)).join('\n')}
+${groups.map((g, i) => caseSection(dir, g, { frames: !!o.embed || !!o.embedFilm, film: !!o.embedFilm }, i)).join('\n')}
 <dialog><img alt=""></dialog>
 </main><script>${SCRIPT}</script></body></html>
 `;
 };
 
 /** Writes the page into the run folder and answers its path; a string in `error` says why there is none. */
-export const writeRunReport = (dir: string, o: { project?: string; embed?: boolean } = {}): { file: string } | { error: string } => {
+export const writeRunReport = (dir: string, o: { project?: string; embed?: boolean; embedFilm?: boolean } = {}): { file: string } | { error: string } => {
   const run = readRun(dir);
   if (typeof run === 'string') return { error: run };
   const file = path.join(dir, REPORT_FILE);

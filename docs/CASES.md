@@ -561,7 +561,7 @@ did. What turns each on:
 | In the report | How |
 | --- | --- |
 | Frames | `--out <dir> --screenshots` (AVIF; `--frames png` only to compare pixels) |
-| A page to open offline | `report.html`, written beside every `--out` run; `lynkeus report html <dir> [--embed]` writes it again |
+| A page to open offline | `report.html`, written beside every `--out` run; `lynkeus report html <dir> [--embed]` writes it again, frames inlined |
 | Film | `--video`: FastSim films itself; an iOS Simulator films through `simctl io recordVideo` and an Android emulator or phone through `screenrecord` (3 minutes at most). Headless keeps frames only. |
 | Requests and responses | `--out`: the agent keeps them while a run keeps evidence |
 | The app's analytics and SDK calls | `--out`. What is seen depends on the host: Mixpanel, AppsFlyer, Firebase Analytics and Crashlytics, Sentry, Datadog and Intercom everywhere (the agent wraps their modules, in development builds only); the other SDKs in [HEADLESS.md](HEADLESS.md) on FastSim and headless, which stand in for their modules; an SDK written in JavaScript (Segment, Amplitude, PostHog, RudderStack…) everywhere, by the requests it sends. A native SDK not wrapped on a simulator or an emulator sends from native code and is not seen there. |

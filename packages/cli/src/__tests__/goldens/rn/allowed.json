@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html. The usage lists guide and skill install, and init's --no-skill. The usage lists map ci's --cases. The usage lists guide [topic] [section]. The usage says skill install also installs the Claude Code subagents in .claude/agents. init's --no-skill help mentions the subagents. The usage lists setup, evidence and case run's --brief.",
-    "now": "f84f1c97df19f6b5"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html. The usage lists guide and skill install, and init's --no-skill. The usage lists map ci's --cases. The usage lists guide [topic] [section]. The usage says skill install also installs the Claude Code subagents in .claude/agents. init's --no-skill help mentions the subagents. The usage lists setup, evidence and case run's --brief. The usage lists report html --embed-film.",
+    "now": "003be8fcc9b3c9aa"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places. A press with its own timeoutMs is held to it in every wait for its target (the wait for it to be listed, the scrolls, the wait for it to be enabled and still), so a missing target fails at its timeout instead of up to 15 s later: the failure's screen is read earlier (a lower commit) and the virtual clock moves less.",
@@ -288,12 +288,12 @@
     "now": "0251a7473e201d9a"
   },
   "surface/help/report html": {
-    "why": "report html is new: it writes a run folder as one HTML page to open offline (no reports service).",
-    "now": "95f46bc565b2dba6"
+    "why": "report html is new: it writes a run folder as one HTML page to open offline (no reports service). --embed no longer inlines the film (it stays a file beside the page); --embed-film does.",
+    "now": "a41ec7771c18ca4c"
   },
   "surface/mcp/tool/report_html": {
-    "why": "report_html is new: it writes report.html into a run folder, to open offline.",
-    "now": "67fc0a3d81ab2bf0"
+    "why": "report_html is new: it writes report.html into a run folder, to open offline. embed no longer inlines the film; embedFilm does.",
+    "now": "3dfe76d689cdb6bf"
   },
   "report/files": {
     "why": "A run with --out writes report.html beside run.json, a page to open offline.",

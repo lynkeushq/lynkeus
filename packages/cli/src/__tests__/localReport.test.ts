@@ -83,11 +83,20 @@ test('the local report shows each case by its last attempt, its steps, frames, f
   assert.equal((html.match(/<section class="case/g) ?? []).length, 2);
 });
 
-test('the failed attempt alone, embedded, carries its frames and film and names the failure', () => {
+test('embed carries the frames as stored and links the film; embedFilm inlines it', () => {
+  const dir = run();
+  writeRunReport(dir, { embed: true });
+  const html = fs.readFileSync(path.join(dir, REPORT_FILE), 'utf8');
+  assert.match(html, /src="data:image\/avif;base64,AQID"/);
+  assert.doesNotMatch(html, /data:video/);
+  assert.match(html, /<video[^>]*src="[^"d][^"]*\.mp4"|<source[^>]*\.mp4/);
+});
+
+test('the failed attempt alone, embedded with the film, carries its frames and film and names the failure', () => {
   const dir = run();
   const lines = fs.readFileSync(path.join(dir, 'cases.jsonl'), 'utf8').split('\n');
   fs.writeFileSync(path.join(dir, 'cases.jsonl'), `${lines[0]}\n`);
-  writeRunReport(dir, { embed: true });
+  writeRunReport(dir, { embedFilm: true });
   const html = fs.readFileSync(path.join(dir, REPORT_FILE), 'utf8');
   assert.match(html, /src="data:image\/avif;base64,AQID"/);
   assert.match(html, /src="data:video\/mp4;base64,BAU="/);
