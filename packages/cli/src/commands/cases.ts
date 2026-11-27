@@ -17,7 +17,7 @@ import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
-import { caseVersion, Flakes } from '../cases/flakes.js';
+import { appStamp, caseVersion, Flakes, whereOf } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
 import { SEEN_DIR } from '../cases/coverage.js';
 import { readNativeSpecs } from '../cases/nativeSpecs.js';
@@ -585,6 +585,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         }
       : undefined;
   const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
+  const casesAt = path.relative(ctx.root, path.resolve(config.base ?? ctx.root, config.dir ?? 'cases'));
+  const stamp = ledger ? appStamp(ctx.root, ['.lynkeus', ...(casesAt && !casesAt.startsWith('..') ? [casesAt] : [])]) : undefined;
   // A run file files each event under its step, so it needs them collected.
   const events = typeof ctx.flags.events === 'string' || (out !== undefined && !ctx.flags['no-app-events']);
   const jobsAsked = Math.max(1, Number(ctx.flags.jobs ?? 1));
@@ -1016,7 +1018,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                 await scoped.stop();
               }
             };
-            let { report, startedAt, hello }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } =
+            let { report, startedAt, hello }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean; commands?: string[] } } =
               await attempt(1, store?.take(c));
             // What a stopped case did after the stop is not a result: it ran only until its step ended.
             if (halt.signal.aborted) break;
@@ -1047,7 +1049,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
               if (second) liveRun?.add(second);
             }
             if (jobs > 1) ctx.err(lines.join('\n'));
-            ledger?.note(report, new Date(), caseVersion(c, config.macros));
+            // A case whose app never attached did not run: its failure says nothing about the case.
+            if (hello) ledger?.note(report, new Date(), caseVersion(c, config.macros), { where: whereOf(hello), app: stamp });
             if (typeof ctx.flags.events === 'string' && report.events) {
               const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
               fs.mkdirSync(dir, { recursive: true });

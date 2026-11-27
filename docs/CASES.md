@@ -415,7 +415,12 @@ The summary calls a case flaky when its recent runs (the ledger `--flakes` keeps
 disagree. A run of another version of the case does not count: the history
 starts again when its steps, or a macro they call, change. Nor does a failure
 that reproduced, failing again on its second chance or failing the same step
-with the same error in another run: that is a break, not a flake.
+with the same error in another run: that is a break, not a flake. Runs are only
+compared with runs on the same target (`ios`, `android`, `fastsim:ios`, `host:android`,
+from what the app said when it attached) and of the same app source (the commit plus
+the working tree's diff, leaving out the cases and `.lynkeus/`): a case that fails from
+the moment the app changed is broken, not flaky. A case whose app never attached (the
+driver's port taken, no app running) did not run and is not recorded.
 
 A failed `app.see`, or `app.wait` for a target, also keeps under its step in
 `cases.jsonl` a `looked` object: `listing`, every element of the screen at the
