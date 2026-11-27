@@ -7,7 +7,8 @@ import { AgentError } from 'lynkeus-client';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import { nativeValuesEnv } from '../cases/nativeValues.js';
-import { DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { configFile, DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { readJson, writeJson } from '../files.js';
 import { prepareDevMenu } from '../device/devMenu.js';
 import { describeHolder, portHolder } from '../device/portHolder.js';
 import { reverseAndroid } from '../device/devices.js';
@@ -15,10 +16,12 @@ import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
 import { doctor } from './doctor.js';
 import { runtimeAt } from '../runtimes/index.js';
-import { installedFastsim } from './fastsim.js';
+import { installedFastsim, installedKit } from './fastsim.js';
 import { runHost } from './hostProcess.js';
 import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
-import { machineTargets, runTargets } from './runTargets.js';
+import { appPlatforms, isAppFolder, machineTargets, type Platform, proposeTargets, runTargets } from './runTargets.js';
+import { declaredTargets } from '../cases/onTargets.js';
+import { bundlePlatform, fastsimBundles } from './cases.js';
 import { installSkill } from './skill.js';
 import { headlessEntryOf } from './appEntry.js';
 import { detectApiEnv, setupMocks, transformIgnorePattern } from './appEnv.js';
@@ -216,6 +219,30 @@ const removeOldHostTests = (root: string): void => {
   }
 };
 
+/** The platforms an installed Lynkeus FastSim draws here. */
+const fastsimKits = (): Platform[] => (['ios', 'android'] as const).filter((p) => installedKit(p) !== undefined);
+
+/**
+ * Writes the proposed `cases.targets` when lynkeus.config.json declares none, and says so: a project without them
+ * leaves an agent to guess where a case must pass, which ends in running everything everywhere.
+ */
+export const proposeCasesTargets = (root: string, config: LynkeusConfig, kits: Platform[] = fastsimKits()): string | undefined => {
+  if (config.cases?.targets !== undefined) return undefined;
+  // Not an app's folder: init says so itself, and a config written here would belong to nothing.
+  if (!isAppFolder(root)) return undefined;
+  const file = configFile(root);
+  let current: Record<string, unknown> = {};
+  try {
+    current = fs.existsSync(file) ? readJson<Record<string, unknown>>(file) : {};
+  } catch {
+    return `cases.targets: not written, ${path.basename(file)} is not JSON Lynkeus can read; add "cases": { "targets": [...] } yourself`;
+  }
+  const targets = proposeTargets({ fastsim: kits, platforms: appPlatforms(root) });
+  const cases = current.cases && typeof current.cases === 'object' ? (current.cases as Record<string, unknown>) : {};
+  writeJson(file, { ...current, cases: { ...cases, targets } });
+  return `wrote "cases": { "targets": ${JSON.stringify(targets)} } to ${path.basename(file)}: where a case must pass (\`case run --on targets\` checks them; \`lynkeus ci\` runs the headless and FastSim ones), proposed from ${kits.length ? 'the FastSim installed here' : 'this machine (no FastSim installed)'} and the app's platforms. Confirm it with the person, or change it`;
+};
+
 export const headlessCommands = [
   define({
     name: 'init',
@@ -232,6 +259,8 @@ export const headlessCommands = [
     run: async (ctx) => {
       const runtime = await runtimeAt(ctx.root);
       const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
+      const targets = proposeCasesTargets(ctx.root, ctx.config);
+      if (targets) lines.push(targets);
       // The environment form lets a team, or a measured comparison, turn it off for every init an agent runs.
       if (!ctx.flags['no-skill'] && process.env.LYNKEUS_NO_SKILL !== '1') lines.push(installSkill(ctx.root).text);
       return { text: lines.join('\n'), json: lines };
@@ -298,8 +327,18 @@ export const headlessCommands = [
         android: found?.android.map((d) => ({ ...d, reversed: reversed.includes(d.id) })),
         headless: runtime.headlessCheck(ctx.root, entryOf(ctx)),
         fastsim: installedFastsim(),
+        ...(isAppFolder(ctx.root)
+          ? {
+              targets: {
+                declared: declaredTargets({}, ctx.config.cases?.targets),
+                platforms: appPlatforms(ctx.root),
+                kits: fastsimKits(),
+                bundles: fastsimBundles(ctx.root).flatMap((b) => bundlePlatform(b) ?? []),
+              },
+            }
+          : {}),
       });
-      const all = [...checks, ...where.checks];
+      const all = [...checks, ...where.checks, ...where.declared];
       const mark = (c: SetupCheck) => (c.ok ? '✓' : c.optional ? '○' : '✗');
       const line = (c: SetupCheck) => `${mark(c)} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`;
       const text = [
@@ -308,6 +347,7 @@ export const headlessCommands = [
         'Where cases can run on this machine:',
         ...where.checks.map(line),
         ...devMenu.map((l) => `  ${l}`),
+        ...(where.declared.length ? ['', 'Where a case must pass for this project (cases.targets):', ...where.declared.map(line)] : []),
         `→ ${where.advice}`,
       ].join('\n');
       return { text, json: [...all, { what: where.advice, ok: true, group: 'advice' }] };
