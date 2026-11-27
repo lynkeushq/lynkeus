@@ -42,7 +42,7 @@ Con palabras comunes:
 Configura lynkeus en esta app.
 ```
 
-Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo.
+Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo. De paso deja el [skill de Lynkeus](#el-skill-de-lynkeus) en `.claude/skills/lynkeus`.
 
 El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
 
@@ -84,8 +84,8 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 30 | 6200 tokens |
-| `lynkeus mcp --full` | las 60 | 9500 tokens |
+| `lynkeus mcp` | 32 | 7200 tokens |
+| `lynkeus mcp --full` | las 62 | 10 700 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea grabar o tomar snapshots.
 
@@ -118,6 +118,7 @@ Las herramientas básicas son:
 | `map_show` | Qué botones tiene una pantalla y a dónde llevan, según el código. |
 | `map_plan` | Indicaciones para ir de una ruta a otra. |
 | `crawl` | Recorre la pantalla actual: toca cada control y anota a dónde lleva. Por MCP es corto: un nivel y 12 toques. |
+| `guide` | Un tema del [skill de Lynkeus](#el-skill-de-lynkeus), para un cliente que no carga skills. |
 
 Si `lynkeus.config.json` declara `language` o `locale`, aparece una más, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
 
@@ -176,6 +177,16 @@ Pruebas una app de React Native a través de las herramientas de lynkeus.
 Es la regla que más rinde. En una sola respuesta, `why` dice si el objetivo está cubierto, oculto tras una capa, deshabilitado o si no existe (y cuál es el parecido más cercano); si la sesión se perdió, si el backend falló o limitó las peticiones, si todavía hay peticiones en curso o si no se hizo ninguna; y si el navegador murió. Un modelo que relee la pantalla tras un fallo gasta lo mismo y tiene que deducir todo eso por su cuenta.
 
 Además, cuando una herramienta falla, la respuesta de error ya trae ese diagnóstico adjunto, bajo `why:`.
+
+## El skill de Lynkeus
+
+Lo que el servidor le dice al modelo al conectarse es corto a propósito. El cliente lo vuelve a leer en cada llamada, así que cada línea de más se paga muchas veces en una misma sesión. Todo lo demás que un agente necesita para escribir buenos casos vive en el skill de Lynkeus, que no cuesta nada hasta que una tarea lo pide. Ahí están el formato de los casos y cómo se comparan los textos, las macros y los bloques `on:`, `app.relaunch`, dónde corre cada caso y cómo repartir una suite en paralelo, la evidencia y cómo compartir una corrida, la integración continua y las corridas que se repiten idénticas.
+
+`lynkeus init` lo instala en `.claude/skills/lynkeus` y lo menciona en lo que imprime. Súmalo al repositorio: así lo tiene cualquiera que trabaje en la app. Claude Code y los demás clientes compatibles con Agent Skills guardan en contexto solo la descripción del skill, que es una línea, y abren el archivo del tema cuando la tarea lo necesita.
+
+Si no lo quieres, usa `lynkeus init --no-skill`. Para pasarlo a la versión de la CLI que tienes, `lynkeus skill install`. Lynkeus anota en `.lynkeus-skill.json` qué archivos escribió; si cambiaste alguno, no lo pisa y te dice cuál. Con `--force` lo reemplaza igual.
+
+Los clientes que no cargan skills tienen el mismo texto en la herramienta `guide`. Con `topic` (`cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`) devuelve ese tema; sin `topic`, el índice. Las instrucciones del servidor le piden al modelo que lea el tema que necesita antes de adivinar. En una terminal, `npx lynkeus guide cases` muestra lo mismo.
 
 ## Un ciclo completo: revisar un pull request
 

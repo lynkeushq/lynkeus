@@ -224,15 +224,16 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install]`
+### `lynkeus init [--no-install] [--no-skill]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
-React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
+React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.
 
 | Flag | |
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
+| `--no-skill` | leave the Lynkeus skill out |
 
 ### `lynkeus status [--offline]`
 
@@ -243,6 +244,26 @@ The first thing to call in a project you do not know: each line that fails says 
 | Flag | |
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
+
+### `lynkeus guide [topic]`
+
+How to work with Lynkeus, one short topic per call: the Lynkeus skill's text, for what the MCP instructions leave out
+
+Without a topic, the index: the cheap way to write a case and what each topic holds. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
+
+| Argument | |
+|---|---|
+| `topic` | none for the index (optional) |
+
+### `lynkeus skill install [--force]`
+
+Install or update the Lynkeus skill in this project's .claude/skills/lynkeus, at this CLI's version
+
+`lynkeus init` does it too. A skill whose files changed since Lynkeus wrote them, or that Lynkeus did not write, is left as it is unless --force. The same topics are served over MCP by the `guide` tool.
+
+| Flag | |
+|---|---|
+| `--force` | replace the skill even when its files were changed |
 
 ## os
 
@@ -670,7 +691,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 |---|---|
 | `--on <targets>` | run the cases on each target at once: simulator (the attached Simulator or emulator), fastsim, headless, comma-separated, or all; a target this machine lacks is said, not failed |
 | `--bundle <dir>` | with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus) |
-| `--host` | start `headless start` for the run and stop it after |
+| `--host` | start `headless start` for the run (one per job with --jobs) and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
 | `--locale <tag>` | the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE) |
