@@ -362,6 +362,8 @@ Como la prueba se hace en la ventana que está delante en ese punto, una alerta 
 
 `Screen.system` aparece cuando delante de la app hay una vista que su árbol de React no dibujó: una alerta del sistema, un pedido de permiso, la hoja de un SDK nativo. Su texto llega como elementos con `system: true`, al final de la lista, y sus botones se pulsan por su texto. Si esa vista la dibuja otro proceso, como el "¿Guardar contraseña?" de iOS, no llega ningún texto y ningún toque desde dentro de la app la alcanza; `press` sobre un control que quedó debajo falla con `… is under a view the app did not draw`.
 
+Cuando un `press` hace que la app abra una URL (`Linking.openURL`), la respuesta la incluye en `opened`: el navegador u otra app está por quedar delante.
+
 **`hidden`** significa "esto no está en pantalla". El elemento está montado, pero la app no lo presenta. Es la respuesta más fuerte de las dos, y dice el motivo:
 
 | Motivo | Qué significa |

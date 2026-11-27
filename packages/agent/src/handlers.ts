@@ -2,6 +2,7 @@ import { Linking } from 'react-native';
 
 import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
+import { openedSince } from './opened';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
 import { host } from './registry';
 import { recentRequests, requestsHeld, requestsInFlight } from './requests';
@@ -226,9 +227,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       point = await settled(target);
     }
     if (point.element) underSystemView(target, point.element);
+    const pressedAt = Date.now();
     if (point.element) await backend.press(point.element, holdMs);
     else await backend.pressPoint(point.x, point.y, holdMs);
-    return { ...point, mode: 'native' as const };
+    const opened = openedSince(pressedAt);
+    return { ...point, mode: 'native' as const, ...(opened ? { opened } : {}) };
   };
 
   // No touch, no gesture recognizer, no settle wait; but a disabled or covered
@@ -237,8 +240,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const element = presented(target);
     if (!element.enabled) throw new Error(`${describeTarget(target)} is disabled`);
     if (element.covered) throw new Error(`${describeTarget(target)} is covered`);
+    const pressedAt = Date.now();
     await backend.pressJs(element);
-    return { ...centre(element), element, mode: 'js' as const };
+    const opened = openedSince(pressedAt);
+    return { ...centre(element), element, mode: 'js' as const, ...(opened ? { opened } : {}) };
   };
 
   const press = async ({ mode, holdMs, ...rest }: Target & PressOptions) => {

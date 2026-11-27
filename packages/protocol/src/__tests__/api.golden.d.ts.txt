@@ -226,6 +226,7 @@ export type CoreMethods = {
             y: number;
             element?: Element;
             mode: 'native' | 'js';
+            opened?: string;
         };
     };
     type: {

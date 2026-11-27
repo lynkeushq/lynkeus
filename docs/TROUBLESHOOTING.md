@@ -19,6 +19,10 @@ process draws it (iOS's "Save Password?" after a login form), nothing inside the
 app can read or tap it: relaunch the app or answer it on the device, and sign
 in through an app command so the suite does not meet it.
 
+**`! the app went to the background` after a press.** The control opened a link
+or another app; what the agent lists then is not what is on screen. Bring the
+app back with `lynkeus os appstate active`.
+
 **No keyboard on the simulator while typing.** `type` taps the field first,
 so it is focused the way a person focuses it and the system keyboard comes up.
 When it does not, the simulator is taking keys from the Mac instead: turn off

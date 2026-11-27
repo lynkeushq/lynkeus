@@ -162,6 +162,14 @@ lynkeus screen
 - When its words are listed, press its button by its text, as a person would: `lynkeus press "Not Now"`. To get past it in any step of any case, add it to [`cases.interruptions`](/reference/configuration/#casesinterruptions): `see` its text, `do` the press.
 - When the line says another process draws it (iOS draws "Save Password?" that way), nothing from inside the app can read or tap it. Relaunch the app, or answer it on the device. To keep a suite from meeting it, sign in through an app command (`qa.register`) rather than through the form.
 
+### A press sent the app to the background
+
+**What you see.** `press` answers `! the app went to the background: it opened https://…, and the browser is in front`, or `screen` starts with that line.
+
+**Why.** The control opened a link or another app. What the agent lists then is the app's own tree, not what is on screen.
+
+**Fix.** If the case meant it, bring the app back with `lynkeus os appstate active` and go on. If it did not, the control is not the one the case wanted.
+
 ### On Android, every control reads `~covered`
 
 **What you see.** In a development build on Android, `lynkeus screen` marks every control `~covered`, and a case waits out its deadline before each press.

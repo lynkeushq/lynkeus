@@ -233,6 +233,9 @@ it.
   outside the focused field would only dismiss it, measures again, then puts a
   finger down for `holdMs` (50 by default; ~600 is a long press). Consecutive
   taps let the run loop turn between them.
+- `press` answers `opened` when the press made the app hand a URL to the OS
+  (`Linking.openURL`): the driver then waits for the app to report its
+  AppState and says that the app went to the background, and what is in front.
 - `press` with `mode: 'js'` calls the element's `onPress` directly. It needs a
   `testId`, refuses disabled or covered controls, and skips gestures and
   animations entirely. Use it when you want the outcome, not the gesture.

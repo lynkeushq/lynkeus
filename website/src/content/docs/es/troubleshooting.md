@@ -167,6 +167,14 @@ Los errores correspondientes son:
 - Si su texto aparece en el listado, pulsa el botón por su texto, como lo haría una persona: `lynkeus press "Ahora no"`. Para quitarla en cualquier paso de cualquier caso, agrégala a [`cases.interruptions`](/es/reference/configuration/#casesinterruptions): en `see` su texto, en `do` la pulsación.
 - Si la línea dice que la dibuja otro proceso (así lo hace iOS con "¿Guardar contraseña?"), nada desde dentro de la app puede leerla ni tocarla. Vuelve a abrir la app, o respóndela en el dispositivo. Para que una suite no se la cruce, inicia sesión con un comando de la app (`qa.register`) en lugar del formulario.
 
+### Un toque mandó la app a segundo plano
+
+**Qué ves.** `press` responde `! the app went to the background: it opened https://…, and the browser is in front`, o `screen` empieza con esa línea.
+
+**Por qué pasa.** El control abrió un enlace u otra app. Lo que lista el agente desde entonces es el árbol de la app, no lo que se ve en pantalla.
+
+**Cómo se arregla.** Si el caso lo buscaba, trae la app de vuelta con `lynkeus os appstate active` y sigue. Si no, el control pulsado no es el que el caso quería.
+
 ### En Android, todos los controles aparecen `~covered`
 
 **Qué ves.** En un build de desarrollo, `lynkeus screen` marca cada control como `~covered`, y un caso agota su plazo antes de cada pulsación.

@@ -209,7 +209,7 @@ Takes a target, plus:
 | `holdMs` | number | `50` | How long the finger stays down. About 600 is a long press. |
 | `mode` | `"native"` or `"js"` | `"native"` | How to press. |
 
-It answers the point pressed, the element when the target named one, and the mode used.
+It answers the point pressed, the element when the target named one, and the mode used. When the press made the app open a URL (`Linking.openURL`), it also answers it as `opened`: the browser or another app is about to be in front.
 
 In `native` mode the app:
 

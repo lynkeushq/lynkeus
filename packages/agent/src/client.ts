@@ -8,6 +8,7 @@ import { hmacSha256Hex, sameHex } from './hmac';
 import { installHostControls } from './hostControls';
 import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response, type VerifiedEvent } from './protocol';
 import { addDefault, host } from './registry';
+import { trackOpenedUrls } from './opened';
 import { trackRequests } from './requests';
 import { readLogs, tapLogs } from './logs';
 import { readSdkCalls, tapSdks } from './sdks';
@@ -83,6 +84,7 @@ export const start = (options: ClientOptions): (() => void) => {
     return () => undefined;
   }
   trackRequests();
+  trackOpenedUrls();
   // Before `hello`, which lists the commands: the host's own (FastSim's screenshots and clock) are among them.
   installHostControls();
   // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,

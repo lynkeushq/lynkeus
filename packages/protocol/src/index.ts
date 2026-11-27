@@ -160,7 +160,8 @@ export type CoreMethods = {
   find: { params: Target; result: Element | null };
   press: {
     params: Target & PressOptions;
-    result: { x: number; y: number; element?: Element; mode: 'native' | 'js' };
+    /** `opened`: a URL the press made the app hand the OS (`Linking.openURL`), which puts the browser or another app in front. */
+    result: { x: number; y: number; element?: Element; mode: 'native' | 'js'; opened?: string };
   };
   type: {
     params: { text: string; target?: Target; clear?: boolean; paste?: boolean; submit?: boolean };

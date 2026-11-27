@@ -1,8 +1,10 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { Linking } from 'react-native';
 
 import type { Backend } from '../backend';
 import { createHandlers, dispatch } from '../handlers';
 import { noNavigation } from '../navigation';
+import { trackOpenedUrls } from '../opened';
 import type { Element } from '../protocol';
 
 const element = (over: Partial<Element>): Element => ({
@@ -248,5 +250,24 @@ describe('a view the app did not draw in front of it', () => {
     const handlers = createHandlers(noNavigation, backend);
     await dispatch(handlers, 'press', { testId: 'tab' });
     expect(press).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('a press that opens a URL', () => {
+  it('says which, so the driver knows the browser or another app is coming to the front', async () => {
+    // The app's own Linking, as the agent finds it when it starts.
+    jest.spyOn(Linking, 'openURL').mockImplementation(async () => undefined);
+    trackOpenedUrls();
+    const card = element({ testId: 'card' });
+    const { backend } = fakeBackend([card]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      press: async () => {
+        await Linking.openURL('https://github.com/infinitered/ignite');
+      },
+    });
+    expect(await dispatch(handlers, 'press', { testId: 'card' })).toMatchObject({ opened: 'https://github.com/infinitered/ignite' });
+    const { backend: still } = fakeBackend([card]);
+    expect(await dispatch(createHandlers(noNavigation, still), 'press', { testId: 'card' })).not.toHaveProperty('opened');
   });
 });
