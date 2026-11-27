@@ -253,13 +253,13 @@ export const runsCommands = [
     group: 'runs',
     summary: 'Press every control it finds, learn where each leads (feeds map paths and plan)',
     details:
-      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. Over MCP it stops after 12 presses unless max says otherwise.',
+      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. Over MCP it stops after 12 presses unless max says otherwise.',
     mcp: 'core',
     mcpOmit: ['overlay-when', 'overlay-flow', 'var-cmd', 'verbose'],
     // One call stays short and its answer small; a longer walk is asked for by name, and the next call continues it.
     mcpDefaults: { depth: 1, max: 12 },
     mcpDetails:
-      'Presses every control on the screen the app is on (or Route), one level deep, and records where each leads: map_plan, case_coverage and case_new then know the way without driving by hand. Read-only: a press that makes the app write is reported and not explored past. Answers with the screens found, the new edges and the problems, never a line per press. It remembers what it pressed: call it again to continue, or pass max and depth for a longer walk. to walks towards a route and stops there.',
+      'Presses every control on the screen the app is on (or Route), one level deep, and records where each leads: map_plan, case_coverage and case_new then know the way without driving by hand. Read-only: a press that makes the app write is reported and not explored past; one that opens another app (a link in the browser) is reported, never repeated, and the app is brought back. Answers with the screens found, the new edges and the problems, never a line per press. It remembers what it pressed: call it again to continue, or pass max and depth for a longer walk. to walks towards a route and stops there.',
     positionals: [{ name: 'Route', help: 'where to start (default: the current screen)' }],
     flags: {
       depth: { type: 'number', help: 'how many screens deep', default: 1, value: 'n' },
@@ -319,8 +319,9 @@ export const runsCommands = [
             log: (line) => ctx.flags.verbose && ctx.err(`    · ${line}`),
             onTransition: (t) => {
               const b = t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? '');
+              const to = t.outside ? `outside the app: ${t.outside.opened ?? 'another app'}` : (t.toRoute ?? '?');
               ctx.err(
-                `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${t.toRoute ?? '?'}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
+                `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${to}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
               );
               // A press that opened a sheet went somewhere even though the route did not change: the layer is the destination.
               if (t.fromRoute && t.toRoute && (t.fromRoute !== t.toRoute || t.fromLayer !== t.toLayer)) {
@@ -349,7 +350,7 @@ export const runsCommands = [
         });
         return {
           text: `\n${text}\n`,
-          json: { transitions: transitions.length, screens, problems: bad.length, learned, outDir },
+          json: { transitions: transitions.length, screens, problems: bad.length, outside: transitions.filter((t) => t.outside).length, learned, outDir },
           code: bad.length ? 1 : 0,
         };
       } finally {

@@ -228,12 +228,12 @@
     "now": "578255ae89a274f1"
   },
   "surface/help/crawl": {
-    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
-    "now": "7ceb0254fd213c5b"
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front.",
+    "now": "014d8e7dbcf2936a"
   },
   "surface/mcp/tool/crawl": {
-    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
-    "now": "062519268c3af2ed"
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front.",
+    "now": "b704fa7a8763dbc4"
   },
   "surface/help/case coverage": {
     "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",

@@ -8,6 +8,7 @@ import type { Flow } from '../flow/types.js';
 import { pathOf, problemsOf } from '../knowledge/problems.js';
 import { createReturns, RecoveryError } from './crawl/return.js';
 import { candidates, controlName, label, layerName, nodeOf, pattern, presented, stateKey, targetOf } from './crawl/state.js';
+import { awayAfter } from './drive.js';
 import { clearOverlayIfShown, type Overlay } from './overlay.js';
 
 export type LoginRecovery = {
@@ -33,7 +34,12 @@ export type Transition = {
   problems: string[];
   /** The writes the press caused, when it caused any. */
   wrote?: string[];
+  /** The press put another app in front (a link opened in the browser): what it opened, and whether the app had to be relaunched to come back. */
+  outside?: { opened?: string; relaunched?: boolean };
 };
+
+/** Where a press that put another app in front leads: no screen of this app. */
+export const OUTSIDE = 'outside';
 
 export type CrawlOptions = {
   device: Device;
@@ -75,6 +81,7 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
   const states: Record<string, Screen> = {};
   const explored = new Set<string>();
   const wrote = new Set<string>();
+  const left = new Set<string>();
   const walked = new Set<string>();
   let actions = 0;
   let reached = false;
@@ -90,6 +97,31 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
     transition.ms = Math.round(performance.now() - t0);
     transitions.push(transition);
     options.onTransition?.(transition);
+  };
+
+  const back = async (): Promise<'returned' | 'relaunched'> => {
+    try {
+      return await device.foreground();
+    } catch (error) {
+      throw new RecoveryError(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  /**
+   * A press that put another app in front went somewhere, outside the app: like a press that wrote, it is reported
+   * and never repeated (it would only leave again), and the app is brought back as it was to go on from there.
+   */
+  const wentOutside = async (transition: Transition, button: Element, node: string, t0: number) => {
+    const opened = device.opened;
+    const how = await back();
+    transition.to = OUTSIDE;
+    transition.outside = { ...(opened ? { opened } : {}), ...(how === 'relaunched' ? { relaunched: true } : {}) };
+    left.add(pattern(button));
+    report(transition, t0);
+    memory?.record(node, { tried: [controlName(button)] });
+    options.log?.(
+      `${controlName(button)} left the app (${opened ?? 'another app came to the front'}); brought it back${how === 'relaunched' ? ' by relaunching it' : ''}`,
+    );
   };
 
   /** With a goal, whatever the directions say leads towards it goes first. */
@@ -123,9 +155,12 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
     for (const button of buttons) {
       if (actions >= options.maxActions || reached || options.signal?.aborted) return;
       if (readOnly && wrote.has(pattern(button))) continue;
+      if (left.has(pattern(button))) continue;
       const t0 = performance.now();
       const transition: Transition = { from: key, fromRoute: origin.route, fromLayer: layer, button: label(button), to: '', ms: 0, problems: [] };
+      let sent = false;
       try {
+        if (device.inBackground) await back();
         if (!device.server.connected) {
           await recover();
           if (!(await restore(origin, layer))) return;
@@ -140,7 +175,14 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
           continue;
         }
         actions++;
-        await device.press(targetOf(button));
+        sent = true;
+        const { opened } = await device.press(targetOf(button));
+        await awayAfter(device, opened);
+        if (device.inBackground) {
+          await wentOutside(transition, button, node, t0);
+          if (!(await restore(origin, layer))) await goTo(origin.route);
+          continue;
+        }
         const after = await settle();
         transition.to = stateKey(after);
         transition.toRoute = after.route;
@@ -177,6 +219,12 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
         }
       } catch (error) {
         if (error instanceof RecoveryError) throw error;
+        // The OS can take longer to put the other app up than the press waits for: the read after it is what fails.
+        if (sent && device.inBackground) {
+          await wentOutside(transition, button, node, t0);
+          if (!(await restore(origin, layer).catch(() => false))) await goTo(origin.route).catch(() => undefined);
+          continue;
+        }
         transition.problems.push(error instanceof Error ? error.message : String(error));
         report(transition, t0);
         if (!device.server.connected) await recover().catch(() => undefined);
@@ -240,6 +288,7 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
     return now.presenting ? now : undefined;
   };
 
+  if (device.inBackground) await back();
   await clearOverlayIfShown(device, options.overlay);
   const first = await revive();
   start = first.route;
@@ -292,12 +341,19 @@ export const describeCrawl = (r: {
     .filter((t) => t.problems.length)
     .map((t) => `${placeOf(t.fromRoute, t.fromLayer)} ${buttonOf(t)} → ${placeOf(t.toRoute, t.toLayer)}: ${t.problems.join('; ')}`);
   const wrote = r.transitions.filter((t) => t.wrote).map((t) => `${placeOf(t.fromRoute, t.fromLayer)} ${buttonOf(t)}: ${t.wrote!.join(', ')}`);
+  const outside = r.transitions
+    .filter((t) => t.outside)
+    .map(
+      (t) =>
+        `${placeOf(t.fromRoute, t.fromLayer)} ${buttonOf(t)} → ${t.outside!.opened ?? 'another app'}${t.outside!.relaunched ? ' (it did not come back: relaunched)' : ''}`,
+    );
   return [
     `  ${r.transitions.length} presses on ${places.size} screens in ${r.seconds}s; ${r.learned.length} new edges (${r.reinforced} seen again), ${problems.length} problems`,
     ...(places.size ? [`  screens: ${[...places].sort().join(', ')}`] : []),
     ...(r.learned.length ? ['  new edges', ...listed(r.learned, 10)] : []),
     ...(problems.length ? ['  problems', ...listed(problems, 5)] : []),
     ...(wrote.length ? ['  not explored past (the press wrote)', ...listed(wrote, 5)] : []),
+    ...(outside.length ? ['  left the app (brought back; not pressed again)', ...listed(outside, 5)] : []),
     ...(r.spent ? ['  more to find: the press budget ran out; crawl again to go on where it stopped, or pass a larger max or depth'] : []),
     `  artifacts: ${r.outDir}`,
   ].join('\n');

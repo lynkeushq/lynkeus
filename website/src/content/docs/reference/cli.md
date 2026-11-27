@@ -985,7 +985,9 @@ The crawl finishes a screen before it goes anywhere, and remembers in `.lynkeus/
 
 It is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`) the crawl reports it, stops exploring past it, and never presses that control again. Controls that must not be pressed at all go under `crawl.never` in `lynkeus.config.json`. Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
 
-Over MCP, `crawl` is one of the default tools. A call there stops after one level and 12 presses unless it passes `depth` or `max`. It answers with a summary: the screens it stood on, the new edges, the problems, and the presses it did not explore past because they wrote. It never sends one line per press.
+A press that sends the app to the background, such as a link that opens in the browser or a control that opens another app, leads outside the app. The crawl records what it opened, never presses that control again, and brings the app back to the front the way Lynkeus launches it (`simctl launch` on a simulator, the launcher intent on Android), so the app keeps its state. Only when the app does not come back is it relaunched. It needs the app's bundle id or application id: `app` in `lynkeus.config.json` or `--app`.
+
+Over MCP, `crawl` is one of the default tools. A call there stops after one level and 12 presses unless it passes `depth` or `max`. It answers with a summary: the screens it stood on, the new edges, the problems, the presses it did not explore past because they wrote, and the presses that left the app and what they opened. It never sends one line per press.
 
 | Argument | Meaning |
 |---|---|
