@@ -12,7 +12,7 @@ import type { Device } from '../../device/driver.js';
 import { type Base, find, register } from '../../registry.js';
 import { Fixtures } from '../fixtures.js';
 import { parseCase } from '../format.js';
-import { argvFor, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase } from '../runner.js';
+import { argvFor, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase, type StepReport, stepRoutes } from '../runner.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -235,6 +235,50 @@ test('a run that asks for routes gets the screens the case went through, not the
   const report = await runCase(c, { base, config, fixtures, routes: true });
   assert.deepEqual(report.routes, ['Home.Main', 'Settings.Main']);
   assert.equal(asked.at(-1), 7);
+});
+
+test('a run that asks for routes keeps the screen each step left the app on, read off the marks steps take anyway', async () => {
+  const c = parseCase('---\nid: steps\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: "#refresh"\n  - app.press: "#refresh"\n', 'steps.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const events: { seq: number; t: number; kind: 'route'; route: string; path: string[] }[] = [];
+  const reached = ['Home.Main', 'Settings.Main'];
+  device.trace = async (since?: number) => ({ last: events.length, events: since === undefined ? [] : events.filter((e) => e.seq > since) });
+  const press = device.press.bind(device);
+  device.press = async (params) => {
+    const done = await press(params);
+    events.push({ seq: events.length + 1, t: 0, kind: 'route', route: reached[events.length]!, path: [] });
+    return done;
+  };
+  const report = await runCase(c, { base, config, fixtures, routes: true });
+  assert.deepEqual(
+    report.steps.map((s) => s.route),
+    ['Home.Main', 'Home.Main', 'Settings.Main'],
+  );
+  const plain = await runCase(c, { base, config, fixtures });
+  assert.ok(plain.steps.every((s) => s.route === undefined));
+});
+
+test('a step that only looked keeps the screen it found; one skipped gets none', () => {
+  const ran: StepReport[] = [
+    { step: 'a', status: 'passed', ms: 0 },
+    { step: 'b', status: 'passed', ms: 0 },
+    { step: 'c', status: 'passed', ms: 0 },
+    { step: 'd', status: 'skipped', ms: 0 },
+  ];
+  stepRoutes(
+    ran,
+    [0, undefined, 5],
+    [
+      { seq: 2, route: 'A' },
+      { seq: 4, route: 'B' },
+      { seq: 7, route: 'C' },
+    ],
+  );
+  assert.deepEqual(
+    ran.map((s) => s.route),
+    ['B', 'B', 'C', undefined],
+  );
 });
 
 test('an optional press of something that is not there is skipped, not failed', async () => {

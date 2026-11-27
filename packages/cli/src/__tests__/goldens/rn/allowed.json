@@ -56,8 +56,8 @@
     "now": "f7ecf6f889d15a4b"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
-    "now": "8458926e4a06a9a2"
+    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. Each step and case in the answer now carry the screens the run went through (route, routes).",
+    "now": "07a22e20c34d75a9"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -144,20 +144,20 @@
     "now": "f2d22b677976ddbe"
   },
   "report/file/cases.jsonl": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "e1ab20a0c6d1ef91"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds.",
+    "now": "cd52c9bdda95f585"
   },
   "report/file/progress.ndjson": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "f50c437ac40925b5"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. case run reads the trace and the screen once more at a case's first step, to keep the screens the case goes through by default; that moves the virtual clock by two milliseconds.",
+    "now": "d03e8dbb9477022e"
   },
   "surface/fails/status offline": {
     "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
     "now": "2432312394237059"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
-    "now": "868f9d0eb9e70a5f"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. --seen defaults to .lynkeus/seen and keeps the screen after each step, for case coverage and case new.",
+    "now": "759213d77fc9ab37"
   },
   "surface/mcp/tool/case_run": {
     "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
@@ -222,5 +222,29 @@
   "surface/mcp/tool/headless_init": {
     "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
     "now": "f07d7c562f25d929"
+  },
+  "surface/help/case coverage": {
+    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen.",
+    "now": "6642e92e41a6d491"
+  },
+  "surface/help/case impact": {
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
+    "now": "f79e001c22da3ba7"
+  },
+  "surface/help/case new": {
+    "why": "case new offers the way an existing case takes to the screen, from the steps case run now keeps in .lynkeus/seen by default or a step that names the screen.",
+    "now": "b543d0141a2b8b6b"
+  },
+  "surface/mcp/tool/case_coverage": {
+    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen.",
+    "now": "e2b7180f93727a67"
+  },
+  "surface/mcp/tool/case_impact": {
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
+    "now": "ae34e365af904aff"
+  },
+  "surface/mcp/tool/case_new": {
+    "why": "case new offers the way an existing case takes to the screen, from the steps case run now keeps in .lynkeus/seen by default or a step that names the screen.",
+    "now": "2233f6771ea1573e"
   }
 }

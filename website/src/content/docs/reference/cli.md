@@ -1061,7 +1061,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--time-zone <zone>` | `launch.timeZone`, then `LYNKEUS_TIME_ZONE` | The IANA time zone a host the run starts launches with, such as `Europe/Madrid`. |
 | `--epoch <iso>` | `launch.epoch`, then `LYNKEUS_EPOCH` | The instant the app's clock starts at on a host the run starts, as ISO 8601 or milliseconds since 1970. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
-| `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
+| `--seen <dir>` | `.lynkeus/seen` | Where to write `<case id>.json` with the screens each passing case went through and the screen after each step. [`case coverage`](#lynkeus-case-coverage) and [`case new`](#lynkeus-case-new) read it. |
 | `--report <file>` | | Append one JSON line per case to this file. |
 | `--events <dir>` | | Keep what the app told its analytics, per case, as `<dir>/<case id>/events.jsonl`. |
 | `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt, and `progress.ndjson`. |
@@ -1218,7 +1218,7 @@ It takes the screens that the diff against `--base` touches or imports, as [`map
 |---|---|---|
 | `--base <ref>` | `main` | The git ref to diff against. |
 | `--depth <n>` | `4` | How many imports away a change still reaches a screen. |
-| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run` kept the screens of passing cases. |
 | `--files` | | Print only the case files, one per line. |
 
 ```bash
@@ -1235,7 +1235,7 @@ Drafts a case for a screen, for you to finish. It prints:
 
 - the frontmatter, with the questions a reader needs answered;
 - the setup that the project's fixtures server offers (from `lynkeus.describe`), commented out, because what state the case needs is your call;
-- the presses from `--from` to the screen, as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
+- the way to the screen. When an existing case reaches it, that case's way, under a comment that names the case: its setup and its steps up to the screen, or with `--from` only the steps after that screen. A case reaches the screen when its last passing run was on it after a step (`.lynkeus/seen`), or when a step goes to it, waits for it or checks it. The shortest way wins. Otherwise, the presses from `--from` as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
 - the checks left to write.
 
 | Argument | Meaning |

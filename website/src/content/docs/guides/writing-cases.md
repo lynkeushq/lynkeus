@@ -39,7 +39,7 @@ npx lynkeus case here first-screen --host --write    # from the screen the app s
 npx lynkeus case new settings-dark-mode --to Settings.Main --from Home.Main --write    # for a screen: the way there, the setup to pick from, the checks to write
 ```
 
-`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the presses from `--from` (default `cases.start`) to the screen as `map plan` knows them, and offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
+`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the way to the screen. When one of your cases already gets there, it is that case's way: its setup and its steps up to the screen, under a comment that names the case, so a new case starts from navigation that already works. Otherwise it is the presses from `--from` (default `cases.start`) as `map plan` knows them. It also offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
 
 ## The shape of a case
 
@@ -353,7 +353,7 @@ npx lynkeus case coverage                          # which screens the cases tou
 npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
 ```
 
-`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers.
+`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run. `case run` keeps those screens in `.lynkeus/seen`, with the screen after each step, which is also where `case new` finds the way an existing case takes. `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers.
 
 ## How it works
 

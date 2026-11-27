@@ -1,6 +1,8 @@
 import type { FixtureCommand, Screen } from 'lynkeus-protocol';
 
 import type { PlanStep } from '../knowledge/plan.js';
+import { routeOf } from './coverage.js';
+import { stepLine, type Way } from './reuse.js';
 
 export type DraftInput = {
   id: string;
@@ -9,6 +11,8 @@ export type DraftInput = {
   to: string;
   /** The way from `from` to `to`, as `map plan` finds it; undefined when no path is known. */
   path: PlanStep[] | undefined;
+  /** The way an existing case takes there, offered before the route map's plan. */
+  way?: Way;
   /** What the project's fixtures server says it can do, offered as the setup to pick from. */
   fixtures?: FixtureCommand[];
   /** The project's macros (`app.login`…), offered too. */
@@ -51,9 +55,16 @@ export const draftCase = (d: DraftInput): string => {
   } else if (d.fixturesSilent)
     lines.push('  # The fixtures server did not answer lynkeus.describe (lynkeus fixtures check says why): the setup options are not listed.');
   else lines.push('  # The state the case needs, through the project’s fixtures (cases.fixtures).');
+  const way = d.way;
+  if (way?.setup.length) lines.push(`  # What ${way.source} sets up on its way to ${d.to}:`, ...way.setup.map((s) => `  ${stepLine(s)}`));
   lines.push('', 'steps:');
   if (d.macros?.length) lines.push(`  # The project's own steps: ${d.macros.join(', ')}`);
-  if (!d.path) {
+  const last = way ? [...way.setup, ...way.steps].at(-1) : undefined;
+  if (way) {
+    const known = way.how === 'ran' ? `its last passing run was on ${d.to} after these steps` : `its steps reach ${d.to} here`;
+    const macros = way.macros.length ? `; it calls ${way.macros.join(', ')}` : '';
+    lines.push(`  # The way to ${d.to} from case ${way.source} (${known}${macros}):`, ...way.steps.map((s) => `  ${stepLine(s)}`));
+  } else if (!d.path) {
     lines.push(`  # No known way from ${d.from} to ${d.to}: \`lynkeus crawl --to ${d.to}\` learns one.`);
     lines.push(`  - app.nav: ${d.to}`);
   } else {
@@ -63,8 +74,8 @@ export const draftCase = (d: DraftInput): string => {
       lines.push(`  - app.wait: { what: ${s.opens ? quote(s.opens) : s.to}, timeoutMs: 10000 }`);
     }
   }
+  if (!last || last.verb === 'app.nav' || routeOf(last) !== d.to) lines.push(`  - app.see: { route: ${d.to} }`);
   lines.push(
-    `  - app.see: { route: ${d.to} }`,
     '  # [What the person does here, and what must be on screen after.]',
     '',
     'expected: |',

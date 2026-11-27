@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeen } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeenRuns, SEEN_DIR } from '../cases/coverage.js';
 import { draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
+import { wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
 import * as edges from '../knowledge/edges.js';
 import { plan } from '../knowledge/plan.js';
@@ -21,8 +22,9 @@ const coverageFor = (ctx: Base & { graph: () => { screens: Record<string, unknow
   const files = caseFiles([], home, config.dir);
   if (typeof files === 'string') return files;
   const cases = files.flatMap(readCases);
-  const seenDir = path.resolve(ctx.root, typeof seenFlag === 'string' ? seenFlag : '.lynkeus/seen');
-  return { cases, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), readSeen(seenDir)) };
+  const seen = readSeenRuns(path.resolve(ctx.root, typeof seenFlag === 'string' ? seenFlag : SEEN_DIR));
+  const routes = Object.fromEntries(Object.entries(seen).map(([id, s]) => [id, s.routes]));
+  return { cases, seen, coverage: coverageOf(cases, Object.keys(ctx.graph().screens).sort(), routes) };
 };
 
 export const coverageCommands = [
@@ -31,10 +33,10 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has',
     details:
-      'A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).',
+      'A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`).',
     flags: {
       route: { type: 'string', help: 'only this screen: the cases that touch it', value: 'Route' },
-      seen: { type: 'string', help: 'where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
+      seen: { type: 'string', help: 'where `case run` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
     },
     needs: 'graph',
     session: false,
@@ -74,7 +76,7 @@ export const coverageCommands = [
     flags: {
       base: { type: 'string', help: 'git ref to diff against', default: 'main', value: 'ref' },
       depth: { type: 'number', help: 'how many imports away a change still reaches a screen', default: 4, value: 'n' },
-      seen: { type: 'string', help: 'where `case run --seen` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
+      seen: { type: 'string', help: 'where `case run` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
       files: { type: 'boolean', help: 'print only the case files, one per line' },
     },
     needs: 'graph',
@@ -103,7 +105,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write',
     details:
-      'Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
+      'Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
     positionals: [{ name: 'id', help: 'the case id, which is also its file name', required: true }],
     flags: {
       to: { type: 'string', help: 'the screen the case is about', value: 'Route' },
@@ -126,17 +128,25 @@ export const coverageCommands = [
       if (!graph.screens[to]) return { text: `${to}: the app has no such screen (lynkeus map screens lists them)`, code: 1 };
       const server = config.fixtures ? new Fixtures(config.fixtures, config.base ?? ctx.root) : undefined;
       const described = server ? await server.describe().finally(() => server.close()) : undefined;
+      const read = coverageFor(ctx, undefined);
+      // A project with no cases yet has no way to offer; the route map's plan still is one.
+      const way =
+        typeof read === 'string'
+          ? undefined
+          : wayTo(read.cases, read.seen, to, { from: ctx.flags.from as string | undefined, skip: id, macros: Object.keys(config.macros ?? {}) });
       const text = draftCase({
         id,
         title: ctx.flags.title as string | undefined,
         from,
         to,
-        path: plan(graph, from, to, edges.load(edgesFile(ctx.root))) ?? undefined,
+        way,
+        path: way ? undefined : (plan(graph, from, to, edges.load(edgesFile(ctx.root))) ?? undefined),
         fixtures: described?.details,
         fixturesSilent: !!server && !described,
         macros: Object.keys(config.macros ?? {}),
       });
-      return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text } };
+      const reused = way ? { case: way.source, how: way.how, steps: way.setup.length + way.steps.length } : undefined;
+      return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text, ...(reused ? { reused } : {}) } };
     },
   }),
   define({

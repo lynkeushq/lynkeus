@@ -56,7 +56,7 @@ Write a test for the sign-in screen, run it and push the run.
 
 The agent calls `case_init` the first time, which writes an example case and the format beside it, drives the app to the screen with `press`, `type` and `wait`, writes the case as a markdown file and runs it with `case_run`. A case that fails comes back with the screen it failed on and the reason, so the agent fixes the case or reports the app's bug. With `push`, the run goes to lynkeus.io and the agent prints its address as soon as the run starts; the report fills in case by case.
 
-To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the presses to get there and the setup the fixtures server offers. `fixtures_describe` lists what that server can prepare in the backend.
+To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the way there and the setup the fixtures server offers. When an existing case already reaches that screen, the way is that case's steps, and the draft names the case: the agent reuses navigation that works instead of finding it again by hand, which is where most of a session's tokens went in our trials. `fixtures_describe` lists what that server can prepare in the backend.
 
 A long case is easier to read in parts. The format `case_init` writes tells the agent to open each part of `steps` with a numbered comment (`# 3 A wrong PIN`), numbered like the `expected` list; reports group the steps by those sections.
 

@@ -190,9 +190,17 @@ npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: t
 `case new` begins at `--from`, or at `cases.start` in the config. It never chooses the setup: it lists, commented out,
 what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and the author keeps what the case needs.
 
+When an existing case already reaches the screen, `case new` offers that case's way there instead of a plan from the
+route map: its setup and its steps up to the screen, under a comment that names the case, and with `--from` only the
+steps after that screen. A case reaches the screen when its last passing run was on it after a step, or when a step
+goes to it, waits for it or checks it. The shortest way wins, and one a passing run walked wins a tie. Nothing is
+rewritten: the draft is the author's to keep or change.
+
 A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
-screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
-graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does.
+screen a passing run went through. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
+the screens of the case, and the screen the app was on after each step, read off trace marks the steps take anyway.
+The screens come from the route graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check`
+does.
 
 ## In CI
 

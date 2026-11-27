@@ -17,6 +17,7 @@ import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { caseVersion, Flakes } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
+import { SEEN_DIR } from '../cases/coverage.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -422,7 +423,11 @@ export const caseCommands = [
       },
       once: { type: 'boolean', help: 'no second chance for a case that fails' },
       continue: { type: 'boolean', help: "keep running a case's steps after one fails (a failed setup still stops it)" },
-      seen: { type: 'string', help: 'write <dir>/<case id>.json with the screens each passing case went through, for a coverage map', value: 'dir' },
+      seen: {
+        type: 'string',
+        help: 'where to write <case id>.json with the screens each passing case went through, step by step, for `case coverage` and `case new` (default .lynkeus/seen)',
+        value: 'dir',
+      },
       report: { type: 'string', help: 'append one JSON line per case', value: 'file' },
       events: { type: 'string', help: 'keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl', value: 'dir' },
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
@@ -528,7 +533,7 @@ export const caseCommands = [
         ctx.err(
           `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command); the seed still applies to {{random.*}}`,
         );
-      const seenDir = typeof ctx.flags.seen === 'string' && !dry ? path.resolve(ctx.flags.seen) : undefined;
+      const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
       const out =
         typeof ctx.flags.out === 'string' && !dry
           ? new RunFile(path.resolve(ctx.flags.out), ctx.root, new Date(), recordLaunch(launch, startsHost))
@@ -905,7 +910,11 @@ export const caseCommands = [
                     }
                     if (seenDir && report.result === 'passed' && report.routes?.length) {
                       fs.mkdirSync(seenDir, { recursive: true });
-                      fs.writeFileSync(path.join(seenDir, `${caseArtifactId(c.id)}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+                      const walked = report.steps.map((s) => (s.route ? { step: s.step, route: s.route } : { step: s.step }));
+                      fs.writeFileSync(
+                        path.join(seenDir, `${caseArtifactId(c.id)}.json`),
+                        `${JSON.stringify({ id: c.id, routes: report.routes, steps: walked }, null, 2)}\n`,
+                      );
                     }
                     return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
                   } finally {

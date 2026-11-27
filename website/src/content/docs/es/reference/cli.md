@@ -1023,7 +1023,7 @@ Opciones que deciden qué queda guardado:
 | `--video-scale <n>` | Píxeles por punto del video, donde el host puede elegirlo. En FastSim, de 1 a 3; si no lo indicas, 2. |
 | `--report <file>` | Agrega al archivo una línea de JSON por caso. |
 | `--events <dir>` | Guarda lo que la app envió a su analítica, por caso, en `<dir>/<id del caso>/events.jsonl`. |
-| `--seen <dir>` | Escribe `<dir>/<id del caso>.json` con las pantallas por las que pasó cada caso que aprobó, para armar un mapa de cobertura. |
+| `--seen <dir>` | Dónde escribir `<id del caso>.json` con las pantallas por las que pasó cada caso aprobado y la pantalla después de cada paso. Lo leen `case coverage` y `case new`. Por defecto `.lynkeus/seen`. |
 | `--flakes <file>` | El registro de cómo le fue a cada caso a lo largo de las ejecuciones. Por defecto `.lynkeus/flakes.json`. |
 
 Opciones para el reporte y las trazas del backend:
@@ -1225,7 +1225,7 @@ Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que e
 |---|---|
 | `--base <ref>` | La referencia de git contra la que se compara. Por defecto `main`. |
 | `--depth <n>` | A cuántas importaciones de distancia un cambio sigue alcanzando una pantalla. Por defecto `4`. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 | `--files` | Imprime solo los archivos de los casos, uno por línea. |
 
 ```bash
@@ -1240,7 +1240,9 @@ lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
 
 Redacta un caso para una pantalla: el camino hasta ella, el `setup` del backend para elegir y las comprobaciones que quedan por escribir.
 
-Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), las pulsaciones desde `--from` hasta la pantalla, tal como las conoce `map plan`, y un lugar para las comprobaciones.
+Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), el camino hasta la pantalla y un lugar para las comprobaciones.
+
+El camino sale de un caso existente cuando alguno llega a esa pantalla: su `setup` y sus pasos hasta ahí, o con `--from` solo los pasos posteriores a esa pantalla, bajo un comentario que nombra el caso. Llega si en su última ejecución aprobada estuvo en la pantalla después de un paso (`.lynkeus/seen`) o si un paso va a ella, la espera o la comprueba; gana el camino más corto. Si ningún caso llega, son las pulsaciones desde `--from` que conoce `map plan`.
 
 | Argumento | Qué es |
 |---|---|

@@ -650,7 +650,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--epoch <iso>` | the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
-| `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
+| `--seen <dir>` | where to write <case id>.json with the screens each passing case went through, step by step, for `case coverage` and `case new` (default .lynkeus/seen) |
 | `--report <file>` | append one JSON line per case |
 | `--events <dir>` | keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl |
 | `--out <dir>` | write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt |
@@ -729,12 +729,12 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`).
 
 | Flag | |
 |---|---|
 | `--route <Route>` | only this screen: the cases that touch it |
-| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+| `--seen <dir>` | where `case run` kept the screens of passing cases (default .lynkeus/seen) |
 
 ### `lynkeus case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]`
 
@@ -746,14 +746,14 @@ The screens the diff against --base touches or imports (as `map check` finds the
 |---|---|
 | `--base <ref>` | git ref to diff against (default `main`) |
 | `--depth <n>` | how many imports away a change still reaches a screen (default `4`) |
-| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+| `--seen <dir>` | where `case run` kept the screens of passing cases (default .lynkeus/seen) |
 | `--files` | print only the case files, one per line |
 
 ### `lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]`
 
 Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write
 
-Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|
