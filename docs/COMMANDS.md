@@ -769,7 +769,7 @@ A screen counts as touched when a case goes to it (`app.nav`), waits for it (`ap
 
 The cases a branch’s changes reach, to run only those, and the reached screens no case covers
 
-The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
+The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t('a.b')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
 
 | Flag | |
 |---|---|

@@ -382,6 +382,8 @@ npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the 
 
 `case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run. `case run` keeps those screens in `.lynkeus/seen`, with the screen after each step, which is also where `case new` finds the way an existing case takes. `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers. A change to the file that registers the app, or to the root component it registers, reaches every screen, so every case is listed and the output says which file did it.
 
+A change to a string table, such as the app's translations, does not reach every screen that imports it. Lynkeus recognizes the file by its shape (top-level object literals of strings, nested or not), compares its strings with the base, and keeps the files that name a changed key (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) and the cases whose steps mention the old or the new text. If a changed key is not written out whole anywhere, for example because a hook is bound to a prefix, the change reaches every importer as before and the output names that key.
+
 ## How it works
 
 The runner opens one connection to the app and keeps it for the whole case. `app.` steps go through the same code as the terminal commands. Any step name that is not `app.`, `assert`, `exec` or a macro is sent to your fixtures command.

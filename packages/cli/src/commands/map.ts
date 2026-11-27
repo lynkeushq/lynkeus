@@ -9,6 +9,7 @@ import * as edges from '../knowledge/edges.js';
 import { describePlan, plan } from '../knowledge/plan.js';
 import { type Affected, pathsTo, screensAffectedBy, vocabularyOf } from '../knowledge/query.js';
 import * as screens from '../knowledge/screens.js';
+import { narrowStringTables, type StringNarrowing } from '../knowledge/stringTables.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
 import type { RuntimeAdapter } from '../runtimes/index.js';
@@ -52,6 +53,47 @@ export const changedSources = (root: string, base: string, err: (line: string) =
     err(`could not diff against ${base}: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
+};
+
+/**
+ * The screens `changed` reaches through imports, with each changed string table narrowed to the files naming its
+ * changed keys (`narrowStringTables`). `base` is what the diff is against (`changedSources`); `relative` says the
+ * names are from the app's folder rather than the repository's root.
+ */
+export const reachOfChanges = async (
+  root: string,
+  graph: ScreenGraph,
+  changed: string[],
+  options: { base: string; depth?: number; runtime: Pick<RuntimeAdapter, 'stringTable'>; relative: boolean },
+): Promise<{ affected: Affected[]; texts: StringNarrowing['texts']; notes: string[] }> => {
+  const table = options.runtime.stringTable;
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const narrowed = table
+    ? await (async () => {
+        try {
+          const top = options.relative ? root : git('rev-parse', '--show-toplevel').trim();
+          const at = git('merge-base', options.base, 'HEAD').trim();
+          return await narrowStringTables(changed, graph, {
+            now: (f) => (fs.existsSync(path.join(top, f)) ? fs.readFileSync(path.join(top, f), 'utf8') : undefined),
+            before: (f) => {
+              try {
+                return git('show', `${at}:${options.relative ? `./${f}` : f}`);
+              } catch {
+                return undefined;
+              }
+            },
+            table,
+          });
+        } catch {
+          return undefined;
+        }
+      })()
+    : undefined;
+  return {
+    affected: screensAffectedBy(graph, narrowed?.files ?? changed, options.depth),
+    texts: narrowed?.texts ?? [],
+    notes: narrowed?.notes ?? [],
+  };
 };
 
 export const mapCommands = [
@@ -196,18 +238,21 @@ export const mapCommands = [
       const depth = ctx.flags.depth as number;
       const graph = ctx.graph();
       const entry = changedAppEntry(ctx.root, ctx.args);
-      const all: Affected[] = entry
-        ? Object.keys(graph.screens).map((route) => ({ route, distance: 0, via: entry, through: [] }))
-        : screensAffectedBy(graph, ctx.args, depth);
+      // A file given with uncommitted edits to a string table reaches only what names the changed keys.
+      const reach = entry
+        ? undefined
+        : await reachOfChanges(ctx.root, graph, ctx.args, { base: 'HEAD', depth, runtime: await runtimeAt(ctx.root), relative: true });
+      const all: Affected[] = entry ? Object.keys(graph.screens).map((route) => ({ route, distance: 0, via: entry, through: [] })) : reach!.affected;
+      const notes = reach?.notes.map((n) => `  ${n}`) ?? [];
       const affected = ctx.flags.direct ? all.filter((a) => a.distance <= 1) : all;
       if (affected.length === 0) {
         const text =
           all.length === 0
             ? `  (no screen imports these files, directly or through ${depth} levels)`
             : `  (nothing within one import; ${all.length} screens further away, a shared module. Drop --direct to list them.)`;
-        return { text, json: affected };
+        return { text: [...notes, text].join('\n'), json: affected };
       }
-      const lines = describeAffected(affected, false);
+      const lines = [...notes, ...describeAffected(affected, false)];
       const far = affected.filter((a) => a.distance > 1).length;
       if (far > 20) lines.push(`  (${far} screens more than one import away, a shared module; --direct narrows to what to test first)`);
       return { text: lines.join('\n'), json: affected };
@@ -245,9 +290,15 @@ export const mapCommands = [
     run: async (ctx) => {
       const graph = ctx.graph();
       const base = ctx.flags.base as string;
-      const changed = changedSources(ctx.root, base, ctx.err, (await runtimeAt(ctx.root)).sources);
-      const affected = screensAffectedBy(graph, changed, ctx.flags.depth as number);
-      const lines = [`changed against ${base}: ${changed.length} source file(s)`, ...describeAffected(affected, true)];
+      const runtime = await runtimeAt(ctx.root);
+      const changed = changedSources(ctx.root, base, ctx.err, runtime.sources);
+      const { affected, notes } = await reachOfChanges(ctx.root, graph, changed, {
+        base,
+        depth: ctx.flags.depth as number,
+        runtime,
+        relative: runtime.sources.relative,
+      });
+      const lines = [`changed against ${base}: ${changed.length} source file(s)`, ...notes.map((n) => `  ${n}`), ...describeAffected(affected, true)];
       if (!affected.length && changed.length) lines.push('  (no screen imports these files within the depth)');
       const baseFile = (ctx.flags['graph-base'] as string | undefined) ?? baseGraphFile(ctx.root);
       const graphDiff = fs.existsSync(baseFile) ? diffGraphs(readJson<ScreenGraph>(baseFile), graph) : undefined;
@@ -259,7 +310,7 @@ export const mapCommands = [
           `next: run the cases that cover ${first.join(', ')}${affected.length > 5 ? ', …' : ''}; \`lynkeus lint --baseline <file>\` on those screens prints what is new`,
         );
       }
-      return { text: lines.join('\n'), json: { base, changed, affected, graphDiff } };
+      return { text: lines.join('\n'), json: { base, changed, affected, notes, graphDiff } };
     },
   }),
   define({

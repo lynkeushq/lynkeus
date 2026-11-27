@@ -38,7 +38,10 @@ adapter there are no routes at all, only elements.
 **A text target does not match.** `"text"` matches a control by exact label
 first, then by substring; a paragraph matches only by exact text, so a word
 inside running copy is never a target. `lynkeus why '"Continue"'` says whether
-the text is a wording or an accent away.
+the text is a wording or an accent away. After a failed `app.see` of a text, `why`
+names the closest text on that screen (`"Community" is not on screen; "Meet the
+community" is (the text may have changed)`) and, when the app folder has
+uncommitted changes, the file and line that took the text out.
 
 **Everything is slow.** One process per step is the usual cause; use
 `lynkeus session`. If a case waits seconds after login, it is your backend

@@ -1230,6 +1230,8 @@ Lists the cases a branch's changes reach, so that you can run only those, and th
 
 It takes the screens that the diff against `--base` touches or imports, as [`map check`](#lynkeus-map-check) finds them, and crosses them with what each case covers, as [`case coverage`](#lynkeus-case-coverage) finds it.
 
+A changed string table (a file of object literals of strings, such as the app's translations) reaches only the files that name its changed keys and the cases whose steps name a changed text. When a changed key is not named anywhere by its whole key, every importer counts and a line says why. `map check`, `map impact` and `ci --affected` narrow string tables the same way.
+
 | Flag | Default | Meaning |
 |---|---|---|
 | `--base <ref>` | `main` | The git ref to diff against. |

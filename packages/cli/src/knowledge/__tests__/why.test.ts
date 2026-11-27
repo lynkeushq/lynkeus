@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import * as whyModule from '../why.js';
 import { explain } from '../why.js';
 import type { Element, RequestRecord, Screen, TraceEvent } from 'lynkeus-protocol';
 
@@ -99,4 +100,62 @@ test('a missing element whose screen got its data says so, when nothing else exp
   assert.ok(
     !rules(explain({ screen: s, requests: [req(200, 'http://x/api/orders')], inFlight: 0, target: { text: 'No orders yet' } })).includes('requests-ok'),
   );
+});
+
+test('a sought text that is not on screen names the closest one there, by edits, containment or shared words', () => {
+  const at = (texts: string[]) =>
+    screen(
+      texts.map((text, i) => el({ kind: 'text', text }, i)),
+      'Home',
+    );
+  const near = (texts: string[], text: string) =>
+    explain({ screen: at(texts), requests: [], inFlight: 0, target: { text } }).find((f) => f.rule === 'near-match')?.message;
+  assert.equal(near(['Podcasts', 'Meet the community'], 'Community'), '"Community" is not on screen; "Meet the community" is (the text may have changed)');
+  assert.equal(
+    near(['Sign in to continue', 'Help'], 'Sign in to your account'),
+    '"Sign in to your account" is not on screen; "Sign in to continue" is (the text may have changed)',
+  );
+  // The closest wins over the first close one.
+  assert.match(near(['Communities near you', 'Comunity'], 'Community') ?? '', /; "Comunity" is/);
+  assert.equal(near(['Podcasts', 'Settings'], 'Community'), undefined);
+  assert.equal(near(['Book'], 'ok'), undefined);
+});
+
+const DIFF = `diff --git a/app/i18n/en.ts b/app/i18n/en.ts
+index 1..2 100644
+--- a/app/i18n/en.ts
++++ b/app/i18n/en.ts
+@@ -3 +3 @@ const en = {
+-  common: { ok: "OK!" },
++  common: { ok: "Okay" },
+@@ -12 +12 @@ const en = {
+-    title: "Community",
++    title: "Meet the community",
+`;
+
+test('a diff that took the sought text out names its file and line, and what replaced it', () => {
+  const { textChangeIn } = whyModule;
+  assert.deepEqual(textChangeIn(DIFF, 'Community'), {
+    file: 'app/i18n/en.ts',
+    line: 12,
+    before: 'title: "Community",',
+    after: 'title: "Meet the community",',
+  });
+  assert.equal(textChangeIn(DIFF, 'community'), undefined);
+  assert.equal(textChangeIn(DIFF, 'Podcasts'), undefined);
+  const s = screen([el({ kind: 'text', text: 'Meet the community' }, 0)], 'Home');
+  const found = explain({ screen: s, requests: [], inFlight: 0, target: { text: 'Community' }, sourceDiff: DIFF });
+  assert.equal(
+    found[0]?.message,
+    '"Community" is not on screen; "Meet the community" is (the text may have changed)\n    app/i18n/en.ts:12 changed it in the working tree: title: "Community", → title: "Meet the community",',
+  );
+  const elsewhere = explain({
+    screen: screen([el({ kind: 'text', text: 'Podcasts' }, 0)], 'Home'),
+    requests: [],
+    inFlight: 0,
+    target: { text: 'Community' },
+    sourceDiff: DIFF,
+  });
+  assert.equal(elsewhere[0]?.rule, 'text-changed');
+  assert.match(elsewhere[0]?.message ?? '', /^"Community" is not on screen; app\/i18n\/en\.ts:12 changed it/);
 });

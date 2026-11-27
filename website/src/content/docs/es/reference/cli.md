@@ -1239,6 +1239,8 @@ Dice qué casos alcanzan los cambios de una rama, para ejecutar solo esos, y qu�
 
 Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que encuentra `map check`) con lo que cubre cada caso (lo que encuentra `case coverage`).
 
+Si lo que cambió es una tabla de textos (un archivo de objetos literales de textos, como las traducciones), solo cuentan los archivos que usan las claves cambiadas y los casos cuyos pasos nombran un texto cambiado. Cuando ninguna fuente escribe entera una clave cambiada, cuentan todos los que importan el archivo y una línea explica por qué. `map check`, `map impact` y `ci --affected` hacen lo mismo.
+
 | Opción | Qué hace |
 |---|---|
 | `--base <ref>` | La referencia de git contra la que se compara. Por defecto `main`. |

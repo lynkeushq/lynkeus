@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { Affected } from '../knowledge/query.js';
+import { casesNamingText, type StringNarrowing } from '../knowledge/stringTables.js';
 import type { Case, Step } from './format.js';
 
 const ROUTE = /^[A-Z][\w.]+$/;
@@ -127,4 +128,14 @@ export const impactOf = (affected: Affected[], coverage: Coverage, everything?: 
     }
   }
   return { cases: [...byCase.values()].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)), untested: untested.sort() };
+};
+
+/** The impact, with the cases that check a changed string's old or new text (`casesNamingText`) among those to run. */
+export const withTextCases = (impact: Impact, cases: Case[], texts: StringNarrowing['texts']): Impact => {
+  if (impact.reason || !texts.length) return impact;
+  const ids = new Set(impact.cases.map((c) => c.id));
+  const added = casesNamingText(cases, texts)
+    .filter((hit) => !ids.has(hit.case.id))
+    .map((hit) => ({ id: hit.case.id, file: hit.case.file, routes: [], distance: 0, via: `${JSON.stringify(hit.text)} in ${hit.file}` }));
+  return { ...impact, cases: [...added, ...impact.cases].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)) };
 };

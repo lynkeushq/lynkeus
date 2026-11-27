@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeenRuns, SEEN_DIR } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withTextCases } from '../cases/coverage.js';
 import { draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
@@ -9,12 +9,11 @@ import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
 import * as edges from '../knowledge/edges.js';
 import { plan } from '../knowledge/plan.js';
-import { screensAffectedBy } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles, startHost, stopHost } from './cases.js';
 import { runtimeAt } from '../runtimes/index.js';
-import { changedSources } from './map.js';
+import { changedSources, reachOfChanges } from './map.js';
 
 // The project's cases and what they cover, read the way `case run` reads them.
 const coverageFor = (ctx: Base & { graph: () => { screens: Record<string, unknown> } }, seenFlag: unknown) => {
@@ -81,7 +80,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'The cases a branch’s changes reach, to run only those, and the reached screens no case covers',
     details:
-      'The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.',
+      'The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t(\'a.b\')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.',
     flags: {
       base: { type: 'string', help: 'git ref to diff against', default: 'main', value: 'ref' },
       depth: { type: 'number', help: 'how many imports away a change still reaches a screen', default: 4, value: 'n' },
@@ -95,19 +94,25 @@ export const coverageCommands = [
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
       const base = ctx.flags.base as string;
-      const changed = changedSources(ctx.root, base, ctx.err, (await runtimeAt(ctx.root)).sources);
-      const affected = screensAffectedBy(ctx.graph(), changed, ctx.flags.depth as number);
-      const impact = impactOf(affected, read.coverage, entryReason(changedAppEntry(ctx.root, changed)));
-      if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: impact };
+      const runtime = await runtimeAt(ctx.root);
+      const changed = changedSources(ctx.root, base, ctx.err, runtime.sources);
+      const { affected, texts, notes } = await reachOfChanges(ctx.root, ctx.graph(), changed, {
+        base,
+        depth: ctx.flags.depth as number,
+        runtime,
+        relative: runtime.sources.relative,
+      });
+      const impact = withTextCases(impactOf(affected, read.coverage, entryReason(changedAppEntry(ctx.root, changed))), read.cases, texts);
+      if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: { ...impact, notes } };
       const lines = [
         `${changed.length} source file${changed.length === 1 ? '' : 's'} changed against ${base}; they reach ${new Set(affected.map((a) => a.route)).size} screen(s)`,
-        ...(impact.reason ? [`every case is affected: ${impact.reason}`] : []),
+        ...(impact.reason ? [`every case is affected: ${impact.reason}`] : notes),
         ...(impact.cases.length
           ? [`cases to run (${impact.cases.length}):`, ...impact.cases.map((c) => `  ${c.id.padEnd(46)} ${c.routes.join(', ')} (via ${c.via})`)]
           : ['no case touches them']),
         ...(impact.untested.length ? [`reached, and touched by no case (${impact.untested.length}):`, ...impact.untested.map((r) => `  ${r}`)] : []),
       ];
-      return { text: lines.join('\n'), json: { base, changed, ...impact } };
+      return { text: lines.join('\n'), json: { base, changed, ...impact, notes } };
     },
   }),
   define({
