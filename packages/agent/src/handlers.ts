@@ -363,6 +363,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     await backend.swipe({ x, y: cy + (up ? -dy : dy) }, { x, y: cy + (up ? dy : -dy) }, 250);
   };
 
+  // The focused screen, and the navigators it sits in when it is nested: `Demo > DemoPodcastList`.
+  const onRoute = (route: string | undefined) => {
+    const path = navigation.path();
+    return path.length > 1 ? path.join(' > ') : route;
+  };
+
   const waitFor = async (params: CoreMethods['waitFor']['params']) => {
     let swipes = 0;
     let lastSwipe = 0;
@@ -378,7 +384,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const deadline = started + (params.timeoutMs ?? 5000);
     while (true) {
       const route = navigation.currentRoute()?.name;
-      const routeOk = params.route === undefined || route === params.route;
+      // A navigator's own name (a tab or stack nested in the root) is reached once the focused screen is inside it.
+      const routeOk = params.route === undefined || route === params.route || navigation.path().includes(params.route);
       const all = params.target || params.anyOf ? elements() : [];
       const found = params.target ? pick(all, params.target) : undefined;
       // Enabled means it takes a touch now: a control under a view that blocks touches (a pager whose last page has
@@ -391,12 +398,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const anyOk = !params.anyOf || matched !== undefined;
       if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
       if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
-        const reached = traceSince(params.since).some((e) => e.kind === 'route' && e.route === params.route);
+        const reached = traceSince(params.since).some((e) => e.kind === 'route' && (e.route === params.route || e.path.includes(params.route!)));
         if (reached) return { route, waitedMs: Date.now() - started, passed: true };
       }
       if (Date.now() > deadline) {
         throw new Error(
-          `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${route})`,
+          `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${onRoute(route)})`,
         );
       }
       // A device scroller keeps moving after the finger lifts; a host's stops at once. The next swipe waits

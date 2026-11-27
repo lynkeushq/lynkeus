@@ -382,5 +382,9 @@
   "detect/react-native with tsconfig/init": {
     "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
     "now": "886bc68881c1ff30"
+  },
+  "surface/help/nav": {
+    "why": "nav reaches a screen inside a nested navigator through its parents (from the path a run saw or the route graph), and its help says so, with the screen it lands on and via.",
+    "now": "a5c71b0e9b570f90"
   }
 }

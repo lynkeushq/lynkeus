@@ -1356,3 +1356,55 @@ test('on a simulator or emulator a case asked to film is filmed by the OS, and e
   await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
   assert.deepEqual(filmed, []);
 });
+
+test('nav waits for the nested screen it names, and finds the parent of a nested screen itself', async () => {
+  const c = parseCase(
+    '---\nid: nested\n---\nsteps:\n  - app.nav: { route: Demo, params: { screen: DemoPodcastList } }\n  - app.nav: DemoPodcastList\n',
+    'nested.md',
+  );
+  const { base, calls } = fakeApp();
+  base.graph = () => ({
+    app: 'shop',
+    root,
+    extractedAt: '',
+    screens: {
+      Welcome: { route: 'Welcome', component: 'Welcome', file: 'app/Welcome.tsx', declaredIn: 'app/AppNavigator.tsx' },
+      Demo: { route: 'Demo', component: 'DemoNavigator', file: 'app/DemoNavigator.tsx', declaredIn: 'app/AppNavigator.tsx' },
+      DemoPodcastList: { route: 'DemoPodcastList', component: 'List', file: 'app/List.tsx', declaredIn: 'app/DemoNavigator.tsx' },
+    },
+    files: {},
+    warnings: [],
+  });
+  const device = await base.device();
+  device.navigate = async (name, params) => {
+    calls.push({ method: 'navigate', params: { name, params } });
+  };
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return { waitedMs: 0 };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  assert.deepEqual(
+    calls.filter((x) => x.method === 'navigate' || x.method === 'waitFor').map((x) => x.params),
+    [
+      { name: 'Demo', params: { screen: 'DemoPodcastList' } },
+      { route: 'DemoPodcastList', timeoutMs: 8000 },
+      { name: 'Demo', params: { screen: 'DemoPodcastList' } },
+      { route: 'DemoPodcastList', timeoutMs: 8000 },
+    ],
+  );
+});
+
+test('nav to a navigator passes once the focused screen is inside it, with an agent that only compares the focused screen', async () => {
+  const c = parseCase('---\nid: navigator\n---\nsteps:\n  - app.nav: Profile\n', 'navigator.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  device.navigate = async () => undefined;
+  device.screen = async () => ({ route: 'Profile.Main', path: ['Profile', 'Profile.Main'], commit: 1, elements: [] }) as never;
+  device.waitFor = async () => {
+    throw new Error('Timed out waiting for Profile  (on Profile.Main)');
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+});

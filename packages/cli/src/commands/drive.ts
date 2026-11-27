@@ -10,6 +10,7 @@ import { type Device, describeScreen, describeTrace, NOT_DRAWN, nativeCover } fr
 import { readJson, writeJson } from '../files.js';
 import { lintContrast } from '../knowledge/contrast.js';
 import { describeFindings, lintScreen } from '../knowledge/lint.js';
+import { leafOf, nestedNavigate, routeChain } from '../knowledge/nesting.js';
 import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
@@ -112,15 +113,19 @@ export const awayAfter = async (device: Device, opened: string | undefined): Pro
   return awayNote(device.server, opened);
 };
 
+const graphOrNull = (ctx: Base) => {
+  try {
+    return ctx.graph();
+  } catch {
+    return null;
+  }
+};
+
 /** The note `bareWordNote` makes about a bare word, against the routes the route graph and the screens read so far name. */
 const bareWordOnScreen = async (ctx: Base, device: Device, raw: string): Promise<string | undefined> => {
   if (raw.startsWith('route:') || !isRoute(raw)) return undefined;
   const known = new Set<string>(screens.observed(lynkeusDir(ctx.root)).keys());
-  try {
-    for (const route of Object.keys(ctx.graph().screens)) known.add(route);
-  } catch {
-    // No route graph: the screens read so far are all that is known.
-  }
+  for (const route of Object.keys(graphOrNull(ctx)?.screens ?? {})) known.add(route);
   const screen = await device.screen().catch(() => undefined);
   if (!screen) return undefined;
   if (screen.route) known.add(screen.route);
@@ -271,14 +276,20 @@ export const driveCommands = [
     name: 'nav',
     group: 'drive',
     summary: 'Jump straight to a route (a teleport, not a user action)',
+    details:
+      'A screen inside a nested navigator is reached through its parents, which nav finds itself: from the path the screen had when a run last saw it, else from the route graph (`lynkeus map build`). `{ "screen": "Inner" }` in the params names the nested screen of a navigator route, as React Navigation takes it. The answer names the screen it lands on, and `via` the parents it went through.',
     positionals: [
       { name: 'route', help: 'e.g. Settings.Main', required: true },
       { name: 'params', help: 'JSON params' },
     ],
     needs: 'app',
     run: async (ctx) => {
-      await (await ctx.device()).navigate(ctx.args[0]!, ctx.args[1] ? JSON.parse(ctx.args[1]) : undefined);
-      return { json: { route: ctx.args[0] } };
+      const route = routeOf(ctx.args[0]!);
+      const params = ctx.args[1] ? (JSON.parse(ctx.args[1]) as object) : undefined;
+      const chain = routeChain(route, { graph: graphOrNull(ctx), observed: screens.observed(lynkeusDir(ctx.root)) });
+      const call = chain && chain.length > 1 ? nestedNavigate(chain, params) : { name: route, params };
+      await (await ctx.device()).navigate(call.name, call.params);
+      return { json: { route: leafOf(route, params), ...(call.name !== route ? { via: chain!.slice(0, -1) } : {}) } };
     },
   }),
   define({

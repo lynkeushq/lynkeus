@@ -79,6 +79,8 @@ Pop the current route
 
 Jump straight to a route (a teleport, not a user action)
 
+A screen inside a nested navigator is reached through its parents, which nav finds itself: from the path the screen had when a run last saw it, else from the route graph (`lynkeus map build`). `{ "screen": "Inner" }` in the params names the nested screen of a navigator route, as React Navigation takes it. The answer names the screen it lands on, and `via` the parents it went through.
+
 | Argument | |
 |---|---|
 | `route` | e.g. Settings.Main |

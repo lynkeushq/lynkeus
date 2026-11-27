@@ -141,7 +141,9 @@ Salta directamente a una ruta. Es un atajo, no una acción de usuario: úsalo pa
 | Argumento | Qué es |
 |---|---|
 | `route` | El nombre de la ruta, por ejemplo `Settings.Main`. |
-| `params` | Opcional. Los parámetros de la ruta, en JSON. |
+| `params` | Opcional. Los parámetros de la ruta, en JSON. Con `{"screen":"Interna"}` abre una pantalla anidada de un navegador. |
+
+Una pantalla de un navegador anidado se puede pedir por su nombre solo: Lynkeus pasa por los navegadores que la contienen, que conoce por el camino en el que una ejecución la vio o por el grafo de rutas. La respuesta trae la pantalla a la que llegó en `route` y los navegadores por los que pasó en `via`.
 
 ```bash
 lynkeus nav Checkout.Confirm '{"id":"abc"}'

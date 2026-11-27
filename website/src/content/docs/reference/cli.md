@@ -184,7 +184,9 @@ Jumps straight to a route. This is a teleport, not something a user does: use it
 | Argument | Meaning |
 |---|---|
 | `route` | The route name, such as `Settings.Main`. |
-| `params` | Optional. The route's params, as JSON. |
+| `params` | Optional. The route's params, as JSON. `{"screen":"Inner"}` opens a nested screen of a navigator route. |
+
+A screen inside a nested navigator can be named on its own. Lynkeus goes through its parent navigators, which it knows from the path a run last saw the screen at or from the route graph. The answer gives the screen it lands on as `route`, and the parents it went through as `via`.
 
 ```bash
 lynkeus nav Checkout.Confirm '{"id":"abc"}'
