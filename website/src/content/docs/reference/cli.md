@@ -53,6 +53,8 @@ Before 0.3.0 quotes that reached Lynkeus stayed in the text, so `press '"Next"'`
 
 Where a command accepts a route or a target (`wait`, `see`, `why`), a word that looks like a route name is read as a route: words that start with a capital letter, joined by dots, such as `Settings.Main` or `Home`. A route that does not start with a capital, as expo-router's do, is written with the `route:` prefix: `route:index` (since 0.3.0).
 
+In a case step, an explicit `target:` key always names an element: `app.wait: { target: TextField, scroll: true }` waits for the text `TextField` unless the app has a route of that name. A bare scalar (`app.wait: TextField`) is still a route.
+
 :::caution
 This rule also catches a one-word label that starts with a capital letter. `lynkeus wait Continue` waits for a route named `Continue`, not for a button. Wait for such a control by its `testID`, or quote the text: `lynkeus wait '"Continue"'`.
 :::
@@ -346,6 +348,8 @@ lynkeus why [target] [--route <Route>]
 ```
 
 Explains why the last thing failed, by reading the screen, the requests and the trace as rules. It runs by itself after a failed `press`, `wait`, `type`, `swipe` or `nav`. Give it what you were looking for to sharpen the answer.
+
+When a text is gone and nothing on screen is close to it (`"Log Out"` became `"Sign Out"`), `why` offers the controls of the same kind that are new on the screen, nearest first to where the old one was when Lynkeus kept its frame (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
 | Argument | Meaning |
 |---|---|

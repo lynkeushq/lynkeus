@@ -9,6 +9,7 @@ import {
   declaredTargets,
   parseTargets,
   runOnTargets,
+  skippedOn,
   type SuiteReport,
   type SuiteResult,
   type TargetName,
@@ -534,4 +535,10 @@ test('a platform with no Simulator or emulator up is said at once, and its conne
   assert.equal(lines[0], '✅ ios  one');
   assert.equal(lines[1], '○ android not available: no Android emulator or phone is up (adb devices lists none)');
   assert.equal(opened, 1);
+});
+
+test('skippedOn says why a case with its own targets does not run on another', () => {
+  assert.equal(skippedOn({ targets: ['ios', 'android'] }, 'headless'), 'skipped on headless: its targets are ios, android');
+  assert.equal(skippedOn({ targets: ['ios', 'android'] }, 'ios'), undefined);
+  assert.equal(skippedOn({}, 'headless'), undefined);
 });

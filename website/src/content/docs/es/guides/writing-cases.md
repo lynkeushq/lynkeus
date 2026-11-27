@@ -332,6 +332,8 @@ Eso lo decide el proyecto, una sola vez, en `lynkeus.config.json`:
 
 Los destinos posibles son `headless` (la app en Node, sin pantalla), `fastsim:ios` y `fastsim:android` (Lynkeus FastSim dibujando cada plataforma), `ios` (tu app en el simulador de iOS o en un iPhone) y `android` (tu app en el emulador de Android o en un teléfono). Un equipo que tiene FastSim para las dos plataformas declara esos dos y nada más; otro puede preferir `["headless", "ios"]`. Si un caso necesita algo que solo da un dispositivo real, lleva su propia lista en el encabezado (`targets: [ios, android]`) y esa lista reemplaza la del proyecto para ese caso.
 
+Una ejecución en un destino con nombre (`--on headless`, o `--host`) también la respeta: un caso cuyos `targets:` no incluyen ese destino se omite con una línea (`skipped on headless: login, its targets are ios, android`), no falla.
+
 Para dar un caso por terminado, se corre en sus destinos y en ningún otro:
 
 ```bash

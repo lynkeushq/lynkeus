@@ -338,6 +338,8 @@ Your project decides where its cases must pass, and says it once in `lynkeus.con
 
 The targets are `headless`, `fastsim:ios`, `fastsim:android`, `ios` (your app on the iOS Simulator or an iPhone) and `android` (your app on the Android emulator or a phone). A team with Lynkeus FastSim for both platforms might declare `["fastsim:ios", "fastsim:android"]` and nothing else. If one case needs a feature only a device has, give it its own list in its frontmatter, `targets: [ios, android]`, and it replaces the project's for that case.
 
+A run on a named target (`--on headless`, or `--host`) honors it too: a case whose `targets:` leave that target out is skipped with one line (`skipped on headless: login, its targets are ios, android`), not failed.
+
 A case is finished when it passes on its targets. Check them all in one run:
 
 ```bash

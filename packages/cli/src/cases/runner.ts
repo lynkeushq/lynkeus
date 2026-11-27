@@ -22,6 +22,7 @@ import type {
   Target,
 } from 'lynkeus-protocol';
 
+import { lynkeusDir } from '../config.js';
 import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import type { Recording } from '../device/platform.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
@@ -29,6 +30,7 @@ import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/even
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
 import { execute, notePrinted, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import * as screens from '../knowledge/screens.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
@@ -336,13 +338,19 @@ const targetArg = (item: unknown): string => {
   throw new Error(`a target in a list is a string, { testId } or { text }: ${JSON.stringify(item)}`);
 };
 
-export const argvFor = (command: Command, value: StepValue): string[] => {
+/**
+ * `known` says whether a bare capitalized word is a route the app has: with an explicit `target:` key, one that is not
+ * is a text (`app.wait: { target: TextField }`), where a bare scalar step value stays a route.
+ */
+export const argvFor = (command: Command, value: StepValue, known?: (route: string) => boolean): string[] => {
   const argv = command.name.split(' ');
   if (value === null || value === undefined) return argv;
   if (typeof value === 'string' && command.flags?.[value]?.type === 'boolean') return [...argv, `--${value}`];
   if (typeof value !== 'object' || Array.isArray(value)) return [...argv, ...(Array.isArray(value) ? value.map(String) : [String(value)])];
   const given = { ...(value as Record<string, unknown>) };
   const positionals = command.positionals ?? [];
+  if (known && typeof given.target === 'string' && isRoute(given.target) && !given.target.startsWith('route:') && !known(given.target))
+    given.target = `"${given.target}"`;
   // A case names a control by `testId` wherever a command takes a target (`wait` calls its own `what`).
   if ('testId' in given && !('target' in given) && !('testId' in (command.flags ?? {})) && positionals.some((p) => p.name === 'target' || p.name === 'what')) {
     given.target = `#${String(given.testId)}`;
@@ -653,6 +661,18 @@ export const leftOutside = (opened: string | undefined): string =>
 export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport> => {
   const { base, config } = options;
   const log = options.log ?? (() => undefined);
+  let routesKnown: Set<string> | undefined;
+  const isKnownRoute = (route: string): boolean => {
+    if (!routesKnown) {
+      routesKnown = new Set(screens.observed(lynkeusDir(base.root)).keys());
+      try {
+        for (const r of Object.keys(base.graph()?.screens ?? {})) routesKnown.add(r);
+      } catch {
+        // No route graph: only the routes observed so far count.
+      }
+    }
+    return routesKnown.has(route);
+  };
   const scope: Scope = structuredClone(options.prepared?.scope ?? {});
   seeded(scope, c.id, options.seed);
   const ran = new Set<string>(options.prepared?.ran ?? []);
@@ -1001,7 +1021,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await timed('target', () => pressable(d, target, params));
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
     try {
-      const outcome = await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+      const outcome = await timed('action', () => cli(argvFor(find('press')!, rest as StepValue, isKnownRoute), true));
       const part = (outcome.json as { part?: unknown } | undefined)?.part;
       if (typeof part === 'string') warn(`app.press ${part}: if that is not the one, write its whole label or its testID`);
     } catch (error) {
@@ -1179,7 +1199,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             }
           });
         const { timeoutMs: _timeout, ...typed } = params ?? {};
-        await timed('action', () => cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value)));
+        await timed('action', () => cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value, isKnownRoute)));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
         if (name === 'swipe' && onWallClock(d)) await timed('settle', () => d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined));
         return undefined;
@@ -1205,7 +1225,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
               await interrupted(value);
               const left = deadline - Date.now();
               const outcome = await timed('wait', () =>
-                execute(argvFor(find('wait')!, { ...asked, timeoutMs: Math.max(Math.min(left, 1000), 100) } as StepValue), base),
+                execute(argvFor(find('wait')!, { ...asked, timeoutMs: Math.max(Math.min(left, 1000), 100) } as StepValue, isKnownRoute), base),
               );
               if (!outcome.error && outcome.code === 0) break;
               if (Date.now() >= deadline) {
@@ -1215,7 +1235,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             }
           } else
             await timed('wait', () =>
-              cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value)),
+              cli(
+                argvFor(
+                  find('wait')!,
+                  'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value,
+                  isKnownRoute,
+                ),
+              ),
             );
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
           if (onWallClock(d) && isRoute(what)) await timed('settle', () => d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined));
@@ -1264,7 +1290,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           mocksSet = true;
           if (mockedFrom === undefined) mockedFrom = await lastRequest(d).catch(() => undefined);
         }
-        await timed('action', () => cli(argvFor(command, value)));
+        await timed('action', () => cli(argvFor(command, value, isKnownRoute)));
         if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
       }
