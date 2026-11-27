@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+).",
-    "now": "fa3f2766e13b3cd2"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
+    "now": "407c1b1b6a449896"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
@@ -156,12 +156,12 @@
     "now": "2432312394237059"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
-    "now": "7009d6dd0b1bf21e"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
+    "now": "748f77907f71e1b0"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
-    "now": "e5cc1932ea89140d"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged.",
+    "now": "817ff3ab06a6c532"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",

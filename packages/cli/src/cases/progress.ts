@@ -243,6 +243,12 @@ export const PROGRESS_FILE = 'progress.ndjson';
 /** Where `case status` looks when it is given no run: what the last run of this project wrote. */
 export const lastRunFile = (root: string) => path.join(root, '.lynkeus', 'last-run.json');
 
+/** Points `case status` and `case stop` at a run that is starting: its progress file, and the file that asks it to stop. */
+export const writeLastRun = (root: string, progress: string, stop: string | undefined): void => {
+  fs.mkdirSync(path.dirname(lastRunFile(root)), { recursive: true });
+  fs.writeFileSync(lastRunFile(root), `${JSON.stringify({ progress, pid: process.pid, startedAt: new Date().toISOString(), stop })}\n`);
+};
+
 const clock = (msLeft: number): string => {
   const s = Math.round(msLeft / 1000);
   if (s < 60) return `${s}s`;
