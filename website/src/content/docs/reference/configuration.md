@@ -101,6 +101,7 @@ The values above are examples. `app.unlock` and `IdScanner.start` stand for a ma
 |---|---|---|---|
 | `port` | number | `8123` | The port the driver listens on and the app dials. `LYNKEUS_PORT` overrides it. |
 | `device` | string | the first booted simulator | The simulator to use, by udid or by name, or an Android emulator by its `adb` serial (`emulator-5554`). A simulator's name matches when it contains the value. |
+| `avd` | string | none | The Android emulator, by its AVD name, that [`lynkeus setup`](/reference/cli/#lynkeus-setup) starts when no emulator or phone is up. `setup` starts no emulator the project does not name, and boots a Simulator only when `device` names it. |
 | `app` | string | none | The app's bundle id (iOS) or application id (Android), for `launch`, `--launch` and the simulator commands. |
 | `attachTimeout` | number (ms) | `15000` | How long a command waits for the app to attach before it gives up. |
 

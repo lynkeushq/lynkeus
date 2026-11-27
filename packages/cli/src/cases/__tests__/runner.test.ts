@@ -19,6 +19,7 @@ import {
   missingFixtures,
   newSince,
   phaseNote,
+  slowTargetNote,
   type Prepared,
   preparable,
   runCase,
@@ -1478,4 +1479,93 @@ test('a run that keeps a run folder files the app console under each step, witho
   );
   const without = await runCase(c, { base, config, fixtures });
   assert.equal(without.steps[0]!.logs, undefined);
+});
+
+/** A native app whose list scrolls forever and never lists `#later`: every look and scroll costs `costMs`. */
+const scrollingApp = (costMs: number) => {
+  const calls: Call[] = [];
+  let offset = 0;
+  const pause = () => new Promise((r) => setTimeout(r, costMs));
+  const screen = () => ({
+    route: 'Showroom',
+    path: ['Showroom'],
+    commit: offset,
+    busy: false,
+    window: { w: 390, h: 844 },
+    costMs: 1,
+    elements: [{ i: 0, kind: 'text', text: `row ${offset}`, enabled: true, depth: 0, frame: { x: 0, y: 100, w: 390, h: 40 } }],
+  });
+  const server = {
+    connected: true,
+    hello: { native: true, platform: 'ios', commands: [] },
+    call: async (method: string, params: unknown) => {
+      calls.push({ method, params });
+      if (method === 'swipe') {
+        offset += 1;
+        await pause();
+      }
+      return null;
+    },
+  };
+  const device = {
+    server,
+    screen: async () => screen(),
+    trace: async () => ({ last: 0, events: [] }),
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    press: async (params: unknown) => {
+      calls.push({ method: 'press', params });
+      return { x: 0, y: 0, mode: 'native' };
+    },
+    waitFor: async (params: { timeoutMs?: number }) => {
+      await new Promise((r) => setTimeout(r, params.timeoutMs ?? 0));
+      throw new Error('timed out');
+    },
+    idle: async () => {
+      await pause();
+      return { settled: true };
+    },
+    swipe: (params: never) => server.call('swipe', params),
+    command: async () => ({}),
+  } as unknown as Device;
+  const base: Base = {
+    root,
+    config: {},
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => device,
+  };
+  return { base, calls };
+};
+
+test('a press on a point does not look for, scroll to or wait for a target: it presses there', async () => {
+  const c = parseCase('---\nid: drawer\n---\nsteps:\n  - app.press: "390,450"\n', 'drawer.md');
+  const { base, calls } = scrollingApp(50);
+  const started = Date.now();
+  const report = await runCase(c, { base, config: {}, fixtures });
+  assert.equal(report.steps[0]?.status, 'passed', report.steps[0]?.error);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.deepEqual(
+    calls.map((x) => x.method),
+    ['press'],
+  );
+  assert.deepEqual(calls[0]?.params, { x: 390, y: 450, holdMs: undefined, mode: undefined });
+  assert.equal(report.warnings, undefined);
+});
+
+test("a press's timeoutMs bounds every wait for its target, the scrolls included", async () => {
+  const c = parseCase('---\nid: late\n---\nsteps:\n  - app.press: { target: "#later", timeoutMs: 300 }\n', 'late.md');
+  const { base, calls } = scrollingApp(50);
+  const report = await runCase(c, { base, config: {}, fixtures });
+  const target = report.steps[0]?.phases?.target ?? 0;
+  // Without the bound, twelve scrolls down and thirty up at 100 ms each, after a 500 ms wait.
+  assert.ok(target < 1200, `target phase ${target} ms`);
+  assert.ok(calls.filter((x) => x.method === 'swipe').length < 6, `${calls.filter((x) => x.method === 'swipe').length} swipes`);
+});
+
+test('a step that spends more than a few seconds finding its target is warned about', () => {
+  assert.equal(slowTargetNote({ step: 'app.press #go', phases: { target: 2900 } }), undefined);
+  assert.match(slowTargetNote({ step: 'app.press 390,450', phases: { target: 20937, action: 282 } }) ?? '', /^app\.press 390,450: 20\.9 s finding its target/);
 });

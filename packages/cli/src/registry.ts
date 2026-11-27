@@ -42,6 +42,8 @@ export type Base = {
   shares?: string;
   /** Where a long command says how far it has got, for a caller that follows it (an MCP client's progress). */
   progress?: (event: ProgressEvent) => void;
+  /** Where a long job that is not a case run (setup building the app) says what it is doing now, for the same caller. */
+  notify?: (message: string) => void;
   /** Aborted when the caller gives up on the command (an MCP client cancelling its request): a long one stops. */
   signal?: AbortSignal;
 };

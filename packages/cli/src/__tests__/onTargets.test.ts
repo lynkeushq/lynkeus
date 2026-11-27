@@ -116,6 +116,7 @@ const onTargets = async (
     results: Partial<Record<TargetName, SuiteResult>>;
     cases?: string[];
     verbose?: boolean;
+    brief?: boolean;
     signal?: AbortSignal;
     hold?: Promise<void>;
   },
@@ -139,6 +140,7 @@ const onTargets = async (
     },
     detail: (r) => `— failed at ${r.id}\n    the screen`,
     verbose: !!o.verbose,
+    brief: !!o.brief,
     progressFile: path.join(root, '.lynkeus', 'last-run.progress.ndjson'),
   });
   return { outcome, ctx, started, seen, root };
@@ -541,4 +543,27 @@ test('skippedOn says why a case with its own targets does not run on another', (
   assert.equal(skippedOn({ targets: ['ios', 'android'] }, 'headless'), 'skipped on headless: its targets are ios, android');
   assert.equal(skippedOn({ targets: ['ios', 'android'] }, 'ios'), undefined);
   assert.equal(skippedOn({}, 'headless'), undefined);
+});
+
+test('brief leaves out the cases that passed and cuts notes to a line; the counts and failures stay', async () => {
+  const { outcome } = await onTargets({
+    plans: { simulator: { flags: { jobs: 1 }, jobs: 1, label: 'ios' }, headless: host() },
+    results: {
+      simulator: { code: 1, reports: [passed('login'), failed('cart'), passed('tabs', { retried: true })], notes: [] },
+      headless: {
+        code: 0,
+        reports: [passed('login'), passed('cart'), passed('tabs')],
+        notes: ['native values the headless host did not answer:\n  Foo.bar\n  Foo.baz'],
+      },
+    },
+    cases: ['login', 'cart', 'tabs'],
+    brief: true,
+  });
+  const text = outcome.text ?? '';
+  assert.doesNotMatch(text, /✅ \S+\s+login/);
+  assert.match(text, /❌ ios\s+cart — step 2\/3/);
+  assert.match(text, /✅ ios\s+tabs {2}⚠ passed on retry/);
+  assert.match(text, /headless: native values the headless host did not answer:$/m);
+  assert.doesNotMatch(text, /Foo\.bar/);
+  assert.match(text, /ios 2\/3 passed · headless 3\/3 passed/);
 });

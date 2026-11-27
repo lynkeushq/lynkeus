@@ -470,6 +470,29 @@ Then, under **Where cases can run on this machine**: the booted iOS Simulators, 
 |---|---|
 | `--offline` | Check the files only. Do not wait for a running app. |
 
+### `lynkeus setup`
+
+```bash
+lynkeus setup [--platform <name>] [--device <name>] [--rebuild]
+```
+
+Takes an app from nothing to attached in one command, and is what an AI agent calls instead of running builds, Metro and `simctl` or `adb` through its shell. In order:
+
+1. **`init`**, when [`lynkeus status`](#lynkeus-status) finds the agent not set up. Its whole answer goes to `.lynkeus/runs/setup/init.txt`.
+2. **The device**, for each platform: `--platform` (`ios`, `android`, or both), else the `ios` and `android` in `cases.targets`, else the platforms the app builds for (iOS only on a Mac). It takes a booted Simulator, or a running emulator or phone, preferring the one `--device` or the configuration names. With none up, it boots only the one the project names: `device` (a Simulator's name or udid) or `avd` (an emulator) in `lynkeus.config.json`, or `--device`. It says what it booted, with the command that shuts it down. It never wipes a device.
+3. **Metro**, when nothing answers on port 8081 (`RCT_METRO_PORT`): `npx expo start --dev-client` or `npx react-native start`, with a clean cache after `init` changed the app, its log in `.lynkeus/runs/setup/metro.log`. A Metro that was already running when `init` changed the app is not restarted for you: it would hand the app a bundle without the token.
+4. **The development build**, with the project's own command: `npx expo run:ios --device <udid> --no-bundler`, `npx expo run:android --device <avd> --no-bundler`, `npx react-native run-ios --udid <udid> --no-packager` or `npx react-native run-android --deviceId <serial> --no-packager`. Its log is `.lynkeus/runs/setup/build-<platform>.log`. When the build `setup` made last is installed and nothing it depends on changed (the dependencies, `app.json`, `.env.local`), it launches that build instead; `--rebuild` builds anyway.
+5. **The launch and the attach**: the build opens the app; when it does not attach within two minutes, `setup` launches it once more and waits again.
+6. **`status`**, whose gaps and advice end the answer; the whole of it is in `.lynkeus/runs/setup/status.txt`.
+
+An app of the platform that is already attached skips the device's build and launch, so running `setup` again is cheap. The answer is a line per step. A failed step answers with the last lines of its log that say why, at most 15, and the log's path. Over MCP, the long steps send progress notifications to a client that asks for them.
+
+| Flag | Meaning |
+|---|---|
+| `--platform <name>` | `ios`, `android`, or both (repeat the flag or separate with commas). |
+| `--device <name>` | With one platform: the Simulator (name or udid), emulator (AVD name or `adb` serial) or phone (serial) to use. One that is not up is booted, a Simulator or an AVD. |
+| `--rebuild` | Build again even when the build `setup` made last is installed. |
+
 ### `lynkeus guide`
 
 ```bash
@@ -1079,7 +1102,7 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]
+lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--brief] [--verbose] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
@@ -1130,6 +1153,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
 | `--dry-run` | | Parse the cases and list their steps without running them. Nothing is written. |
+| `--brief` | | With `--on`: only the cases that did not pass (or passed on a retry), each target's count, and each target's notes cut to their first line. For a suite on several targets, where thirty green lines say nothing. |
 | `--verbose` | | Print a failed case whole: its full error, the whole screen at the failure and every request. Without it the screen is cut to what a check can name (rows of a list counted, testIDs and controls first), only requests that failed, never answered or were mocked are listed, and a notice the last run in the same process gave word for word is one line. `cases.jsonl`, `--report` and `--json` always keep everything. |
 | `--progress <json\|none>` | | How the run says where it is, besides `progress.ndjson`. `json` prints one event per line on stdout, and the summary then goes to stderr. `none` leaves out the live status line. See [Progress](#progress). |
 
@@ -1174,6 +1198,28 @@ lynkeus case run --host --out run --seed 1 --locale es-AR --time-zone America/Ar
 A host that runs out of memory or crashes in the middle of a case takes the app with it, and every case after it would fail with `No app attached`. With `--host`, or with `--host-command` and `--keep-hosts` (one host per job), the run asks before each case whether the host is still there, and starts it again when it is not. The case that lost the host still fails, and its reasons say how the host ended, with its last words and the path of its log. A host started again writes a log of its own (`lynkeus-headless-<pid>-2.log` in the temporary folder, the first being `lynkeus-headless-<pid>.log`), so the one that died keeps what explains it.
 
 Before each case the run also asks the host how full its heap is, and writes one line (`host: heap 1240 MB of 4096 MB`). Past `--host-heap` percent of the limit, it starts the host again, so a case does not begin on a host about to run out. `lynkeus call memory` gives the same reading by hand.
+
+### `lynkeus evidence`
+
+```bash
+lynkeus evidence [files]… [--on <targets>] [--host] [--out <dir>] [--no-video] [--push]
+```
+
+Runs cases with everything a person reviews (a frame after every step, a film of each case and `report.html`) and answers only what points at it:
+
+- the path of each `report.html`, one per target with `--on`;
+- one line per case with its result on each target, and for a failure, the target, the step and the first line of its error;
+- the frames that look wrong: an action (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) whose frame is identical to the step before's, which means it changed nothing on screen; and a frame taken while the app was inactive or in the background on a Simulator or emulator, which shows a system view or another app instead of the app.
+
+It is `case run --out <dir> --screenshots --video` underneath, on the targets `--on` names (as in [`case run`](#lynkeus-case-run)), on the attached app, or headless with `--host`. The run goes to `.lynkeus/runs/evidence/<time>` unless `--out` says otherwise, and the run's whole answer is kept as `answer.txt` there.
+
+| Flag | Meaning |
+|---|---|
+| `--on <targets>` | As `case run --on`. Without it, the attached app. |
+| `--host` | Host the app in Node for the run. Not with `--on`. |
+| `--out <dir>` | Where the run goes. |
+| `--no-video` | Frames only, no film. |
+| `--push` | Upload the run to the reports service and print its address. |
 
 ### `lynkeus case status`
 

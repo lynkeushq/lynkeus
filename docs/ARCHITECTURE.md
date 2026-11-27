@@ -114,7 +114,9 @@ checks (`commands/init.ts`), the TypeScript route reader (`knowledge/extract.ts`
 reader (`knowledge/route-params.ts`, a public export) and the jest headless host (`commands/headless.ts`) live in the
 core and reach the React Native adapter through `runtimes/api.ts`. `fastsimVariant` still checks the platform itself
 as well as the adapter. The adapter's `hostCommandEnv` and `runner` answers are not asked yet: React Native is the
-runtime the core's defaults were written for.
+runtime the core's defaults were written for. `devBuild` and `bundler` are the project's own commands that `setup`
+runs (a development build installed and opened on a device, and Metro); a runtime without them gets `init` and the
+device from `setup`, and builds the app itself.
 
 ## Where a new piece goes
 

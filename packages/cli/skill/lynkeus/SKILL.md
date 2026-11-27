@@ -11,7 +11,7 @@ Lynkeus drives a React Native app by what is on its screen, through `lynkeus-age
 
 Spend in this order and stop as soon as you know enough:
 
-1. `status` in a project you do not know: what is set up, where cases can run, the one fix for each gap. `init` sets Lynkeus up; the app is then built again (a development build, never Expo Go) and Metro restarted with `--reset-cache`.
+1. `status` in a project you do not know: what is set up, where cases can run, the one fix for each gap. `setup` connects the app in one call: `init`, the device, Metro, the development build (never Expo Go), launch and attach.
 2. `case coverage`: the app's screens and which no case reaches yet.
 3. `case new <id> --to <Route>`: a draft with the way there (an existing case's steps when one reaches it), the backend setup to pick from and the checks left to write. Keep the way it offers. On the screen already, `case here` drafts from what is shown.
 4. No known way to the screen: `crawl` from the nearest screen. The route map rebuilds itself when the source changes, and every press a case or you make teaches it.
@@ -31,11 +31,11 @@ Read a section when the task reaches it, not up front: each answers one question
 - determinism: [launch-facts](determinism/launch-facts.md) (seed, locale, zone, epoch), [randomness](determinism/randomness.md), [frames](determinism/frames.md)
 - troubleshooting: [press](troubleshooting/press.md), [system-view](troubleshooting/system-view.md), [background](troubleshooting/background.md), [text-match](troubleshooting/text-match.md), [port](troubleshooting/port.md), [native-values](troubleshooting/native-values.md), [headless-start](troubleshooting/headless-start.md), [shared-state](troubleshooting/shared-state.md)
 
-## Routine work on a cheaper model
+## One-call jobs
 
-Setup, `status`, running suites and gathering evidence are routine and run well on a smaller, faster model or at lower effort; writing and debugging cases gains from a stronger one. Where subagents exist, hand the routine ones to `lynkeus-setup` (connect the app, report status) and `lynkeus-runner` (run cases, return a short summary): their long output stays out of your context. A suggestion: you and the person decide.
+Prefer them to driving builds, Metro and devices through the shell: `setup` connects an app, `case run --on targets --brief` runs a suite on the project's targets, `evidence` runs it with frames, film and report.html. Each answers a few lines and keeps its logs in files: open one only when the answer points at it. If your client can run a task in a separate context (a subagent, a background task), give it these jobs and keep only their summaries. They are routine and run well on a smaller model or at lower effort; writing and debugging cases gains from a stronger one. Clients with subagents also get `lynkeus-setup` and `lynkeus-runner`, from the next session on. A suggestion: you and the person decide.
 
 ## Rules
 
-- Lynkeus never boots or closes a device. Shut down the Simulators and emulators you booted when you are done (`xcrun simctl shutdown <udid>`, `adb -s <serial> emu kill`), never one that was already running.
+- Lynkeus boots only a device the project names (`setup` says when it does) and never closes one. Shut down the Simulators and emulators you or `setup` booted when you are done (`xcrun simctl shutdown <udid>`, `adb -s <serial> emu kill`), never one that was already running.
 - On FastSim and headless, a run lists the native modules and values the app read that nobody provides (answered empty, or guessed). Tell the person; when the guess changes what the app shows, giving it a real answer in `cases.nativeMocks` is their decision.

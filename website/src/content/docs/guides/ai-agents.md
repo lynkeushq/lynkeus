@@ -44,7 +44,9 @@ Set lynkeus up in this app.
 
 The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file. It also installs the [Lynkeus skill](#the-lynkeus-skill) in `.claude/skills/lynkeus` and two [subagents](#subagents-for-routine-work) in `.claude/agents`.
 
-The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
+The agent has native code, so the app is built again. The `setup` tool does all of it in one call: `init` when the agent is not set up, then for each platform the device, Metro (started with its own log when it is not running), the project's own development build (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), the launch and the wait until the app attaches, then `status`. It answers a line per step and keeps the build and Metro logs, and `init`'s and `status`'s whole answers, in `.lynkeus/runs/setup`. A failed step comes back with its last log lines and the log's path. Run it again after a fix: the steps already done are said and skipped.
+
+Which platforms: `platform` when given, else the `ios` and `android` in `cases.targets`, else the ones the app builds for. Which device: a booted Simulator, or a running emulator or phone. With none up, `setup` boots only the one the project names, `device` (a Simulator's name or udid) or `avd` (an emulator) in `lynkeus.config.json`, and says it booted it, so the agent shuts it down when it is done. It never wipes a device. While it builds, it reports progress to clients that ask for it.
 
 To run without a simulator, ask it to set the app up headless: `headless_init` installs jest, Testing Library and `lynkeus-headless` and writes the entry, `headless_doctor` names any native module still to mock, and cases then run in Node with `case_run` and `host`. The app's backend must be local; `apiUrl` in `lynkeus.config.json` gives it to the host.
 
@@ -82,8 +84,8 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 32 core tools | About 7,200 tokens |
-| `npx lynkeus mcp --full` | All 62 commands | About 10,700 tokens |
+| `npx lynkeus mcp` | The 34 core tools | About 7,700 tokens |
+| `npx lynkeus mcp --full` | All 64 commands | About 11,500 tokens |
 
 Start with the core. Add `--full` for an agent whose job is recording or snapshots.
 
@@ -92,13 +94,15 @@ Start with the core. Add `--full` for an agent whose job is recording or snapsho
 | Tool | What it does |
 |---|---|
 | `status` | What the project has of Lynkeus and what is missing, each with its fix, and whether an app is attached. |
+| `setup` | Connects the app in one call: `init`, the device, Metro, the development build, the launch, the wait until it attaches, `status`. A line per step; logs in `.lynkeus/runs/setup`. |
 | `init` | Installs the agent, mounts it from the app's entry, makes the project's token. |
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
 | `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Start a Lynkeus FastSim host on a bundle and attach the server to it, so `screen`, `press` and `type` explore the app on FastSim before a case is written; stop it again. |
 | `case_init` | Writes an example case and the reference of the format. |
-| `case_run` | Runs cases, one at a time or side by side. A passing case is one line; a failure comes back with its step, its screen and the reason (`verbose` for all of it). |
+| `case_run` | Runs cases, one at a time or side by side. A passing case is one line; a failure comes back with its step, its screen and the reason (`verbose` for all of it). With `on: targets` and `brief`, a suite on several targets answers only the cases that did not pass and each target's count. |
+| `evidence` | Runs cases with a frame per step, a film per case and `report.html`, and answers only the report's path, each case's result per target and the frames that look wrong (an action that changed nothing on screen, a system view in front). |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
 | `case_here` | Drafts a case from the screen the app shows now, with checks that pass as it is. |
 | `case_new` | Drafts a case for a screen: the way there (an existing case's, when one reaches it), the setup to pick from, the checks left to write. |
@@ -206,7 +210,7 @@ Both set `model: sonnet` in their frontmatter, so the routine part runs on a sma
 
 Their tools are listed as `mcp__lynkeus__*`, which assumes you added the server under the name `lynkeus`, as in [Step 1](#step-1-connect-the-server). With another name, edit the `tools` line in both files.
 
-The server's instructions say the same to any client: setup, status, running suites and gathering evidence run well on a smaller model or at lower effort, and writing and debugging cases gains from a stronger one. Lynkeus only suggests this; you, or the agent, decide.
+A client loads files like these when a session starts, so subagents that `init` writes during a session are there only from the next one. Nothing depends on them: the server's instructions tell any client (Claude Code, Codex, Gemini, Kimi, Qwen or another) to prefer the one-call jobs (`setup`, `case_run` with `on: targets` and `brief`, `evidence`) to driving builds and devices through its shell, and, when it can run a task in a separate context, to hand that context the jobs and keep only their summaries. Each job's long output is in files the agent opens only when the answer points at one.
 
 ## A sample exchange
 
@@ -254,7 +258,7 @@ Some commands are never served over MCP, in either size: `record` and the `repor
 
 **The client shows no tools, or the server exits.** Run `npx lynkeus mcp` in the client's working directory by hand. It should start and wait. Check that the folder is the app's, or pass `--root`.
 
-**Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has another token than the server: the one in `.lynkeus/token`, or `LYNKEUS_TOKEN` when the server's environment sets it. Call `status`: it says which piece is missing. After `init` made a token, the bundle needs Metro restarted with `--reset-cache` to carry it.
+**Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has another token than the server: the one in `.lynkeus/token`, or `LYNKEUS_TOKEN` when the server's environment sets it. Call `status`: it says which piece is missing. After `init` made a token, the bundle needs Metro restarted with `--reset-cache` to carry it; `setup` starts Metro clean itself, and refuses to go on when a Metro it did not start was already running.
 
 **`map_plan` has no directions.** The code does not show that way between the two screens. Call `crawl` from the starting screen, or from a screen close to the target, and ask again.
 

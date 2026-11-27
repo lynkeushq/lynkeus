@@ -124,6 +124,11 @@ export type OnTargetsOptions = {
   /** A failed case in full, for verbose. */
   detail: (report: SuiteReport) => string;
   verbose: boolean;
+  /**
+   * Only what needs reading: the cases that did not pass (or passed on retry), each target's count, and each target's
+   * notes cut to their first line. For a suite on several targets, where all-green is thirty lines that say nothing.
+   */
+  brief?: boolean;
   /** Where the events of every target go, for case status; none when left out. */
   progressFile?: string;
   /** The events on stdout too (--progress json), the summary then on stderr. */
@@ -268,6 +273,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     for (const { lane, result } of results) {
       const report = result.reports?.find((r) => r.id === c.id);
       if (!report) continue;
+      if (o.brief && report.result === 'passed' && !report.retried) continue;
       lines.push(caseLine(report, lane.label.padEnd(width)));
       if (o.verbose && report.result !== 'passed') lines.push(indent(o.detail(report), '    '));
     }
@@ -281,7 +287,8 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     }
   lines.push(...skipped, ...missing);
   for (const { lane, result } of results) {
-    const notes = (result.notes ?? []).flatMap((n) => n.split('\n'));
+    const all = (result.notes ?? []).flatMap((n) => n.split('\n'));
+    const notes = o.brief ? (result.notes ?? []).flatMap((n) => n.split('\n').slice(0, 1)) : all;
     if (notes.length === 1) lines.push(`${lane.label}: ${notes[0]}`);
     else if (notes.length > 1) lines.push(`${lane.label}:`, ...notes.map((n) => `  ${n}`));
   }

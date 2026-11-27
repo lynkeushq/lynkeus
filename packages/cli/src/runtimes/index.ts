@@ -6,7 +6,7 @@
 import type { RuntimeAdapter } from './api.js';
 import { type RuntimeId, runtimeOf } from './detect.js';
 
-export type { RuntimeAdapter } from './api.js';
+export type { BuildDevice, RuntimeAdapter } from './api.js';
 export { RUNTIMES, type RuntimeId, runtimeOf } from './detect.js';
 
 export const loadRuntime = async (id: RuntimeId): Promise<RuntimeAdapter> => {

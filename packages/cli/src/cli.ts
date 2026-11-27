@@ -10,6 +10,8 @@ import { GLOBAL_FLAGS } from './args.js';
 import { caseCommands } from './commands/cases.js';
 import { driveCommands } from './commands/drive.js';
 import { headlessCommands } from './commands/headless.js';
+import { setupCommands } from './commands/setup.js';
+import { evidenceCommands } from './commands/evidence.js';
 import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
 import { ciCommands } from './commands/ci.js';
@@ -37,6 +39,7 @@ register([
   ...mapCommands,
   ...runsCommands,
   ...caseCommands,
+  ...evidenceCommands,
   ...coverageCommands,
   ...ciCommands,
   ...fixturesCommands,
@@ -45,6 +48,7 @@ register([
   ...fastsimCommands,
   ...loginCommands,
   ...headlessCommands,
+  ...setupCommands,
   ...skillCommands,
 ]);
 
