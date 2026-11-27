@@ -1048,7 +1048,7 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]
+lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
@@ -1069,7 +1069,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--time-zone <zone>` | `launch.timeZone`, then `LYNKEUS_TIME_ZONE` | The IANA time zone a host the run starts launches with, such as `Europe/Madrid`. |
 | `--epoch <iso>` | `launch.epoch`, then `LYNKEUS_EPOCH` | The instant the app's clock starts at on a host the run starts, as ISO 8601 or milliseconds since 1970. |
 | `--continue` | | Keep running a case's steps after one fails. A failed setup still stops the case. |
-| `--seen <dir>` | | Write `<dir>/<case id>.json` with the screens each passing case went through, for a coverage map. |
+| `--seen <dir>` | `.lynkeus/seen` | Where to write `<case id>.json` with the screens each passing case went through and the screen after each step. [`case coverage`](#lynkeus-case-coverage) and [`case new`](#lynkeus-case-new) read it. |
 | `--report <file>` | | Append one JSON line per case to this file. |
 | `--events <dir>` | | Keep what the app told its analytics, per case, as `<dir>/<case id>/events.jsonl`. |
 | `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt, and `progress.ndjson`. |
@@ -1097,6 +1097,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
 | `--dry-run` | | Parse the cases and list their steps without running them. Nothing is written. |
+| `--verbose` | | Print a failed case whole: its full error, the whole screen at the failure and every request. Without it the screen is cut to what a check can name (rows of a list counted, testIDs and controls first), only requests that failed, never answered or were mocked are listed, and a notice the last run in the same process gave word for word is one line. `cases.jsonl`, `--report` and `--json` always keep everything. |
 | `--progress <json\|none>` | | How the run says where it is, besides `progress.ndjson`. `json` prints one event per line on stdout, and the summary then goes to stderr. `none` leaves out the live status line. See [Progress](#progress). |
 
 `--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`. When `--host-command` starts a [Lynkeus FastSim](/guides/fastsim/) `fastsim-run` on a bundle older than the app's code, the bundle is made again with the `fastsim-bundle` beside it before any host starts; if that cannot be done, the run exits 1 with the command to run. A case with `exclusive: true` in its frontmatter runs alone under `--jobs`: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases that were asked for after it, and the run prints `… <id> runs alone: waiting for the cases in flight to end`.
@@ -1205,12 +1206,14 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Says which of the app's screens the cases touch, which none does, and which screens a case names that the app no longer has.
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`). The screens come from the route graph, which is built or rebuilt first when it is missing or older than the source.
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (kept by `case run` in `.lynkeus/seen`). The screens come from the route graph, which is built or rebuilt first when it is missing or older than the source.
+
+When three or more case files open their setup or their steps with the same app steps (two or more, the same but for key order, spacing and `timeoutMs`), it ends with one hint: the cases, how many steps, and the entry to put under `cases.macros` so each case calls them in one step. If a declared macro already has those steps, the hint names it. Without such a repetition there is no hint.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--route <Route>` | | Only this screen: the cases that touch it. |
-| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run` kept the screens of passing cases. |
 
 ### `lynkeus case impact`
 
@@ -1226,7 +1229,7 @@ It takes the screens that the diff against `--base` touches or imports, as [`map
 |---|---|---|
 | `--base <ref>` | `main` | The git ref to diff against. |
 | `--depth <n>` | `4` | How many imports away a change still reaches a screen. |
-| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run` kept the screens of passing cases. |
 | `--files` | | Print only the case files, one per line. |
 
 ```bash
@@ -1243,7 +1246,7 @@ Drafts a case for a screen, for you to finish. It prints:
 
 - the frontmatter, with the questions a reader needs answered;
 - the setup that the project's fixtures server offers (from `lynkeus.describe`), commented out, because what state the case needs is your call;
-- the presses from `--from` to the screen, as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
+- the way to the screen. When an existing case reaches it, that case's way, under a comment that names the case: its setup and its steps up to the screen, or with `--from` only the steps after that screen. A case reaches the screen when its last passing run was on it after a step (`.lynkeus/seen`), or when a step goes to it, waits for it or checks it. The shortest way wins. Otherwise, the presses from `--from` as [`map plan`](#lynkeus-map-plan) knows them (without a known way, an `app.nav` and a hint to run `lynkeus crawl --to`);
 - the checks left to write.
 
 | Argument | Meaning |

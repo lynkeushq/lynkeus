@@ -12,8 +12,8 @@
     "now": "01de158681580569"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press.",
-    "now": "c5a5b3c83d7a08e1"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole.",
+    "now": "3e297f447738976e"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -52,12 +52,12 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app.",
-    "now": "21e897796bb4a9a5"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose.",
+    "now": "22a2c69189226241"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing.",
-    "now": "8458926e4a06a9a2"
+    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
+    "now": "2385fb16889d8a12"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -144,24 +144,24 @@
     "now": "f2d22b677976ddbe"
   },
   "report/file/cases.jsonl": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "e1ab20a0c6d1ef91"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds.",
+    "now": "cd52c9bdda95f585"
   },
   "report/file/progress.ndjson": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two.",
-    "now": "f50c437ac40925b5"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. case run reads the trace and the screen once more at a case's first step, to keep the screens the case goes through by default; that moves the virtual clock by two milliseconds.",
+    "now": "d03e8dbb9477022e"
   },
   "surface/fails/status offline": {
     "why": "status marks an optional line that fails with \u25cb instead of \u2717 (and never \u2713 for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation.",
     "now": "2432312394237059"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
-    "now": "868f9d0eb9e70a5f"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
+    "now": "7009d6dd0b1bf21e"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
-    "now": "e9d76baeeea7ff57"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
+    "now": "e5cc1932ea89140d"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
@@ -234,5 +234,29 @@
   "surface/mcp/tool/crawl": {
     "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
     "now": "062519268c3af2ed"
+  },
+  "surface/help/case coverage": {
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
+    "now": "5a4e916cc8f1e627"
+  },
+  "surface/help/case impact": {
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
+    "now": "f79e001c22da3ba7"
+  },
+  "surface/help/case new": {
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
+    "now": "b543d0141a2b8b6b"
+  },
+  "surface/mcp/tool/case_coverage": {
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
+    "now": "c6ffaa28cd50c514"
+  },
+  "surface/mcp/tool/case_impact": {
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
+    "now": "ae34e365af904aff"
+  },
+  "surface/mcp/tool/case_new": {
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
+    "now": "2233f6771ea1573e"
   }
 }

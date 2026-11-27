@@ -1013,6 +1013,7 @@ Opciones que deciden qué se ejecuta y cómo:
 | `--epoch <iso>` | El instante en que empieza el reloj de la app en un host que lanza la ejecución, en ISO 8601 o en milisegundos desde 1970. Por defecto `launch.epoch`, y luego `LYNKEUS_EPOCH`. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
+| `--verbose` | Muestra entero el caso que falla: el error completo, toda la pantalla y todas las peticiones. Sin esta opción, de la pantalla queda lo que nombraría una comprobación (las filas de una lista contadas, testIDs y controles primero), solo aparecen las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y un aviso idéntico al de la ejecución anterior en el mismo proceso ocupa una línea. `cases.jsonl`, `--report` y `--json` guardan todo siempre. |
 | `--prepared <dir>` | Dónde deja `case prepare` los `setup` hechos por adelantado. Un caso que encuentra el suyo allí se lo salta. |
 
 Opciones que deciden qué queda guardado:
@@ -1031,7 +1032,7 @@ Opciones que deciden qué queda guardado:
 | `--video-scale <n>` | Píxeles por punto del video, donde el host puede elegirlo. En FastSim, de 1 a 3; si no lo indicas, 2. |
 | `--report <file>` | Agrega al archivo una línea de JSON por caso. |
 | `--events <dir>` | Guarda lo que la app envió a su analítica, por caso, en `<dir>/<id del caso>/events.jsonl`. |
-| `--seen <dir>` | Escribe `<dir>/<id del caso>.json` con las pantallas por las que pasó cada caso que aprobó, para armar un mapa de cobertura. |
+| `--seen <dir>` | Dónde escribir `<id del caso>.json` con las pantallas por las que pasó cada caso aprobado y la pantalla después de cada paso. Lo leen `case coverage` y `case new`. Por defecto `.lynkeus/seen`. |
 | `--flakes <file>` | El registro de cómo le fue a cada caso a lo largo de las ejecuciones. Por defecto `.lynkeus/flakes.json`. |
 
 Opciones para el reporte y las trazas del backend:
@@ -1214,12 +1215,14 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Dice qué pantallas de la app tocan los casos, cuáles no toca ninguno y cuáles nombra algún caso que la app ya no tiene.
 
-Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (`case run --seen <dir>`). Las pantallas salen del grafo de rutas, que se arma solo la primera vez y se rehace cuando el código cambia.
+Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (lo guarda `case run` en `.lynkeus/seen`). Las pantallas salen del grafo de rutas, que se arma solo la primera vez y se rehace cuando el código cambia.
+
+Si tres o más archivos de casos abren su `setup` o sus pasos con los mismos pasos de la app (dos como mínimo; da igual el orden de las claves, los espacios y `timeoutMs`), termina con un aviso: qué casos, cuántos pasos y la entrada para `cases.macros` que los reúne en un paso. Si una macro declarada ya tiene esos pasos, el aviso la nombra. Sin repetición no hay aviso.
 
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | Solo esta pantalla: los casos que la tocan. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 
 ### `lynkeus case impact`
 
@@ -1235,7 +1238,7 @@ Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que e
 |---|---|
 | `--base <ref>` | La referencia de git contra la que se compara. Por defecto `main`. |
 | `--depth <n>` | A cuántas importaciones de distancia un cambio sigue alcanzando una pantalla. Por defecto `4`. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 | `--files` | Imprime solo los archivos de los casos, uno por línea. |
 
 ```bash
@@ -1250,7 +1253,9 @@ lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
 
 Redacta un caso para una pantalla: el camino hasta ella, el `setup` del backend para elegir y las comprobaciones que quedan por escribir.
 
-Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), las pulsaciones desde `--from` hasta la pantalla, tal como las conoce `map plan`, y un lugar para las comprobaciones.
+Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), el camino hasta la pantalla y un lugar para las comprobaciones.
+
+El camino sale de un caso existente cuando alguno llega a esa pantalla: su `setup` y sus pasos hasta ahí, o con `--from` solo los pasos posteriores a esa pantalla, bajo un comentario que nombra el caso. Llega si en su última ejecución aprobada estuvo en la pantalla después de un paso (`.lynkeus/seen`) o si un paso va a ella, la espera o la comprueba; gana el camino más corto. Si ningún caso llega, son las pulsaciones desde `--from` que conoce `map plan`.
 
 | Argumento | Qué es |
 |---|---|

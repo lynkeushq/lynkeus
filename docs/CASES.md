@@ -194,10 +194,22 @@ npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: t
 `case new` begins at `--from`, or at `cases.start` in the config. It never chooses the setup: it lists, commented out,
 what the project's fixtures server describes ([FIXTURES.md](FIXTURES.md)), and the author keeps what the case needs.
 
+When an existing case already reaches the screen, `case new` offers that case's way there instead of a plan from the
+route map: its setup and its steps up to the screen, under a comment that names the case, and with `--from` only the
+steps after that screen. A case reaches the screen when its last passing run was on it after a step, or when a step
+goes to it, waits for it or checks it. The shortest way wins, and one a passing run walked wins a tie. Nothing is
+rewritten: the draft is the author's to keep or change.
+
 A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
-screen a passing run went through when `case run --seen .lynkeus/seen` kept them. The screens come from the route
-graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check` does. A change to the file that registers the app or to the root
+screen a passing run went through. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
+the screens of the case, and the screen the app was on after each step, read off trace marks the steps take anyway.
+The screens come from the route graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check`
+does. A change to the file that registers the app or to the root
 component it registers reaches every screen, so every case is listed, with that file as the reason.
+
+When three or more case files open their setup or their steps with the same app steps (two at least; key order,
+spacing and `timeoutMs` aside), `case coverage` ends with one hint: the cases, how many steps, and the entry to put
+under `cases.macros` so each case says them in one step. It names a macro already declared with those steps instead.
 
 ## In CI
 
@@ -254,6 +266,15 @@ A failed case runs once more before it counts as failed (`--once` turns that
 off), and one that passes the second time is reported as passed on retry. A
 failed step leaves the screen as it was, the requests the app had made and,
 for a step on a target, why: covered, hidden behind a layer, disabled, gone.
+
+What a run answers is short, since an agent reads it after every run: a passing
+case is one line, and a failed one names its step (`failed at step 4 of 6`), the
+step's error, the screen at the failure cut to what a check can name (rows of a
+list counted, not repeated; testIDs and controls before texts; twenty lines), the
+requests that failed, never answered or were mocked, and why. A notice the last
+run in the same process gave word for word (the native values a host did not
+answer) is one line. `--verbose` (`verbose` over MCP) answers with all of it;
+`cases.jsonl`, `--report` and `--json` always keep everything.
 
 A failed `app.see`, or `app.wait` for a target, also keeps under its step in
 `cases.jsonl` a `looked` object: `listing`, every element of the screen at the

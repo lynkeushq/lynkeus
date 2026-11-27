@@ -96,6 +96,8 @@ export type StepReport = {
   requests?: RequestRecord[];
   /** What the app printed while it ran: its console and the errors it did not catch, when the run keeps evidence. */
   logs?: LogLine[];
+  /** The screen the app was on when the step ended, when the run collected routes. */
+  route?: string;
   /** On a failed `app.see` or `app.wait` for a target: the whole listing, the scrolls made and what the target was last seen as. */
   looked?: RunLooked;
 };
@@ -247,7 +249,7 @@ export const fetchFilm = async (d: Pick<Device, 'command'>, film: string, bytes:
 };
 const run = promisify(exec);
 
-const label = (step: Step): string => {
+export const label = (step: Step): string => {
   const value = step.value;
   if (value === null || value === undefined) return step.verb;
   const text =
@@ -395,6 +397,25 @@ const requestMatches = (event: RequestRecord, wanted: string, status?: number): 
   return status === undefined ? true : event.status === status;
 };
 
+/**
+ * Gives each step that ran the screen the app was on when it ended: the last one reached before the next step acted
+ * (`actedAt`, a trace mark per step, absent for a step that only looked). A look keeps the screen it found.
+ */
+export const stepRoutes = (ran: StepReport[], actedAt: (number | undefined)[], reached: { seq: number; route: string }[]): void => {
+  let bound = Number.POSITIVE_INFINITY;
+  const bounds: number[] = [];
+  for (let i = ran.length - 1; i >= 0; i--) {
+    bounds[i] = bound;
+    if (actedAt[i] !== undefined) bound = actedAt[i]!;
+  }
+  let current: string | undefined;
+  let next = 0;
+  for (const [i, step] of ran.entries()) {
+    while (next < reached.length && reached[next]!.seq <= bounds[i]!) current = reached[next++]!.route;
+    if (current && step.status !== 'skipped') step.route = current;
+  }
+};
+
 const aboutOf = (c: Case): { about?: CaseReport['about'] } => {
   const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
   const about = Object.fromEntries(
@@ -501,6 +522,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
   // Waits and looks change nothing, so they keep the mark of the action before them.
   let actedFrom: number | undefined;
+  // With routes asked for, where the trace stood as each step first acted, by its place among the steps run: the
+  // screens reached before the next one acted are where that step left the app. Read off marks the steps take anyway.
+  const actedAt: (number | undefined)[] = [];
+  let stepAt = -1;
   let lastFrame: { file: string; shape?: string } | undefined;
   // The app numbers its requests as they start. A step that looks for one counts only those started after the
   // action before it began: an earlier screen's request to the same path would otherwise pass for the one the
@@ -905,6 +930,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           );
     mark ??= await lastSeq();
     if (!LOOKING.has(name)) actedFrom = await lastSeq();
+    if (options.routes && stepAt >= 0 && actedAt[stepAt] === undefined && !LOOKING.has(name)) actedAt[stepAt] = actedFrom;
     // An interruption handled inside a wait is not the action the wait is about.
     if (!away && ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined)) await markRequests(d).catch(() => undefined);
     switch (name) {
@@ -1455,8 +1481,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await record(h.report, h.n, h.at, h.t0, h.commit);
     if (h.report.screenshot) for (const l of h.looks) l.screenshot = h.report.screenshot;
   };
+  const firstRun = steps.length;
   for (const [index, step] of todo.entries()) {
     if (!(held && step.verb === 'app.see')) await flush();
+    stepAt = index;
     const text = label(step);
     if (unsupported || setupFailed || (failed && !options.continue) || options.signal?.aborted) {
       steps.push({ step: text, status: 'skipped', ms: 0 });
@@ -1561,6 +1589,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
 
   await flush();
+  stepAt = -1;
   // A case that changes what the next one runs on (a face enrolled on a shared Simulator) puts it back here, whether
   // its steps passed, failed or were skipped. A teardown step that fails is said and does not change the result.
   if (!options.dry && !options.setupOnly && !options.signal?.aborted) {
@@ -1621,6 +1650,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const walked = events.flatMap((e) => (e.kind === 'route' && e.route ? [e.route] : []));
     while (walked.length > 0 && walked[0] === routesStale) walked.shift();
     report.routes = [...new Set(walked)].sort();
+    stepRoutes(
+      steps.slice(firstRun),
+      actedAt,
+      events.flatMap((e) => (e.kind === 'route' && e.route ? [{ seq: e.seq, route: e.route }] : [])),
+    );
   }
   if (!options.dry && !options.setupOnly && (await offers('nativeValues'))) {
     const reads = readsOf(await (await device().catch(() => undefined))?.command('nativeValues').catch(() => undefined));

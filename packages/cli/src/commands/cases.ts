@@ -18,6 +18,7 @@ import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { caseVersion, Flakes } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
+import { SEEN_DIR } from '../cases/coverage.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -175,21 +176,89 @@ export const stopHost = async (host: ChildProcess): Promise<void> => {
   clearTimeout(late);
 };
 
-export const describe = (report: CaseReport): string => {
+// What a failed case shows of itself unless asked for everything: an agent reads it after every run, and pays for
+// each line on every turn after. The whole of it stays in the run's cases.jsonl and the --json answer.
+const COMPACT = { errorLines: 8, screenLines: 20 };
+
+/**
+ * The lines of a screen listing a reader acts on first. Rows of a list (lines alike but for their numbers) show the
+ * first two and how many more; then what has a testID or can be pressed or typed in comes before texts, in their order.
+ */
+const screenGist = (listing: string): string[] => {
+  const [header = '', ...rest] = listing.split('\n');
+  const cover = rest[0]?.startsWith('! ') ? [rest.shift()!] : [];
+  const cut = rest.at(-1)?.startsWith('… ') ? Number(/\d+/.exec(rest.pop()!)?.[0] ?? 0) : 0;
+  const shapes = new Map<string, number>();
+  const lines: string[] = [];
+  const alike = new Map<string, number>();
+  for (const l of rest) {
+    const shape = l.replace(/\d+/g, '0');
+    const n = (shapes.get(shape) ?? 0) + 1;
+    shapes.set(shape, n);
+    if (n <= 2) lines.push(l);
+    else alike.set(shape, n - 2);
+  }
+  const named = (l: string) => / #\S/.test(l) || /^(\d+ )?(button|input|switch|link)\b/.test(l);
+  const keep = new Set<number>();
+  for (const pass of [named, () => true]) for (const [i, l] of lines.entries()) if (keep.size < COMPACT.screenLines && pass(l)) keep.add(i);
+  const shown = lines.flatMap((l, i) => {
+    if (!keep.has(i)) return [];
+    const more = alike.get(l.replace(/\d+/g, '0'));
+    // After the second row of a kind, the count of the rest.
+    return more && lines.findLastIndex((x) => x.replace(/\d+/g, '0') === l.replace(/\d+/g, '0')) === i ? [l, `… ${more} more like it`] : [l];
+  });
+  const left = lines.length - keep.size + cut;
+  return [header, ...cover, ...shown, ...(left > 0 ? [`… ${left} more (verbose shows the whole screen)`] : [])];
+};
+
+// A request worth a look: one that failed, never answered or was answered by the case's own mock.
+const notable = (line: string) => !/^[23]\d\d /.test(line) || line.endsWith('(mocked)');
+
+/**
+ * A case that did not pass: the step that broke and its error, the screen it broke on, the requests and why. `verbose`
+ * keeps all of it; otherwise the screen is cut to what a check can name and only requests worth a look are listed.
+ * `headline: false` leaves out the result line, for a summary that already names the case.
+ */
+export const describe = (report: CaseReport, o: { verbose?: boolean; headline?: boolean } = {}): string => {
   const counts = { passed: 0, failed: 0, skipped: 0, unsupported: 0 };
   for (const s of report.steps) counts[s.status] += 1;
   const headline = { passed: '✅ PASSED', failed: '❌ FAILED', unsupported: '🚫 NOT ON THIS HOST' }[report.result];
-  const lines = [
-    `${headline}  ✅ ${counts.passed}${counts.failed ? `  ❌ ${counts.failed}` : ''}${counts.unsupported ? `  🚫 ${counts.unsupported}` : ''}${counts.skipped ? `  ⏭️ ${counts.skipped}` : ''}  — ${(report.ms / 1000).toFixed(1)}s`,
-  ];
+  const lines =
+    o.headline === false
+      ? []
+      : [
+          `${headline}  ✅ ${counts.passed}${counts.failed ? `  ❌ ${counts.failed}` : ''}${counts.unsupported ? `  🚫 ${counts.unsupported}` : ''}${counts.skipped ? `  ⏭️ ${counts.skipped}` : ''}  — ${(report.ms / 1000).toFixed(1)}s`,
+        ];
   // The step's own error first: the evidence after it is read from the app, and may say nothing about it.
-  for (const s of report.steps)
-    if (s.status === 'failed' || s.status === 'unsupported')
-      lines.push(`— failed at: ${s.step}`, ...(s.error ?? 'no error was given').split('\n').map((l) => `    ${l}`));
-  if (report.evidence?.screen) lines.push('— screen at the failure:', ...report.evidence.screen.split('\n').map((l) => `    ${l}`));
-  if (report.evidence?.requests?.length) lines.push('— requests:', ...report.evidence.requests.map((l) => `    ${l}`));
+  for (const [i, s] of report.steps.entries())
+    if (s.status === 'failed' || s.status === 'unsupported') {
+      const error = (s.error ?? 'no error was given').split('\n');
+      const shown = o.verbose ? error : error.slice(0, COMPACT.errorLines);
+      lines.push(
+        `— failed at step ${i + 1} of ${report.steps.length}: ${s.step}`,
+        ...shown.map((l) => `    ${l}`),
+        ...(shown.length < error.length ? [`    … ${error.length - shown.length} more lines (verbose)`] : []),
+      );
+    }
+  const screen = report.evidence?.screen;
+  if (screen) lines.push('— screen at the failure:', ...(o.verbose ? screen.split('\n') : screenGist(screen)).map((l) => `    ${l}`));
+  const requests = o.verbose ? report.evidence?.requests : report.evidence?.requests?.filter(notable);
+  if (requests?.length) lines.push(o.verbose ? '— requests:' : '— requests that failed or were mocked:', ...requests.map((l) => `    ${l}`));
   if (report.evidence?.why) lines.push('— why:', ...report.evidence.why.split('\n').map((l) => `    ${l}`));
   return lines.join('\n');
+};
+
+// What this process last told a caller, by notice: an MCP server runs many case runs, and the agent behind it already
+// has a notice the run before gave it, word for word.
+const toldLast = new Map<string, string>();
+
+/** A run's notice in full the first time, and one line while it says the same as the last run's did. */
+export const onceUnlessVerbose = (notice: string, lines: string[], verbose: boolean): string[] => {
+  const text = lines.join('\n');
+  const same = toldLast.get(notice) === text;
+  toldLast.set(notice, text);
+  if (lines.length <= 1 || verbose || !same) return lines;
+  return [`${notice}: as the last run said (${lines.length} lines; verbose repeats them)`];
 };
 
 /** The share of the machine's CPU that sat idle over the next 300 ms. */
@@ -427,7 +496,11 @@ export const caseCommands = [
       },
       once: { type: 'boolean', help: 'no second chance for a case that fails' },
       continue: { type: 'boolean', help: "keep running a case's steps after one fails (a failed setup still stops it)" },
-      seen: { type: 'string', help: 'write <dir>/<case id>.json with the screens each passing case went through, for a coverage map', value: 'dir' },
+      seen: {
+        type: 'string',
+        help: 'where to write <case id>.json with the screens each passing case went through, step by step, for `case coverage` and `case new` (default .lynkeus/seen)',
+        value: 'dir',
+      },
       report: { type: 'string', help: 'append one JSON line per case', value: 'file' },
       events: { type: 'string', help: 'keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl', value: 'dir' },
       out: { type: 'string', help: 'write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt', value: 'dir' },
@@ -488,6 +561,10 @@ export const caseCommands = [
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
       'dry-run': { type: 'boolean', help: 'parse and list the steps without running them' },
+      verbose: {
+        type: 'boolean',
+        help: 'a failed case with its whole screen, every request and its full error; without it the screen is cut to what a check can name, and a notice the last run gave is not repeated',
+      },
       progress: {
         type: 'string',
         help: `how the run says where it is, besides <out>/${PROGRESS_FILE} (\`case status\` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal`,
@@ -525,6 +602,7 @@ export const caseCommands = [
       if (typeof files === 'string') return { text: files, code: 1 };
       const cases = files.flatMap(readCases);
       const dry = !!ctx.flags['dry-run'];
+      const verbose = !!ctx.flags.verbose;
       const launch = resolveLaunch(ctx.flags, ctx.config);
       if (typeof launch === 'string') return { text: launch, code: 2 };
       const startsHost = !!ctx.flags.host || typeof ctx.flags['host-command'] === 'string';
@@ -533,7 +611,7 @@ export const caseCommands = [
         ctx.err(
           `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command); the seed still applies to {{random.*}}`,
         );
-      const seenDir = typeof ctx.flags.seen === 'string' && !dry ? path.resolve(ctx.flags.seen) : undefined;
+      const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
       const out =
         typeof ctx.flags.out === 'string' && !dry
           ? new RunFile(path.resolve(ctx.flags.out), ctx.root, new Date(), recordLaunch(launch, startsHost))
@@ -942,7 +1020,11 @@ export const caseCommands = [
                     }
                     if (seenDir && report.result === 'passed' && report.routes?.length) {
                       fs.mkdirSync(seenDir, { recursive: true });
-                      fs.writeFileSync(path.join(seenDir, `${caseArtifactId(c.id)}.json`), `${JSON.stringify({ id: c.id, routes: report.routes }, null, 2)}\n`);
+                      const walked = report.steps.map((s) => (s.route ? { step: s.step, route: s.route } : { step: s.step }));
+                      fs.writeFileSync(
+                        path.join(seenDir, `${caseArtifactId(c.id)}.json`),
+                        `${JSON.stringify({ id: c.id, routes: report.routes, steps: walked }, null, 2)}\n`,
+                      );
                     }
                     return { report, startedAt, hello: (await scoped.base.device().catch(() => undefined))?.server.hello ?? undefined };
                   } finally {
@@ -975,7 +1057,7 @@ export const caseCommands = [
                   ms: report.ms,
                   ...(retry ? { retrying: true } : {}),
                 });
-                log(describe(report));
+                log(describe(report, { verbose }));
                 const first = out?.add(c, { report, attempt: 1, startedAt });
                 if (first) liveRun?.add(first);
                 if (retry) {
@@ -985,7 +1067,7 @@ export const caseCommands = [
                   report = { ...again.report, retried: true };
                   startedAt = again.startedAt;
                   emit({ type: 'case-end', at: now(), id: c.id, job: index, attempt: 2, result: report.result, ms: report.ms });
-                  log(describe(report));
+                  log(describe(report, { verbose }));
                   const second = out?.add(c, { report, attempt: 2, startedAt });
                   if (second) liveRun?.add(second);
                 }
@@ -1052,7 +1134,7 @@ export const caseCommands = [
           (r) =>
             `${{ passed: '✅', failed: '❌', unsupported: '🚫' }[r.result]} ${r.id}${r.retried && r.result === 'passed' ? '  ⚠ passed on retry' : ''}` +
             // In a session or over MCP the caller reads this answer and nothing else: a case that did not pass brings its steps.
-            (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
+            (ctx.attached && r.result !== 'passed' ? `\n${describe(r, { verbose, headline: false })}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
         ...(fatal
@@ -1073,7 +1155,11 @@ export const caseCommands = [
               ownHost: typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host,
             })
           : []),
-        ...describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), { entry: headlessEntryOf(ctx.root, ctx.config) }),
+        ...onceUnlessVerbose(
+          'native values the host did not answer',
+          describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), { entry: headlessEntryOf(ctx.root, ctx.config) }),
+          verbose,
+        ),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
         ...(uploaded ? [uploaded.text] : []),
       ].join('\n');

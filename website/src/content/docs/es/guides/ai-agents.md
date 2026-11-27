@@ -56,7 +56,7 @@ Escribe un test para la pantalla de inicio de sesión, córrelo y sube la corrid
 
 La primera vez el agente llama a `case_init`, que escribe un caso de ejemplo y la referencia del formato. Después lleva la app a la pantalla con `press`, `type` y `wait`, escribe el caso como archivo markdown y lo corre con `case_run`. Un caso que falla vuelve con la pantalla donde falló y el motivo, para que el agente corrija el caso o reporte el error de la app. Con `push`, la corrida sube a lynkeus.io y el agente tiene la dirección del reporte apenas arranca: no hace falta esperar al final, porque el reporte se va completando caso por caso.
 
-Hay dos atajos para no escribir el caso desde cero. `case_here` arma uno con lo que la app muestra en ese momento, con verificaciones que ya pasan. `case_new` arma el borrador para otra pantalla: los toques para llegar, la preparación del backend que ofrece el servidor de fixtures y las verificaciones que quedan por escribir. Para saber qué puede preparar ese servidor, el agente llama a `fixtures_describe`.
+Hay dos atajos para no escribir el caso desde cero. `case_here` arma uno con lo que la app muestra en ese momento, con verificaciones que ya pasan. `case_new` arma el borrador para otra pantalla: los toques para llegar (si otro caso ya llega ahí, sus mismos pasos, con el nombre de ese caso, así el agente no vuelve a buscar a mano una navegación que ya existe), la preparación del backend que ofrece el servidor de fixtures y las verificaciones que quedan por escribir. Para saber qué puede preparar ese servidor, el agente llama a `fixtures_describe`.
 
 Si el caso es largo, conviene partirlo. La referencia que escribe `case_init` le enseña al agente a abrir cada parte de `steps` con un comentario numerado (`# 3 Un PIN equivocado`), con la misma numeración que la lista de `expected`. El reporte agrupa los pasos según esas secciones, y quien lo lee encuentra cada parte sin abrir el archivo.
 
@@ -98,11 +98,11 @@ Las herramientas básicas son:
 | `fastsim_install` | Baja Lynkeus FastSim para esta máquina y una plataforma (`ios` o `android`), para las organizaciones cuyo plan lo incluye. Su README explica cómo correr casos con `case_run` y `host_command`. Ver [Correr casos en Lynkeus FastSim](/es/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Arrancan un host de Lynkeus FastSim sobre un bundle y le conectan el servidor, para que `screen`, `press` y `type` recorran la app en FastSim antes de escribir un caso; y lo detienen. |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
-| `case_run` | Corre casos, de a uno o en paralelo; uno que falla vuelve con su pantalla y su motivo. |
+| `case_run` | Corre casos, de a uno o en paralelo. Uno que pasa ocupa una línea; uno que falla vuelve con su paso, su pantalla y su motivo (con `verbose`, completo). |
 | `case_status` | En qué va una corrida: casos terminados, qué corre cada trabajo y en qué sección, cuánto falta. |
 | `case_here` | Arma un caso con la pantalla que la app muestra ahora, con verificaciones que ya pasan. |
-| `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar, qué preparar, qué falta verificar. |
-| `case_coverage` | A qué pantallas llegan los casos, a cuáles ninguno, y cuáles nombra un caso aunque la app ya no las tenga. |
+| `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar (el camino de un caso que ya llega, si lo hay), qué preparar, qué falta verificar. |
+| `case_coverage` | A qué pantallas llegan los casos, a cuáles ninguno, cuáles nombra un caso aunque la app ya no las tenga, y qué pasos repiten varios casos y convendría reunir en una macro. |
 | `case_impact` | Qué casos alcanza el cambio de una rama, para correr solo esos. |
 | `fixtures_describe` | Qué puede preparar y leer el servidor de fixtures del proyecto, con los parámetros de cada comando. |
 | `fixtures_check` | Si el servidor de fixtures cumple el protocolo. |

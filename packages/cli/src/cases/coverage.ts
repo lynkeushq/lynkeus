@@ -6,8 +6,11 @@ import type { Case, Step } from './format.js';
 
 const ROUTE = /^[A-Z][\w.]+$/;
 
-// A step names a route when it goes there, waits for it or checks it is on screen.
-const routeOf = (step: Step): string | undefined => {
+/** Where `case run` keeps what each passing case went through, unless --seen says where. */
+export const SEEN_DIR = '.lynkeus/seen';
+
+/** A step names a route when it goes there, waits for it or checks it is on screen. */
+export const routeOf = (step: Step): string | undefined => {
   const v = step.value;
   const named = (x: unknown) => (typeof x === 'string' && ROUTE.test(x) ? x : undefined);
   if (step.verb === 'app.nav' || step.verb === 'app.wait')
@@ -22,18 +25,34 @@ const routeOf = (step: Step): string | undefined => {
 /** The routes a case names in its steps. */
 export const routesNamed = (c: Case): string[] => [...new Set([...c.setup, ...c.steps].map(routeOf).filter((r): r is string => !!r))];
 
-/** What `case run --seen <dir>` kept: each passing case's screens, by case id. */
-export const readSeen = (dir: string | undefined): Record<string, string[]> => {
+/** A step of a passing run as `case run` labels it, and the screen the app was on when it ended. */
+export type WalkedStep = { step: string; route?: string };
+
+/** What `case run` kept of a passing case: its screens, and the screen after each step (runs since 0.7.7). */
+export type Seen = { routes: string[]; steps?: WalkedStep[] };
+
+/** What `case run` kept in `dir`, by case id. */
+export const readSeenRuns = (dir: string | undefined): Record<string, Seen> => {
   if (!dir || !fs.existsSync(dir)) return {};
-  const seen: Record<string, string[]> = {};
+  const seen: Record<string, Seen> = {};
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.json'))) {
     try {
-      const s = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as { id?: string; routes?: unknown };
-      if (typeof s.id === 'string' && Array.isArray(s.routes)) seen[s.id] = s.routes.filter((r): r is string => typeof r === 'string');
+      const s = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as { id?: string; routes?: unknown; steps?: unknown };
+      if (typeof s.id !== 'string' || !Array.isArray(s.routes)) continue;
+      const steps = Array.isArray(s.steps)
+        ? s.steps.flatMap((w: { step?: unknown; route?: unknown }) =>
+            typeof w?.step === 'string' ? [{ step: w.step, ...(typeof w.route === 'string' ? { route: w.route } : {}) }] : [],
+          )
+        : undefined;
+      seen[s.id] = { routes: s.routes.filter((r): r is string => typeof r === 'string'), ...(steps ? { steps } : {}) };
     } catch {}
   }
   return seen;
 };
+
+/** What `case run` kept in `dir`: each passing case's screens, by case id. */
+export const readSeen = (dir: string | undefined): Record<string, string[]> =>
+  Object.fromEntries(Object.entries(readSeenRuns(dir)).map(([id, s]) => [id, s.routes]));
 
 export type Coverage = {
   routes: number;

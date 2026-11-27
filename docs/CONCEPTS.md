@@ -145,7 +145,7 @@ token, all of it is a build product: safe to delete, cheap to regenerate.
 | `runs/` | artifacts of runs, smokes, crawls, recordings and snapshot diffs |
 | `token` | the secret the app's bundle and the driver share, made by `lynkeus init` and kept out of git; deleting it means a new one and a Metro `--reset-cache` |
 | `flakes.json` | the ledger of how each case did across runs: flaky cases, and how long each took when it last passed |
-| `seen/`, `prepared/` | what `case run --seen` and `--prepared` keep: the screens a passing run went through, setups made ahead |
+| `seen/`, `prepared/` | what `case run` and `case prepare` keep: the screens a passing run went through and the screen after each of its steps (read by `case coverage` and `case new`), setups made ahead |
 | `fixtures-described.json` | what the fixtures server last described ([FIXTURES.md](FIXTURES.md)) |
 | `last-run.json`, `last-run.progress.ndjson` | the last `case run`: where its progress is, for `lynkeus case status` |
 | `funnels/` | analytics funnels a run is checked against (`<name>.json`), written by hand |

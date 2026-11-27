@@ -99,10 +99,12 @@ Un paso que falla detiene el caso. La salida muestra entonces la pantalla en el 
 Hay tres comandos que redactan un caso por ti, y los tres lo imprimen para que lo termines (con `--write` lo guardan en la carpeta de casos, sin pisar un archivo que ya exista):
 
 - **`lynkeus case here <id>`** lee la pantalla que la app muestra ahora y escribe un caso que va a su ruta y comprueba hasta tres de las cosas que hay en ella. Pasa tal como queda, así que sirve de primer caso verde de un proyecto. Con `--host` levanta la app en Node para leerla.
-- **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: las pulsaciones desde donde empieza (`--from`, o `cases.start` de la configuración) hasta ella, según `map plan`; el `setup` que ofrece tu servidor de fixtures, comentado, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
+- **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: el camino hasta ella; el `setup` que ofrece tu servidor de fixtures, comentado, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
 - **`lynkeus fixtures describe`** lista lo que sabe hacer tu servidor de fixtures, con sus parámetros, para elegir el `setup`. `lynkeus fixtures check` verifica que cumple el protocolo.
 
-Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama. Un cambio en el archivo que registra la app o en el componente raíz que registra alcanza todas las pantallas: salen todos los casos, y la salida dice qué archivo lo causó.
+El camino que propone `case new` sale primero de tus propios casos. Si alguno ya llega a esa pantalla, el borrador trae su `setup` y sus pasos hasta ahí, con un comentario que dice de qué caso vienen: la navegación nueva parte de una que ya funciona. Un caso llega a la pantalla si en su última ejecución aprobada estuvo en ella después de un paso, o si uno de sus pasos va a ella, la espera o la comprueba. Si ningún caso llega, usa las pulsaciones que conoce `map plan` desde `--from` (o `cases.start` de la configuración).
+
+Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama. `case run` guarda en `.lynkeus/seen` por qué pantallas pasó cada caso aprobado, paso a paso, y de ahí leen los dos. Un cambio en el archivo que registra la app o en el componente raíz que registra alcanza todas las pantallas: salen todos los casos, y la salida dice qué archivo lo causó.
 
 ## Los pasos que manejan la app
 
@@ -274,6 +276,15 @@ setup:
 
 Dentro de la macro, `{{param.x}}` es lo que el caso pasó. Si un parámetro nombra un alias, vale por ese alias: por eso `{{param.as.user_id}}` lee el `user_id` de `u`. `when` ejecuta un paso solo si el caso pasó ese parámetro (`"when": "wait"`) o ese valor (`"when": "method=phone"`); `unless` hace lo contrario.
 
+Para encontrar qué repetir no hace falta leer todos los casos. Si tres o más archivos de casos empiezan con los mismos pasos de la app, `lynkeus case coverage` termina con un aviso que nombra esos casos, cuenta los pasos y trae la entrada lista para pegar en `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus no toca los casos: el nombre, los parámetros y dónde reemplazar los pasos quedan a tu criterio.
+
 ## Lo que se atraviesa: interrupciones
 
 Una pantalla de bloqueo o una hoja de consentimiento pueden aparecer delante de cualquier paso. En lugar de defender cada caso, descríbelas una vez:
@@ -300,6 +311,8 @@ npx lynkeus case run --report out.jsonl       # una línea JSON por caso
 ```
 
 Sin archivos, corre todos los `.md` de la carpeta de casos, salvo `README.md`, `FORMAT.md` y `CATALOG.md`. El comando termina con código 1 si algún caso falló.
+
+La respuesta es corta a propósito. Un caso que pasa ocupa una línea. Uno que falla dice en qué paso (`failed at step 4 of 6`), con su error, la pantalla en ese momento, las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y el motivo. De la pantalla muestra lo que podrías nombrar en una comprobación: las filas de una lista se cuentan en lugar de repetirse, y los testIDs y controles van antes que los textos. Con `--verbose` aparece todo; `cases.jsonl` y `--json` lo guardan siempre completo.
 
 ### Reintentos
 

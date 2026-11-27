@@ -39,7 +39,7 @@ npx lynkeus case here first-screen --host --write    # from the screen the app s
 npx lynkeus case new settings-dark-mode --to Settings.Main --from Home.Main --write    # for a screen: the way there, the setup to pick from, the checks to write
 ```
 
-`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the presses from `--from` (default `cases.start`) to the screen as `map plan` knows them, and offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
+`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the way to the screen. When one of your cases already gets there, it is that case's way: its setup and its steps up to the screen, under a comment that names the case, so a new case starts from navigation that already works. Otherwise it is the presses from `--from` (default `cases.start`) as `map plan` knows them. It also offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
 
 ## The shape of a case
 
@@ -264,6 +264,15 @@ Inside a macro, `{{param.x}}` is what the case passed. A parameter that names an
 
 `when` runs a step only if the case passed that parameter (`"when": "wait"`) or passed that value (`"when": "method=phone"`). `unless` is the opposite.
 
+You do not have to spot the repetition yourself. When three or more case files open with the same app steps, `lynkeus case coverage` ends with a hint that lists them and prints the entry to paste under `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus does not change the cases. Rename the macro, add parameters, and replace the steps where it makes sense.
+
 ## Things that get in the way: interruptions
 
 An app may put something in front of any step: a lock screen, a consent sheet. Writing a step for it in every case does not scale. An **interruption** says what it looks like and how to get past it.
@@ -305,7 +314,7 @@ Each step prints as it finishes, then the case's verdict, then the summary:
 
 The command exits with 0 when no case failed and 1 otherwise.
 
-When a step fails, the case prints the screen at the failure, the last requests, and why the step failed. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
+When a step fails, the case prints which step it was and its error, the screen at the failure, the requests that failed or were mocked, and why the step failed. The screen is cut to what you would name in a check: rows of a list are counted instead of repeated, and testIDs and controls come before texts. `--verbose` prints the whole screen and every request. The run's `cases.jsonl` and `--json` always keep everything. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
 
 ### Retries
 
@@ -352,7 +361,7 @@ npx lynkeus case coverage                          # which screens the cases tou
 npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
 ```
 
-`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers. A change to the file that registers the app, or to the root component it registers, reaches every screen, so every case is listed and the output says which file did it.
+`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run. `case run` keeps those screens in `.lynkeus/seen`, with the screen after each step, which is also where `case new` finds the way an existing case takes. `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers. A change to the file that registers the app, or to the root component it registers, reaches every screen, so every case is listed and the output says which file did it.
 
 ## How it works
 

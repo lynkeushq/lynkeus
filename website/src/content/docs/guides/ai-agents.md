@@ -56,7 +56,7 @@ Write a test for the sign-in screen, run it and push the run.
 
 The agent calls `case_init` the first time, which writes an example case and the format beside it, drives the app to the screen with `press`, `type` and `wait`, writes the case as a markdown file and runs it with `case_run`. A case that fails comes back with the screen it failed on and the reason, so the agent fixes the case or reports the app's bug. With `push`, the run goes to lynkeus.io and the agent prints its address as soon as the run starts; the report fills in case by case.
 
-To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the presses to get there and the setup the fixtures server offers. `fixtures_describe` lists what that server can prepare in the backend.
+To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the way there and the setup the fixtures server offers. When an existing case already reaches that screen, the way is that case's steps, and the draft names the case: the agent reuses navigation that works instead of finding it again by hand, which is where most of a session's tokens went in our trials. `fixtures_describe` lists what that server can prepare in the backend.
 
 A long case is easier to read in parts. The format `case_init` writes tells the agent to open each part of `steps` with a numbered comment (`# 3 A wrong PIN`), numbered like the `expected` list; reports group the steps by those sections.
 
@@ -96,11 +96,11 @@ Start with the core. Add `--full` for an agent whose job is recording or snapsho
 | `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Start a Lynkeus FastSim host on a bundle and attach the server to it, so `screen`, `press` and `type` explore the app on FastSim before a case is written; stop it again. |
 | `case_init` | Writes an example case and the reference of the format. |
-| `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
+| `case_run` | Runs cases, one at a time or side by side. A passing case is one line; a failure comes back with its step, its screen and the reason (`verbose` for all of it). |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
 | `case_here` | Drafts a case from the screen the app shows now, with checks that pass as it is. |
-| `case_new` | Drafts a case for a screen: the way there, the setup to pick from, the checks left to write. |
-| `case_coverage` | Which screens the cases reach, which none does, and which a case names that the app no longer has. |
+| `case_new` | Drafts a case for a screen: the way there (an existing case's, when one reaches it), the setup to pick from, the checks left to write. |
+| `case_coverage` | Which screens the cases reach, which none does, which a case names that the app no longer has, and steps several cases repeat that belong in a macro. |
 | `case_impact` | The cases a branch's changes reach, to run only those. |
 | `fixtures_describe` | What the project's fixtures server can prepare and read, with each command's parameters. |
 | `fixtures_check` | Whether the fixtures server keeps the fixtures protocol. |
