@@ -53,7 +53,7 @@ En `lynkeus session`, el mismo diagnóstico viaja en el campo `why` de la respue
 **Cómo se arregla.** Revisa estas causas, en este orden:
 
 1. **El build no es de depuración.** El agente solo existe en builds de depuración. Un build de producción no lo contiene.
-2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: __DEV__ && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo.
+2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: enabledByDefault() && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo. Si condicionas solo a `__DEV__`, el agente queda apagado en Lynkeus FastSim, que corre un bundle de release.
 3. **El token llegó vacío a la app.** El agente queda apagado y la app lo dice en su log. Está más abajo: [el log dice que el token está vacío](#la-app-registra-lynkeus-the-app-passed-a-token-and-it-is-empty).
 4. **El token no coincide.** El token que recibió la app tiene que ser el que lee el CLI: `LYNKEUS_TOKEN` si está definida y, si no, el de `.lynkeus/token`. En una app de React Native es el valor con el que se empaquetó el bundle, y Metro necesita `--reset-cache` después de un cambio. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
 5. **Los puertos no coinciden.** Si definiste `LYNKEUS_PORT` o `port` en la configuración, la app tiene que haber recibido el mismo puerto al montar el agente.

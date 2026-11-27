@@ -101,7 +101,7 @@ And `"main"` pointing at it:
 
 The order in `index.js` matters. `auto()` wraps the app's root component, so it has to run before the router registers that component.
 
-`auto()` runs only in development by default (`enabled` defaults to `__DEV__`). To gate it further, pass `enabled` yourself, for example to keep the agent off in a development build that points at production.
+`auto()` runs by default only in development and on Lynkeus FastSim, never in a store build (`enabled` defaults to `enabledByDefault()`). To gate it further, pass `enabled: enabledByDefault() && ...` yourself (import it from `lynkeus-agent`), for example to keep the agent off in a development build that points at production.
 
 If your project already has an `index.js` (it does not use expo-router, or you added an entry earlier), the `auto()` call goes there, before the app is registered.
 

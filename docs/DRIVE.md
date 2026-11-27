@@ -12,7 +12,8 @@ anything:
 ```ts
 // index.js
 import { auto } from 'lynkeus-agent/auto';
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ && config.ENV !== 'prod' });
+import { enabledByDefault } from 'lynkeus-agent';
+auto({ token: process.env.LYNKEUS_TOKEN, enabled: enabledByDefault() && config.ENV !== 'prod' });
 ```
 
 `auto()` wraps the root through `AppRegistry` and finds your React Navigation
@@ -39,7 +40,7 @@ Prefer the explicit component when you want to hand it an adapter for another
 router:
 
 ```tsx
-import { Lynkeus, qa, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, qa, reactNavigationAdapter } from 'lynkeus-agent';
 
 // Optional, but the two names drivers rely on:
 qa.register('reset', async () => { await session.logout(); await cache.clear(); });
@@ -56,7 +57,7 @@ const App = () => {
       <RootNavigator />
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
-        enabled={__DEV__ && config.ENV !== 'prod'}
+        enabled={enabledByDefault() && config.ENV !== 'prod'}
         app={{ name: 'myapp', env: config.ENV }}
       />
     </NavigationContainer>
@@ -69,7 +70,7 @@ socket and the second stays quiet.
 
 | Prop | Default | |
 |---|---|---|
-| `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
+| `enabled` | `enabledByDefault()`: dev builds and Lynkeus FastSim | Gate it further with `enabledByDefault() && ...`, never with `__DEV__` alone (that is false on FastSim): a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` (Android: `10.0.2.2`, then `localhost`), `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
 | `token` | — | Neither end sends it: each proves it holds it with HMAC-SHA256 over fresh nonces (see PROTOCOL.md), so another local process posing as the driver, or as the app, is not talked to and learns nothing. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |

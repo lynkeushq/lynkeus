@@ -15,7 +15,7 @@ The **agent** is the code mounted inside your app, from the `lynkeus-agent` pack
 
 The agent is what makes Lynkeus different from tools that drive an app through the operating system. It reads the tree React rendered, measures each element, and asks the platform which element a touch would reach. It synthesizes touches and keystrokes inside the app's process.
 
-Nothing listens inside the app. The app dials out; if nobody answers, it stays quiet and tries again. The agent runs only when it is enabled, which by default means in development (`__DEV__`).
+Nothing listens inside the app. The app dials out; if nobody answers, it stays quiet and tries again. The agent runs only when it is enabled, which by default means in development and on Lynkeus FastSim, never in a store build.
 
 ### Driver
 

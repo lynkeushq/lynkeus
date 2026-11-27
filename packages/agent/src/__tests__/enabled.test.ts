@@ -25,3 +25,8 @@ it('is on in a release bundle a FastSim host runs', () => {
   g.__fastsimDevice = { platform: 'ios' };
   expect(enabledByDefault()).toBe(true);
 });
+
+it('is exported from the package root, so a gate can start from it', async () => {
+  const root = await import('../index');
+  expect(root.enabledByDefault).toBe(enabledByDefault);
+});

@@ -87,7 +87,7 @@ Si la app no es depurable, las llamadas al módulo fallan con este mensaje:
 Lynkeus is only available in debuggable builds
 ```
 
-Del lado de JavaScript, además, el cliente del agente solo se carga cuando `enabled` es verdadero, y su valor por defecto es `__DEV__`.
+Del lado de JavaScript, además, el cliente del agente solo se carga cuando `enabled` es verdadero, y por defecto solo lo es en desarrollo y en Lynkeus FastSim, nunca en un build de tienda.
 
 ## Lo que el sistema le entrega a la app
 

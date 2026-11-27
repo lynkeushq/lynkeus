@@ -24,7 +24,7 @@ The agent has to be mounted once. There are two ways, and they can coexist: the 
 ```js title="index.js"
 import { auto } from 'lynkeus-agent/auto';
 
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
+auto({ token: process.env.LYNKEUS_TOKEN });
 ```
 
 `auto` is imported from `lynkeus-agent/auto`, not from the package root. Call it before `AppRegistry.registerComponent`. It renders nothing on any screen.
@@ -35,7 +35,7 @@ Calling `auto` a second time does nothing. Calling it with `enabled` false does 
 
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `enabled` | boolean | `__DEV__` | Whether the agent runs at all. |
+| `enabled` | boolean | `enabledByDefault()`: true in a dev build and on Lynkeus FastSim, false in a store build | Whether the agent runs at all. |
 | `token` | string | none | The shared secret. The driver and the agent prove to each other that they hold it; neither sends it. Without one the agent stays off. See [The token option](#the-token-option). |
 | `allowUnauthenticated` | boolean | `false` | Serve any driver that connects, with no token. For an isolated test environment only. See [The token option](#the-token-option). |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
@@ -94,7 +94,7 @@ Metro keeps what it has transformed, so after the token changes, start it once w
 
 ```tsx title="App.tsx"
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { Lynkeus, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, reactNavigationAdapter } from 'lynkeus-agent';
 
 const App = () => {
   const ref = useNavigationContainerRef();
@@ -103,7 +103,7 @@ const App = () => {
       <RootNavigator />
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
-        enabled={__DEV__ && config.ENV !== 'prod'}
+        enabled={enabledByDefault() && config.ENV !== 'prod'}
         token={process.env.LYNKEUS_TOKEN}
         app={{ name: 'myapp', env: config.ENV }}
       />
@@ -122,7 +122,7 @@ The options are read once, when the component mounts. Changing `host`, `port` or
 
 | Prop | Type | Default | Meaning |
 |---|---|---|---|
-| `enabled` | boolean | `__DEV__` | Whether the agent runs at all. Gate it further on your environment: a debug build that talks to production is not a test surface. |
+| `enabled` | boolean | `enabledByDefault()` | Whether the agent runs at all. Gate it further on your environment with `enabledByDefault() && config.ENV !== 'prod'`: a debug build that talks to production is not a test surface. Do not use `__DEV__` alone; it is false on FastSim. |
 | `navigation` | `NavigationAdapter` | none | How the agent reads and drives your router. Without one you still get the screen, touches and waits, but no routes. |
 | `host` | string | `localhost`, or `10.0.2.2` on Android | Where the driver listens. |
 | `port` | number | `8123` | The driver's port. Change it on both ends to run several apps on one machine. |
@@ -347,6 +347,7 @@ These exist for people who host the app themselves or write tooling on top of th
 
 | Export | From | Purpose |
 |---|---|---|
+| `enabledByDefault()` | `lynkeus-agent` | What `enabled` defaults to: true in a development build and on Lynkeus FastSim, false anywhere else. Combine it with your own check, `enabledByDefault() && config.ENV !== 'prod'`, so the gate never turns the agent on where the default keeps it off. |
 | `start(options)` | `lynkeus-agent` | Starts the connection without a component. Returns a stop function. Like `createHandlers` and `dispatch`, it loads the client when it is called, not when the package is imported. |
 | `host` | `lynkeus-agent` | For whatever speaks for the app instead of the agent's own connection, such as the headless host: claim the connection, hook into `reset`. |
 | `createHandlers`, `dispatch` | `lynkeus-agent` | The handlers behind each protocol method. |

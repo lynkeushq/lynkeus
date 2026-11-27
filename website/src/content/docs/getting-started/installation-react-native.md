@@ -91,12 +91,12 @@ import { auto } from 'lynkeus-agent/auto';
 import App from './src/App';
 import { name as appName } from './app.json';
 
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
+auto({ token: process.env.LYNKEUS_TOKEN });
 
 AppRegistry.registerComponent(appName, () => App);
 ```
 
-`init` writes `auto({ token: process.env.LYNKEUS_TOKEN })`. The `enabled` option shown here is one you add yourself when you want to gate the agent further.
+This is the line `init` writes. It has no `enabled` option on purpose: the default turns the agent on in a development build and on Lynkeus FastSim, and off in a store build. Pass `enabled` only to gate it further, as the table below shows. Do not write `enabled: __DEV__`: FastSim runs a release bundle, where `__DEV__` is false, so the agent would be off there.
 
 `auto()` does three things:
 
@@ -108,7 +108,7 @@ The two options shown are the ones that matter on day one:
 
 | Option | Default | Meaning |
 |---|---|---|
-| `enabled` | `__DEV__` | Whether the agent runs at all. Gate it further on your own environment: a debug build pointed at production, with real accounts, should not run the agent. For example `enabled: __DEV__ && config.ENV !== 'prod'`. |
+| `enabled` | `enabledByDefault()`: true in development and on FastSim, false in a store build | Whether the agent runs at all. Gate it further on your own environment: a debug build pointed at production, with real accounts, should not run the agent. For example `enabled: enabledByDefault() && config.ENV !== 'prod'`, with `enabledByDefault` imported from `lynkeus-agent`. |
 | `token` | none | A shared secret. When set, the agent serves only a driver that presents the same value. See step 3. |
 
 `auto()` also accepts `host`, `port` and `app`; they are described in the [agent API reference](/reference/agent-api/).
@@ -245,7 +245,7 @@ Each line gives the element's kind, its `testID` after a `#`, its label, and its
 
 ```tsx title="src/App.tsx"
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { Lynkeus, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, reactNavigationAdapter } from 'lynkeus-agent';
 
 export default function App() {
   const ref = useNavigationContainerRef();
@@ -254,7 +254,7 @@ export default function App() {
       <RootNavigator />
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
-        enabled={__DEV__ && config.ENV !== 'prod'}
+        enabled={enabledByDefault() && config.ENV !== 'prod'}
         token={config.LYNKEUS_TOKEN}
         app={{ name: 'myapp', env: config.ENV }}
       />
@@ -267,7 +267,7 @@ export default function App() {
 
 | Prop | Default | Meaning |
 |---|---|---|
-| `enabled` | `__DEV__` | Whether the agent runs at all. |
+| `enabled` | `enabledByDefault()` | Whether the agent runs at all. |
 | `navigation` | none | A navigation adapter. `reactNavigationAdapter(ref)` ships with the package. Without one you still get the screen, touches and waits, but no routes. |
 | `host`, `port` | `localhost` (`10.0.2.2` on Android), `8123` | Where the driver listens. |
 | `token` | none | The shared secret from step 3. |

@@ -39,7 +39,7 @@ Rebuild whenever `lynkeus-agent` changes version. Its JavaScript reloads through
 
 ### Debug builds only
 
-The same rule as everywhere: the agent's native module compiles to no-ops outside debug builds on iOS and refuses to run in a non-debuggable app on Android. `auto()` is enabled only when `__DEV__` is true unless you say otherwise.
+The same rule as everywhere: the agent's native module compiles to no-ops outside debug builds on iOS and refuses to run in a non-debuggable app on Android. `auto()` is enabled by default only in development and on Lynkeus FastSim unless you say otherwise.
 
 ## The entry file
 
