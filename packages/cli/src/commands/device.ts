@@ -5,6 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import type { Platform } from '../device/devices.js';
+import { iosLanguageArgs, iosLaunchArgv, keepLaunchArgs } from '../device/launchArgs.js';
 
 const run = promisify(execFile);
 
@@ -70,10 +71,9 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
         const [tag] = args;
         if (!tag) throw new Error('lynkeus os language <bcp47, e.g. de-DE> --app <bundleId>');
         const app = needApp();
-        const locale = tag.replace('-', '_');
         return [
           { bin: 'xcrun', args: ['simctl', 'terminate', deviceId, app], optional: true },
-          { bin: 'xcrun', args: ['simctl', 'launch', deviceId, app, '-AppleLanguages', `(${tag})`, '-AppleLocale', locale] },
+          { bin: 'xcrun', args: ['simctl', 'launch', deviceId, app, ...iosLanguageArgs(tag)] },
         ];
       }
       case 'biometrics': {
@@ -91,7 +91,8 @@ export const simulatorArgv = (platform: Platform, deviceId: string, sub: string,
         // Another app in front puts this one in the background; launching it again brings it back as it was.
         const [state] = args;
         if (state === 'background') return [{ bin: 'xcrun', args: ['simctl', 'launch', deviceId, 'com.apple.Preferences'] }];
-        if (state === 'active') return [{ bin: 'xcrun', args: ['simctl', 'launch', deviceId, needApp()] }];
+        // An app that is not running any more starts as Lynkeus last launched it (in the language `os language` set).
+        if (state === 'active') return [{ bin: 'xcrun', args: iosLaunchArgv(deviceId, needApp(), false) }];
         throw new Error('lynkeus os appstate background|active on a simulator');
       }
       default:
@@ -159,7 +160,9 @@ export const simulatorCommand = async (
       );
     }
   }
-  return runAll(argv, exec);
+  const ran = await runAll(argv, exec);
+  if (platform === 'ios' && sub === 'language' && args[0] && appId) keepLaunchArgs(deviceId, appId, iosLanguageArgs(args[0]));
+  return ran;
 };
 
 const runAll = async (argv: Invocation[], exec: Runner): Promise<string[]> => {

@@ -121,7 +121,7 @@ The payload is either JSON or the path to a `.json` file. Inline JSON that is a 
 npx lynkeus os language de-DE
 ```
 
-There is no system-wide language switch on a booted simulator, so this terminates the app and launches it again with the launch arguments iOS reads for its language and locale. Without a tag, it uses `locale.languageTag` or `language` from `lynkeus.config.json`.
+There is no system-wide language switch on a booted simulator, so this terminates the app and launches it again with the launch arguments iOS reads for its language and locale. Without a tag, it uses `locale.languageTag` or `language` from `lynkeus.config.json`. Launch arguments last only as long as the process, so Lynkeus keeps them for that app on that simulator and passes them again whenever it launches the app itself: `app.relaunch`, the relaunch before a case when a system prompt covers the app, and bringing the app back to the front. An app you relaunch by hand comes back in the simulator's language.
 
 ### Light and dark
 

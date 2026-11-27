@@ -683,7 +683,7 @@ Solo simulador. Define dónde está el dispositivo.
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
+Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma, y cada vez que Lynkeus vuelve a abrir esa app en ese simulador (`app.relaunch`, el reinicio antes de un caso, traerla de nuevo al frente) le pasa los mismos argumentos de arranque, que guarda en `~/.cache/lynkeus/launch-args/`; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
 
 | Argumento | Qué es |
 |---|---|

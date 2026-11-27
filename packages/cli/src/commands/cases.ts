@@ -554,7 +554,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const notApplied = recordLaunch(launch, startsHost)?.unsupported;
   if (notApplied?.length && !ctx.flags['dry-run'])
     ctx.err(
-      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}`,
+      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}${notApplied.includes('locale') ? `; for the app's language on a Simulator or emulator run \`os language ${launch.locale}\` once, which every relaunch Lynkeus makes keeps` : ''}`,
     );
   const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
   const out =

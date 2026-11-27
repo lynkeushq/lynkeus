@@ -729,7 +729,7 @@ lynkeus os location <where>
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-**Simulator and Android.** Acts on the device the app is attached to. On an iOS Simulator it relaunches the app in a locale; on an Android emulator or phone it sets the app's own locale with `cmd locale set-app-locales`, which needs Android 13 (API 33) or later and fails with that reason below it.
+**Simulator and Android.** Acts on the device the app is attached to. On an iOS Simulator it relaunches the app in a locale, and every later relaunch Lynkeus makes of that app on that Simulator (`app.relaunch`, the relaunch before a case, bringing the app back to the front) passes the same launch arguments, kept in `~/.cache/lynkeus/launch-args/`; on an Android emulator or phone it sets the app's own locale with `cmd locale set-app-locales`, which needs Android 13 (API 33) or later and fails with that reason below it.
 
 | Argument | Meaning |
 |---|---|

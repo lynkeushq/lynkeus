@@ -5,6 +5,7 @@ import { writeFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 import type { Platform } from './devices.js';
+import { iosLaunchArgv } from './launchArgs.js';
 
 const run = promisify(execFile);
 
@@ -68,9 +69,7 @@ const kept = (file: string) => (fs.statSync(file, { throwIfNoEntry: false })?.si
 
 const ios: PlatformLifecycle = {
   async launchApp(deviceId, appId, fresh) {
-    const args = ['simctl', 'launch'];
-    if (fresh) args.push('--terminate-running-process');
-    await run('xcrun', [...args, deviceId, appId]);
+    await run('xcrun', iosLaunchArgv(deviceId, appId, fresh));
   },
 
   async screenshot(deviceId, destination) {
