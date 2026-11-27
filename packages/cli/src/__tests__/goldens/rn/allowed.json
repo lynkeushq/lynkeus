@@ -240,8 +240,8 @@
     "now": "5a4e916cc8f1e627"
   },
   "surface/help/case impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
-    "now": "f79e001c22da3ba7"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
+    "now": "d617e7cc53854e58"
   },
   "surface/help/case new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
@@ -252,8 +252,8 @@
     "now": "c6ffaa28cd50c514"
   },
   "surface/mcp/tool/case_impact": {
-    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
-    "now": "ae34e365af904aff"
+    "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key.",
+    "now": "c3b2929429626211"
   },
   "surface/mcp/tool/case_new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",

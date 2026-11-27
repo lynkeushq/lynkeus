@@ -207,6 +207,14 @@ The screens come from the route graph (`lynkeus map build`); `case impact` finds
 does. A change to the file that registers the app or to the root
 component it registers reaches every screen, so every case is listed, with that file as the reason.
 
+A change to a string table is narrowed to what it changes. A file whose top level is only object literals of strings
+(nested or not, with imports, types and spreads of other tables allowed) is read as one by its shape, whatever its name;
+its strings at the base are compared with its strings now. It then reaches the files that name a changed key
+(`tx="settings:title"`, `t('settings.title')`, a key path, `strings.settings.title`, or a key built from a literal
+prefix such as `` t(`settings.${name}`) ``) and the cases whose steps name the changed string's old or new text,
+not every screen that imports it. When a changed key is named nowhere by its whole key (a hook bound to a prefix, a
+key built at runtime), every importer counts as before and a line names the key.
+
 When three or more case files open their setup or their steps with the same app steps (two at least; key order,
 spacing and `timeoutMs` aside), `case coverage` ends with one hint: the cases, how many steps, and the entry to put
 under `cases.macros` so each case says them in one step. It names a macro already declared with those steps instead.

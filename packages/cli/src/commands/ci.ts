@@ -2,11 +2,10 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeen } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeen, withTextCases } from '../cases/coverage.js';
 import { readCases } from '../cases/format.js';
 import { readJson } from '../files.js';
 import type { ScreenGraph } from '../knowledge/types.js';
-import { screensAffectedBy } from '../knowledge/query.js';
 import { DEFAULT_PORT, portFromEnv } from '../config.js';
 import { define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
@@ -15,7 +14,7 @@ import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
 import { freePorts } from '../cases/portClaim.js';
 import { PROGRESS_FILE } from '../cases/progress.js';
 import { runtimeAt } from '../runtimes/index.js';
-import { changedSources } from './map.js';
+import { changedSources, reachOfChanges } from './map.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -147,8 +146,11 @@ export const ciCommands = [
         const cases = all.flatMap(readCases);
         const graph = ctx.graph();
         const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')));
-        const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, (await runtimeAt(ctx.root)).sources);
-        const impact = impactOf(screensAffectedBy(graph, changed), coverage, entryReason(changedAppEntry(ctx.root, changed)));
+        const runtime = await runtimeAt(ctx.root);
+        const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, runtime.sources);
+        const reach = await reachOfChanges(ctx.root, graph, changed, { base: String(ctx.flags.base), runtime, relative: runtime.sources.relative });
+        const impact = withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts);
+        if (!impact.reason) reach.notes.forEach(say);
         files = [...new Set(impact.cases.map((c) => c.file))];
         picked = `${files.length} of ${all.length} case files: the ones the ${changed.length} changed source file(s) against ${ctx.flags.base} reach.`;
         if (files.length === 0) {

@@ -106,6 +106,8 @@ El camino que propone `case new` sale primero de tus propios casos. Si alguno ya
 
 Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama. `case run` guarda en `.lynkeus/seen` por qué pantallas pasó cada caso aprobado, paso a paso, y de ahí leen los dos. Un cambio en el archivo que registra la app o en el componente raíz que registra alcanza todas las pantallas: salen todos los casos, y la salida dice qué archivo lo causó.
 
+Cambiar un texto de las traducciones no arrastra todas las pantallas que importan ese archivo. Lynkeus reconoce una tabla de textos por su forma (objetos literales cuyas hojas son todas textos, anidados o no), sea cual sea su nombre, compara sus textos con los de la base y se queda con los archivos que usan una clave cambiada (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) y con los casos cuyos pasos nombran el texto viejo o el nuevo. Si ninguna fuente escribe entera una de las claves cambiadas (un hook atado a un prefijo, una clave armada en tiempo de ejecución), cuentan todos los que importan el archivo, como antes, y una línea dice qué clave fue.
+
 ## Los pasos que manejan la app
 
 Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son los que usarás a diario:
