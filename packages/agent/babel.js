@@ -23,12 +23,13 @@ const fromFile = (root) => {
 };
 
 module.exports = ({ types: t, env }) => {
-  const production = env('production') && process.env.LYNKEUS_FASTSIM_BUNDLE !== '1';
+  const production = env('production');
   return {
     name: 'lynkeus-token',
     visitor: {
       MemberExpression(path, state) {
-        if (production || !path.matchesPattern('process.env.LYNKEUS_TOKEN')) return;
+        // Read per file, not per plugin: Babel keeps a plugin instance for each env name across bundles.
+        if ((production && process.env.LYNKEUS_FASTSIM_BUNDLE !== '1') || !path.matchesPattern('process.env.LYNKEUS_TOKEN')) return;
         const token = process.env.LYNKEUS_TOKEN || fromFile(state.file.opts.root || process.cwd());
         if (token) path.replaceWith(t.stringLiteral(token));
       },
