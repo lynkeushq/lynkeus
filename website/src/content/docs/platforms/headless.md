@@ -46,7 +46,7 @@ installed jest, @testing-library/react-native, lynkeus-headless (npm install --s
 wrote cases/headless.tsx (runs index.js, which registers the default export of src/App.tsx)
 made a token for this project in .lynkeus/token; the CLI and the MCP server read it
 git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
-     commit: .lynkeus/.gitignore, lynkeus.config.json, the cases folder and .claude/skills/lynkeus (and .lynkeus/snapshots, funnels and lint once they exist)
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 jest: when the app has no jest configuration, `headless start` passes the preset it needs …
 next: lynkeus headless start  (the app reads its API address from API_URL: set it, or "apiUrl" in lynkeus.config.json, to your local backend; the token is the project's, in .lynkeus/token)
       or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)

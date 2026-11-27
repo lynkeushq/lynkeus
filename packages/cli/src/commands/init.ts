@@ -258,7 +258,7 @@ export const mountAgent = (root: string): string[] => {
 // one file there meant for git. Said, so nobody adds `.lynkeus` to the root .gitignore and loses the shared baselines.
 const WHAT_TO_COMMIT = [
   'git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore',
-  '     commit: .lynkeus/.gitignore, lynkeus.config.json, the cases folder and .claude/skills/lynkeus (and .lynkeus/snapshots, funnels and lint once they exist)',
+  '     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)',
 ];
 
 export const init = (root: string, opts: InitOptions): string[] => {

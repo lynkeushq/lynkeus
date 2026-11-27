@@ -101,7 +101,7 @@ test('an Expo Router app gets an entry that mounts the agent, then the router, a
   assert.ok(notes.some((n) => n.includes('made a token')));
   // What git will list, and what is meant to be committed, so nobody ignores .lynkeus/ from the root.
   assert.ok(notes.some((n) => n.includes('`git status` showing .lynkeus/ as new is expected')));
-  assert.ok(notes.some((n) => n.includes('commit: .lynkeus/.gitignore, lynkeus.config.json, the cases folder and .claude/skills/lynkeus')));
+  assert.ok(notes.some((n) => n.includes('commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder')));
   // A second run changes nothing.
   assert.ok(mountAgent(root).some((n) => n.includes('already mounts the agent')));
   assert.equal(fs.readFileSync(path.join(root, '.lynkeus', 'token'), 'utf8').trim(), token);

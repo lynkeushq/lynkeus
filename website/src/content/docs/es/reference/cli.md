@@ -389,7 +389,7 @@ Imprime una línea por cada cosa que hizo o que te toca hacer. En una app de Rea
 added auto() to index.js
 made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
 git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
-     commit: .lynkeus/.gitignore, lynkeus.config.json, the cases folder and .claude/skills/lynkeus (and .lynkeus/snapshots, funnels and lint once they exist)
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 added lynkeus-agent/babel to babel.config.js
 restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file
 ```
