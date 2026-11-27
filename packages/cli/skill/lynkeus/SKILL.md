@@ -5,7 +5,7 @@ description: Lynkeus end-to-end testing for React Native apps (bare or Expo). Us
 
 # Lynkeus
 
-Lynkeus drives a React Native app by what is on its screen, through `lynkeus-agent` inside the app, and runs cases: markdown files of readable steps. Every command works in a terminal (`npx lynkeus <command>`, `--help` on each) and as a tool of `lynkeus mcp`: spaces become underscores and flags become arguments, so `case run --on all` is `case_run` with `on: "all"`.
+Lynkeus drives a React Native app by what is on its screen, through `lynkeus-agent` inside the app, and runs cases: markdown files of readable steps. Every command works in a terminal (`npx lynkeus <command>`, `--help` on each) and as a tool of `lynkeus mcp`: spaces become underscores and flags become arguments, so `case run --on targets` is `case_run` with `on: "targets"`.
 
 ## The cheap path
 
@@ -16,7 +16,7 @@ Spend in this order and stop as soon as you know enough:
 3. `case new <id> --to <Route>`: a draft with the way there (an existing case's steps when one reaches it), the backend setup to pick from and the checks left to write. Keep the way it offers. On the screen already, `case here` drafts from what is shown.
 4. No known way to the screen: `crawl` from the nearest screen. The route map rebuilds itself when the source changes, and every press a case or you make teaches it.
 5. Only then drive the app (`press`, `type`, `wait`, `screen`) to fill what the draft could not know. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
-6. Write the case in the cases folder, `case run <file>` until it passes, then `case run <file> --on all`: a case is done when it passes on every target this machine has.
+6. Write the case in the cases folder, `case run <file>` until it passes, then `case run <file> --on targets`: a case is done when it passes on the project's targets (`cases.targets`), and nowhere else needs checking. No targets declared: ask the person which matter (`status` proposes a value).
 
 A failed step answers with its error and the screen it failed on (`--verbose` for all of it); `why` explains the last failure. Fix the case or report the app's bug; never weaken the check.
 
@@ -25,7 +25,7 @@ A failed step answers with its error and the screen it failed on (`--verbose` fo
 Read the one the task needs:
 
 - [cases.md](cases.md): the format, targets and text matching, app commands, macros, `on:` blocks, interruptions, mocks, `app.relaunch`, teardown.
-- [targets.md](targets.md): Simulator or emulator, FastSim, headless; `--on all`; hosts, `--host-command` and `--jobs`.
+- [targets.md](targets.md): Simulator or emulator, FastSim, headless; `cases.targets` and `--on targets`; hosts, `--host-command` and `--jobs`.
 - [evidence.md](evidence.md): frames, film, `report.html`, sharing a run, backend traces.
 - [ci.md](ci.md): `case impact`, `lynkeus ci --affected`, `map ci`.
 - [determinism.md](determinism.md): seed, locale, time zone and epoch; frames two runs can be compared by.
