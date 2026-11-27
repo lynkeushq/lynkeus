@@ -73,26 +73,61 @@ export class Device {
   readonly server: AgentServer;
 
   #lifecycle: PlatformLifecycle;
+  #lifecycleGiven: boolean;
   #appId: string | null;
   #resolving?: Promise<DeviceInfo>;
+  #locate?: (hello: HelloEvent) => Promise<DeviceInfo>;
+  // The app whose device `info` names, and a hello from another app (the port taken over) still to look up.
+  #locatedFor?: string;
+  #unlocated?: { hello: HelloEvent; lookup?: Promise<DeviceInfo> };
   #walk?: Walk;
   // A phone's app that let go of the driver in the background says hello no more; what it said last tells it was a phone.
   #hello: HelloEvent | null = null;
   #opened?: string;
   #helloAt?: number;
 
-  constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo>; lifecycle?: PlatformLifecycle } = {}) {
+  /**
+   * `locate` finds the device an app that said hello runs on. It is asked again whenever another app takes the port
+   * (the Android app after the iOS one, both dialing 8123), so screenshots, films and OS commands follow the app that
+   * is attached, never the device the first one was on.
+   */
+  constructor(
+    info: DeviceInfo,
+    options: {
+      server?: AgentServer;
+      appId?: string | null;
+      resolving?: Promise<DeviceInfo>;
+      locate?: (hello: HelloEvent) => Promise<DeviceInfo>;
+      lifecycle?: PlatformLifecycle;
+    } = {},
+  ) {
     this.info = info;
     this.#resolving = options.resolving;
+    this.#locate = options.locate;
     // The app serves commands only to a driver that presents its token; without one, anything on the loopback could drive a dev build.
     this.server = options.server ?? new AgentServer({ token: readToken(), port: portFromEnv() });
+    this.#lifecycleGiven = options.lifecycle !== undefined;
     this.#lifecycle = options.lifecycle ?? lifecycleFor(info.platform);
     this.#appId = options.appId ?? null;
+    if (this.#locate && this.server.hello) this.#relocate(this.server.hello);
     // A stand-in server in a test may have no events.
     if (typeof this.server.on === 'function')
-      this.server.on('hello', () => {
+      this.server.on('hello', (hello: HelloEvent) => {
         this.#helloAt = Date.now();
+        this.#relocate(hello);
       });
+  }
+
+  #relocate(hello: HelloEvent): void {
+    if (!this.#locate) return;
+    const platform = hello.platform === 'android' ? 'android' : 'ios';
+    const app = `${platform}\0${hello.appId ?? ''}\0${String(hello.app?.name ?? '')}\0${String(hello.app?.runtime ?? '')}`;
+    if (app === this.#locatedFor) return;
+    this.#locatedFor = app;
+    this.#resolving = undefined;
+    this.#unlocated = { hello };
+    this.info = { ...this.info, platform };
+    if (!this.#lifecycleGiven) this.#lifecycle = lifecycleFor(platform);
   }
 
   /** When this connection last heard the app say hello (a launch, a relaunch, a reconnect); undefined if before it existed. */
@@ -102,6 +137,22 @@ export class Device {
 
   /** The device as the OS knows it: reading the screen needs none of it; launching, screenshots and OS commands do. */
   async resolved(): Promise<DeviceInfo> {
+    const pending = this.#unlocated;
+    if (pending && this.#locate) {
+      // One lookup for the callers that ask at once; a failed one is tried again by the next.
+      pending.lookup ??= this.#locate(pending.hello);
+      try {
+        const info = await pending.lookup;
+        if (this.#unlocated === pending) {
+          this.info = info;
+          this.#unlocated = undefined;
+        }
+        return info;
+      } catch (error) {
+        if (this.#unlocated === pending) pending.lookup = undefined;
+        throw error;
+      }
+    }
     if (this.#resolving) {
       this.info = await this.#resolving;
       this.#resolving = undefined;

@@ -7,6 +7,8 @@ export type NavigationAdapter = {
   /** Route names from the root navigator down to the focused screen. */
   path(): string[];
   navigate(name: string, params?: object): void;
+  /** Whether a mounted navigator declares a screen of this name; undefined when the router cannot say. */
+  declares?(name: string): boolean | undefined;
   canGoBack(): boolean;
   goBack(): void;
   /** Back to the initial route; called on `reset`, so a host that does not relaunch the app starts each flow clean. */
@@ -82,6 +84,7 @@ export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => 
     },
     currentRoute: () => (ref.isReady() ? ref.getCurrentRoute() : undefined),
     path: () => (ref.isReady() ? routePath(ref.getRootState()) : []),
+    declares: (name) => (ref.isReady() ? mountedRouteNames(ref.getRootState())?.has(name) : undefined),
     navigate: (name, params) => {
       const state = ref.isReady() ? ref.getRootState() : undefined;
       if (mountedRouteNames(state)?.has(name) === false) throw new Error(unreachable(name, state));

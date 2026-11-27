@@ -12,7 +12,19 @@ import type { Device } from '../../device/driver.js';
 import { type Base, find, register } from '../../registry.js';
 import { Fixtures } from '../fixtures.js';
 import { parseCase } from '../format.js';
-import { argvFor, expandSteps, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase, type StepReport, stepRoutes } from '../runner.js';
+import {
+  argvFor,
+  expandSteps,
+  fetchFilm,
+  missingFixtures,
+  newSince,
+  phaseNote,
+  type Prepared,
+  preparable,
+  runCase,
+  type StepReport,
+  stepRoutes,
+} from '../runner.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -322,6 +334,35 @@ test('a macro is the steps a project gave a name to, with what the case passed',
   const report = await runCase(c, { base, config: { ...config, macros }, fixtures });
   assert.equal(report.result, 'passed', JSON.stringify(report.steps));
   assert.equal(calls.filter((x) => x.method === 'press').length, 1);
+});
+
+test('each step says where its time went, a macro summing its steps, and a slow one says it in the log', async () => {
+  const c = parseCase('---\nid: p\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n  - app.again: {}\n', 'p.md');
+  const { base } = fakeApp();
+  const after = <T>(ms: number, value: T) => new Promise<T>((r) => setTimeout(() => r(value), ms));
+  const device = await base.device();
+  const tap = device.press.bind(device);
+  Object.assign(device, { idle: () => after(30, { idle: true }), press: async (params: never) => after(5, await tap(params)) });
+  const slow = { ...base, device: async () => device };
+  const macros = { 'app.again': [{ 'app.press': '#refresh' }, { 'app.press': '#refresh' }] };
+  const report = await runCase(c, { base: slow as Base, config: { ...config, macros }, fixtures });
+  const [press, see, again] = report.steps;
+  // In the order they happen; marks and target take no time against a stand-in app that answers at once.
+  assert.deepEqual(
+    Object.keys(press?.phases ?? {}).filter((p) => p !== 'marks' && p !== 'target'),
+    ['action', 'settle'],
+  );
+  assert.ok((press?.phases?.settle ?? 0) >= 25, JSON.stringify(press?.phases));
+  assert.ok(
+    Object.keys(see?.phases ?? {}).every((p) => p === 'marks' || p === 'look'),
+    JSON.stringify(see?.phases),
+  );
+  // Two presses, each settling for at least 25 ms, under the one step.
+  assert.ok((again?.phases?.settle ?? 0) >= 50, JSON.stringify(again?.phases));
+  const sum = Object.values(press?.phases ?? {}).reduce((a, b) => a + b, 0);
+  assert.ok(sum <= (press?.ms ?? 0), `${sum} > ${press?.ms}`);
+  assert.equal(phaseNote({ ms: 120, phases: { action: 100 } }), '');
+  assert.equal(phaseNote({ ms: 548, phases: { target: 66, action: 420, settle: 62 } }), ': target 66 · action 420 · settle 62');
 });
 
 test("a step that is neither the app's nor a declared fixture says so", async () => {

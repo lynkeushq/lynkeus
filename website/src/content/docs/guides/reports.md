@@ -76,6 +76,7 @@ Each step says:
 | `heading` | The numbered section of the case the step is in, such as `3 A wrong PIN`. A step of `setup`, or one before the first numbered comment, has none. See [Sections](/reference/case-format/#sections). |
 | `status` | `passed`, `failed`, `skipped` or `unsupported` |
 | `ms` | How long it took |
+| `phases` | Where that time went, in ms, for the phases it spent time in: `marks` (where the trace and requests stood before it acted), `target` (waiting for its target to be listed, clear and enabled, a scroll to it included), `action` (the command itself, with the agent's wait for the target to hold still), `settle` (the app going quiet after it), `wait` (an `app.wait`, or the route a nav leads to), `look` (an `app.see`) and `events` (reading the app's analytics). A macro's steps add up under the step that runs it. What is left of `ms` is the runner's own work. The run's console writes them out after a step that took 500 ms or more, and the report shows them on hover over a step's time (written beside it from 500 ms). |
 | `error` | Why it failed, when it did |
 | `events` | The analytics events the app sent while it ran |
 | `screenshot` | The frame after it, relative to the run directory |

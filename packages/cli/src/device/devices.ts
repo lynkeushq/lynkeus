@@ -77,6 +77,46 @@ export const pickAndroidDevice = async (wanted?: string): Promise<DeviceInfo> =>
   return device;
 };
 
+/** Whether the app with this id has a process on the device now: asked of the OS, false when it cannot say. */
+export const runsApp = async (device: DeviceInfo, appId: string): Promise<boolean> => {
+  try {
+    if (device.platform === 'android') return (await run('adb', ['-s', device.id, 'shell', 'pidof', appId])).stdout.trim().length > 0;
+    // launchd names an app's job UIKitApplication:<bundle id>[…] while its process runs.
+    const { stdout } = await run('xcrun', ['simctl', 'spawn', device.id, 'launchctl', 'list'], { maxBuffer: 8 * 1024 * 1024 });
+    return stdout.includes(`UIKitApplication:${appId}[`);
+  } catch {
+    return false;
+  }
+};
+
+const nameMatches = (device: DeviceInfo, wanted: string) => device.id === wanted || (device.platform === 'ios' && device.name.includes(wanted));
+
+/**
+ * The device an app that dialed in runs on: of the platform it said, the one where its process is (when it said its
+ * id and more than one is up), the one asked for among those, else the one asked for, else the only or first one up.
+ * Never a device of the other platform: an iOS Simulator booted beside the emulator the app runs on is not its device.
+ */
+export const appDevice = async (
+  platform: Platform,
+  appId: string | null | undefined,
+  wanted?: string,
+  probe: { list?: (platform: Platform) => Promise<DeviceInfo[]>; runs?: typeof runsApp } = {},
+): Promise<DeviceInfo> => {
+  const list = probe.list ?? ((p: Platform) => (p === 'android' ? androidDevices() : bootedSimulators()));
+  const runs = probe.runs ?? runsApp;
+  const devices = await list(platform);
+  if (devices.length === 0)
+    throw new Error(platform === 'android' ? 'No Android device or emulator is up (adb devices lists none).' : 'No booted simulator. Boot one first.');
+  const asked = wanted ? devices.filter((d) => nameMatches(d, wanted)) : [];
+  if (devices.length === 1) return devices[0]!;
+  if (appId) {
+    const running = (await Promise.all(devices.map(async (d) => ((await runs(d, appId)) ? d : undefined)))).filter((d): d is DeviceInfo => !!d);
+    const pick = running.find((d) => asked.includes(d)) ?? running[0];
+    if (pick) return pick;
+  }
+  return asked[0] ?? devices[0]!;
+};
+
 export const HEADLESS_HOST: DeviceInfo = { id: 'headless', name: 'headless host', platform: 'ios', type: 'simulator', connected: true };
 
 export const pickAgentDevice = async (wanted?: string): Promise<DeviceInfo> => {

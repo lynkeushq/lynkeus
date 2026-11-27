@@ -23,4 +23,8 @@ For a run with everything: `case run --out <dir> --screenshots --video --traces`
 
 A failed case answers with its step, the error, the screen at the failure cut to what a check can name, and the requests that failed, never answered or were mocked. `--verbose` gives all of it. `why` reads the screen, the requests and the trace as rules and says why the last step failed; after a missing text it names the closest text on screen and, with uncommitted changes, the line that took it out. In `cases.jsonl` a failed `app.see` or `app.wait` keeps a `looked` object: every element at the failure and each scroll it made.
 
+## A slow step
+
+Each step in `cases.jsonl` has `phases`: its `ms` by what it waited on (`marks`, `target` for its target to be listed and clear, `action` for the command with the agent's wait for the target to hold still, `settle` for the app to go quiet, `wait`, `look`, `events`), a macro's steps summed. The console writes them after any step of 500 ms or more (`548ms: target 66 · action 420 · settle 62`). Read them before guessing where time went.
+
 A failed case runs once more before it counts as failed (`--once` turns that off). The summary calls a case flaky only when runs of the same version of it disagree.

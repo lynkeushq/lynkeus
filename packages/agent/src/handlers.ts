@@ -11,6 +11,8 @@ import { lastSeq, traceSince } from './trace';
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 // 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
 const MIN_SETTLE_LOOKS = 30;
+// Longer than a conditional navigator takes to render its other branch, short enough that a wrong name fails fast.
+const NAVIGATOR_SWAP_MS = 1500;
 
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
@@ -96,6 +98,13 @@ export const pick = (elements: Element[], target: Target): Element | undefined =
 
 const describeTarget = (target: Target): string => JSON.stringify(target);
 
+/**
+ * A target that was there while a press waited for it to hold still, and then was not: the list it is in kept
+ * coasting after a scroll, or a view animated away. Said as such, so a wait that found it and a press that did not
+ * do not read as two different ways of matching.
+ */
+class LeftScreen extends Error {}
+
 type Point = { x: number; y: number; element?: Element };
 
 // Within a point is the same place: a breathing CTA is not a transition.
@@ -144,7 +153,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const presented = (target: Target): Element => {
     const element = find(target);
-    if (!element) throw new Error(`No element matches ${describeTarget(target)}`);
+    if (!element) {
+      // The same matching as find and waitFor: what they skip as not presented is named, not reported as absent.
+      const unseen = 'x' in target ? undefined : elements().find((e) => e.hidden && score(e, target) > 0)?.hidden;
+      throw new Error(`No element matches ${describeTarget(target)}${unseen ? `: one is in the tree but not presented (${unseen})` : ''}`);
+    }
     if (element.hidden) throw new Error(`${describeTarget(target)} is not presented (${element.hidden})`);
     return element;
   };
@@ -161,6 +174,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return !e.offscreen && x >= 0 && y >= 0 && x <= w && y <= h;
   };
 
+  // A host that is not a device moves a view per frame, which it runs on a timer of its own (the headless host's
+  // requestAnimationFrame): two looks one frame apart see the move, and a landed target costs a frame, not 40 ms.
+  const stillLookMs = backend.native ? 40 : 16;
+
   // An element still sliding in would be tapped where it was. Two identical
   // measurements 40 ms apart mean it has landed. An Android fling coasts for
   // seconds, and a finger that lands on it stops the scroll where it is: wait
@@ -176,24 +193,31 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
     // before calling it not presented.
     const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    let seenAt: number | undefined;
     // On a native host the element list is read from the view tree while it changes, so two reads in a row can
     // disagree: an inert read right after a presented one is the same flicker, not an answer.
     const look = (): Point | undefined => {
       try {
-        return pointOf(target);
+        const point = pointOf(target);
+        if (point.element) seenAt = Date.now();
+        return point;
       } catch (error) {
         if (waiting() && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        if (seenAt !== undefined && error instanceof Error && error.message.startsWith('No element matches'))
+          throw new LeftScreen(
+            `${error.message}: it was on screen ${Date.now() - seenAt} ms before, and left while the press waited for it to hold still (a list still coasting after a scroll, a view animating away)`,
+          );
         throw error;
       }
     };
     while (inert() && waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
     }
     let previous = look();
     while (waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
       if (inert()) continue;
       const current = look();
       if (!current) continue;
@@ -228,7 +252,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // scroll view swallows it): close it first and measure again once the layout moves back.
     if (point.element?.kind !== 'input' && elements().some((e) => e.focused)) {
       await backend.dismissKeyboard();
-      await sleep(300);
+      // Only a device has a keyboard that slides away and a layout that follows it; a host has neither to wait for.
+      if (backend.native) await sleep(300);
       point = await settled(target);
     }
     if (point.element) underSystemView(target, point.element);
@@ -258,7 +283,18 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // geometry is only an estimate, so there the case has to ask for it (`wait --scroll`).
     const known = 'x' in target || !backend.native ? undefined : find(target);
     if (known && !known.hidden && !inWindow(known)) await waitFor({ target, scroll: true, timeoutMs: 5000 });
-    return pressNative(target, holdMs ?? 50);
+    try {
+      return await pressNative(target, holdMs ?? 50);
+    } catch (error) {
+      if (!(error instanceof LeftScreen) || !backend.native) throw error;
+      // Brought back once, as a person scrolls back to what slid away under their finger.
+      const back = await waitFor({ target, scroll: true, timeoutMs: 5000 }).then(
+        () => true,
+        () => false,
+      );
+      if (!back) throw error;
+      return pressNative(target, holdMs ?? 50);
+    }
   };
 
   const type = async (params: CoreMethods['type']['params']) => {
@@ -269,11 +305,13 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
         element = found;
       } else {
         element = (await pressNative(params.target, 50)).element;
-        // The keyboard needs a frame to attach to the field before it accepts input.
-        await sleep(80);
-        // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
-        // field out where it was then, so wait it out like a person would.
-        await settled(params.target);
+        if (backend.native) {
+          // The keyboard needs a frame to attach to the field before it accepts input.
+          await sleep(80);
+          // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
+          // field out where it was then, so wait it out like a person would.
+          await settled(params.target);
+        }
       }
     }
     if (params.clear) {
@@ -283,10 +321,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     if (params.paste) {
       await backend.typeText(params.text, element);
     } else {
-      // A controlled input formats on every change, and keys faster than a commit race the formatter.
+      // A controlled input formats on every change, and keys faster than a commit race the formatter. A host commits
+      // each key before it answers (the headless host types inside act()); a turn of the event loop lets a formatter
+      // that defers to a timer run, as a frame would.
       for (const char of params.text) {
         await backend.typeText(char, element);
-        await sleep(25);
+        await sleep(backend.native ? 25 : 0);
       }
     }
     if (params.submit) await backend.submit(element);
@@ -396,7 +436,17 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
-      if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
+      // A device scroller keeps moving after the finger lifts; a host's stops at once.
+      const now = shape(all);
+      if (now !== moving) {
+        moving = now;
+        movedAt = Date.now();
+      }
+      const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      // Found while the list still coasts from this wait's own swipe is not found where a press will look: the
+      // scroll may carry it out of the window (a list virtualizes it away, or recycles its row for another).
+      const landed = swipes === 0 || still;
+      if (routeOk && targetOk && anyOk && landed) return { route, matched, waitedMs: Date.now() - started };
       if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
         const reached = traceSince(params.since).some((e) => e.kind === 'route' && (e.route === params.route || e.path.includes(params.route!)));
         if (reached) return { route, waitedMs: Date.now() - started, passed: true };
@@ -406,14 +456,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
           `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${onRoute(route)})`,
         );
       }
-      // A device scroller keeps moving after the finger lifts; a host's stops at once. The next swipe waits
-      // for it to stop, so that whether one more is needed is decided where the scroll ends, not on its way.
-      const now = shape(all);
-      if (now !== moving) {
-        moving = now;
-        movedAt = Date.now();
-      }
-      const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      // The next swipe waits for the scroll to stop, so that whether one more is needed is decided where it
+      // ends, not on its way.
       if (params.scroll && params.target && !params.gone && swipes < 30 && still && Date.now() - lastSwipe > (backend.native ? 400 : 50)) {
         if (!found && swipes > 0 && shape(all) === before) {
           if (back) swipes = 30;
@@ -463,6 +507,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       // hundred milliseconds more than a host).
       const deadline = Date.now() + 10_000;
       while (!navigation.isReady() && Date.now() < deadline) await sleep(50);
+      // A navigator that swaps its screens on a state change (signed in, signed out) declares the new ones a render
+      // or a remount later: a navigate sent right after the change would be dropped. Looks are counted too, for a
+      // host whose clock jumps ahead while JavaScript sleeps.
+      const listedBy = Date.now() + NAVIGATOR_SWAP_MS;
+      for (let looks = 0; navigation.declares?.(params.name) === false && (Date.now() < listedBy || looks < NAVIGATOR_SWAP_MS / 50); looks++) await sleep(50);
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },

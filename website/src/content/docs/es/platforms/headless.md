@@ -25,6 +25,8 @@ La diferencia está en qué es real:
 
 **Se gana:** no hace falta simulador ni build; el host arranca en unos 40 segundos; se pueden levantar varios a la vez, uno por puerto; y la lectura de la pantalla y los toques son los mismos que en un dispositivo, con el diseño incluido.
 
+Además, cada paso tarda lo que tarda la app, no lo que tardarían el teclado y las transiciones de un dispositivo. En un dispositivo, un toque con un campo enfocado espera 300 ms a que el teclado se oculte, y escribir espera 80 ms a que el teclado aparezca y 25 ms entre letra y letra. En headless no hay teclado y cada letra se confirma antes de que el host responda, así que esas esperas no se hacen. En una app chica, un toque pasó de unos 170 ms a 85 ms, un toque justo después de escribir de unos 550 ms a 130 ms, y escribir tres letras de unos 370 ms a 30 ms. El campo `phases` de cada paso en `cases.jsonl` dice en qué se va el resto.
+
 **Se pierde:** todo lo nativo. La cámara, la biometría y las integraciones profundas con el sistema son mocks. Un WebView se renderiza como una caja vacía. Un fallo nativo aparece como un error de Jest.
 
 Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único que cambia es cómo arranca la app.

@@ -41,6 +41,7 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
       step: s.step,
       status: s.status,
       ms: s.ms,
+      ...(s.phases ? { phases: s.phases } : {}),
       ...(s.error ? { error: s.error } : {}),
       section: index < c.setup.length ? 'setup' : 'steps',
       // The numbered section of the case the step is in (`3 A wrong PIN`), for a report to group the steps by.

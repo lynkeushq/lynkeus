@@ -165,6 +165,8 @@ Puede ocurrir también que el elemento no esté en el listado. El encabezado cue
 Los errores correspondientes son:
 
 - `No element matches {"testId":"…"}`: no hay ningún elemento así en el árbol.
+- `No element matches {"text":"…"}: one is in the tree but not presented (a11y)`: hay uno, pero oculto, por ejemplo detrás de un cajón abierto o de otra pantalla.
+- `No element matches {"text":"…"}: it was on screen 120 ms before, and left while the press waited for it to hold still`: estaba, pero la lista siguió deslizándose (o una animación lo sacó) mientras el toque esperaba que se quedara quieto. En un dispositivo, el toque vuelve a desplazarse hasta él una vez antes de rendirse. `wait` con `scroll` ya no termina mientras la lista que movió sigue en movimiento, así que el toque que viene después lo encuentra donde lo vio.
 - `{"testId":"…"} is not presented (behind-overlay)`: existe, pero no se está mostrando. Entre paréntesis va el motivo.
 
 **Una comparación útil.** `--js` llama al `onPress` de React en lugar de sintetizar un toque. Si con `--js` funciona y sin él no, el control existe y algo se interpone entre el dedo y él. Es un diagnóstico, no un arreglo: un test que solo pasa con `--js` no está probando lo que haría un usuario.

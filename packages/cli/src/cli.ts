@@ -24,7 +24,7 @@ import { skillCommands } from './commands/skill.js';
 import { configReader, edgesFile, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { devMenuOnAttach } from './device/devMenu.js';
-import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reverseAndroid } from './device/devices.js';
+import { appDevice, type DeviceInfo, HEADLESS_HOST, pickAgentDevice, reverseAndroid } from './device/devices.js';
 import { Device } from './device/driver.js';
 import * as edges from './knowledge/edges.js';
 import { walk } from './knowledge/walk.js';
@@ -128,17 +128,23 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
         await picking;
         throw error;
       });
-    const headless = hello.app?.runtime === 'headless';
-    const info = {
+    const standIn = (said: HelloEvent): DeviceInfo => ({
       ...HEADLESS_HOST,
-      name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),
-      platform: hello.platform === 'android' ? ('android' as const) : ('ios' as const),
-    };
-    // The app says which platform it runs on; only then is it known whether simctl or adb names its device.
-    const resolving = headless || ownHost ? undefined : info.platform === 'android' ? pickAndroidDevice(wantedDevice) : picking;
-    const d = learning(new Device(info, { appId: appId ?? null, server, resolving }));
+      name: said.app?.runtime === 'headless' ? HEADLESS_HOST.name : String(said.app?.name ?? said.platform),
+      platform: said.platform === 'android' ? 'android' : 'ios',
+    });
+    // The app says which platform it runs on, and its id; only then is it known whether simctl or adb names its
+    // device, and which of the booted ones it is. Asked again when another app takes the port.
+    const onDevice = (said: HelloEvent) => !ownHost && said.app?.runtime !== 'headless';
+    const locate = async (said: HelloEvent): Promise<DeviceInfo> =>
+      onDevice(said) ? appDevice(said.platform === 'android' ? 'android' : 'ios', appId ?? said.appId, wantedDevice) : standIn(said);
+    const d = learning(new Device(standIn(hello), { appId: appId ?? null, server, locate }));
     attachedIn(d);
-    if (resolving) void resolving.then((on) => devMenuOnAttach(root, appId, on, err)).catch(() => undefined);
+    if (onDevice(hello))
+      void d
+        .resolved()
+        .then((on) => devMenuOnAttach(root, appId, on, err))
+        .catch(() => undefined);
     return d;
   };
 

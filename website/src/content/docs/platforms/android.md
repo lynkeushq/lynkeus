@@ -108,7 +108,7 @@ The CLI does two kinds of things. Most go through the agent and are identical on
 
 Driving the app needs no device lookup: whichever app dials in is the app being driven. The CLI only needs to know which device to address when it acts from outside the app.
 
-When the app attaches, it says which platform it runs on. For an app on Android, the CLI then asks `adb devices` which devices are ready and picks one:
+When the app attaches, it says which platform it runs on and its application id. For an app on Android, the CLI asks `adb devices` which devices are ready and, with more than one, uses the one where the app has a process (`adb shell pidof`). A case's screenshots and film come from that device, never from an iOS Simulator booted beside it. When the attached app changes, the device is looked up again. Between several that run the app, or when the CLI cannot tell:
 
 | Source | Example |
 |---|---|

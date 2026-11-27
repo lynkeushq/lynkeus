@@ -192,7 +192,7 @@ it('a targeted swipe starts after the target stops moving', async () => {
 });
 
 describe('typing into a field the keyboard moves', () => {
-  it('types once the field has landed', async () => {
+  it('types once the field has landed, on a device', async () => {
     let pressedAt: number | undefined;
     // The field slides from 600 to 200 over the 300 ms after the tap, as a screen collapsing for the keyboard.
     const fieldY = () => (pressedAt === undefined ? 600 : Math.max(200, 600 - ((Date.now() - pressedAt) / 300) * 400));
@@ -200,6 +200,7 @@ describe('typing into a field the keyboard moves', () => {
     const { backend } = fakeBackend([]);
     const handlers = createHandlers(noNavigation, {
       ...backend,
+      native: true,
       snapshot: () => ({ elements: [element({ kind: 'input', testId: 'search', frame: { x: 0, y: fieldY(), w: 300, h: 40 } })] }),
       press: async () => {
         pressedAt = Date.now();
@@ -211,6 +212,36 @@ describe('typing into a field the keyboard moves', () => {
 
     await dispatch(handlers, 'type', { target: { testId: 'search' }, text: 'ab' });
     expect(typedAt).toEqual([200, 200]);
+  });
+
+  it('on a host, which has no keyboard, types at once and does not wait for one to slide away', async () => {
+    const typed: string[] = [];
+    let blurred = 0;
+    const { backend } = fakeBackend([]);
+    const field = element({ kind: 'input', testId: 'email' });
+    const go = element({ i: 1, testId: 'go', frame: { x: 0, y: 100, w: 100, h: 40 } });
+    let focused = false;
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      snapshot: () => ({ elements: [{ ...field, focused }, go] }),
+      press: async (e) => {
+        focused = e.kind === 'input';
+      },
+      typeText: async (chunk) => {
+        typed.push(chunk);
+      },
+      dismissKeyboard: async () => {
+        blurred++;
+        focused = false;
+      },
+    });
+    const started = Date.now();
+    await dispatch(handlers, 'type', { target: { testId: 'email' }, text: 'ignite@infinite.red' });
+    await dispatch(handlers, 'press', { testId: 'go' });
+    expect(typed.join('')).toBe('ignite@infinite.red');
+    expect(blurred).toBe(1);
+    // A device spends 25 ms a key, 80 ms for the keyboard to attach and 300 ms for it to slide away: 855 ms here.
+    expect(Date.now() - started).toBeLessThan(250);
   });
 });
 
@@ -269,5 +300,93 @@ describe('a press that opens a URL', () => {
     expect(await dispatch(handlers, 'press', { testId: 'card' })).toMatchObject({ opened: 'https://github.com/infinitered/ignite' });
     const { backend: still } = fakeBackend([card]);
     expect(await dispatch(createHandlers(noNavigation, still), 'press', { testId: 'card' })).not.toHaveProperty('opened');
+  });
+});
+
+describe('a target a wait found is one a press finds', () => {
+  it('a scroll wait returns only once the list stops coasting, where a press will look', async () => {
+    // After the wait's swipe the list coasts for 300 ms: the row passes through the window and leaves it, then the
+    // list settles with it back in view.
+    let swipedAt: number | undefined;
+    const rowY = () => {
+      if (swipedAt === undefined) return 1200;
+      const t = Date.now() - swipedAt;
+      return t < 100 ? 1200 - t * 8 : t < 300 ? 400 - (t - 100) * 3 : 500;
+    };
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      native: true,
+      snapshot: () => ({
+        elements: [
+          element({ kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 844 } }),
+          element({ i: 1, text: 'Button', frame: { x: 0, y: rowY(), w: 300, h: 40 } }),
+        ],
+      }),
+      swipe: async () => {
+        swipedAt = Date.now();
+      },
+    });
+    await dispatch(handlers, 'waitFor', { target: { text: 'Button' }, scroll: true, timeoutMs: 3000 });
+    expect(Date.now() - swipedAt!).toBeGreaterThanOrEqual(300);
+    expect(rowY()).toBe(500);
+  });
+
+  it('a press whose target slides away while it settles brings it back once and presses it', async () => {
+    let gone = false;
+    let scrolledBack = 0;
+    const presses: string[] = [];
+    const { backend } = fakeBackend([]);
+    let looks = 0;
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      native: true,
+      snapshot: () => {
+        looks++;
+        // Moving on the first looks, then recycled away; back once the wait scrolls to it.
+        if (!gone && looks > 3) gone = true;
+        const row = element({ i: 1, text: 'Button', frame: { x: 0, y: 300 + looks, w: 300, h: 40 } });
+        return {
+          elements: [
+            element({ kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 844 } }),
+            ...(gone ? [] : [{ ...row, frame: { ...row.frame, y: scrolledBack ? 300 : row.frame.y } }]),
+          ],
+        };
+      },
+      swipe: async () => {
+        scrolledBack++;
+        gone = false;
+        looks = -1_000_000;
+      },
+      press: async (e) => {
+        presses.push(e.text ?? '');
+      },
+    });
+    await dispatch(handlers, 'press', { text: 'Button' });
+    expect(scrolledBack).toBe(1);
+    expect(presses).toEqual(['Button']);
+  });
+
+  it('says the target left while the press waited, when it does not come back', async () => {
+    let looks = 0;
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      snapshot: () => {
+        looks++;
+        return { elements: looks < 3 ? [element({ text: 'Button', frame: { x: 0, y: 300 + looks * 10, w: 300, h: 40 } })] : [] };
+      },
+    });
+    await expect(dispatch(handlers, 'press', { text: 'Button' })).rejects.toThrow(
+      /^No element matches \{"text":"Button"\}: it was on screen \d+ ms before, and left while the press waited for it to hold still/,
+    );
+  });
+
+  it('names what is in the tree but not presented, rather than calling it absent', async () => {
+    const { backend } = fakeBackend([element({ text: 'Close drawer', hidden: 'a11y' })]);
+    const handlers = createHandlers(noNavigation, backend);
+    await expect(dispatch(handlers, 'press', { text: 'Close drawer' })).rejects.toThrow(
+      'No element matches {"text":"Close drawer"}: one is in the tree but not presented (a11y)',
+    );
   });
 });
