@@ -160,7 +160,7 @@
     "now": "56d82dd5c00c5f16"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case). Its description says a member read and never called that the library's TurboModule spec declares a method is left out of the native values notice. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached. `on: targets` runs each case on its declared targets (cases.targets, or its own targets: frontmatter) and a declared target missing here makes the check incomplete; FastSim is named per platform (fastsim:ios, fastsim:android).",
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case). Its description says a member read and never called that the library's TurboModule spec declares a method is left out of the native values notice. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached. `on: targets` runs each case on its declared targets (cases.targets, or its own targets: frontmatter) and a declared target missing here makes the check incomplete; FastSim is named per platform (fastsim:ios, fastsim:android). The description now says the seed does not reach the app on an attached simulator or emulator (only the cases' {{random.*}}), as run.json and the determinism guide say; it said only the seed applied there.",
     "now": "af00190f5e94e010"
   },
   "wire/failure-stops-and-tears-down": {
@@ -236,28 +236,28 @@
     "now": "b704fa7a8763dbc4"
   },
   "surface/help/case coverage": {
-    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
-    "now": "5a4e916cc8f1e627"
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with. A screen counts as covered when a macro the case calls goes to it, waits for it or checks it, so a CI checkout without .lynkeus/seen still covers screens reached only inside macros (a trial missed showroom-demos).",
+    "now": "90b847e4a804e12e"
   },
   "surface/help/case impact": {
     "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases that name a changed testID or label.",
     "now": "e1a7c172e16ce733"
   },
   "surface/help/case new": {
-    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
-    "now": "1017186a35af7c53"
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes). Without --from, a start with no known way gives way to cases.start, then the first declared screen (a trial began on DemoShowroom and found no way to About that map plan knew from Welcome); a draft for a screen no case reaches lists what its source and runs know is on it.",
+    "now": "a9941cd847d6ccd4"
   },
   "surface/mcp/tool/case_coverage": {
-    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
-    "now": "c6ffaa28cd50c514"
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with. A screen counts as covered when a macro the case calls goes to it, waits for it or checks it, so a CI checkout without .lynkeus/seen still covers screens reached only inside macros (a trial missed showroom-demos).",
+    "now": "2e183637bbfe9cf1"
   },
   "surface/mcp/tool/case_impact": {
     "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen. A change to a string table (an object literal of strings, such as the app’s translations) counts only for the files that name its changed keys and the cases that check a changed text, unless a changed key is named nowhere by its whole key. A file whose change is only testIDs or accessibility labels reaches only the cases that name them.",
     "now": "a67d942684f17ec3"
   },
   "surface/mcp/tool/case_new": {
-    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes).",
-    "now": "1bb5058c63e1fd67"
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare. case new begins, without --from or cases.start, at the screen the attached app shows or the first screen declared, and names the fixtures in one comment (none for the example server case init writes). Without --from, a start with no known way gives way to cases.start, then the first declared screen (a trial began on DemoShowroom and found no way to About that map plan knew from Welcome); a draft for a screen no case reaches lists what its source and runs know is on it.",
+    "now": "b19c4255cad9a053"
   },
   "surface/help/os appearance": {
     "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
