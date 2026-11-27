@@ -225,6 +225,8 @@ npx lynkeus press '#like-message-button' --nth 2   # the third match
 
 `press`, `type` and `wait` all accept both. `--in` takes a `#testId` or a text.
 
+An accessible card reads its children's words run together, so its label contains the text of every button inside it. Inside the scope, an element whose own label is the text wins over one whose label only contains it, and of two that match equally, the inner one wins: `press '"Favorite"' --in '"Offline first"'` presses that episode's Favorite button, not the episode's card.
+
 ## Run many commands on one connection
 
 Each `npx lynkeus …` invocation starts a process and opens a connection, which costs about 1.5 seconds. A step itself costs about 50 ms. When you run more than a couple of commands, keep one connection open with `session`:

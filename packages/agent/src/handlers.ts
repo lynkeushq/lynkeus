@@ -53,7 +53,12 @@ const pickWithin = (elements: Element[], { within, ...target }: Target & { withi
     const here = level ? matches.filter((e) => e.i === level.i || insideOf(elements, e, level.i)) : matches;
     if (here.length > 0) {
       if (nth !== undefined) return here[nth];
-      return here.reduce((best, e) => {
+      // A card made accessible reads its children's words run together, so it contains the text of every button in
+      // it: an exact label beats one that only contains the text, and of matches nested in one another the innermost wins.
+      const top = Math.max(...here.map((e) => score(e, target as Target)));
+      const strongest = here.filter((e) => score(e, target as Target) === top);
+      const innermost = strongest.filter((e) => !strongest.some((other) => other !== e && insideOf(elements, other, e.i)));
+      return innermost.reduce((best, e) => {
         const d = Math.abs(e.i - scope.i);
         const b = Math.abs(best.i - scope.i);
         return d < b || (d === b && e.i > best.i) ? e : best;
