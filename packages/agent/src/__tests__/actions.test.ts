@@ -271,3 +271,91 @@ describe('a press that opens a URL', () => {
     expect(await dispatch(createHandlers(noNavigation, still), 'press', { testId: 'card' })).not.toHaveProperty('opened');
   });
 });
+
+describe('a target a wait found is one a press finds', () => {
+  it('a scroll wait returns only once the list stops coasting, where a press will look', async () => {
+    // After the wait's swipe the list coasts for 300 ms: the row passes through the window and leaves it, then the
+    // list settles with it back in view.
+    let swipedAt: number | undefined;
+    const rowY = () => {
+      if (swipedAt === undefined) return 1200;
+      const t = Date.now() - swipedAt;
+      return t < 100 ? 1200 - t * 8 : t < 300 ? 400 - (t - 100) * 3 : 500;
+    };
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      native: true,
+      snapshot: () => ({
+        elements: [
+          element({ kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 844 } }),
+          element({ i: 1, text: 'Button', frame: { x: 0, y: rowY(), w: 300, h: 40 } }),
+        ],
+      }),
+      swipe: async () => {
+        swipedAt = Date.now();
+      },
+    });
+    await dispatch(handlers, 'waitFor', { target: { text: 'Button' }, scroll: true, timeoutMs: 3000 });
+    expect(Date.now() - swipedAt!).toBeGreaterThanOrEqual(300);
+    expect(rowY()).toBe(500);
+  });
+
+  it('a press whose target slides away while it settles brings it back once and presses it', async () => {
+    let gone = false;
+    let scrolledBack = 0;
+    const presses: string[] = [];
+    const { backend } = fakeBackend([]);
+    let looks = 0;
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      native: true,
+      snapshot: () => {
+        looks++;
+        // Moving on the first looks, then recycled away; back once the wait scrolls to it.
+        if (!gone && looks > 3) gone = true;
+        const row = element({ i: 1, text: 'Button', frame: { x: 0, y: 300 + looks, w: 300, h: 40 } });
+        return {
+          elements: [
+            element({ kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 844 } }),
+            ...(gone ? [] : [{ ...row, frame: { ...row.frame, y: scrolledBack ? 300 : row.frame.y } }]),
+          ],
+        };
+      },
+      swipe: async () => {
+        scrolledBack++;
+        gone = false;
+        looks = -1_000_000;
+      },
+      press: async (e) => {
+        presses.push(e.text ?? '');
+      },
+    });
+    await dispatch(handlers, 'press', { text: 'Button' });
+    expect(scrolledBack).toBe(1);
+    expect(presses).toEqual(['Button']);
+  });
+
+  it('says the target left while the press waited, when it does not come back', async () => {
+    let looks = 0;
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      snapshot: () => {
+        looks++;
+        return { elements: looks < 3 ? [element({ text: 'Button', frame: { x: 0, y: 300 + looks * 10, w: 300, h: 40 } })] : [] };
+      },
+    });
+    await expect(dispatch(handlers, 'press', { text: 'Button' })).rejects.toThrow(
+      /^No element matches \{"text":"Button"\}: it was on screen \d+ ms before, and left while the press waited for it to hold still/,
+    );
+  });
+
+  it('names what is in the tree but not presented, rather than calling it absent', async () => {
+    const { backend } = fakeBackend([element({ text: 'Close drawer', hidden: 'a11y' })]);
+    const handlers = createHandlers(noNavigation, backend);
+    await expect(dispatch(handlers, 'press', { text: 'Close drawer' })).rejects.toThrow(
+      'No element matches {"text":"Close drawer"}: one is in the tree but not presented (a11y)',
+    );
+  });
+});

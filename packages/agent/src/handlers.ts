@@ -96,6 +96,13 @@ export const pick = (elements: Element[], target: Target): Element | undefined =
 
 const describeTarget = (target: Target): string => JSON.stringify(target);
 
+/**
+ * A target that was there while a press waited for it to hold still, and then was not: the list it is in kept
+ * coasting after a scroll, or a view animated away. Said as such, so a wait that found it and a press that did not
+ * do not read as two different ways of matching.
+ */
+class LeftScreen extends Error {}
+
 type Point = { x: number; y: number; element?: Element };
 
 // Within a point is the same place: a breathing CTA is not a transition.
@@ -144,7 +151,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const presented = (target: Target): Element => {
     const element = find(target);
-    if (!element) throw new Error(`No element matches ${describeTarget(target)}`);
+    if (!element) {
+      // The same matching as find and waitFor: what they skip as not presented is named, not reported as absent.
+      const unseen = 'x' in target ? undefined : elements().find((e) => e.hidden && score(e, target) > 0)?.hidden;
+      throw new Error(`No element matches ${describeTarget(target)}${unseen ? `: one is in the tree but not presented (${unseen})` : ''}`);
+    }
     if (element.hidden) throw new Error(`${describeTarget(target)} is not presented (${element.hidden})`);
     return element;
   };
@@ -176,13 +187,20 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
     // before calling it not presented.
     const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    let seenAt: number | undefined;
     // On a native host the element list is read from the view tree while it changes, so two reads in a row can
     // disagree: an inert read right after a presented one is the same flicker, not an answer.
     const look = (): Point | undefined => {
       try {
-        return pointOf(target);
+        const point = pointOf(target);
+        if (point.element) seenAt = Date.now();
+        return point;
       } catch (error) {
         if (waiting() && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        if (seenAt !== undefined && error instanceof Error && error.message.startsWith('No element matches'))
+          throw new LeftScreen(
+            `${error.message}: it was on screen ${Date.now() - seenAt} ms before, and left while the press waited for it to hold still (a list still coasting after a scroll, a view animating away)`,
+          );
         throw error;
       }
     };
@@ -258,7 +276,18 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // geometry is only an estimate, so there the case has to ask for it (`wait --scroll`).
     const known = 'x' in target || !backend.native ? undefined : find(target);
     if (known && !known.hidden && !inWindow(known)) await waitFor({ target, scroll: true, timeoutMs: 5000 });
-    return pressNative(target, holdMs ?? 50);
+    try {
+      return await pressNative(target, holdMs ?? 50);
+    } catch (error) {
+      if (!(error instanceof LeftScreen) || !backend.native) throw error;
+      // Brought back once, as a person scrolls back to what slid away under their finger.
+      const back = await waitFor({ target, scroll: true, timeoutMs: 5000 }).then(
+        () => true,
+        () => false,
+      );
+      if (!back) throw error;
+      return pressNative(target, holdMs ?? 50);
+    }
   };
 
   const type = async (params: CoreMethods['type']['params']) => {
@@ -396,7 +425,17 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
-      if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
+      // A device scroller keeps moving after the finger lifts; a host's stops at once.
+      const now = shape(all);
+      if (now !== moving) {
+        moving = now;
+        movedAt = Date.now();
+      }
+      const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      // Found while the list still coasts from this wait's own swipe is not found where a press will look: the
+      // scroll may carry it out of the window (a list virtualizes it away, or recycles its row for another).
+      const landed = swipes === 0 || still;
+      if (routeOk && targetOk && anyOk && landed) return { route, matched, waitedMs: Date.now() - started };
       if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
         const reached = traceSince(params.since).some((e) => e.kind === 'route' && (e.route === params.route || e.path.includes(params.route!)));
         if (reached) return { route, waitedMs: Date.now() - started, passed: true };
@@ -406,14 +445,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
           `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${onRoute(route)})`,
         );
       }
-      // A device scroller keeps moving after the finger lifts; a host's stops at once. The next swipe waits
-      // for it to stop, so that whether one more is needed is decided where the scroll ends, not on its way.
-      const now = shape(all);
-      if (now !== moving) {
-        moving = now;
-        movedAt = Date.now();
-      }
-      const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      // The next swipe waits for the scroll to stop, so that whether one more is needed is decided where it
+      // ends, not on its way.
       if (params.scroll && params.target && !params.gone && swipes < 30 && still && Date.now() - lastSwipe > (backend.native ? 400 : 50)) {
         if (!found && swipes > 0 && shape(all) === before) {
           if (back) swipes = 30;

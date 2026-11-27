@@ -216,6 +216,11 @@ In a run, the case that leaves the app in the background is the one whose failur
 
 **Fix.** Run `lynkeus screen` to see what is there. Wait for the element with `lynkeus wait <target>`, or scroll to it with `lynkeus wait <target> --scroll`.
 
+A press matches its target exactly as `wait` and `find` do, so when a press refuses what a wait just found, the message says why after a colon:
+
+- `: one is in the tree but not presented (a11y)`: an element answers the target but is hidden (behind a drawer, a sheet or a screen the app is not showing).
+- `: it was on screen 120 ms before, and left while the press waited for it to hold still`: the list it is in kept coasting, or a view animated away. On a device, the press first scrolls back to it once; the message means it did not come back. A `wait --scroll` returns only once the list it scrolled has stopped, so this is rare after one.
+
 ### A text target does not match
 
 **Why.** A text target matches a control (button or input) by its exact label first, then by substring. A paragraph matches only by its exact text, so a word inside running copy is never a target. The text may also differ from what you wrote by wording, by an accent or by case.
