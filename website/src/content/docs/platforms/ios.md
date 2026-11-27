@@ -34,7 +34,9 @@ yarn ios
 
 Reading the screen and driving the app need no simulator lookup at all: whichever app dials in is the app being driven. The CLI only needs to know *which* simulator when it does something from outside the app, such as launching it or taking a screenshot.
 
-It asks Xcode for the booted simulators and picks one in this order:
+When the app attaches, it says it runs on iOS and gives its bundle id. The CLI asks Xcode for the booted simulators and, with more than one booted, uses the one where that app's process is running. Screenshots, films and `os` commands of a case therefore follow the app that is attached: an Android emulator open beside the simulator is never photographed instead, and neither is a second simulator that only shows its home screen. When the attached app changes (the Android app takes the port after the iOS one), the device is looked up again.
+
+Naming a simulator decides between several that run the app, and is used when the CLI cannot tell (no bundle id, or the app runs on none):
 
 | Source | Example |
 |---|---|

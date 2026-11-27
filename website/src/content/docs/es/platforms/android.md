@@ -45,7 +45,7 @@ El registro nativo del teléfono (`logcat`) se guarda en la evidencia de un caso
 
 Leer la pantalla, tocar y esperar no requieren elegir nada: esos pedidos viajan por la conexión que abrió la app. El dispositivo importa para lo que el CLI hace desde afuera, con `adb`, como `lynkeus screenshot`.
 
-Al conectarse, la app dice en qué plataforma corre. Cuando dice Android, el CLI busca su dispositivo con `adb devices` y sigue esta regla:
+Al conectarse, la app dice en qué plataforma corre y cuál es su identificador. Cuando dice Android, el CLI busca su dispositivo con `adb devices`. Si hay más de uno listo, usa aquel donde la app tiene un proceso (`adb shell pidof`): las capturas y el video de un caso salen de ahí, nunca de un simulador de iOS encendido al lado. Si la app conectada cambia, vuelve a buscar. Cuando varios corren la app, o no puede saberlo:
 
 1. Si `--device` o la variable `LYNKEUS_DEVICE` nombran un número de serie que `adb devices` lista como listo, usa ese.
 2. Si no, usa el primero que esté listo.

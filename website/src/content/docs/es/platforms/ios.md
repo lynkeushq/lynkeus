@@ -31,7 +31,9 @@ Si necesitas otro puerto, define `LYNKEUS_PORT` con el mismo valor para la app y
 
 Con un solo simulador encendido no hay nada que elegir: Lynkeus usa ese.
 
-Con varios, indica cuál por su UDID o por una parte de su nombre. Hay tres lugares donde decirlo, de mayor a menor prioridad:
+Con varios, Lynkeus busca el simulador donde corre la app que se conectó (la app le dice su *bundle id* al conectarse). Las capturas, el video y los comandos `os` de un caso salen de ese simulador, aunque haya otro encendido mostrando su pantalla de inicio o un emulador de Android abierto al lado. Si la app conectada cambia, por ejemplo cuando la de Android toma el puerto después de la de iOS, Lynkeus vuelve a buscar.
+
+Si la app corre en varios simuladores a la vez, o Lynkeus no puede saber en cuál, indica cuál por su UDID o por una parte de su nombre. Hay tres lugares donde decirlo, de mayor a menor prioridad:
 
 | Dónde | Ejemplo |
 |---|---|
