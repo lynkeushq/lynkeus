@@ -33,6 +33,7 @@ import type { FlagValues } from '../args.js';
 import {
   DEVICE_TARGETS,
   declaredTargets,
+  skippedOn,
   parseTargets,
   runOnTargets,
   type SuiteResult,
@@ -565,7 +566,12 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const home = config.base ?? ctx.root;
   const files = caseFiles(ctx.args, home, config.dir);
   if (typeof files === 'string') return { text: files, code: 1 };
-  const cases = files.flatMap(readCases);
+  const target = as.target ? undefined : (ctx.flags.host && typeof ctx.flags['host-command'] !== 'string' ? 'headless' : undefined);
+  const cases = files.flatMap(readCases).filter((c) => {
+    const skip = target && skippedOn(c.meta, target);
+    if (skip) ctx.err(`${c.id}: ${skip}`);
+    return !skip;
+  });
   const dry = !!ctx.flags['dry-run'];
   const verbose = !!ctx.flags.verbose;
   const launch = resolveLaunch(ctx.flags, ctx.config);
@@ -1352,9 +1358,15 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
     if ('failed' in granted) return { unavailable: (granted.failed.text ?? 'no grant').split('\n')[0] ?? 'no grant' };
     return onHosts(t, found.command);
   };
+  // Named targets still honor what a case itself declares; only `--on targets` also falls back to the project's.
+  const targetsOf = (i: number, c: Case): TargetName[] | undefined => {
+    if (declared) return declared[i]!.targets;
+    const own = declaredTargets(c.meta, undefined);
+    return Array.isArray(own) ? own : undefined;
+  };
   return runOnTargets(ctx, {
     targets,
-    cases: cases.map((c, i) => ({ id: c.id, file: c.file, ...(c.title ? { title: c.title } : {}), ...(declared ? { targets: declared[i]!.targets } : {}) })),
+    cases: cases.map((c, i) => ({ id: c.id, file: c.file, ...(c.title ? { title: c.title } : {}), ...(targetsOf(i, c) ? { targets: targetsOf(i, c)! } : {}) })),
     ...(declared ? { declared: true } : {}),
     plan,
     run: (sub, target) => runSuite(sub, { target }),

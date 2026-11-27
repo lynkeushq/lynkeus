@@ -87,6 +87,14 @@ export const declaredTargets = (meta: Record<string, unknown>, project: readonly
   return targetList(project, 'cases.targets in lynkeus.config.json');
 };
 
+/** One line for a case its own `targets:` leave out of `target`, or undefined when it runs there. */
+export const skippedOn = (meta: Record<string, unknown>, target: TargetName, label: string = target): string | undefined => {
+  const own = declaredTargets(meta, undefined);
+  if (!Array.isArray(own) || own.length === 0) return undefined;
+  const hit = own.some((t) => t === target || (target === 'simulator' && (t === 'ios' || t === 'android')) || (target === 'fastsim' && t.startsWith('fastsim')));
+  return hit ? undefined : `skipped on ${label}: its targets are ${own.join(', ')}`;
+};
+
 export type SuiteReport = CaseReport & { retried?: boolean };
 /** What one target's run answers: `reports` is missing when it could not start (its `text` says why). */
 export type SuiteResult = Result & { reports?: SuiteReport[]; notes?: string[] };
@@ -152,6 +160,9 @@ const wants = (c: OnTargetsOptions['cases'][number], t: TargetName) => !c.target
 export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Result> => {
   const startedAt = Date.now();
   const casesOn = (t: TargetName) => o.cases.filter((c) => wants(c, t));
+  const skipped = (o.declared ? [] : o.targets).flatMap((t) =>
+    o.cases.filter((c) => !wants(c, t) && c.targets).map((c) => `skipped on ${t}: ${c.id}, its targets are ${c.targets!.join(', ')}`),
+  );
   // A target no case asks for is not even planned: planning one can start a connection or ask for a grant.
   const asked = o.targets.filter((t) => casesOn(t).length > 0);
   const planned = await Promise.all(
@@ -181,7 +192,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
   });
   if (lanes.length === 0) {
     await stopPlans(planned);
-    return { text: [...missing, incomplete ?? 'no target could run the cases'].join('\n'), code: 1 };
+    return { text: [...skipped, ...missing, incomplete ?? 'no target could run the cases'].join('\n'), code: 1 };
   }
 
   const halt = new AbortController();
@@ -266,7 +277,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
         `✖ ${lane.label} could not run: ${shown.join('\n    ')}${shown.length < said.length ? `\n    … ${said.length - shown.length} more lines (verbose)` : ''}`,
       );
     }
-  lines.push(...missing);
+  lines.push(...skipped, ...missing);
   for (const { lane, result } of results) {
     const notes = (result.notes ?? []).flatMap((n) => n.split('\n'));
     if (notes.length === 1) lines.push(`${lane.label}: ${notes[0]}`);
