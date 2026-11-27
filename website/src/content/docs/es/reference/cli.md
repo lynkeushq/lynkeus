@@ -1239,7 +1239,7 @@ Dice qué casos alcanzan los cambios de una rama, para ejecutar solo esos, y qu�
 
 Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que encuentra `map check`) con lo que cubre cada caso (lo que encuentra `case coverage`).
 
-Si lo que cambió es una tabla de textos (un archivo de objetos literales de textos, como las traducciones), solo cuentan los archivos que usan las claves cambiadas y los casos cuyos pasos nombran un texto cambiado. Cuando ninguna fuente escribe entera una clave cambiada, cuentan todos los que importan el archivo y una línea explica por qué. `map check`, `map impact` y `ci --affected` hacen lo mismo.
+Si lo que cambió es una tabla de textos (un archivo de objetos literales de textos, como las traducciones), solo cuentan los archivos que usan las claves cambiadas y los casos cuyos pasos nombran un texto cambiado. Cuando ninguna fuente escribe entera una clave cambiada, cuentan todos los que importan el archivo y una línea explica por qué. Si en un archivo solo cambiaron testIDs, etiquetas de accesibilidad, comentarios o formato, no alcanza ninguna pantalla: alcanza los casos cuyos pasos (o macros) nombran un testID cambiado, viejo o nuevo, o el texto de una etiqueta cambiada. `map check`, `map impact` y `ci --affected` hacen lo mismo.
 
 | Opción | Qué hace |
 |---|---|

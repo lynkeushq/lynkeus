@@ -108,6 +108,8 @@ Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus cas
 
 Cambiar un texto de las traducciones no arrastra todas las pantallas que importan ese archivo. Lynkeus reconoce una tabla de textos por su forma (objetos literales cuyas hojas son todas textos, anidados o no), sea cual sea su nombre, compara sus textos con los de la base y se queda con los archivos que usan una clave cambiada (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) y con los casos cuyos pasos nombran el texto viejo o el nuevo. Si ninguna fuente escribe entera una de las claves cambiadas (un hook atado a un prefijo, una clave armada en tiempo de ejecución), cuentan todos los que importan el archivo, como antes, y una línea dice qué clave fue.
 
+Renombrar o quitar un testID tampoco arrastra todas las pantallas. Si en un archivo solo cambiaron valores de `testID`, `nativeID`, `accessibilityLabel` o `aria-label` (o solo comentarios y formato), ese archivo no alcanza ninguna pantalla a través de sus importaciones. Alcanza los casos cuyos pasos nombran uno de esos testIDs, el viejo o el nuevo, ya sea directamente o dentro de una macro que usan, y los casos que nombran el texto de una etiqueta que cambió. Cualquier otro cambio en el archivo vuelve a contar todas las pantallas que lo importan, y los demás archivos del diff siguen alcanzando las suyas.
+
 ## Los pasos que manejan la app
 
 Los pasos `app.*` son los comandos de la terminal con otra sintaxis. Estos son los que usarás a diario:

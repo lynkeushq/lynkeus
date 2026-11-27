@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withTextCases } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withIdCases, withTextCases } from '../cases/coverage.js';
 import { draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
@@ -81,7 +81,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'The cases a branch’s changes reach, to run only those, and the reached screens no case covers',
     details:
-      'The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t(\'a.b\')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.',
+      'The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t(\'a.b\')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases whose steps or macros name a changed testID (old or new) or a changed label’s text. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.',
     flags: {
       base: { type: 'string', help: 'git ref to diff against', default: 'main', value: 'ref' },
       depth: { type: 'number', help: 'how many imports away a change still reaches a screen', default: IMPACT_DEPTH, value: 'n' },
@@ -97,13 +97,18 @@ export const coverageCommands = [
       const base = ctx.flags.base as string;
       const runtime = await runtimeAt(ctx.root);
       const changed = changedSources(ctx.root, base, ctx.err, runtime.sources);
-      const { affected, texts, notes } = await reachOfChanges(ctx.root, ctx.graph(), changed, {
+      const { affected, texts, ids, notes } = await reachOfChanges(ctx.root, ctx.graph(), changed, {
         base,
         depth: ctx.flags.depth as number,
         runtime,
         relative: runtime.sources.relative,
       });
-      const impact = withTextCases(impactOf(affected, read.coverage, entryReason(changedAppEntry(ctx.root, changed))), read.cases, texts);
+      const impact = withIdCases(
+        withTextCases(impactOf(affected, read.coverage, entryReason(changedAppEntry(ctx.root, changed))), read.cases, texts),
+        read.cases,
+        ids,
+        ctx.config.cases?.macros,
+      );
       if (ctx.flags.files) return { text: [...new Set(impact.cases.map((c) => c.file))].join('\n'), json: { ...impact, notes } };
       const lines = [
         `${changed.length} source file${changed.length === 1 ? '' : 's'} changed against ${base}; they reach ${new Set(affected.map((a) => a.route)).size} screen(s)`,

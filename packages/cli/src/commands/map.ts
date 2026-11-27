@@ -9,6 +9,7 @@ import * as edges from '../knowledge/edges.js';
 import { describePlan, plan } from '../knowledge/plan.js';
 import { type Affected, IMPACT_DEPTH, pathsTo, screensAffectedBy, vocabularyOf } from '../knowledge/query.js';
 import * as screens from '../knowledge/screens.js';
+import { type IdentifierNarrowing, narrowIdentifierChanges } from '../knowledge/identifiers.js';
 import { narrowStringTables, type StringNarrowing } from '../knowledge/stringTables.js';
 import type { ScreenGraph } from '../knowledge/types.js';
 import { define } from '../registry.js';
@@ -56,43 +57,46 @@ export const changedSources = (root: string, base: string, err: (line: string) =
 };
 
 /**
- * The screens `changed` reaches through imports, with each changed string table narrowed to the files naming its
- * changed keys (`narrowStringTables`). `base` is what the diff is against (`changedSources`); `relative` says the
- * names are from the app's folder rather than the repository's root.
+ * The screens `changed` reaches through imports. A file whose change is only testIDs or labels (`narrowIdentifierChanges`)
+ * reaches only the cases naming them, and each changed string table only the files naming its changed keys
+ * (`narrowStringTables`). `base` is what the diff is against (`changedSources`); `relative` says the names are from
+ * the app's folder rather than the repository's root.
  */
 export const reachOfChanges = async (
   root: string,
   graph: ScreenGraph,
   changed: string[],
-  options: { base: string; depth?: number; runtime: Pick<RuntimeAdapter, 'stringTable'>; relative: boolean },
-): Promise<{ affected: Affected[]; texts: StringNarrowing['texts']; notes: string[] }> => {
-  const table = options.runtime.stringTable;
+  options: { base: string; depth?: number; runtime: Pick<RuntimeAdapter, 'stringTable' | 'identifierChange'>; relative: boolean },
+): Promise<{ affected: Affected[]; texts: StringNarrowing['texts']; ids: IdentifierNarrowing['ids']; notes: string[] }> => {
+  const { stringTable: table, identifierChange } = options.runtime;
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  const narrowed = table
-    ? await (async () => {
-        try {
-          const top = options.relative ? root : git('rev-parse', '--show-toplevel').trim();
-          const at = git('merge-base', options.base, 'HEAD').trim();
-          return await narrowStringTables(changed, graph, {
-            now: (f) => (fs.existsSync(path.join(top, f)) ? fs.readFileSync(path.join(top, f), 'utf8') : undefined),
-            before: (f) => {
-              try {
-                return git('show', `${at}:${options.relative ? `./${f}` : f}`);
-              } catch {
-                return undefined;
-              }
-            },
-            table,
-          });
-        } catch {
-          return undefined;
-        }
-      })()
-    : undefined;
+  const sources = (() => {
+    if (!table && !identifierChange) return undefined;
+    try {
+      const top = options.relative ? root : git('rev-parse', '--show-toplevel').trim();
+      const at = git('merge-base', options.base, 'HEAD').trim();
+      return {
+        now: (f: string) => (fs.existsSync(path.join(top, f)) ? fs.readFileSync(path.join(top, f), 'utf8') : undefined),
+        before: (f: string) => {
+          try {
+            return git('show', `${at}:${options.relative ? `./${f}` : f}`);
+          } catch {
+            return undefined;
+          }
+        },
+      };
+    } catch {
+      return undefined;
+    }
+  })();
+  const identifiers = sources && identifierChange ? await narrowIdentifierChanges(changed, { ...sources, change: identifierChange }).catch(() => undefined) : undefined;
+  const rest = identifiers?.files ?? changed;
+  const narrowed = sources && table ? await narrowStringTables(rest, graph, { ...sources, table }).catch(() => undefined) : undefined;
   return {
-    affected: screensAffectedBy(graph, narrowed?.files ?? changed, options.depth),
-    texts: narrowed?.texts ?? [],
-    notes: narrowed?.notes ?? [],
+    affected: screensAffectedBy(graph, narrowed?.files ?? rest, options.depth),
+    texts: [...(narrowed?.texts ?? []), ...(identifiers?.labels ?? [])],
+    ids: identifiers?.ids ?? [],
+    notes: [...(identifiers?.notes ?? []), ...(narrowed?.notes ?? [])],
   };
 };
 

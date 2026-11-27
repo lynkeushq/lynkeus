@@ -2,7 +2,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { coverageOf, impactOf, readSeen, withTextCases } from '../cases/coverage.js';
+import { coverageOf, impactOf, readSeen, withIdCases, withTextCases } from '../cases/coverage.js';
 import { readCases } from '../cases/format.js';
 import { readJson } from '../files.js';
 import type { ScreenGraph } from '../knowledge/types.js';
@@ -184,7 +184,12 @@ export const ciCommands = [
         const runtime = await runtimeAt(ctx.root);
         const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, runtime.sources);
         const reach = await reachOfChanges(ctx.root, graph, changed, { base: String(ctx.flags.base), runtime, relative: runtime.sources.relative });
-        const impact = withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts);
+        const impact = withIdCases(
+          withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts),
+          cases,
+          reach.ids,
+          config.macros,
+        );
         if (!impact.reason) reach.notes.forEach(say);
         files = [...new Set(impact.cases.map((c) => c.file))];
         picked = `${files.length} of ${all.length} case files: the ones the ${changed.length} changed source file(s) against ${ctx.flags.base} reach.`;
