@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { type Bundle, fastsimBundleDir, fastsimBundler, freshBundle, rebundleCommand, staleBundle } from '../staleBundle.js';
+import { type Bundle, fastsimBundleDir, fastsimBundler, freshBundle, rebundleCommand, staleBundle, staleDeviceJs, staleJsWarning } from '../staleBundle.js';
 
 const at = (file: string, seconds: number, body = '') => {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -170,4 +170,43 @@ test('the real bundler runs and its exit code decides', async () => {
   at(path.join(root, 'index.js'), Date.now() / 1000 + 5);
   const failed = await freshBundle(`${k}/bin/fastsim-run .lynkeus/fastsim-ios {port}`, root);
   assert.match(failed.ok ? '' : failed.text, /exit 2[\s\S]*no node_modules/);
+});
+
+// Seconds on this computer's clock; the app's ages are measured at NOW.
+const NOW = 10_000;
+const device = () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-js-'));
+  at(path.join(root, 'app', 'screens', 'Home.tsx'), 9_000);
+  return root;
+};
+
+test('an app on a device whose bundle loaded after the last edit runs current code', () => {
+  const root = device();
+  assert.equal(staleDeviceJs(root, { loadedMs: 500_000 }, NOW * 1000), undefined);
+});
+
+test('an edit after the load with no Fast Refresh since is old code on the device, and the warning names the file', () => {
+  const root = device();
+  at(path.join(root, 'app', 'i18n', 'en.ts'), 9_900);
+  const stale = staleDeviceJs(root, { loadedMs: 600_000 }, NOW * 1000);
+  assert.deepEqual(stale, { newest: path.join('app', 'i18n', 'en.ts'), changedAgoS: 100, codeAgoS: 600, refreshed: false });
+  assert.match(staleJsWarning(stale!, 'iPhone 17 Pro'), /^⚠ the app on iPhone 17 Pro runs JavaScript older than app\/i18n\/en\.ts \(changed 100 s ago; .*no Fast Refresh since\)/);
+});
+
+test('a Fast Refresh after the edit makes the code current again', () => {
+  const root = device();
+  at(path.join(root, 'app', 'i18n', 'en.ts'), 9_900);
+  assert.equal(staleDeviceJs(root, { loadedMs: 600_000, refreshedMs: 50_000 }, NOW * 1000), undefined);
+});
+
+test('root config files, the cases folder and tests do not make the code on a device old', () => {
+  const root = device();
+  for (const file of ['package.json', 'lynkeus.config.json', 'tsconfig.json', 'babel.config.js', 'metro.config.js'])
+    at(path.join(root, file), 9_990);
+  at(path.join(root, 'cases', 'sign-in.json'), 9_990);
+  at(path.join(root, 'app', 'screens', 'Home.test.tsx'), 9_990);
+  assert.equal(staleDeviceJs(root, { loadedMs: 500_000 }, NOW * 1000, [path.join(root, 'cases')]), undefined);
+  // A JSON the app imports (translations) is code.
+  at(path.join(root, 'app', 'i18n', 'es.json'), 9_990);
+  assert.equal(staleDeviceJs(root, { loadedMs: 500_000 }, NOW * 1000)?.newest, path.join('app', 'i18n', 'es.json'));
 });

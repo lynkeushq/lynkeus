@@ -14,7 +14,7 @@ import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
 import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
 import { HostPids, hostsFileOf } from '../cases/hostPids.js';
 import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
-import { nextHello } from '../device/driver.js';
+import { type Device, nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { appStamp, caseVersion, Flakes, whereOf } from '../cases/flakes.js';
@@ -41,7 +41,7 @@ import {
   type TargetPlan,
   targetSlug,
 } from '../cases/onTargets.js';
-import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
+import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -533,6 +533,26 @@ export const keptOrDeleted = (dir: string, afterPush: 'keep' | 'delete', complet
 type ActiveRun = { label: string; progress?: string; stop: (why: string) => void; done: Promise<void> };
 const active = new Set<ActiveRun>();
 
+/**
+ * A warning when the app on a Simulator, emulator or phone runs JavaScript older than the app's source (an edit Fast
+ * Refresh did not apply); undefined when its code is current, it runs on a host, or its agent does not say how old it is.
+ */
+const deviceJsWarning = async (device: Device, root: string, skip: string[]): Promise<string | undefined> => {
+  if (!onPhone(device.server)) return undefined;
+  const ask = async () => {
+    const at = Date.now();
+    const pong = await device.server.call('ping', undefined, 3000);
+    return pong.js ? staleDeviceJs(root, pong.js, at, skip) : undefined;
+  };
+  let stale = await ask();
+  // A file saved a moment ago may still be on its way through Metro: one more look before calling the code old.
+  if (stale && stale.changedAgoS < 3) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    stale = await ask();
+  }
+  return stale ? staleJsWarning(stale, device.info.name) : undefined;
+};
+
 const STOP_POLL_MS = 500;
 // A host started again for `app.relaunch` boots as the case's first did: a FastSim host takes seconds, not minutes.
 const HOST_RELAUNCH_MS = 120_000;
@@ -722,6 +742,9 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   let localReport: ReturnType<typeof writeRunReport> | undefined;
   // Said again with the summary: over MCP the summary is all the caller reads.
   let rebundled: string | undefined;
+  // An app on a device running JavaScript older than the source, said again with the summary.
+  let staleJs: string | undefined;
+  let staleJsCheck: Promise<void> | undefined;
   try {
     // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
     const described = await fixtures?.describe();
@@ -812,6 +835,20 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
             .then((d) => d.resolved())
             .then((info) => startNativeLogs(info, ctx.config.app as string))
             .catch(() => undefined)
+        : undefined;
+    // Checked beside the first case, once the app attaches: waiting for it here would add the attach wait twice when no app comes.
+    staleJsCheck =
+      !dry && !hostCommand && !ctx.flags.host
+        ? ctx
+            .device()
+            .then((d) => deviceJsWarning(d, ctx.root, [path.resolve(home, config.dir ?? 'cases')]))
+            .then(
+              (warning) => {
+                staleJs = warning;
+                if (warning) ctx.err(warning);
+              },
+              () => undefined,
+            )
         : undefined;
     // Several jobs finish together only if the longest cases start first: one left for the end runs alone
     // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
@@ -1079,6 +1116,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     ...(uploaded?.url ? { report: uploaded.url } : {}),
     ...(stoppedBy ? { stopped: stoppedBy } : {}),
   });
+  await staleJsCheck;
   const nativeReads = mergeNativeValues(reports.map((r) => r.nativeValues));
   const notes = [
     ...(fatal
@@ -1093,6 +1131,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     // A push may have deleted the folder (report.afterPush: delete).
     ...(localReport && 'file' in localReport && fs.existsSync(localReport.file) ? [`report: ${localReport.file} (open it in a browser, offline)`] : []),
     ...(rebundled ? [rebundled] : []),
+    ...(staleJs ? [staleJs] : []),
     ...(out
       ? missingEvidence(reports, {
           video: !!ctx.flags.video,

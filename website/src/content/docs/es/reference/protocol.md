@@ -67,6 +67,7 @@ La app espera este mensaje para presentarse: no envía `hello` por su cuenta al 
 | `protocolVersion` | La versión del protocolo que habla la app. |
 | `agentVersion` | La versión de `lynkeus-agent` en la app. Los agentes anteriores a este campo no lo envían. |
 | `appId` | El identificador propio de la app: el bundle id en iOS, el application id en Android. La CLI lo usa para traer la app al frente o relanzarla cuando no hay `app` en `lynkeus.config.json` ni `--app`. No lo envían los agentes anteriores ni los hosts que no tienen uno. |
+| `js` | Qué edad tiene el JavaScript que corre la app, en milisegundos antes de este mensaje: `loadedMs` desde que cargó el bundle y `refreshedMs` desde el último Fast Refresh que aplicó un cambio (no está si no hubo ninguno). Son edades y no instantes, para que no importe que el reloj del dispositivo difiera del de la computadora. `ping` también lo devuelve. `case run` lo compara con el archivo fuente más reciente de la app y avisa cuando la app de un dispositivo corre código viejo. Los agentes anteriores no lo envían. |
 | `platform` | `ios`, `android` u otro texto. |
 | `native` | `true` si los toques son toques reales sintetizados. Solo ocurre en builds de depuración, sobre un simulador o un emulador. |
 | `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. Un host que puede filmar nombra aquí su comando `record`; es lo que mira `case run --video`. |
@@ -497,12 +498,16 @@ const screen = await server.call('screen');
 | `port` | `8123` | El puerto donde escucha. |
 | `host` | `127.0.0.1` | La interfaz donde escucha. |
 | `token` | ninguno | Tiene que coincidir con el `token` de la app. |
+| `goneMs` | `10000` | Cuánto esperan las llamadas a que una app que se fue vuelva a conectarse, contando desde que se fue, antes de fallar con el código `gone`. |
+| `stillRunning` | ninguna | Una función asíncrona que dice si el proceso de la app sigue vivo; se le pregunta cuando ya pasó `goneMs`. Si sigue vivo, la app está cargando su JavaScript y las llamadas esperan hasta `reloadMs` desde que se fue; después fallan con el código `loading`. La CLI se lo pregunta al simulador (`launchctl list`) o al dispositivo (`pidof`). |
+| `reloadMs` | `60000` | Cuánto esperan las llamadas a una app cuyo proceso sigue vivo, contando desde que se fue. |
 | `accepts` | cualquier app | Una función que recibe el `hello` de la app y decide si este servidor la maneja, por ejemplo `(hello) => hello.platform === 'android'`. Con ella, varios servidores de un mismo proceso pueden compartir un puerto: cada app va al servidor que la acepta o, si ninguno la acepta, al que no tiene `accepts`; si no queda ninguno, se la desconecta. Todos deben tener el mismo token. Así es como `case run --on ios,android` maneja a la vez la app del simulador de iOS y la del emulador. |
 
 | Método | Qué hace |
 |---|---|
 | `listen()` | Abre el servidor. Si el puerto está ocupado, falla con un error de código `port-in-use`. |
 | `waitForApp(timeoutMs = 15000)` | Espera el `hello` de la app y lo devuelve. |
+| `expectBack(ms)` | Avisa que la app se volvió a abrir a propósito (un reinicio): las llamadas esperan su `hello` hasta `ms` desde ahora, diga lo que diga `goneMs`. |
 | `call(method, params?, timeoutMs = 20000)` | Envía una petición y devuelve su resultado. Si no llega respuesta a tiempo, falla con un error de código `timeout`. |
 
 Los tipos de esta página (`Screen`, `Element`, `Target`, `CoreMethods` y los demás) están en el paquete `lynkeus-protocol`.

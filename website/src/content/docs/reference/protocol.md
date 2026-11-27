@@ -65,6 +65,7 @@ Neither side ever sends the token. Each proves that it holds it, with an HMAC-SH
 | `protocolVersion` | number | The protocol version the agent speaks. |
 | `agentVersion` | string | The release of `lynkeus-agent` in the app. Absent from older agents. |
 | `appId` | string | The app's own bundle identifier (iOS) or application id (Android). The CLI uses it to bring the app back or relaunch it when neither `app` in `lynkeus.config.json` nor `--app` gives one. Absent from older agents and from hosts with none. |
+| `js` | object | How old the JavaScript the app runs is, in ms before this message: `loadedMs` since the bundle loaded, `refreshedMs` since a Fast Refresh last applied an edit (absent when none has). Ages, not instants, so a device clock that differs from the computer's does not matter. `ping` answers it too. `case run` compares it with the app's newest source file and warns when the app on a device runs older code. Absent from older agents. |
 | `platform` | string | `ios`, `android`, or whatever the host reports. |
 | `native` | boolean | Whether touch synthesis is compiled in, so that presses are real touches. Debug builds only. |
 | `commands` | string[] | The commands the app answers beyond the core methods: the ones it registered with `qa.register`, and the built-in ones. The driver calls them like any method. |
@@ -535,6 +536,9 @@ await server.close();
 | `host` | `127.0.0.1` | The address to listen on. |
 | `token` | none | Must match the app's token. |
 | `reconnectGraceMs` | `2500` | How long requests in flight wait for the app to reconnect before they fail. |
+| `goneMs` | `10000` | How long calls wait for an app that left to dial back in, from when it left, before they fail with code `gone`. |
+| `stillRunning` | none | An async function that says whether the app's process still runs, asked once `goneMs` has passed. When it does, the app is loading or reloading its JavaScript, and calls wait up to `reloadMs` from when it left, then fail with code `loading`. The CLI asks the Simulator (`launchctl list`) or the device (`pidof`). |
+| `reloadMs` | `60000` | How long calls wait for an app whose process still runs, from when it left. |
 | `accepts` | any app | A function of the app's `hello` that says whether this server drives it, such as `(hello) => hello.platform === 'android'`. Servers in one process may then share a port: each app goes to the server that accepts it, else to the one without `accepts`, and an app no server takes is let go. All of them must hold the same token. This is how `case run --on ios,android` drives the iOS Simulator's app and the emulator's at once. |
 
 | Member | Meaning |
@@ -543,5 +547,6 @@ await server.close();
 | `waitForApp(timeoutMs = 15000)` | Resolves with the app's `hello`. |
 | `call(method, params?, timeoutMs = 20000)` | Sends a request and resolves with its result. Rejects with an `AgentError`, whose `code` is `timeout`, `disconnected`, or the code the app sent. |
 | `connected`, `hello` | Whether an app is attached, and what it said. |
+| `expectBack(ms)` | The app was started again on purpose (a relaunch): calls wait up to `ms` from now for its `hello`, whatever `goneMs` says. |
 | `close()` | Stops listening and fails the requests in flight. |
 | Events | `hello`, `navigation` and `disconnected`. |

@@ -154,7 +154,7 @@ export type RequestRecord = {
 export type CoreMethods = {
   ping: {
     params: undefined;
-    result: { pong: true; native: boolean; commands: string[] };
+    result: { pong: true; native: boolean; commands: string[]; js?: JsAge };
   };
   screen: { params: undefined; result: Screen };
   find: { params: Target; result: Element | null };
@@ -224,7 +224,15 @@ export type HelloEvent = {
   proof?: string;
   /** React Native's AppState when the app said hello (`active`, `background`, `inactive`); absent from older agents. */
   appState?: string;
+  /** How old the JavaScript the app runs is, so a driver can tell it from source changed since; absent from older agents. */
+  js?: JsAge;
 };
+/**
+ * The age of the JavaScript an app runs, in ms before the message that carries it (ages, not instants, so a device
+ * clock that differs from the computer's does not matter): `loadedMs` since the bundle loaded, `refreshedMs` since a
+ * Fast Refresh last applied an edit, absent when none has.
+ */
+export type JsAge = { loadedMs: number; refreshedMs?: number };
 export type NavigationEvent = { event: 'navigation'; route?: string };
 /**
  * The app's AppState changed. A phone suspends an app in the background without closing its socket, so without this

@@ -41,8 +41,11 @@ export const fastsimBundler = (command: string, cwd: string, envPath: string | u
   return undefined;
 };
 
-/** The app's newest source file and when it changed, leaving out dependencies, native projects, tests and `skip`. */
-export const newestSource = (appDir: string, skip: string[] = []): { file: string; mtimeMs: number } | undefined => {
+/**
+ * The app's newest source file and when it changed, leaving out dependencies, native projects, tests, `skip` and the
+ * files `ignore` names (by their full path).
+ */
+export const newestSource = (appDir: string, skip: string[] = [], ignore?: (file: string) => boolean): { file: string; mtimeMs: number } | undefined => {
   const skipped = new Set(skip.map((dir) => path.resolve(appDir, dir)));
   let newest: { file: string; mtimeMs: number } | undefined;
   let seen = 0;
@@ -59,7 +62,7 @@ export const newestSource = (appDir: string, skip: string[] = []): { file: strin
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (!NOT_APP_CODE.has(entry.name) && !skipped.has(full)) walk(full);
-      } else if (entry.isFile() && SOURCE.test(entry.name) && !TEST.test(entry.name)) {
+      } else if (entry.isFile() && SOURCE.test(entry.name) && !TEST.test(entry.name) && !ignore?.(full)) {
         const { mtimeMs } = fs.statSync(full);
         if (!newest || mtimeMs > newest.mtimeMs) newest = { file: full, mtimeMs };
       }
@@ -174,3 +177,34 @@ export const freshBundle = async (
     };
   return { ok: true, note: `bundled ${stale.bundle} again in ${((Date.now() - t0) / 1000).toFixed(1)} s: it was older than ${stale.newest}` };
 };
+
+// Files at the app's root that configure the tools and are not in the bundle the app runs: a change to one does not
+// make the JavaScript on a device old.
+const ROOT_CONFIG = /^(?:package|tsconfig(?:\.[\w-]+)?|app|eas|lynkeus\.config|jsconfig)\.json$|\.config\.[cm]?[jt]s$|^\.eslintrc/;
+// Metro takes a moment to rebuild and push an edit; a file saved this recently may still be on its way.
+const IN_FLIGHT_MS = 1500;
+
+export type JsAgeNow = { loadedMs: number; refreshedMs?: number };
+export type StaleJs = { newest: string; changedAgoS: number; codeAgoS: number; refreshed: boolean };
+
+/**
+ * Whether the JavaScript an app on a device runs is older than the app's source: its newest source file changed after
+ * the bundle loaded and after the last Fast Refresh. `js` was measured `atMs` (this computer's clock); undefined when
+ * the code is current or nothing tells.
+ */
+export const staleDeviceJs = (appDir: string, js: JsAgeNow, atMs: number, skip: string[] = []): StaleJs | undefined => {
+  const newest = newestSource(appDir, skip, (file) => path.dirname(file) === path.resolve(appDir) && ROOT_CONFIG.test(path.basename(file)));
+  if (!newest) return undefined;
+  const codeAt = atMs - Math.min(js.loadedMs, js.refreshedMs ?? Number.POSITIVE_INFINITY);
+  if (newest.mtimeMs <= codeAt + IN_FLIGHT_MS) return undefined;
+  return {
+    newest: path.relative(appDir, newest.file),
+    changedAgoS: Math.max(0, Math.round((atMs - newest.mtimeMs) / 1000)),
+    codeAgoS: Math.max(0, Math.round((atMs - codeAt) / 1000)),
+    refreshed: js.refreshedMs !== undefined,
+  };
+};
+
+/** The warning a run gives about an app on a device running older JavaScript than its source. */
+export const staleJsWarning = (stale: StaleJs, where: string): string =>
+  `⚠ the app on ${where} runs JavaScript older than ${stale.newest} (changed ${stale.changedAgoS} s ago; the app's code is from ${stale.codeAgoS} s ago, its ${stale.refreshed ? 'last Fast Refresh' : 'load, with no Fast Refresh since'}): the cases test the code as it was. Reload the app (r in Metro, or relaunch it), check that Fast Refresh is on and Metro reaches the app, then run again`;

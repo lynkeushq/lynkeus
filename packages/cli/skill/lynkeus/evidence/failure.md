@@ -4,3 +4,4 @@
 - `why` reads the screen, the requests and the trace as rules and says why the last step failed; after a missing text it names the closest text on screen and, with uncommitted changes, the line that took it out.
 - In `cases.jsonl` a failed `app.see` or `app.wait` keeps a `looked` object: every element at the failure and each scroll it made.
 - A failed case runs once more before it counts as failed (`--once` turns that off). A case is flaky only when runs of the same version of it disagree.
+- `⚠ the app on <device> runs JavaScript older than <file>`: an edit Fast Refresh did not apply, so the run tested old code. Reload the app (r in Metro, or relaunch it) and run again before trusting it.

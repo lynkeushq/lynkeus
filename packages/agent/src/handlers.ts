@@ -4,6 +4,7 @@ import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
 import { openedSince } from './opened';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
+import { jsAge } from './jsAge';
 import { host } from './registry';
 import { recentRequests, requestsHeld, requestsInFlight } from './requests';
 import { lastSeq, traceSince } from './trace';
@@ -508,7 +509,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   };
 
   const handlers: Handlers = {
-    ping: () => ({ pong: true, native: backend.native, commands: host.commands() }),
+    ping: () => ({ pong: true, native: backend.native, commands: host.commands(), js: jsAge() }),
     screen,
     find,
     press,
