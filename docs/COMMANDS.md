@@ -247,6 +247,18 @@ The first thing to call in a project you do not know: each line that fails says 
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
 
+### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild]`
+
+From a fresh app to an attached one, in one call: init, the device, Metro, the development build, launch, attach, status
+
+Does what connecting an app takes: `init` when the agent is not set up; for each platform (`--platform`, else the ios and android in cases.targets, else the app's), the device (a booted Simulator, a running emulator or phone; one the project names, `device` for a Simulator or `avd` for an emulator in lynkeus.config.json, is booted when none is up, and said); Metro, started with its own log when it is not running; the project's own build (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), unless the build it made last is installed and attaches; the launch, and the wait for the app to attach; then `status`. Safe to run again: a step already done is said and skipped. The answer is a line per step; logs, init's and status's whole answers are in .lynkeus/runs/setup. A failed step answers with its last log lines and the log's path. It never wipes a device, and boots only one the project or `--device` names.
+
+| Flag | |
+|---|---|
+| `--platform <name>` | ios, android or both (default: those in cases.targets, else the app's) |
+| `--device <name>` | with one platform: Simulator name or udid, AVD name, or adb serial; one not up is booted |
+| `--rebuild` | build even when the last build is installed |
+
 ### `lynkeus guide [topic] [section]`
 
 How to work with Lynkeus, one short section per call: the Lynkeus skill's text, for what the MCP instructions leave out
@@ -681,7 +693,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]`
+### `lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--brief] [--verbose] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
@@ -731,6 +743,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
 | `--idle <share>` | with --ahead: start a setup only while this share of the CPU is idle (default `0.25`) |
 | `--dry-run` | parse and list the steps without running them |
+| `--brief` | with --on: only the cases that did not pass, each target's count and notes cut to a line (a suite on several targets) |
 | `--verbose` | a failed case with its whole screen, every request and its full error; without it the screen is cut to what a check can name, and a notice the last run gave is not repeated |
 | `--progress <json|none>` | how the run says where it is, besides <out>/progress.ndjson (`case status` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal |
 
@@ -778,6 +791,24 @@ Write an example case, the reference of the format and a fixtures server to star
 | Flag | |
 |---|---|
 | `--force` | overwrite what is there |
+
+### `lynkeus evidence [files]… [--on <targets>] [--host] [--out <dir>] [--no-video] [--push]`
+
+Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong
+
+The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), and a frame taken while a system view or another app was in front. The run's whole answer is in answer.txt beside the report.
+
+| Argument | |
+|---|---|
+| `files` | case files (default: every case in cases.dir) (optional) |
+
+| Flag | |
+|---|---|
+| `--on <targets>` | as case run --on (default: the attached app) |
+| `--host` | headless, in Node |
+| `--out <dir>` | the run folder (default .lynkeus/runs/evidence/<time>) |
+| `--no-video` | no film |
+| `--push` | upload to the reports service |
 
 ### `lynkeus case coverage [--route <Route>] [--seen <dir>]`
 

@@ -418,6 +418,29 @@ Después viene **Where cases can run on this machine**: dónde pueden correr los
 
 Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` en cada emulador y teléfono Android, para que la app llegue a Lynkeus también por `localhost`. Y en una app con `expo-dev-client` marca como vista la pantalla de bienvenida del menú de desarrollo y oculta su botón flotante, en cada simulador y emulador donde la app está instalada: las dos son vistas nativas que tapan la app y ningún paso puede tocar. El cambio vale desde el próximo arranque de la app. Lo mismo pasa una vez cuando una app se conecta desde un simulador o un emulador.
 
+### `lynkeus setup`
+
+```bash
+lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild]
+```
+
+Deja una app conectada partiendo de cero, con un solo comando. Es lo que un agente de IA debería llamar en vez de compilar, levantar Metro y usar `simctl` o `adb` desde su terminal. Hace esto, en orden:
+
+1. **`init`**, si [`lynkeus status`](#lynkeus-status) ve que al proyecto le falta el agente. Lo que contesta `init` queda completo en `.lynkeus/runs/setup/init.txt`.
+2. **El dispositivo**, por plataforma. Las plataformas salen de `--platform`; si no lo pasas, de los `ios` y `android` que haya en `cases.targets`; y si tampoco, de las que compila la app (iOS solo en una Mac). Usa un simulador encendido o un emulador o teléfono conectado, y prefiere el que nombran `--device` o la configuración. Si no hay ninguno, enciende únicamente el que nombra el proyecto: `device` (nombre o UDID de un simulador) o `avd` (un emulador) en `lynkeus.config.json`, o `--device`. Avisa qué encendió y con qué comando apagarlo. Nunca borra los datos de un dispositivo.
+3. **Metro**, si nadie responde en el puerto 8081 (o en `RCT_METRO_PORT`): `npx expo start --dev-client` o `npx react-native start`, con la caché limpia cuando `init` acaba de cambiar la app. Su log queda en `.lynkeus/runs/setup/metro.log`. Si ya había un Metro corriendo antes de que `init` cambiara la app, `setup` se detiene y te pide cerrarlo: ese Metro le daría a la app un bundle sin el token.
+4. **La compilación de desarrollo**, con el comando del propio proyecto: `npx expo run:ios --device <udid> --no-bundler`, `npx expo run:android --device <avd> --no-bundler`, `npx react-native run-ios --udid <udid> --no-packager` o `npx react-native run-android --deviceId <serie> --no-packager`. El log va a `.lynkeus/runs/setup/build-<plataforma>.log`. Si la última compilación que hizo `setup` sigue instalada y no cambió nada de lo que la afecta (las dependencias, `app.json`, `.env.local`), abre esa en lugar de compilar; con `--rebuild` compila igual.
+5. **Abrir la app y esperar que se conecte**. La compilación ya abre la app; si en dos minutos no se conectó, `setup` la abre una vez más y vuelve a esperar.
+6. **`status`**. Al final de la respuesta van sus líneas con `✗` y su recomendación; la salida entera queda en `.lynkeus/runs/setup/status.txt`.
+
+Si la app de esa plataforma ya está conectada, se salta la compilación y el arranque, así que repetir `setup` sale barato. Responde con una línea por paso. Cuando un paso falla, trae las últimas líneas del log que explican el error (hasta 15) y la ruta del log. Por MCP, los pasos largos mandan notificaciones de progreso a los clientes que las piden.
+
+| Opción | Qué hace |
+|---|---|
+| `--platform <nombre>` | `ios`, `android` o las dos (repite la opción o sepáralas con comas). |
+| `--device <nombre>` | Solo con una plataforma. El simulador (nombre o UDID), el emulador (nombre del AVD o número de serie de `adb`) o el teléfono (número de serie). Si es un simulador o un AVD y no está encendido, lo enciende. |
+| `--rebuild` | Compila aunque la última compilación de `setup` esté instalada. |
+
 ### `lynkeus guide`
 
 ```bash
@@ -1045,6 +1068,7 @@ Opciones que deciden qué se ejecuta y cómo:
 | `--epoch <iso>` | El instante en que empieza el reloj de la app en un host que lanza la ejecución, en ISO 8601 o en milisegundos desde 1970. Por defecto `launch.epoch`, y luego `LYNKEUS_EPOCH`. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
+| `--brief` | Con `--on`, muestra solo los casos que no pasaron (o que pasaron al reintentar), el conteo de cada destino y la primera línea de cada nota. Sirve para una suite en varios destinos, donde treinta líneas en verde no aportan nada. |
 | `--verbose` | Muestra entero el caso que falla: el error completo, toda la pantalla y todas las peticiones. Sin esta opción, de la pantalla queda lo que nombraría una comprobación (las filas de una lista contadas, testIDs y controles primero), solo aparecen las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y un aviso idéntico al de la ejecución anterior en el mismo proceso ocupa una línea. `cases.jsonl`, `--report` y `--json` guardan todo siempre. |
 | `--prepared <dir>` | Dónde deja `case prepare` los `setup` hechos por adelantado. Un caso que encuentra el suyo allí se lo salta. |
 
@@ -1175,6 +1199,28 @@ Con `--host`, el host de la ejecución puede morir en un caso (se quedó sin mem
 - Antes de cada caso se le pregunta además cuánto heap usa (aparece una línea `host: heap 1520 MB of 4096 MB` en el log). Si pasa de `--host-heap` por ciento de su límite (60 si no dices otra cosa), se arranca de nuevo antes de empezar el caso, para que ninguno empiece en un host a punto de quedarse sin memoria.
 
 Con `--jobs` y `--host-command` sin `--keep-hosts`, cada caso ya tiene un host nuevo, y esto no aplica. Con `--keep-hosts`, la misma revisión se hace por job: el host de un job que murió se arranca de nuevo antes del caso siguiente, y solo se pierde el caso que lo tenía, no todos los que venían después.
+
+### `lynkeus evidence`
+
+```bash
+lynkeus evidence [files]… [--on <destinos>] [--host] [--out <carpeta>] [--no-video] [--push]
+```
+
+Corre los casos guardando todo lo que una persona revisa (una captura después de cada paso, un video por caso y `report.html`) y en la respuesta pone solo lo necesario para encontrarlo:
+
+- dónde quedó cada `report.html` (uno por destino si usas `--on`);
+- una línea por caso con su resultado en cada destino y, si falló, en qué destino, en qué paso y la primera línea del error;
+- las capturas sospechosas: una acción (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) cuya captura es idéntica a la del paso anterior, o sea que no cambió nada en pantalla; y una captura tomada mientras la app estaba inactiva o en segundo plano en un simulador o emulador, que muestra una vista del sistema u otra app en lugar de la tuya.
+
+Por debajo es `case run --out <carpeta> --screenshots --video`, en los destinos que diga `--on` (igual que en [`case run`](#lynkeus-case-run)), en la app conectada, o sin pantalla con `--host`. La corrida queda en `.lynkeus/runs/evidence/<hora>` salvo que `--out` diga otra cosa, y ahí mismo se guarda la respuesta completa de la corrida en `answer.txt`.
+
+| Opción | Qué hace |
+|---|---|
+| `--on <destinos>` | Como en `case run --on`. Sin ella, la app conectada. |
+| `--host` | Levanta la app en Node para la corrida. No va con `--on`. |
+| `--out <carpeta>` | Dónde guardar la corrida. |
+| `--no-video` | Solo capturas, sin video. |
+| `--push` | Sube la corrida al servicio de reportes y muestra su dirección. |
 
 ### `lynkeus case status`
 

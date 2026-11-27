@@ -107,6 +107,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 |---|---|---|---|
 | `port` | número | `8123` | El puerto donde escucha el driver y al que se conecta la app. La variable `LYNKEUS_PORT` lo reemplaza. |
 | `device` | texto | el primer simulador encendido | El UDID o el nombre del simulador. Un nombre parcial también sirve: `"iPhone 16"` encuentra `iPhone 16 Pro`. Lo reemplazan `--device` y `LYNKEUS_DEVICE`. |
+| `avd` | texto | ninguno | El nombre del AVD del emulador Android que enciende [`lynkeus setup`](/es/reference/cli/#lynkeus-setup) cuando no hay ningún emulador ni teléfono conectado. `setup` no enciende un emulador que el proyecto no nombre, y un simulador solo si lo nombra `device`. |
 | `app` | texto | ninguno | El bundle id (iOS) o application id (Android). Lo usan `launch`, `--launch` y los comandos del simulador. Lo reemplazan `--app` y `LYNKEUS_APP_ID`. |
 | `attachTimeout` | número (ms) | `15000` | Cuánto esperar a que la app se conecte. Lo reemplazan `--attach-timeout` y `LYNKEUS_ATTACH_TIMEOUT_MS`. |
 

@@ -44,7 +44,9 @@ Configura lynkeus en esta app.
 
 Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo. De paso deja el [skill de Lynkeus](#el-skill-de-lynkeus) en `.claude/skills/lynkeus` y dos [subagentes](#subagentes-para-el-trabajo-de-rutina) en `.claude/agents`.
 
-El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
+El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo. Para eso está la herramienta `setup`, que lo hace todo en una sola llamada: corre `init` si hace falta y, por cada plataforma, elige el dispositivo, levanta Metro si no está corriendo (con su propio log), compila con el comando del proyecto (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), abre la app, espera a que se conecte y al final llama a `status`. Contesta con una línea por paso; los logs de la compilación y de Metro, y lo que dijeron `init` y `status`, quedan en `.lynkeus/runs/setup`. Si un paso falla, trae las últimas líneas del log que lo explican y la ruta del archivo. Después de arreglar algo se puede volver a llamar: lo que ya estaba hecho se anuncia y se salta.
+
+Las plataformas salen del argumento `platform`, o de los `ios` y `android` de `cases.targets`, o de lo que compila la app. El dispositivo es un simulador encendido o un emulador o teléfono conectado; si no hay ninguno, `setup` enciende solo el que nombra el proyecto (`device` para un simulador, `avd` para un emulador, en `lynkeus.config.json`) y lo avisa, para que el agente lo apague al terminar. Nunca borra un dispositivo. Mientras compila, informa el progreso a los clientes que lo piden.
 
 Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
 
@@ -84,8 +86,8 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 32 | 7200 tokens |
-| `lynkeus mcp --full` | las 62 | 10 700 tokens |
+| `lynkeus mcp` | 34 | 7700 tokens |
+| `lynkeus mcp --full` | las 64 | 11 500 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea grabar o tomar snapshots.
 
@@ -94,13 +96,15 @@ Las herramientas básicas son:
 | Herramienta | Qué hace |
 |---|---|
 | `status` | Qué tiene el proyecto de Lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
+| `setup` | Conecta la app de una vez: `init`, el dispositivo, Metro, la compilación de desarrollo, el arranque, la espera hasta que se conecta y `status`. Una línea por paso; los logs, en `.lynkeus/runs/setup`. |
 | `init` | Instala el agente de Lynkeus, lo monta y crea el token del proyecto. |
 | `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
 | `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
 | `fastsim_install` | Baja Lynkeus FastSim para esta máquina y una plataforma (`ios` o `android`), para las organizaciones cuyo plan lo incluye. Su README explica cómo correr casos con `case_run` y `host_command`. Ver [Correr casos en Lynkeus FastSim](/es/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Arrancan un host de Lynkeus FastSim sobre un bundle y le conectan el servidor, para que `screen`, `press` y `type` recorran la app en FastSim antes de escribir un caso; y lo detienen. |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
-| `case_run` | Corre casos, de a uno o en paralelo. Uno que pasa ocupa una línea; uno que falla vuelve con su paso, su pantalla y su motivo (con `verbose`, completo). |
+| `case_run` | Corre casos, de a uno o en paralelo. Uno que pasa ocupa una línea; uno que falla vuelve con su paso, su pantalla y su motivo (con `verbose`, completo). Con `on: targets` y `brief`, una suite en varios destinos devuelve solo lo que no pasó y el conteo de cada destino. |
+| `evidence` | Corre casos con una captura por paso, un video por caso y `report.html`, y responde solo con la ruta del reporte, el resultado de cada caso en cada destino y las capturas sospechosas (una acción que no cambió la pantalla, una vista del sistema delante de la app). |
 | `case_status` | En qué va una corrida: casos terminados, qué corre cada trabajo y en qué sección, cuánto falta. |
 | `case_here` | Arma un caso con la pantalla que la app muestra ahora, con verificaciones que ya pasan. |
 | `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar (el camino de un caso que ya llega, si lo hay), qué preparar, qué falta verificar. |
@@ -240,7 +244,7 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 **El cliente no muestra herramientas.** El servidor no arrancó. Ejecuta `npx lynkeus mcp --root /ruta/a/tu/app` a mano para ver el error; lo habitual es una ruta equivocada.
 
-**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
+**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. `setup` ya arranca Metro con la caché limpia, y si encuentra uno que no levantó él, se detiene y lo dice. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
 
 **`map_plan` no devuelve indicaciones.** Ese camino no está escrito en el código de forma que se pueda leer. Haz que el agente llame a `crawl` desde la pantalla de partida, o desde una cerca del destino, y que vuelva a pedir el camino.
 

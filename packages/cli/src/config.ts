@@ -102,6 +102,8 @@ export type LynkeusConfig = {
   port?: number;
   /** Simulator udid or name. */
   device?: string;
+  /** The Android emulator (its AVD name) `setup` starts when no emulator or phone is up; it starts none the project does not name. */
+  avd?: string;
   /** Bundle id or application id. */
   app?: string;
   /** What a pushed run's local folder becomes: kept (the default), or deleted once the service has every file. */

@@ -50,6 +50,12 @@ export const progressNotifier = (send: (params: { progress: number; total?: numb
   };
 };
 
+/** A job's lines as MCP progress notifications: no total to count against, so the value counts the lines, and only grows. */
+export const jobNotifier = (send: (params: { progress: number; message: string }) => void) => {
+  let n = 0;
+  return (message: string) => send({ progress: ++n, message });
+};
+
 // Written by hand: a schema library adds fields to every tool that a model pays for on every turn.
 export const schemaFor = (c: Command) => {
   const properties: Record<string, Property> = {};
@@ -172,6 +178,9 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
         ? {}
         : {
             progress: progressNotifier((params) => {
+              void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
+            }),
+            notify: jobNotifier((params) => {
               void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
             }),
           }),

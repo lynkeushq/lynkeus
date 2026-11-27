@@ -32,6 +32,9 @@ export { readRouteParams } from '../knowledge/route-params.js';
 /** The TypeScript reader brings a compiler with it: only a command that builds the graph pays for loading it. */
 export const reactNativeExtractor = () => import('../knowledge/extract.js');
 
+/** The simulator, emulator or phone `setup` builds for: `avd` is an emulator's AVD name, which some build tools want instead of its serial. */
+export type BuildDevice = { platform: 'ios' | 'android'; id: string; name: string; type: 'simulator' | 'emulator' | 'physical'; avd?: string; only: boolean };
+
 /** What the core asks a runtime, instead of asking which runtime a folder is. */
 export type RuntimeAdapter = {
   id: RuntimeId;
@@ -70,6 +73,12 @@ export type RuntimeAdapter = {
   fastsimBuild: (platform: string) => string;
   /** What a host started with `--host-command` reads from the environment. */
   hostCommandEnv: (config: LynkeusConfig) => Record<string, string>;
+  /**
+   * `setup`: the project's own commands that build a development build, install it on `device` and open it there
+   * without starting a bundler, and that start the bundler (Metro). Without them, setup stops after init.
+   */
+  devBuild?: (root: string, device: BuildDevice) => string[];
+  bundler?: (root: string, o: { port: number; resetCache: boolean }) => string[];
   /** How the case runner reaches what a step names. */
   runner: {
     /** A control just below the window is reached in short pulls rather than screenfuls. */

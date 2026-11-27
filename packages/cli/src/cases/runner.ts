@@ -254,6 +254,9 @@ const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'p
   return spent.length > 0 ? { phases: Object.fromEntries(spent) } : {};
 };
 
+/** How a case's warnings start for a frame that shows something other than the app; `evidence` lists them. */
+export const FRAME_NOT_APP = 'frame not of the app';
+
 // Below this a step's time needs no explaining in the console; the run's files keep its phases either way.
 const SLOW_STEP_MS = 500;
 // A step that spends longer than this finding its target is said in the case's warnings, passed or not: the time is
@@ -1728,6 +1731,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (taken && (encoding.includes(file) || fs.existsSync(file))) {
         report.screenshot = file;
         lastFrame = { file, shape };
+        // The OS tells the agent when something covers the app (a permission prompt, another app): a frame then is
+        // not of the app. Read from what the app last said, so it costs no call.
+        const state = onPhone(d.server) ? d.server.appState : undefined;
+        if (state === 'inactive' || state === 'background')
+          warn(`${FRAME_NOT_APP} at step ${index} (${report.step}): the app was ${state}, so a system view or another app is in front`);
         if (file.endsWith('.png') && evidence.frames !== 'png') {
           const taken = file;
           compacting.push(
