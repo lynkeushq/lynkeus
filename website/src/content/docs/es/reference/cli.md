@@ -359,7 +359,7 @@ La grabación está apagada hasta que la inicias, así que una app que nunca la 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install]
+lynkeus init [--no-install] [--no-skill]
 ```
 
 Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
@@ -367,6 +367,7 @@ Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agen
 | Opción | Qué hace |
 |---|---|
 | `--no-install` | No agrega `lynkeus-agent` a la app; solo lo monta. |
+| `--no-skill` | No instala el skill de Lynkeus. |
 
 Lo que hace depende del proyecto:
 
@@ -393,6 +394,8 @@ No repite un cambio que ya está: `index.js already mounts the agent`, `babel.co
 
 El plugin es lo que hace llegar el token a una app de React Native. Lo explica la [API del agente](/es/reference/agent-api/#el-token-tiene-que-llegar-a-la-app).
 
+Por último deja el skill de Lynkeus en `.claude/skills/lynkeus`, igual que [`lynkeus skill install`](#lynkeus-skill-install). Conviene sumarlo al repositorio.
+
 ### `lynkeus status`
 
 ```bash
@@ -410,6 +413,26 @@ Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o 
 Después viene **Where cases can run on this machine**: dónde pueden correr los casos en esta máquina. Muestra los simuladores de iOS encendidos, los emuladores y teléfonos Android que lista `adb devices`, si la app puede correr sin pantalla y si Lynkeus FastSim está instalado. La última línea recomienda qué usar en el día a día y qué usar en CI.
 
 Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` en cada emulador y teléfono Android, para que la app llegue a Lynkeus también por `localhost`. Y en una app con `expo-dev-client` marca como vista la pantalla de bienvenida del menú de desarrollo y oculta su botón flotante, en cada simulador y emulador donde la app está instalada: las dos son vistas nativas que tapan la app y ningún paso puede tocar. El cambio vale desde el próximo arranque de la app. Lo mismo pasa una vez cuando una app se conecta desde un simulador o un emulador.
+
+### `lynkeus guide`
+
+```bash
+lynkeus guide [tema]
+```
+
+Muestra un tema del skill de Lynkeus: `cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`. Sin tema, muestra el índice, con el camino barato para escribir un caso y qué cubre cada tema. Por MCP es la herramienta `guide`, pensada para los clientes que no cargan skills. Más detalles en [Agentes de IA](/es/guides/ai-agents/#el-skill-de-lynkeus).
+
+### `lynkeus skill install`
+
+```bash
+lynkeus skill install [--force]
+```
+
+Instala el skill de Lynkeus en `.claude/skills/lynkeus`, o lo lleva a la versión de esta CLI. [`lynkeus init`](#lynkeus-init) también lo hace. En `.lynkeus-skill.json` el skill guarda qué archivos escribió Lynkeus y con qué contenido. Si alguno cambió o ya no está, o si la carpeta no la escribió Lynkeus, no toca nada y avisa.
+
+| Opción | Qué hace |
+|---|---|
+| `--force` | Reemplaza el skill aunque alguien haya cambiado sus archivos. |
 
 ## Sistema operativo (`os`)
 

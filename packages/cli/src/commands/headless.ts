@@ -19,6 +19,7 @@ import { installedFastsim } from './fastsim.js';
 import { runHost } from './hostProcess.js';
 import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
 import { machineTargets, runTargets } from './runTargets.js';
+import { installSkill } from './skill.js';
 import { headlessEntryOf } from './appEntry.js';
 import { detectApiEnv, setupMocks, transformIgnorePattern } from './appEnv.js';
 
@@ -221,13 +222,17 @@ export const headlessCommands = [
     group: 'drive',
     summary: "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
     details:
-      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
-    flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
+      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.',
+    flags: {
+      'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' },
+      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill out' },
+    },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
       const runtime = await runtimeAt(ctx.root);
       const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
+      if (!ctx.flags['no-skill']) lines.push(installSkill(ctx.root).text);
       return { text: lines.join('\n'), json: lines };
     },
   }),

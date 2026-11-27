@@ -20,6 +20,7 @@ import { fastsimCommands } from './commands/fastsim.js';
 import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
+import { skillCommands } from './commands/skill.js';
 import { configReader, edgesFile, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { devMenuOnAttach } from './device/devMenu.js';
@@ -44,6 +45,7 @@ register([
   ...fastsimCommands,
   ...loginCommands,
   ...headlessCommands,
+  ...skillCommands,
 ]);
 
 /** The global flags, read leniently from the whole argv before any command parses its own. */

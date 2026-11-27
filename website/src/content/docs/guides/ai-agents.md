@@ -42,7 +42,7 @@ Ask the agent, in plain words:
 Set lynkeus up in this app.
 ```
 
-The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file.
+The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file. It also installs the [Lynkeus skill](#the-lynkeus-skill) in `.claude/skills/lynkeus`.
 
 The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
 
@@ -82,8 +82,8 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 30 core tools | About 6,200 tokens |
-| `npx lynkeus mcp --full` | All 60 commands | About 9,500 tokens |
+| `npx lynkeus mcp` | The 32 core tools | About 7,200 tokens |
+| `npx lynkeus mcp --full` | All 62 commands | About 10,700 tokens |
 
 Start with the core. Add `--full` for an agent whose job is recording or snapshots.
 
@@ -116,6 +116,7 @@ Start with the core. Add `--full` for an agent whose job is recording or snapsho
 | `map_show` | The testIDs and navigations a screen is likely to have, read from source. |
 | `map_plan` | Directions from one route to another: which buttons to press, screen by screen. |
 | `crawl` | Presses the controls on the current screen and records where each one leads. Short by default: one level, 12 presses. |
+| `guide` | One topic of the [Lynkeus skill](#the-lynkeus-skill), for a client that does not load skills. |
 
 A tool takes its command's arguments and most of its flags. A few that a model rarely needs, such as `--nth` and `--hold` on `press`, are left out of the core tools to keep their definitions small. Tool names are the command names with spaces replaced by underscores.
 
@@ -169,6 +170,17 @@ Two points from that text deserve an explanation.
 **Why `screen` and not `screen --json`.** An average screen reads in about 250 tokens in the text form. The JSON form is several times larger and carries nothing a model needs; it is for programs. With a sheet open, what the sheet covers is not in the listing at all.
 
 **Why `why` and not `screen` after a failure.** Reading the screen again costs as much and says less. `why` reads the screen, the last requests and the trace as rules, and returns the conclusion. When a tool call fails over MCP, the error already carries that diagnosis.
+
+## The Lynkeus skill
+
+The instructions the server gives the model when it connects are short on purpose: a client reads them again with every call, so each extra line is paid for many times in a session. The rest of what an agent needs to write good cases is in the Lynkeus skill, which costs nothing until a task needs it. It covers the case format and how texts match, macros and `on:` blocks, `app.relaunch`, the targets and how to run cases side by side, evidence and how to share a run, CI, and runs that repeat exactly.
+
+`lynkeus init` installs it in `.claude/skills/lynkeus` and says so in its output. Commit that folder, so everyone who works on the app has it. Claude Code and other clients that load Agent Skills keep only its one-line description in context, and read a topic file when a task calls for it.
+
+- `lynkeus init --no-skill` leaves it out.
+- `lynkeus skill install` brings it to the version of the CLI you run. Lynkeus records what it wrote in `.lynkeus-skill.json`; when you changed one of the files, it leaves the skill alone and names the file. `--force` replaces it anyway.
+
+A client that does not load skills reads the same text through the `guide` tool. `guide` with `topic` set to `cases`, `targets`, `evidence`, `ci`, `determinism` or `troubleshooting` answers that topic, and without a topic it answers the index. The server's instructions tell the model to read the topic it needs before guessing. In a terminal, `npx lynkeus guide cases` prints the same text.
 
 ## A sample exchange
 
