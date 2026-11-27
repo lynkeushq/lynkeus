@@ -310,7 +310,7 @@ const lockfileOf = (root: string): { manager: Manager; dir: string } => {
   }
 };
 
-const managerOf = (root: string): Manager => lockfileOf(root).manager;
+export const managerOf = (root: string): Manager => lockfileOf(root).manager;
 
 /** The pnpm that laid out node_modules, as it wrote itself into node_modules/.modules.yaml (`packageManager: pnpm@9.15.9`). */
 export const pnpmThatInstalled = (root: string): string | undefined => {

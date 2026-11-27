@@ -7,7 +7,10 @@ import { test } from 'node:test';
 import type { Screen } from 'lynkeus-protocol';
 
 import { diffGraphs, newFindings } from '../commands/check.js';
-import { ciVersion, mapCheckWorkflow } from '../commands/map.js';
+import { casesJobPlan, ciVersion, mapCheckWorkflow, mapCommands } from '../commands/map.js';
+import type { LynkeusConfig } from '../config.js';
+import { register } from '../registry.js';
+import { execute } from '../runtime.js';
 import { summarizeRuns } from '../commands/flake.js';
 import type { FlowReport } from '../flow/types.js';
 import { lintScreen } from '../knowledge/lint.js';
@@ -112,4 +115,75 @@ test('the map check workflow runs the lynkeus range the app depends on, never a 
   assert.equal(ciVersion(app({ devDependencies: { lynkeus: 'file:../lynkeus' } }), '0.7.6').range, '^0.7.6');
   assert.deepEqual(ciVersion(app({}), '0.7.6'), { range: '^0.7.6' });
   assert.equal(ciVersion(app({}), '0.7.7-dev.1').range, '^0.7.7');
+});
+
+test('map ci --cases adds a job that runs the affected cases on the CI targets, installing and bundling FastSim first', () => {
+  const plan = casesJobPlan({ cases: { targets: ['fastsim:ios', 'fastsim:android', 'ios'] }, ci: { push: true } });
+  assert.ok(typeof plan !== 'string');
+  assert.deepEqual(plan, {
+    declared: true,
+    targets: ['fastsim:ios', 'fastsim:android'],
+    secrets: ['LYNKEUS_TOKEN', 'LYNKEUS_CLOUD_KEY', 'LYNKEUS_REPORTS_KEY'],
+    backend: false,
+  });
+  const yml = mapCheckWorkflow(4, '^0.7.7', { ...plan, manager: 'pnpm' });
+  assert.match(yml, /\n {2}cases:\n {4}runs-on: ubuntu-latest\n {4}env:\n {6}LYNKEUS_TOKEN: \$\{\{ secrets\.LYNKEUS_TOKEN \}\}/);
+  assert.match(yml, /- run: corepack enable && pnpm install --frozen-lockfile/);
+  assert.match(yml, /'lynkeus@\^0\.7\.7' fastsim install --platform ios --json/);
+  assert.match(yml, /"\$kit\/bin\/fastsim-bundle" \. \.lynkeus\/fastsim-android android/);
+  assert.match(yml, /run: npx --yes 'lynkeus@\^0\.7\.7' ci --affected --base origin\/\$\{\{ github\.base_ref \}\}/);
+  assert.doesNotMatch(mapCheckWorkflow(4, '^0.7.7'), /cases:/);
+  const headless = casesJobPlan({ cases: { targets: ['headless'] }, ci: { backend: { up: 'up' } } });
+  assert.deepEqual(headless, { declared: true, targets: ['headless'], secrets: ['LYNKEUS_TOKEN'], backend: true });
+  assert.match(String(casesJobPlan({ cases: { targets: ['web'] } })), /web is not a target/);
+});
+
+test('map ci hints at --cases when the project has CI targets, and refuses --cases with none a job can start', async () => {
+  register(mapCommands);
+  const run = (config: LynkeusConfig, args: string[] = []) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-cases-'));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { lynkeus: '^0.7.7' } }));
+    return execute(['map', 'ci', ...args], {
+      root,
+      config,
+      attached: true,
+      err: () => undefined,
+      graph: () => {
+        throw new Error('no graph');
+      },
+      device: async () => {
+        throw new Error('no app');
+      },
+    }).then((r) => ({ ...r, yml: fs.readFileSync(path.join(root, '.github', 'workflows', 'lynkeus-map-check.yml'), 'utf8') }));
+  };
+  const hinted = await run({ cases: { targets: ['fastsim:ios', 'ios'] } });
+  assert.equal(hinted.code ?? 0, 0);
+  assert.match(
+    hinted.text ?? '',
+    /\n--cases would also run the cases each pull request reaches on fastsim:ios \(`lynkeus ci --affected`\); that job needs LYNKEUS_TOKEN, LYNKEUS_CLOUD_KEY in the repository's secrets and a backend \(ci\.backend\)$/,
+  );
+  assert.doesNotMatch(hinted.yml, /\n {2}cases:/);
+  const quiet = await run({ cases: { targets: ['ios'] } });
+  assert.doesNotMatch(quiet.text ?? '', /--cases/);
+  const added = await run({ cases: { targets: ['headless'] }, ci: { backend: { up: 'up' } } }, ['--cases']);
+  assert.match(
+    added.text ?? '',
+    /with a cases job\)\nthe cases job runs `lynkeus ci --affected` on headless; it needs LYNKEUS_TOKEN in the repository's secrets$/,
+  );
+  assert.match(added.yml, /\n {2}cases:/);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-none-'));
+  const refused = await execute(['map', 'ci', '--cases'], {
+    root,
+    config: { cases: { targets: ['ios', 'android'] } },
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => {
+      throw new Error('no app');
+    },
+  });
+  assert.equal(refused.code, 2);
+  assert.match(refused.text ?? '', /no target a CI job can start/);
 });

@@ -264,6 +264,10 @@ anything it did not mean to.
 
 `lynkeus map ci` writes a GitHub workflow that does this on every pull request
 and keeps one comment on it up to date with the screens the diff reaches.
+`--cases` adds a job that runs the cases the diff reaches (`lynkeus ci
+--affected`) on the project's CI targets in `cases.targets`; it is opt-in, as
+it needs the app's backend and, for FastSim, a key in the CI secrets, and
+`map ci` says what it would add when the project has such targets.
 
 ## Knowledge travels in the pull request
 

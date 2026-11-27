@@ -508,16 +508,17 @@ Screens a change can reach, nearest first
 | `--depth <n>` | how many imports away to look (default `4`) |
 | `--direct` | only the screen and its importers |
 
-### `lynkeus map ci [--force] [--depth <n>]`
+### `lynkeus map ci [--force] [--depth <n>] [--cases]`
 
 Write a GitHub workflow that comments on each pull request which screens its diff reaches
 
-Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--force` overwrites an existing file.
+Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--cases` adds a job that runs the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (headless and FastSim in cases.targets; for FastSim it installs the kit and bundles the app first); that job needs LYNKEUS_TOKEN, LYNKEUS_CLOUD_KEY for FastSim and LYNKEUS_REPORTS_KEY with ci.push in the repository's secrets, and a backend (ci.backend). Without `--cases`, when cases.targets has such targets, it says what `--cases` would add. `--force` overwrites an existing file.
 
 | Flag | |
 |---|---|
 | `--force` | overwrite the workflow if it exists |
 | `--depth <n>` | how many imports away the check looks (as `case impact`) (default `4`) |
+| `--cases` | also run the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (cases.targets: headless, fastsim:ios, fastsim:android) |
 
 ### `lynkeus map check [--base <ref>] [--graph-base <file>] [--depth <n>]`
 

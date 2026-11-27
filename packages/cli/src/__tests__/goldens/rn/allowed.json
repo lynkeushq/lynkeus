@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html. The usage lists guide and skill install, and init's --no-skill.",
-    "now": "9eaed4f3158a5a0d"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+). case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. The usage lists report html. The usage lists guide and skill install, and init's --no-skill. The usage lists map ci's --cases.",
+    "now": "2eab18bb1894a24f"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run.",
@@ -284,8 +284,8 @@
     "now": "a09a0ff219a9340a"
   },
   "surface/help/map ci": {
-    "why": "map ci checks 4 imports away by default, as case impact and ci --affected do, so the PR comment and the affected cases agree; it used 2.",
-    "now": "bfd44894386639d4"
+    "why": "map ci checks 4 imports away by default, as case impact and ci --affected do, so the PR comment and the affected cases agree; it used 2. map ci --cases adds a job running lynkeus ci --affected on the project's CI targets (cases.targets), opt-in because it needs the app's backend and, for FastSim, a key in the CI secrets; without it, map ci says what --cases would add.",
+    "now": "0251a7473e201d9a"
   },
   "surface/help/report html": {
     "why": "report html is new: it writes a run folder as one HTML page to open offline (no reports service).",
