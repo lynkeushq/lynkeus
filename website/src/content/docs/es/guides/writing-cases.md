@@ -312,6 +312,8 @@ npx lynkeus case run --report out.jsonl       # una línea JSON por caso
 
 Sin archivos, corre todos los `.md` de la carpeta de casos, salvo `README.md`, `FORMAT.md` y `CATALOG.md`. El comando termina con código 1 si algún caso falló.
 
+La respuesta es corta a propósito. Un caso que pasa ocupa una línea. Uno que falla dice en qué paso (`failed at step 4 of 6`), con su error, la pantalla en ese momento, las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y el motivo. De la pantalla muestra lo que podrías nombrar en una comprobación: las filas de una lista se cuentan en lugar de repetirse, y los testIDs y controles van antes que los textos. Con `--verbose` aparece todo; `cases.jsonl` y `--json` lo guardan siempre completo.
+
 ### Reintentos
 
 Un caso que falla se ejecuta una vez más antes de contarse como fallido. Si pasa en el segundo intento, el resumen lo dice: `⚠ passed on retry`. `--once` quita esa segunda oportunidad. Qué hacer con los casos que pasan a veces está en [tests intermitentes](/es/guides/flaky-tests/).

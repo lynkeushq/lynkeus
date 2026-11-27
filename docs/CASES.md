@@ -262,6 +262,15 @@ off), and one that passes the second time is reported as passed on retry. A
 failed step leaves the screen as it was, the requests the app had made and,
 for a step on a target, why: covered, hidden behind a layer, disabled, gone.
 
+What a run answers is short, since an agent reads it after every run: a passing
+case is one line, and a failed one names its step (`failed at step 4 of 6`), the
+step's error, the screen at the failure cut to what a check can name (rows of a
+list counted, not repeated; testIDs and controls before texts; twenty lines), the
+requests that failed, never answered or were mocked, and why. A notice the last
+run in the same process gave word for word (the native values a host did not
+answer) is one line. `--verbose` (`verbose` over MCP) answers with all of it;
+`cases.jsonl`, `--report` and `--json` always keep everything.
+
 A failed `app.see`, or `app.wait` for a target, also keeps under its step in
 `cases.jsonl` a `looked` object: `listing`, every element of the screen at the
 failure as `lynkeus screen --all` lists them (off the window, hidden with its

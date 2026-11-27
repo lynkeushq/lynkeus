@@ -96,11 +96,11 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Start a Lynkeus FastSim host on a bundle and attach the server to it, so `screen`, `press` and `type` explore the app on FastSim before a case is written; stop it again. |
 | `case_init` | Writes an example case and the reference of the format. |
-| `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
+| `case_run` | Runs cases, one at a time or side by side. A passing case is one line; a failure comes back with its step, its screen and the reason (`verbose` for all of it). |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
 | `case_here` | Drafts a case from the screen the app shows now, with checks that pass as it is. |
-| `case_new` | Drafts a case for a screen: the way there, the setup to pick from, the checks left to write. |
-| `case_coverage` | Which screens the cases reach, which none does, and which a case names that the app no longer has. |
+| `case_new` | Drafts a case for a screen: the way there (an existing case's, when one reaches it), the setup to pick from, the checks left to write. |
+| `case_coverage` | Which screens the cases reach, which none does, which a case names that the app no longer has, and steps several cases repeat that belong in a macro. |
 | `case_impact` | The cases a branch's changes reach, to run only those. |
 | `fixtures_describe` | What the project's fixtures server can prepare and read, with each command's parameters. |
 | `fixtures_check` | Whether the fixtures server keeps the fixtures protocol. |

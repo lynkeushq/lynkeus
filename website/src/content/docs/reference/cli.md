@@ -1040,7 +1040,7 @@ The tree is the screen as nested lines: kinds, labels, `testID`s, values and sta
 ### `lynkeus case run`
 
 ```bash
-lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]
+lynkeus case run [files]… [--host] [--host-heap <percent>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--verbose] [--progress <json|none>]
 ```
 
 Runs cases: the setup through fixtures, the steps against the app, and the evidence when one fails. The file format is in the [Case format reference](/reference/case-format/).
@@ -1089,6 +1089,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
 | `--dry-run` | | Parse the cases and list their steps without running them. Nothing is written. |
+| `--verbose` | | Print a failed case whole: its full error, the whole screen at the failure and every request. Without it the screen is cut to what a check can name (rows of a list counted, testIDs and controls first), only requests that failed, never answered or were mocked are listed, and a notice the last run in the same process gave word for word is one line. `cases.jsonl`, `--report` and `--json` always keep everything. |
 | `--progress <json\|none>` | | How the run says where it is, besides `progress.ndjson`. `json` prints one event per line on stdout, and the summary then goes to stderr. `none` leaves out the live status line. See [Progress](#progress). |
 
 `--screenshots`, `--video` and `--push` all need `--out`. `--jobs` above 1 and `--host-command` need one port per job in `--ports`. A case with `exclusive: true` in its frontmatter runs alone under `--jobs`: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases that were asked for after it, and the run prints `… <id> runs alone: waiting for the cases in flight to end`.

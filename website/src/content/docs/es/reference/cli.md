@@ -1005,6 +1005,7 @@ Opciones que deciden qué se ejecuta y cómo:
 | `--epoch <iso>` | El instante en que empieza el reloj de la app en un host que lanza la ejecución, en ISO 8601 o en milisegundos desde 1970. Por defecto `launch.epoch`, y luego `LYNKEUS_EPOCH`. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
+| `--verbose` | Muestra entero el caso que falla: el error completo, toda la pantalla y todas las peticiones. Sin esta opción, de la pantalla queda lo que nombraría una comprobación (las filas de una lista contadas, testIDs y controles primero), solo aparecen las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y un aviso idéntico al de la ejecución anterior en el mismo proceso ocupa una línea. `cases.jsonl`, `--report` y `--json` guardan todo siempre. |
 | `--prepared <dir>` | Dónde deja `case prepare` los `setup` hechos por adelantado. Un caso que encuentra el suyo allí se lo salta. |
 
 Opciones que deciden qué queda guardado:

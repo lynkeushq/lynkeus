@@ -157,7 +157,7 @@ test("a failed case's summary carries the failing step's own error, whatever the
     evidence: { why: '  (nothing in the evidence explains it: the screen, requests and trace look ordinary)' },
   };
   const text = describe(report);
-  assert.match(text, /— failed at: wait_for_backend\n {4}no 2xx GET \/v1\/api\.json within 10000 ms\n— why:/);
+  assert.match(text, /— failed at step 2 of 3: wait_for_backend\n {4}no 2xx GET \/v1\/api\.json within 10000 ms\n— why:/);
 });
 
 test('status names the app from its latest hello, and an app that left as gone', () => {

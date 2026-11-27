@@ -314,7 +314,7 @@ Each step prints as it finishes, then the case's verdict, then the summary:
 
 The command exits with 0 when no case failed and 1 otherwise.
 
-When a step fails, the case prints the screen at the failure, the last requests, and why the step failed. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
+When a step fails, the case prints which step it was and its error, the screen at the failure, the requests that failed or were mocked, and why the step failed. The screen is cut to what you would name in a check: rows of a list are counted instead of repeated, and testIDs and controls come before texts. `--verbose` prints the whole screen and every request. The run's `cases.jsonl` and `--json` always keep everything. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
 
 ### Retries
 

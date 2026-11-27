@@ -12,8 +12,8 @@
     "now": "253ddb33db343fd5"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro.",
-    "now": "72e265dfa5b4f210"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole.",
+    "now": "1d8089772073ed7d"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -52,12 +52,12 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop",
-    "now": "f7ecf6f889d15a4b"
+    "why": "the usage lists fastsim start and fastsim stop case run lists --verbose.",
+    "now": "59922ed50f1fa66f"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. Each step and case in the answer now carry the screens the run went through (route, routes).",
-    "now": "07a22e20c34d75a9"
+    "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
+    "now": "2385fb16889d8a12"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -156,12 +156,12 @@
     "now": "2432312394237059"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. --seen defaults to .lynkeus/seen and keeps the screen after each step, for case coverage and case new.",
-    "now": "759213d77fc9ab37"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
+    "now": "7009d6dd0b1bf21e"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised.",
-    "now": "e9d76baeeea7ff57"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step.",
+    "now": "e5cc1932ea89140d"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
@@ -224,7 +224,7 @@
     "now": "f07d7c562f25d929"
   },
   "surface/help/case coverage": {
-    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen. It also hints at a macro for steps three or more cases open with.",
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
     "now": "5a4e916cc8f1e627"
   },
   "surface/help/case impact": {
@@ -232,11 +232,11 @@
     "now": "f79e001c22da3ba7"
   },
   "surface/help/case new": {
-    "why": "case new offers the way an existing case takes to the screen, from the steps case run now keeps in .lynkeus/seen by default or a step that names the screen.",
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
     "now": "b543d0141a2b8b6b"
   },
   "surface/mcp/tool/case_coverage": {
-    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen. It also hints at a macro for steps three or more cases open with.",
+    "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with.",
     "now": "c6ffaa28cd50c514"
   },
   "surface/mcp/tool/case_impact": {
@@ -244,7 +244,7 @@
     "now": "ae34e365af904aff"
   },
   "surface/mcp/tool/case_new": {
-    "why": "case new offers the way an existing case takes to the screen, from the steps case run now keeps in .lynkeus/seen by default or a step that names the screen.",
+    "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
     "now": "2233f6771ea1573e"
   }
 }
