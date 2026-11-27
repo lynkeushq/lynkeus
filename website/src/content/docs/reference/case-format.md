@@ -169,10 +169,12 @@ Presses an element. It waits for the control to be listed, in the window, enable
 | `nth` | number | | Take the nth match, counted from 0. |
 | `optional` | boolean | `false` | Press only if the target is on screen once the app has gone quiet. Otherwise the step is skipped, not failed. |
 | `hold` | number (ms) | | Keep the finger down this long. About 600 is a long press. |
-| `timeoutMs` | number (ms) | `3000` | How long to wait for a control that is still disabled or covered. Applies to a `#testId` target. |
+| `timeoutMs` | number (ms) | `3000` | How long to wait for a control that is still disabled or covered. Applies to a `#testId` target. When the step gives it, it also bounds the wait for the target to be listed and the scrolls toward it. |
 | `js` | boolean | `false` | Call the element's `onPress` directly instead of synthesizing a touch. |
 
 When the target is not listed, the step waits half a second and then scrolls to find it. When it is listed but outside the window, the step scrolls toward it.
+
+A point (`app.press: "390,450"`) is pressed where it is: the step does not look for it, scroll or wait for anything to clear, whatever covers the point (a drawer's overlay, say). A step that spends more than 3 s finding its target, passed or not, is named in the case's warnings with the time, so a slow target shows up before it slows the whole suite.
 
 A step that names nothing to press fails with `app.press needs a target`.
 

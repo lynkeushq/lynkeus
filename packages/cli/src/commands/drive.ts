@@ -41,6 +41,8 @@ const look = (device: Device, ms: number) => device.idle({ quietMs: ms, timeoutM
  * is lost and typing finds no focused input. Waited for as a case's steps wait: there, then not covered.
  */
 export const untilUncovered = async (device: Device, target: Target, timeoutMs = 3000): Promise<void> => {
+  // A point is pressed where it is, whatever covers it: the agent never lists one, so a wait would only run out.
+  if ('x' in target) return;
   const deadline = Date.now() + timeoutMs;
   const find = async () => (await device.server.call('find', target).catch(() => null)) as Element | null;
   // The keyboard of a focused field covers a control only until the press itself closes it (the agent does); a view

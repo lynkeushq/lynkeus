@@ -154,10 +154,12 @@ Pulsa un control. Antes de pulsar espera a que el control esté en pantalla, hab
 | `nth` | número | ninguno | Elige la coincidencia número `nth`, desde 0. |
 | `optional` | booleano | `false` | Pulsa solo si el control está en pantalla. Si no está, el paso queda como omitido y el caso sigue. |
 | `hold` | número (ms) | `50` | Cuánto se mantiene el dedo. Unos 600 ms son una pulsación larga. |
-| `timeoutMs` | número (ms) | `3000` | Cuánto esperar a que el control quede habilitado y libre. |
+| `timeoutMs` | número (ms) | `3000` | Cuánto esperar a que el control quede habilitado y libre. Si el paso lo indica, también es el límite para esperar a que aparezca en el listado y para desplazarse a buscarlo. |
 | `js` | booleano | `false` | Llama a `onPress` directamente, sin sintetizar un toque. |
 
 Si el objetivo no aparece en el listado, `app.press` espera un momento y después se desplaza por la página para buscarlo. Lo mismo si está en el listado pero fuera de la ventana.
+
+Un punto en coordenadas (`app.press: "390,450"`) se pulsa tal cual: no se busca, no se desplaza la página ni se espera a que nada lo destape, aunque lo cubra algo (el fondo de un menú lateral, por ejemplo). Si un paso tarda más de 3 s en encontrar su objetivo, pase o no, el caso lo anota entre sus advertencias con el tiempo que tardó.
 
 Sin `target`, `testId` ni `text`, el paso falla con `app.press needs a target`.
 

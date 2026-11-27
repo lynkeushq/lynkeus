@@ -256,6 +256,16 @@ const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'p
 
 // Below this a step's time needs no explaining in the console; the run's files keep its phases either way.
 const SLOW_STEP_MS = 500;
+// A step that spends longer than this finding its target is said in the case's warnings, passed or not: the time is
+// usually a target that is never listed or never clear (a point on an overlay, a control the keyboard covers).
+export const SLOW_TARGET_MS = 3000;
+
+/** The warning for a step whose target took long to find, or undefined. */
+export const slowTargetNote = (step: Pick<StepReport, 'step' | 'phases'>): string | undefined => {
+  const ms = step.phases?.target ?? 0;
+  if (ms <= SLOW_TARGET_MS) return undefined;
+  return `${step.step}: ${(ms / 1000).toFixed(1)} s finding its target (listed, in the window, clear and still); a testID or a shorter timeoutMs makes it fast, a target that never clears is said by \`guide evidence slow-step\``;
+};
 
 /** `: action 380 · settle 120`, for a step slow enough to ask where its time went. */
 export const phaseNote = (step: Pick<StepReport, 'ms' | 'phases'>): string => {
@@ -868,7 +878,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
    * stops changing; then back up in short pulls (at the top of a sheet a short
    * pull springs back, where a long one would drag the sheet shut).
    */
-  const scrollTo = async (there: () => Promise<boolean>, upward = false): Promise<boolean> => {
+  const scrollTo = async (there: () => Promise<boolean>, upward = false, until?: number): Promise<boolean> => {
     const d = await device();
     if (!d.server.hello?.native) return false;
     const { w, h } = (await d.screen()).window;
@@ -878,6 +888,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       let before: string | undefined;
       for (let i = 0; i < times; i++) {
         if (await there()) return true;
+        if (until !== undefined && Date.now() > until) return false;
         const now = await listing();
         if (now === before) return false;
         before = now;
@@ -903,6 +914,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       return there();
     };
     if (!upward && (await pull(Math.round(h * 0.75), Math.round(h * 0.3), 12, 'down'))) return true;
+    if (until !== undefined && Date.now() > until) return there();
     const middle = Math.round(h * 0.5);
     return pull(middle, middle + 110, 30, 'up');
   };
@@ -911,9 +923,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const params = targetParams(value);
     const absent = params.absent === true;
     startTrail();
-    const wait = typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000;
+    const given = typeof params.timeoutMs === 'number';
+    const wait = given ? (params.timeoutMs as number) : 3000;
     const deadline = Date.now() + wait;
-    const hard = Date.now() + Math.max(wait, 12_000);
+    // A step that names its own timeout is held to it, busy screen or not.
+    const hard = given ? deadline : Date.now() + Math.max(wait, 12_000);
     // Where the listing is what the window shows, something missing gets three more looks before the
     // deadline counts: a short wait (it may be arriving), a scroll (it may be further down), and a long
     // wait (a carousel shows it a few seconds from now, and a host with its own clock gets there fast).
@@ -933,13 +947,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           const until = Date.now() + timeoutMs;
           while (Date.now() < until && (await seen(params)) !== undefined) await d.idle({ quietMs: 100, timeoutMs: 300 }).catch(() => sleep(150));
         };
-        if (looks === 1) await arriving(1500);
+        if (looks === 1) await arriving(given ? Math.min(1500, Math.max(0, deadline - Date.now())) : 1500);
         else if (looks === 2) {
-          if (await scrollTo(async () => (await seen(params)) === undefined)) return;
+          if (await scrollTo(async () => (await seen(params)) === undefined, false, given ? deadline : undefined)) return;
         } else {
           // A step that names its own timeout gets no more than what is left of it; one that does not may
           // wait for a carousel to come round.
-          await arriving(typeof params.timeoutMs === 'number' ? Math.max(0, deadline - Date.now()) : 20_000);
+          await arriving(given ? Math.max(0, deadline - Date.now()) : 20_000);
         }
         continue;
       }
@@ -1014,12 +1028,17 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
 
   /** Until the target is listed, in the window and clear of what covers it, and (by testId) enabled and still. */
   const pressable = async (d: Device, target: Target, params: Record<string, unknown>): Promise<void> => {
+    // A point is where the case asked to press, whatever covers it: there is nothing to find, scroll to or wait for.
+    if ('x' in target) return;
+    // A step that names its own timeout is held to it in every wait below; one that does not keeps the defaults.
+    const asked = typeof params.timeoutMs === 'number' ? (params.timeoutMs as number) : undefined;
+    const given = asked === undefined ? undefined : Date.now() + asked;
     // Not listed at all: arriving, or further down a page that only lists its window. A short wait, then
     // a scroll, rather than spending the whole deadline on something that is below the fold.
     const listed = async () => !!(await d.server.call('find', target));
     if (!(await listed())) {
-      await d.waitFor({ target, timeoutMs: 500 }).catch(() => undefined);
-      if (!(await listed())) await scrollTo(listed);
+      await d.waitFor({ target, timeoutMs: Math.min(500, asked ?? 500) }).catch(() => undefined);
+      if (!(await listed())) await scrollTo(listed, false, given);
     }
     // Listed, but scrolled out of the window, cut by its edge or under the header or tab bar (a page left
     // further down than the control): towards it, until it is clear.
@@ -1035,11 +1054,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       return undefined;
     };
     const side = await outside();
-    if (side) await scrollTo(async () => (await outside()) === undefined, side === 'above');
+    if (side) await scrollTo(async () => (await outside()) === undefined, side === 'above', given);
     // The control may still be disabled while what it depends on loads. The waits go through the app,
     // so a host with its own clock moves it on instead of standing still while this one sleeps.
-    const deadline = Date.now() + (typeof params.timeoutMs === 'number' ? params.timeoutMs : 3000);
-    const hard = Date.now() + 15_000;
+    const deadline = given ?? Date.now() + 3000;
+    const hard = given ?? Date.now() + 15_000;
     let was: string | undefined;
     while (Date.now() < hard && 'testId' in target) {
       const found = (await d.server.call('find', target)) as Element | null;
@@ -1897,6 +1916,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await timed('events', () => collect(steps.length + 1));
       const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0, ...phased(phases) };
       steps.push(done);
+      const slow = slowTargetNote(done);
+      if (slow) warn(slow);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms${phaseNote(done)})`);
       ended(done.status);
       if ((keeping || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
