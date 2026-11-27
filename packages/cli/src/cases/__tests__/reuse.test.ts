@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import type { Seen } from '../coverage.js';
 import { draftCase } from '../draft.js';
 import { type Case, parseCase, type Step } from '../format.js';
-import { stepLine, wayTo } from '../reuse.js';
+import { macroSnippet, repeatedOpening, stepLine, wayTo } from '../reuse.js';
 import { label } from '../runner.js';
 
 const make = (id: string, setup: Step[], steps: Step[], file = `${id}.md`): Case => ({ file, id, meta: {}, setup, teardown: [], steps });
@@ -105,4 +105,47 @@ test('a step goes back into a case as the YAML it came from', () => {
   }
   const on = parseCase(`---\nid: x\n---\nsteps:\n  ${stepLine({ verb: 'app.press', value: '#ok', on: 'ios' })}\n`, 'x.md');
   assert.deepEqual(on.steps, [{ verb: 'app.press', value: '#ok', on: 'ios' }]);
+});
+
+const opens = (id: string, extra: Step[] = [], file?: string) => make(id, [user], [...login, ...extra], file);
+
+test('three case files that open with the same app steps get one macro to declare', () => {
+  const late = { verb: 'app.type', value: { target: '#email', text: '{{u.email}}', timeoutMs: 9000 } } as Step;
+  const cases = [
+    opens('a', [{ verb: 'app.press', value: '#pay' }]),
+    opens('b', [{ verb: 'app.press', value: '#cards' }]),
+    make('c', [user], [late, ...login.slice(1)]),
+    make('d', [], [{ verb: 'app.press', value: '#sign-up' }]),
+  ];
+  const r = repeatedOpening(cases);
+  assert.deepEqual(r?.cases, ['a', 'b', 'c']);
+  assert.equal(r?.steps.length, 3);
+  assert.equal(
+    macroSnippet(r!),
+    '"app.openCase": [{"app.type":{"target":"#email","text":"{{u.email}}"}},{"app.type":{"target":"#password","text":"secret"}},{"app.press":"#sign-in"}]',
+  );
+});
+
+test('two cases, one step, or matrix variants of one file are not worth a macro', () => {
+  assert.equal(repeatedOpening([opens('a'), opens('b')]), undefined);
+  const one = [0, 1, 2].map((n) =>
+    make(
+      `x${n}`,
+      [],
+      [
+        { verb: 'app.press', value: '#go' },
+        { verb: 'app.press', value: `#n${n}` },
+      ],
+    ),
+  );
+  assert.equal(repeatedOpening(one), undefined);
+  assert.equal(repeatedOpening([opens('m[a=1]', [], 'm.md'), opens('m[a=2]', [], 'm.md'), opens('m[a=3]', [], 'm.md')]), undefined);
+});
+
+test('a macro is named after the screen its steps reach, and one already declared is named instead', () => {
+  const toHome = [...login, { verb: 'app.wait', value: { what: 'Home.Main' } }] as Step[];
+  const cases = ['a', 'b', 'c'].map((id) => make(id, [], toHome));
+  assert.equal(repeatedOpening(cases)?.macro, 'app.goToHomeMain');
+  const declared = repeatedOpening(cases, { 'app.login': toHome.map((s) => ({ [s.verb]: s.value })) });
+  assert.equal(declared?.declared, 'app.login');
 });

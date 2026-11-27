@@ -1204,12 +1204,14 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Dice qué pantallas de la app tocan los casos, cuáles no toca ninguno y cuáles nombra algún caso que la app ya no tiene.
 
-Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (`case run --seen <dir>`). Las pantallas salen del grafo de rutas, así que antes hay que ejecutar `lynkeus map build`.
+Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (lo guarda `case run` en `.lynkeus/seen`). Las pantallas salen del grafo de rutas, así que antes hay que ejecutar `lynkeus map build`.
+
+Si tres o más archivos de casos abren su `setup` o sus pasos con los mismos pasos de la app (dos como mínimo; da igual el orden de las claves, los espacios y `timeoutMs`), termina con un aviso: qué casos, cuántos pasos y la entrada para `cases.macros` que los reúne en un paso. Si una macro declarada ya tiene esos pasos, el aviso la nombra. Sin repetición no hay aviso.
 
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | Solo esta pantalla: los casos que la tocan. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 
 ### `lynkeus case impact`
 

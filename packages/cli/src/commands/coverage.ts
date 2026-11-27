@@ -5,7 +5,7 @@ import { coverageOf, impactOf, readSeenRuns, SEEN_DIR } from '../cases/coverage.
 import { draftCase, hereCase } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { readCases } from '../cases/format.js';
-import { wayTo } from '../cases/reuse.js';
+import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
 import * as edges from '../knowledge/edges.js';
 import { plan } from '../knowledge/plan.js';
@@ -33,7 +33,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has',
     details:
-      'A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`).',
+      'A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.',
     flags: {
       route: { type: 'string', help: 'only this screen: the cases that touch it', value: 'Route' },
       seen: { type: 'string', help: 'where `case run` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
@@ -45,6 +45,7 @@ export const coverageCommands = [
       const read = coverageFor(ctx, ctx.flags.seen);
       if (typeof read === 'string') return { text: read, code: 1 };
       const { cases, coverage } = read;
+      const macros = ctx.config.cases?.macros ?? {};
       if (typeof ctx.flags.route === 'string') {
         const ids = coverage.byRoute[ctx.flags.route] ?? [];
         return { text: `${ctx.flags.route}: ${ids.length ? ids.join(', ') : 'no case'}`, json: { route: ctx.flags.route, cases: ids } };
@@ -64,7 +65,14 @@ export const coverageCommands = [
         ...coverage.uncovered.slice(0, 30).map((r) => `  ${r}`),
         ...(coverage.uncovered.length > 30 ? [`  … ${coverage.uncovered.length - 30} more (--json)`] : []),
       ];
-      return { text: lines.join('\n'), json: coverage };
+      const repeated = repeatedOpening(cases, macros);
+      if (repeated)
+        lines.push(
+          repeated.declared
+            ? `hint: ${repeated.cases.length} cases (${repeated.cases.join(', ')}) open with the ${repeated.steps.length} steps of the macro ${repeated.declared}: call it instead`
+            : `hint: ${repeated.cases.length} cases (${repeated.cases.join(', ')}) open with the same ${repeated.steps.length} steps; declare them once under cases.macros in lynkeus.config.json and call \`- ${repeated.macro}\` instead:\n  ${macroSnippet(repeated)}`,
+        );
+      return { text: lines.join('\n'), json: { ...coverage, ...(repeated ? { repeated } : {}) } };
     },
   }),
   define({

@@ -1197,12 +1197,14 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Says which of the app's screens the cases touch, which none does, and which screens a case names that the app no longer has.
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`). The screens come from the route graph, so run `lynkeus map build` first.
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (kept by `case run` in `.lynkeus/seen`). The screens come from the route graph, so run `lynkeus map build` first.
+
+When three or more case files open their setup or their steps with the same app steps (two or more, the same but for key order, spacing and `timeoutMs`), it ends with one hint: the cases, how many steps, and the entry to put under `cases.macros` so each case calls them in one step. If a declared macro already has those steps, the hint names it. Without such a repetition there is no hint.
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--route <Route>` | | Only this screen: the cases that touch it. |
-| `--seen <dir>` | `.lynkeus/seen` | Where `case run --seen` kept the screens of passing cases. |
+| `--seen <dir>` | `.lynkeus/seen` | Where `case run` kept the screens of passing cases. |
 
 ### `lynkeus case impact`
 

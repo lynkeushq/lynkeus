@@ -264,6 +264,15 @@ Inside a macro, `{{param.x}}` is what the case passed. A parameter that names an
 
 `when` runs a step only if the case passed that parameter (`"when": "wait"`) or passed that value (`"when": "method=phone"`). `unless` is the opposite.
 
+You do not have to spot the repetition yourself. When three or more case files open with the same app steps, `lynkeus case coverage` ends with a hint that lists them and prints the entry to paste under `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus does not change the cases. Rename the macro, add parameters, and replace the steps where it makes sense.
+
 ## Things that get in the way: interruptions
 
 An app may put something in front of any step: a lock screen, a consent sheet. Writing a step for it in every case does not scale. An **interruption** says what it looks like and how to get past it.

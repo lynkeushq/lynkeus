@@ -224,8 +224,8 @@
     "now": "f07d7c562f25d929"
   },
   "surface/help/case coverage": {
-    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen.",
-    "now": "6642e92e41a6d491"
+    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen. It also hints at a macro for steps three or more cases open with.",
+    "now": "5a4e916cc8f1e627"
   },
   "surface/help/case impact": {
     "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",
@@ -236,8 +236,8 @@
     "now": "b543d0141a2b8b6b"
   },
   "surface/mcp/tool/case_coverage": {
-    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen.",
-    "now": "e2b7180f93727a67"
+    "why": "case coverage reads the screens case run now keeps by default in .lynkeus/seen. It also hints at a macro for steps three or more cases open with.",
+    "now": "c6ffaa28cd50c514"
   },
   "surface/mcp/tool/case_impact": {
     "why": "case run keeps the screens of passing cases in .lynkeus/seen without --seen now, so the flag's help no longer points at case run --seen.",

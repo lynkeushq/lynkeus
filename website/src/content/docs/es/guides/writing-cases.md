@@ -276,6 +276,15 @@ setup:
 
 Dentro de la macro, `{{param.x}}` es lo que el caso pasó. Si un parámetro nombra un alias, vale por ese alias: por eso `{{param.as.user_id}}` lee el `user_id` de `u`. `when` ejecuta un paso solo si el caso pasó ese parámetro (`"when": "wait"`) o ese valor (`"when": "method=phone"`); `unless` hace lo contrario.
 
+Para encontrar qué repetir no hace falta leer todos los casos. Si tres o más archivos de casos empiezan con los mismos pasos de la app, `lynkeus case coverage` termina con un aviso que nombra esos casos, cuenta los pasos y trae la entrada lista para pegar en `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus no toca los casos: el nombre, los parámetros y dónde reemplazar los pasos quedan a tu criterio.
+
 ## Lo que se atraviesa: interrupciones
 
 Una pantalla de bloqueo o una hoja de consentimiento pueden aparecer delante de cualquier paso. En lugar de defender cada caso, descríbelas una vez:

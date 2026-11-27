@@ -202,6 +202,10 @@ the screens of the case, and the screen the app was on after each step, read off
 The screens come from the route graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check`
 does.
 
+When three or more case files open their setup or their steps with the same app steps (two at least; key order,
+spacing and `timeoutMs` aside), `case coverage` ends with one hint: the cases, how many steps, and the entry to put
+under `cases.macros` so each case says them in one step. It names a macro already declared with those steps instead.
+
 ## In CI
 
 `lynkeus ci` is a suite run the way a CI job wants one: the project's backend brought up by the project's own
