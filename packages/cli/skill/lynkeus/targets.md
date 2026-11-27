@@ -8,13 +8,23 @@
 
 `status` lists which of these this machine has and the one fix for each that is missing. Write a case where it is cheapest and most reliable (FastSim when the organization has it, else headless), and on a Simulator or emulator when it needs something only a device has: real native views, system prompts, pixels, a camera.
 
-## Every target at once
+## Where a case must pass
 
-```sh
-npx lynkeus case run cases/sign-out.md --on all      # or --on ios,android,headless
+The project decides, once, in `lynkeus.config.json`:
+
+```json
+"cases": { "targets": ["fastsim:ios", "fastsim:android"] }
 ```
 
-One line per case per target. `ios` and `android` are the apps on the iOS Simulator and the Android emulator, run side by side (both dial the driver port; each gets its own connection); `simulator` is whichever device app is attached. A target this machine lacks is named with why and fails nothing. `--on` starts its own hosts, so it refuses `--host`, `--host-command`, `--keep-hosts` and `--ports`; `--jobs` gives each target that many.
+Targets: `headless`, `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone), `android` (the app on the Android emulator or a phone). A case that needs something else (a device-only feature) says so in its frontmatter: `targets: [ios]`. With none declared, ask the person which matter; `status` proposes a value and `init` writes that proposal.
+
+```sh
+npx lynkeus case run cases/sign-out.md --on targets   # each case on its declared targets, at once
+```
+
+One line per case per target. A declared target this machine cannot run on is named with why and the check is incomplete (the run fails): never call such a case done. Do not run other targets to be thorough.
+
+`--on all` runs every target this machine has instead (a missing one is named and fails nothing); `--on ios,headless` names them. `ios` and `android` run side by side (both apps dial the driver port; each gets its own connection); `simulator` is whichever device app is attached; `fastsim` the last bundle. `--on` starts its own hosts, so it refuses `--host`, `--host-command`, `--keep-hosts` and `--ports`; `--jobs` gives each target that many.
 
 ## Headless
 
@@ -35,7 +45,7 @@ The app attached on the port is the target. Frames, films and `os` commands go t
 Optional and paid (Team plan, https://lynkeus.io/pricing); use it when the person asks or the organization has it. `fastsim install --platform ios|android` needs the sign-in a member saved with `lynkeus login` in a terminal (you cannot do it for them: ask) or, in CI, `LYNKEUS_CLOUD_KEY`. Then read the README in the folder it answers:
 
 - `bin/fastsim-bundle` makes a release bundle (`__DEV__` false, so `qa.register` must not sit inside `if (__DEV__)`).
-- `case run --host-command '<kit>/bin/fastsim-run <bundle folder> {port}'` runs each case on its own FastSim host; `case run --on fastsim` finds the kit and the last bundle itself. A bundle older than the app's code is bundled again first (with this environment: `EXPO_PUBLIC_` variables must be set), or the run is refused with the command to run: never report on old code.
+- `case run --host-command '<kit>/bin/fastsim-run <bundle folder> {port}'` runs each case on its own FastSim host; `case run --on fastsim:ios` (or `fastsim:android`) finds the kit and that platform's last bundle itself. A bundle older than the app's code is bundled again first (with this environment: `EXPO_PUBLIC_` variables must be set), or the run is refused with the command to run: never report on old code.
 - `fastsim start <bundle folder>` attaches a host to look around before writing a case; `fastsim stop` ends it.
 - iOS matches the simulator only on a Mac.
 

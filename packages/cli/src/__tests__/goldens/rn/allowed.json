@@ -12,8 +12,8 @@
     "now": "7ec7d02793a599a3"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole. Where to run now says to write a case where it is cheapest and most reliable (FastSim when the organization has it, else headless; a Simulator or emulator when the case needs a device), and that a case is done when it passes on every available target, checked with one case_run with on: all. The instructions say case_run with out writes report.html to open offline, and that film is taken on FastSim, a Simulator or an emulator. The instructions were cut to the essentials (what Lynkeus is, status and init, the cheap path, case_impact, the device rule, native mocks are the person's call, FastSim refusals) and point at the guide tool; the rest (FastSim setup, sharing a run, evidence, teardown and sections, long suites, launch facts, mocks) moved to the guide topics and the Lynkeus skill, which cost nothing until read. They were re-read on every call of a session.",
-    "now": "96561f60ad854c9f"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole. Where to run now says to write a case where it is cheapest and most reliable (FastSim when the organization has it, else headless; a Simulator or emulator when the case needs a device), and that a case is done when it passes on every available target, checked with one case_run with on: all. The instructions say case_run with out writes report.html to open offline, and that film is taken on FastSim, a Simulator or an emulator. The instructions were cut to the essentials (what Lynkeus is, status and init, the cheap path, case_impact, the device rule, native mocks are the person's call, FastSim refusals) and point at the guide tool; the rest (FastSim setup, sharing a run, evidence, teardown and sections, long suites, launch facts, mocks) moved to the guide topics and the Lynkeus skill, which cost nothing until read. They were re-read on every call of a session. A case is done when case_run with on: targets passes on the project's cases.targets, not on every available target: a trial agent ran iOS, Android and headless for every case; with none declared the agent asks the person.",
+    "now": "3bb319aeb03896bd"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -72,68 +72,68 @@
     "now": "9cebd928b5ed8004"
   },
   "detect/empty/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "0f96f020b3fa3009"
   },
   "detect/expo app/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "e2842ebb1d98a249"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "9ba774bc980e2b64"
   },
   "detect/node package, no react-native/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/pubspec.yaml app beside a broken package.json/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/pubspec.yaml app beside a package.json without react-native/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/pubspec.yaml app with a tsconfig/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/pubspec.yaml app, inline sdk/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/pubspec.yaml app/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/pubspec.yaml package without an sdk/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/pubspec.yaml with an sdk only under dev_dependencies/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/react-native beside a pubspec.yaml app, inline sdk/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/react-native beside a pubspec.yaml app/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/react-native dependency/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/react-native dev dependency/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "detect/react-native peer dependency/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "5c28f219fc9bded7"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "c5a800d361985500"
   },
   "detect/react-native with tsconfig/status": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "devices/reverse/no adb": {
     "why": "the adb reverse of the driver's port now covers emulators too and answers the serials it reversed (none without adb), so status can say which devices can reach the port.",
@@ -152,16 +152,16 @@
     "now": "4ca2808b92ce247f"
   },
   "surface/fails/status offline": {
-    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
-    "now": "3d4fca09ffd26564"
+    "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes. status shows the project's cases.targets and whether each runs on this machine, or proposes a value when none are declared, and its advice says a case is done when `case run --on targets` passes on them; a trial agent told to pass on every available target ran iOS, Android and headless for every case.",
+    "now": "33eec3543d94381f"
   },
   "surface/help/case run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator (simctl io recordVideo) and an emulator (adb shell screenrecord) too, not only on a host that films. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached.",
-    "now": "4dde475cc4b55e10"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --video films on a Simulator (simctl io recordVideo) and an emulator (adb shell screenrecord) too, not only on a host that films. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached. `--on targets` runs each case on its declared targets (cases.targets, or its own targets: frontmatter) and a declared target missing here makes the check incomplete; FastSim is named per platform (fastsim:ios, fastsim:android), and `all` takes both.",
+    "now": "56d82dd5c00c5f16"
   },
   "surface/mcp/tool/case_run": {
-    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case). Its description says a member read and never called that the library's TurboModule spec declares a method is left out of the native values notice. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached.",
-    "now": "5c9d94316c29b84f"
+    "why": "--jobs and --host-command no longer need --ports: free driver ports are picked when none are given, as the FastSim guide promised. case run takes --verbose: without it a failed case's screen is cut to what a check can name, only requests that failed or were mocked are listed and a notice the last run gave is not repeated; --seen defaults to .lynkeus/seen and keeps the screen after each step. case run takes --on (simulator, fastsim, headless or all) to run the same cases on several targets at once, one line per case per target, and --bundle to name the FastSim bundle it uses; a run without --on is unchanged. --host with --jobs starts one headless host per job on that job's port (one host on the configured port attached to no job's driver). A headless host that serves several cases is reset before each case after its first (a shared host leaked state from case to case). Its description says a member read and never called that the library's TurboModule spec declares a method is left out of the native values notice. --on takes ios and android, the iOS Simulator's app and the Android emulator's side by side on the driver port, each on its own connection; all is ios, android, fastsim and headless, and simulator stays whichever device app is attached. `on: targets` runs each case on its declared targets (cases.targets, or its own targets: frontmatter) and a declared target missing here makes the check incomplete; FastSim is named per platform (fastsim:ios, fastsim:android).",
+    "now": "af00190f5e94e010"
   },
   "wire/failure-stops-and-tears-down": {
     "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
@@ -324,67 +324,71 @@
     "now": "44a09787d1034cfb"
   },
   "detect/expo app/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "b1dd6c438466defd"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "c682026053e26311"
   },
   "detect/node package, no react-native/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "17db00888202f133"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "60726950b733e2a1"
   },
   "detect/pubspec.yaml app beside a broken package.json/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "8525b519ca36d432"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "2b5c7b4ca5c1de09"
   },
   "detect/pubspec.yaml app beside a package.json without react-native/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "8525b519ca36d432"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "2b5c7b4ca5c1de09"
   },
   "detect/pubspec.yaml app with a tsconfig/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "0d6cb9f03b45d0fd"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "612ca1f6f06a9462"
   },
   "detect/pubspec.yaml app, inline sdk/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "7dedd530f466d3f9"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "c71723e3ea110d2f"
   },
   "detect/pubspec.yaml app/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "7dedd530f466d3f9"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "c71723e3ea110d2f"
   },
   "detect/pubspec.yaml package without an sdk/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "7dedd530f466d3f9"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "c71723e3ea110d2f"
   },
   "detect/pubspec.yaml with an sdk only under dev_dependencies/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "7dedd530f466d3f9"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "c71723e3ea110d2f"
   },
   "detect/react-native beside a pubspec.yaml app, inline sdk/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "8525b519ca36d432"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "2b5c7b4ca5c1de09"
   },
   "detect/react-native beside a pubspec.yaml app/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "8525b519ca36d432"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "2b5c7b4ca5c1de09"
   },
   "detect/react-native dependency/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "17db00888202f133"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "60726950b733e2a1"
   },
   "detect/react-native dev dependency/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "17db00888202f133"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "60726950b733e2a1"
   },
   "detect/react-native peer dependency/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "17db00888202f133"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "60726950b733e2a1"
   },
   "detect/react-native with tsconfig/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "886bc68881c1ff30"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. init also writes the proposed cases.targets (where a case must pass for the project: FastSim for the app's platforms when installed, else headless and the device platforms) to lynkeus.config.json when it declares none, and says so; a trial agent with no declared targets ran every case on every target.",
+    "now": "f2a6aa31d0b58f91"
   },
   "surface/help/nav": {
     "why": "nav reaches a screen inside a nested navigator through its parents (from the path a run saw or the route graph), and its help says so, with the screen it lands on and via.",
     "now": "a5c71b0e9b570f90"
+  },
+  "surface/help/ci": {
+    "why": "With cases.targets declared, lynkeus ci runs each case on its declared targets a CI job can start (headless, fastsim:ios, fastsim:android), one after another, lists the device ones as not run, and fails as incomplete when a declared FastSim target cannot start.",
+    "now": "cf9ccc82d349a1b5"
   }
 }

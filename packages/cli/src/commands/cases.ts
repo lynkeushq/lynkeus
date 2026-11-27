@@ -30,7 +30,17 @@ import { androidDevices, bootedSimulators } from '../device/devices.js';
 import { onPhone } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import type { FlagValues } from '../args.js';
-import { DEVICE_TARGETS, parseTargets, runOnTargets, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
+import {
+  DEVICE_TARGETS,
+  declaredTargets,
+  parseTargets,
+  runOnTargets,
+  type SuiteResult,
+  TARGETS,
+  type TargetName,
+  type TargetPlan,
+  targetSlug,
+} from '../cases/onTargets.js';
 import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
@@ -621,7 +631,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     ? undefined
     : out
       ? path.join(out.directory, PROGRESS_FILE)
-      : path.join(ctx.root, '.lynkeus', `last-run.${as.target ? `${as.target}.` : ''}${PROGRESS_FILE}`);
+      : path.join(ctx.root, '.lynkeus', `last-run.${as.target ? `${targetSlug(as.target)}.` : ''}${PROGRESS_FILE}`);
   const hostPids = new HostPids(progressFile ? hostsFileOf(progressFile) : undefined);
   // `--host` with several jobs starts a host per job on that job's port, as `lynkeus ci` does: one host dialing the
   // configured port would attach to no job's driver, and every case would fail with "No app attached".
@@ -1175,33 +1185,63 @@ export const fastsimBundles = (root: string): string[] => {
     .sort((a, b) => built(b) - built(a));
 };
 
+/** The platform a bundle fastsim-bundle made draws, from its host.args; undefined when it has none. */
+export const bundlePlatform = (bundle: string): string | undefined => {
+  try {
+    return /--platform (\w+)/.exec(fs.readFileSync(path.join(bundle, 'host.args'), 'utf8'))?.[1] ?? 'ios';
+  } catch {
+    return undefined;
+  }
+};
+
 /**
- * The host command of the FastSim target: the one `ci.hosts.command` gives when it starts fastsim-run, else the
- * installed kit's fastsim-run on `bundle` or the last bundle under .lynkeus. Why there is none, when there is none.
+ * The host command of a FastSim target: the one `ci.hosts.command` gives when it starts fastsim-run (on a bundle of
+ * `platform`, when one is asked for), else the installed kit's fastsim-run on `bundle` or the last bundle under
+ * .lynkeus (of `platform`). Why there is none, when there is none.
  */
 export const fastsimHostCommand = (
   root: string,
-  o: { bundle?: string; configured?: string; kits?: string } = {},
+  o: { bundle?: string; configured?: string; kits?: string; platform?: 'ios' | 'android' } = {},
 ): { command: string } | { unavailable: string } => {
-  if (!o.bundle && o.configured && fastsimBundleDir(o.configured, root)) return { command: o.configured };
-  const anyKit = installedKit('ios', o.kits) ?? installedKit('android', o.kits);
-  if (installedFastsim(o.kits).length === 0 || !anyKit) return { unavailable: 'not installed: `lynkeus fastsim install --platform ios|android` (Team plan)' };
-  const bundle = o.bundle ? path.resolve(root, o.bundle) : fastsimBundles(root)[0];
-  if (!bundle)
+  const configuredBundle = o.configured ? fastsimBundleDir(o.configured, root) : undefined;
+  if (!o.bundle && o.configured && configuredBundle && (!o.platform || bundlePlatform(configuredBundle) === o.platform)) return { command: o.configured };
+  const anyKit = o.platform ? installedKit(o.platform, o.kits) : (installedKit('ios', o.kits) ?? installedKit('android', o.kits));
+  if (installedFastsim(o.kits).length === 0 || !anyKit)
+    return { unavailable: `not installed: \`lynkeus fastsim install --platform ${o.platform ?? 'ios|android'}\` (Team plan)` };
+  // A bundle given for the other platform is that target's: this one takes its own platform's last bundle.
+  const given = o.bundle ? path.resolve(root, o.bundle) : undefined;
+  const bundle =
+    given && (!o.platform || bundlePlatform(given) === o.platform) ? given : fastsimBundles(root).find((b) => !o.platform || bundlePlatform(b) === o.platform);
+  if (!bundle) {
+    const p = o.platform ?? 'ios';
     return {
-      unavailable: `no bundle under .lynkeus: make one with ${path.join(anyKit, 'bin', 'fastsim-bundle')} ${root} ${path.join(root, '.lynkeus', 'fastsim-ios')} ios (or android), or pass --bundle`,
+      unavailable: `no ${o.platform ? `${o.platform} ` : ''}bundle under .lynkeus: make one with ${path.join(anyKit, 'bin', 'fastsim-bundle')} ${root} ${path.join(root, '.lynkeus', `fastsim-${p}`)} ${p}${o.platform ? '' : ' (or android)'}, or pass --bundle`,
     };
-  let args: string;
-  try {
-    args = fs.readFileSync(path.join(bundle, 'host.args'), 'utf8');
-  } catch {
-    return { unavailable: `${bundle} has no host.args: is it a folder fastsim-bundle made?` };
   }
-  const platform = /--platform (\w+)/.exec(args)?.[1] ?? 'ios';
+  const platform = bundlePlatform(bundle);
+  if (!platform) return { unavailable: `${bundle} has no host.args: is it a folder fastsim-bundle made?` };
   const kit = installedKit(platform, o.kits);
   if (!kit)
     return { unavailable: `the bundle draws ${platform}, and no Lynkeus FastSim for it is installed: \`lynkeus fastsim install --platform ${platform}\`` };
   return { command: `${JSON.stringify(path.join(kit, 'bin', 'fastsim-run'))} ${JSON.stringify(bundle)} {port}` };
+};
+
+/**
+ * Each case's declared targets (`--on targets`), in the order of `cases`; a sentence when a case declares none and
+ * the project neither, or one names something that is not a target.
+ */
+export const casesDeclared = (cases: Case[], project: readonly string[] | undefined): { id: string; targets: TargetName[] }[] | string => {
+  const out: { id: string; targets: TargetName[] }[] = [];
+  const bare: string[] = [];
+  for (const c of cases) {
+    const targets = declaredTargets(c.meta, project, path.basename(c.file));
+    if (typeof targets === 'string') return targets;
+    if (!targets) bare.push(c.id);
+    else out.push({ id: c.id, targets });
+  }
+  if (bare.length > 0)
+    return `--on targets: the project declares no targets (cases.targets in lynkeus.config.json)${out.length ? ` and ${bare.length} case(s) none of their own (${bare.slice(0, 3).join(', ')}${bare.length > 3 ? ', …' : ''})` : ''}. Ask the person where cases must pass (\`lynkeus status\` proposes a value from this machine), then set it, e.g. "cases": { "targets": ["headless", "ios"] }`;
+  return out;
 };
 
 // The flags that pick one place to run: `--on` picks each target's itself.
@@ -1209,14 +1249,17 @@ const ONE_PLACE = ['host', 'host-command', 'keep-hosts', 'ports'];
 
 /** `case run --on`: each target that can run here gets the cases, side by side; see cases/onTargets.ts. */
 const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
-  const targets = parseTargets(String(ctx.flags.on));
-  if (typeof targets === 'string') return { text: targets, code: 2 };
+  const on = parseTargets(String(ctx.flags.on));
+  if (typeof on === 'string' && on !== 'declared') return { text: on, code: 2 };
   const clash = ONE_PLACE.filter((f) => ctx.flags[f] !== undefined && ctx.flags[f] !== false);
   if (clash.length > 0) return { text: `--on starts each target's hosts itself: leave out ${clash.map((f) => `--${f}`).join(', ')}`, code: 2 };
   const config = ctx.config.cases ?? {};
   const files = caseFiles(ctx.args, config.base ?? ctx.root, config.dir);
   if (typeof files === 'string') return { text: files, code: 1 };
   const cases = files.flatMap(readCases);
+  const declared = on === 'declared' ? casesDeclared(cases, config.targets) : undefined;
+  if (typeof declared === 'string') return { text: declared, code: 2 };
+  const targets = declared ? TARGETS.filter((t) => declared.some((c) => c.targets.includes(t))) : (on as TargetName[]);
   const port = portFromEnv(ctx.config) ?? DEFAULT_PORT;
   const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
   const hostTargets: TargetName[] = targets.filter((t) => !DEVICE_TARGETS.includes(t));
@@ -1227,11 +1270,11 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
   const ledger = typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : path.join('.lynkeus', 'flakes.json');
   const own = (t: TargetName): FlagValues => ({
     ...Object.fromEntries(ONE_PLACE.map((f) => [f, undefined])),
-    ...(out ? { out: path.join(out, t) } : {}),
-    ...(typeof ctx.flags.events === 'string' ? { events: path.join(ctx.flags.events, t) } : {}),
+    ...(out ? { out: path.join(out, targetSlug(t)) } : {}),
+    ...(typeof ctx.flags.events === 'string' ? { events: path.join(ctx.flags.events, targetSlug(t)) } : {}),
     // A case may pass on one target and fail on another without being flaky, and runs side by side must not write one
     // file: the hosts keep their own ledger; the attached app keeps the one a plain run on it keeps.
-    ...(t === 'simulator' ? {} : { flakes: ledger.replace(/(\.json)?$/, `.${t}.json`) }),
+    ...(t === 'simulator' ? {} : { flakes: ledger.replace(/(\.json)?$/, `.${targetSlug(t)}.json`) }),
   });
   const onHosts = async (t: TargetName, command: string): Promise<TargetPlan> => {
     const ports = portsOf(t);
@@ -1291,6 +1334,7 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
     const found = fastsimHostCommand(ctx.root, {
       bundle: typeof ctx.flags.bundle === 'string' ? ctx.flags.bundle : undefined,
       configured: ctx.config.ci?.hosts?.command,
+      ...(t === 'fastsim:ios' ? { platform: 'ios' as const } : t === 'fastsim:android' ? { platform: 'android' as const } : {}),
     });
     if ('unavailable' in found) return found;
     // Asked before the run, so a missing sign-in or seat is a target this machine cannot use, not a failed run.
@@ -1300,7 +1344,8 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
   };
   return runOnTargets(ctx, {
     targets,
-    cases: cases.map((c) => ({ id: c.id, ...(c.title ? { title: c.title } : {}) })),
+    cases: cases.map((c, i) => ({ id: c.id, file: c.file, ...(c.title ? { title: c.title } : {}), ...(declared ? { targets: declared[i]!.targets } : {}) })),
+    ...(declared ? { declared: true } : {}),
     plan,
     run: (sub, target) => runSuite(sub, { target }),
     detail: (report) => describe(report, { verbose: true, headline: false }),
@@ -1316,15 +1361,19 @@ export const caseCommands = [
     group: 'runs',
     summary: 'Run cases: setup through fixtures, steps against the app, the evidence when one fails',
     details:
-      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the app on the iOS Simulator, the app on the Android emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
+      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       on: {
         type: 'string',
-        help: 'run the cases on each target at once: ios (the app on the iOS Simulator), android (the app on the Android emulator or phone), fastsim, headless, simulator (whichever device app is attached; emulator and device are the same), comma-separated, or all (ios, android, fastsim, headless); a target this machine lacks is said, not failed',
+        help: "run the cases on several targets at once: targets (each case's declared ones, cases.targets; a missing one makes the check incomplete), all (every one this machine has; a missing one is said, not failed), or names, comma-separated: headless, fastsim:ios, fastsim:android, ios (the app on the iOS Simulator or an iPhone), android (the app on the Android emulator or a phone), fastsim (the last bundle), simulator (whichever device app is attached; emulator and device are the same)",
         value: 'targets',
       },
-      bundle: { type: 'string', help: 'with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus)', value: 'dir' },
+      bundle: {
+        type: 'string',
+        help: "with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform)",
+        value: 'dir',
+      },
       host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs) and stop it after' },
       'host-heap': {
         type: 'number',
@@ -1455,7 +1504,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the app on the iOS Simulator and the app on the Android emulator side by side, FastSim, headless; `simulator` is whichever device app is attached) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project\'s declared targets (cases.targets, or the case\'s own `targets:`) at once and answers one line per case per target; a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);
@@ -1615,10 +1664,13 @@ export const caseCommands = [
       write(path.join(dir, 'README.md'), FORMAT);
       write(path.join(dir, 'fixtures.mjs'), FIXTURES);
       const file = configFile(ctx.root);
-      if (ctx.config.cases && !ctx.flags.force) notes.push('kept cases in lynkeus.config.json');
+      // `lynkeus init` may have written `cases.targets` alone: that is not a cases setup to keep.
+      const setUp = Object.keys(ctx.config.cases ?? {}).some((k) => k !== 'targets' && k !== 'base');
+      if (setUp && !ctx.flags.force) notes.push('kept cases in lynkeus.config.json');
       else {
         const current = fs.existsSync(file) ? readJson<Record<string, unknown>>(file) : {};
-        writeJson(file, { ...current, cases: { ...CONFIG, dir: path.relative(ctx.root, dir) } });
+        const targets = (current.cases as { targets?: unknown } | undefined)?.targets;
+        writeJson(file, { ...current, cases: { ...CONFIG, dir: path.relative(ctx.root, dir), ...(targets !== undefined ? { targets } : {}) } });
         notes.push('added cases to lynkeus.config.json');
       }
       notes.push('next: `lynkeus case run cases/example.md --dry-run`, then make fixtures.mjs talk to your backend');

@@ -32,7 +32,8 @@ It crosses the screens the diff touches or imports with the screens each case co
     LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }} # only with push
 ```
 
-- Hosts are headless unless `ci.hosts.command` starts another (`{port}` is where it dials); `ci.run` adds `case run` flags.
+- With `cases.targets`, each case runs on its declared `headless` and FastSim targets, one after the other (`<out>/<target>`); a declared FastSim target CI cannot start fails the job as incomplete. `ios` and `android` need a device and are listed, not run.
+- Without it, hosts are headless unless `ci.hosts.command` starts another (`{port}` is where it dials); `ci.run` adds `case run` flags.
 - `--affected` runs only the cases the changes reach; `--dry-run` says what it would do.
 - FastSim in CI needs `LYNKEUS_CLOUD_KEY` (an owner's key with "May download Lynkeus FastSim").
 

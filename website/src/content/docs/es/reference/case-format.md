@@ -46,6 +46,7 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 | `ticket` | texto | ninguno | El ticket que cubre. Aparece en el reporte. Desde 0.5.0. |
 | `matrix` | objeto | ninguno | Ejecuta el caso una vez por cada combinación de valores. Ver [Matrices](#matrices). |
 | `exclusive` | booleano | `false` | Con `true`, `case run --jobs` lo ejecuta sin ningún otro caso al mismo tiempo: espera a que terminen los que están en curso y no empieza ninguno hasta que termina. Para un caso que cambia algo que comparten todos, como un flag global. Su preparación nunca se hace por adelantado. |
+| `targets` | lista de textos | `cases.targets` | Dónde tiene que pasar este caso; reemplaza la lista del proyecto solo para él. Por ejemplo `[ios, android]` para un caso que usa algo que solo tiene un dispositivo. Acepta los mismos nombres que `cases.targets`, y lo leen `case run --on targets` y `lynkeus ci`. |
 
 ### Las secciones
 

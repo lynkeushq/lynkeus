@@ -4,7 +4,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { caseLine, parseTargets, runOnTargets, type SuiteReport, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
+import {
+  caseLine,
+  declaredTargets,
+  parseTargets,
+  runOnTargets,
+  type SuiteReport,
+  type SuiteResult,
+  type TargetName,
+  type TargetPlan,
+} from '../cases/onTargets.js';
 import { lastRunFile, statusOf } from '../cases/progress.js';
 import { caseCommands, deviceProbes, fastsimBundles, fastsimHostCommand } from '../commands/cases.js';
 import { driveCommands } from '../commands/drive.js';
@@ -58,13 +67,26 @@ const ctxIn = (root: string, flags: Record<string, string | boolean | number | u
   };
 };
 
-test('--on takes the target names, emulator and device for simulator, and all; in the order the answer lists them', () => {
-  assert.deepEqual(parseTargets('all'), ['ios', 'android', 'fastsim', 'headless']);
+test('--on takes the target names, emulator and device for simulator, all, and targets; in the order the answer lists them', () => {
+  assert.deepEqual(parseTargets('all'), ['ios', 'android', 'fastsim:ios', 'fastsim:android', 'headless']);
   assert.deepEqual(parseTargets('headless, emulator'), ['simulator', 'headless']);
   assert.deepEqual(parseTargets('android,IOS'), ['ios', 'android']);
-  assert.deepEqual(parseTargets('device,fastsim,all'), ['simulator', 'ios', 'android', 'fastsim', 'headless']);
-  assert.match(String(parseTargets('web')), /^--on web: not a target\. Name ios, android, fastsim, headless, simulator \(the attached app on either platform/);
-  assert.match(String(parseTargets(' , ')), /^--on: name ios, android, fastsim, headless, simulator/);
+  assert.deepEqual(parseTargets('fastsim:android,fastsim'), ['fastsim', 'fastsim:android']);
+  assert.deepEqual(parseTargets('device,fastsim,all'), ['simulator', 'ios', 'android', 'fastsim', 'fastsim:ios', 'fastsim:android', 'headless']);
+  assert.equal(parseTargets('targets'), 'declared');
+  assert.match(String(parseTargets('targets,ios')), /^--on targets: alone/);
+  assert.match(String(parseTargets('web')), /^--on web: not a target\. Name headless, fastsim:ios, fastsim:android, ios \(the app on the iOS Simulator/);
+  assert.match(String(parseTargets(' , ')), /^--on: name headless, fastsim:ios/);
+});
+
+test("a case's targets are its own frontmatter's, else the project's; a name that is not a target is said", () => {
+  assert.deepEqual(declaredTargets({}, ['fastsim:android', 'fastsim:ios']), ['fastsim:ios', 'fastsim:android']);
+  assert.deepEqual(declaredTargets({ targets: ['ios'] }, ['headless']), ['ios']);
+  assert.deepEqual(declaredTargets({ targets: 'headless, android' }, undefined), ['android', 'headless']);
+  assert.equal(declaredTargets({}, undefined), undefined);
+  assert.match(String(declaredTargets({}, ['web'])), /^cases\.targets in lynkeus\.config\.json: web is not a target/);
+  assert.match(String(declaredTargets({ targets: [1] }, undefined, 'a.md')), /^a\.md: targets is a list of target names/);
+  assert.match(String(declaredTargets({ targets: [] }, undefined, 'a.md')), /^a\.md: targets is empty: name one or more/);
 });
 
 test('a case on a target is one line: the result, and for a failure the step and the first line of its error', () => {
@@ -280,6 +302,25 @@ test('the FastSim target runs the installed kit on the last bundle under .lynkeu
   const configured = '/opt/fastsim/bin/fastsim-run .lynkeus/fastsim-ios {port}';
   assert.deepEqual(fastsimHostCommand(root, { kits, configured }), { command: configured });
   assert.match(JSON.stringify(fastsimHostCommand(root, { kits, configured: 'LYNKEUS_PORT={port} lynkeus headless start' })), /draws android/);
+  // fastsim:ios and fastsim:android each take their own platform's kit and last bundle.
+  assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'ios' }), {
+    command: `${JSON.stringify(path.join(ios, 'bin', 'fastsim-run'))} ${JSON.stringify(older)} {port}`,
+  });
+  assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'ios', bundle: newer }), {
+    command: `${JSON.stringify(path.join(ios, 'bin', 'fastsim-run'))} ${JSON.stringify(older)} {port}`,
+  });
+  assert.match(JSON.stringify(fastsimHostCommand(root, { kits, platform: 'android' })), /not installed: `lynkeus fastsim install --platform android`/);
+  const android = kit(kits, 'android');
+  assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'android', configured }), {
+    command: `${JSON.stringify(path.join(android, 'bin', 'fastsim-run'))} ${JSON.stringify(newer)} {port}`,
+  });
+  assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'ios', configured }), { command: configured });
+  fs.rmSync(newer, { recursive: true });
+  assert.ok(
+    String((fastsimHostCommand(root, { kits, platform: 'android' }) as { unavailable: string }).unavailable).startsWith(
+      `no android bundle under .lynkeus: make one with ${path.join(android, 'bin', 'fastsim-bundle')} ${root} ${path.join(root, '.lynkeus', 'fastsim-android')} android`,
+    ),
+  );
 });
 
 /** A project with one case, and an app on a Simulator that answers every step at once. */
@@ -360,6 +401,82 @@ test('the simulator target is not available when the attached app runs on a host
     outcome.text ?? '',
     /^○ simulator not available: the app on port \d+ runs on a host \(FastSim\), not on a Simulator or emulator\nno target could run the cases$/,
   );
+});
+
+test('--on targets runs each case on its declared targets only; a declared target missing here leaves the check incomplete', async () => {
+  const root = tmp('lynkeus-on-declared-');
+  const ctx = ctxIn(root, { on: 'targets' });
+  const planned: TargetName[] = [];
+  const given: Record<string, string[]> = {};
+  const outcome = await runOnTargets(ctx, {
+    targets: ['ios', 'fastsim:ios', 'fastsim:android', 'headless'],
+    cases: [
+      { id: 'a', file: '/cases/a.md', targets: ['fastsim:ios', 'headless'] },
+      { id: 'b', file: '/cases/b.md', targets: ['fastsim:ios', 'fastsim:android'] },
+    ],
+    declared: true,
+    plan: async (t) => {
+      planned.push(t);
+      return t === 'fastsim:android' ? { unavailable: 'not installed' } : host();
+    },
+    run: async (sub, t) => {
+      given[t] = sub.args;
+      const ids = t === 'headless' ? ['a'] : ['a', 'b'];
+      return { code: 0, reports: ids.map((id) => passed(id)) };
+    },
+    detail: () => '',
+    verbose: false,
+  });
+  // No case asks for ios: it is not even planned.
+  assert.deepEqual(planned.sort(), ['fastsim:android', 'fastsim:ios', 'headless']);
+  // A target every case takes keeps the caller's files; one only some take gets theirs.
+  assert.deepEqual(given, { 'fastsim:ios': [], headless: ['/cases/a.md'] });
+  assert.equal(outcome.code, 1);
+  assert.equal(
+    outcome.text,
+    [
+      '✅ fastsim:ios  a',
+      '✅ headless     a',
+      '✅ fastsim:ios  b',
+      '✖ fastsim:android not available: not installed',
+      'fastsim:ios 2/2 passed · headless 1/1 passed · fastsim:android not available',
+      '⚠ check incomplete: fastsim:android (1 case(s)) declared but not available here, so not checked there; run on a machine that has it, or change the declared targets',
+    ].join('\n'),
+  );
+});
+
+test('case run --on targets takes cases.targets, a case may override them, and none declared asks for them', async () => {
+  const kits = tmp('lynkeus-on-nokits-');
+  const before = process.env.LYNKEUS_FASTSIM_DIR;
+  process.env.LYNKEUS_FASTSIM_DIR = kits;
+  try {
+    const bare = simulatorProject({ native: true, commands: [], platform: 'ios' });
+    const none = await execute(['case', 'run', '--on', 'targets'], bare.base);
+    assert.equal(none.code, 2);
+    assert.match(none.text ?? '', /^--on targets: the project declares no targets \(cases\.targets in lynkeus\.config\.json\)\. Ask the person/);
+
+    const p = simulatorProject({ native: true, commands: [], platform: 'ios' });
+    p.base.config.cases = { dir: 'cases', targets: ['simulator', 'fastsim:ios'] };
+    fs.writeFileSync(path.join(p.root, 'cases', 'two.md'), '---\nid: two\ntargets: [simulator]\n---\nsteps:\n  - app.wait: "#go"\n');
+    const outcome = await withDevices(1, 0, () => execute(['case', 'run', '--on', 'targets', '--once'], p.base));
+    const lines = (outcome.text ?? '').split('\n');
+    assert.deepEqual(lines.slice(0, 3), [
+      '✅ simulator  one',
+      '✅ simulator  two',
+      '✖ fastsim:ios not available: not installed: `lynkeus fastsim install --platform ios` (Team plan)',
+    ]);
+    assert.equal(lines[3], 'simulator 2/2 passed · fastsim:ios not available');
+    assert.match(lines.at(-1) ?? '', /^⚠ check incomplete: fastsim:ios \(1 case\(s\)\) declared but not available here/);
+    assert.equal(outcome.code, 1);
+
+    p.base.config.cases = { dir: 'cases', targets: ['simulator', 'web'] };
+    const wrong = await execute(['case', 'run', '--on', 'targets'], p.base);
+    assert.equal(wrong.code, 2);
+    assert.match(wrong.text ?? '', /^cases\.targets in lynkeus\.config\.json: web is not a target/);
+  } finally {
+    if (before === undefined) delete process.env.LYNKEUS_FASTSIM_DIR;
+    else process.env.LYNKEUS_FASTSIM_DIR = before;
+  }
 });
 
 test('--on refuses the flags that pick one place to run, and names that are not targets', async () => {

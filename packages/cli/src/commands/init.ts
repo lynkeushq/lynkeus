@@ -426,7 +426,7 @@ export const installAgent = (root: string): { text: string; ok: boolean } => {
 };
 
 /** `optional`: a line that is not a fault when it fails (shown ○, not ✗). `group`: where status puts it. */
-export type SetupCheck = { what: string; ok: boolean; fix?: string; optional?: boolean; group?: 'runs-on' | 'advice' };
+export type SetupCheck = { what: string; ok: boolean; fix?: string; optional?: boolean; group?: 'runs-on' | 'targets' | 'advice' };
 
 /** What a project has of lynkeus and what it still lacks, each with the one thing that fixes it. Reads files only. */
 export const setupChecks = (root: string): SetupCheck[] => {

@@ -328,25 +328,52 @@ A step the host cannot do, such as `app.network` or `app.clock` on a simulator o
 3/5 passed, 2 cannot run on this host
 ```
 
+### Where a case must pass
+
+Your project decides where its cases must pass, and says it once in `lynkeus.config.json`:
+
+```json
+{ "cases": { "targets": ["headless", "ios"] } }
+```
+
+The targets are `headless`, `fastsim:ios`, `fastsim:android`, `ios` (your app on the iOS Simulator or an iPhone) and `android` (your app on the Android emulator or a phone). A team with Lynkeus FastSim for both platforms might declare `["fastsim:ios", "fastsim:android"]` and nothing else. If one case needs a feature only a device has, give it its own list in its frontmatter, `targets: [ios, android]`, and it replaces the project's for that case.
+
+A case is finished when it passes on its targets. Check them all in one run:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on targets
+```
+
+```text
+✅ headless  settings-dark-mode
+✅ ios       settings-dark-mode
+headless 1/1 passed · ios 1/1 passed
+```
+
+Nothing else runs, so you do not pay for targets your project does not use. If a declared target is missing on this machine (no Simulator booted, FastSim not installed), the run names it with the reason and ends with `⚠ check incomplete`, and it fails: the case was not checked everywhere it must pass. If the project has no `cases.targets` yet, `--on targets` asks for them. `npx lynkeus status` proposes a value from what your machine has (FastSim for each platform of the app when it is installed, otherwise `headless` plus the platforms the app builds for), and `npx lynkeus init` writes that proposal when the config has none. Check it and change it if it is not what you want.
+
+While you write a case, plain `case run` on the attached app stays the quick loop.
+
 ### Every target at once
 
-A case is finished when it passes on every target it will run on. Check all of them in one run:
+To try a case everywhere this machine can run it, use `--on all`:
 
 ```bash
 npx lynkeus case run cases/settings-dark-mode.md --on all
 ```
 
 ```text
-✅ ios       settings-dark-mode
-✅ android   settings-dark-mode
-✅ headless  settings-dark-mode
-○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
-ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim not available
+✅ ios        settings-dark-mode
+✅ android    settings-dark-mode
+✅ headless   settings-dark-mode
+○ fastsim:ios not available: not installed: `lynkeus fastsim install --platform ios` (Team plan)
+○ fastsim:android not available: not installed: `lynkeus fastsim install --platform android` (Team plan)
+ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim:ios not available · fastsim:android not available
 ```
 
-`--on` takes `ios`, `android`, `fastsim` and `headless`, separated by commas, or `all` for the four. `ios` is your app on the iOS Simulator and `android` your app on the Android emulator (or a phone on USB). With a Simulator and an emulator both running, both apps attach to the same Lynkeus port and each is driven on its own connection, so the iOS and Android runs go on side by side. You do not need to rebuild either app or give it another port. `simulator` is still there: it means whichever device app is attached, and with two apps open that is the one that connected last. The targets run side by side, so checking four costs about as long as the slowest one.
+`--on` also takes target names separated by commas: `ios`, `android`, `fastsim:ios`, `fastsim:android` and `headless`; `all` means those five. `fastsim` alone is FastSim on the bundle you made last, whatever its platform. `ios` is your app on the iOS Simulator and `android` your app on the Android emulator (or a phone on USB). With a Simulator and an emulator both running, both apps attach to the same Lynkeus port and each is driven on its own connection, so the iOS and Android runs go on side by side. You do not need to rebuild either app or give it another port. `simulator` is still there: it means whichever device app is attached, and with two apps open that is the one that connected last. The targets run side by side, so checking several costs about as long as the slowest one.
 
-A target the machine does not have is listed with the reason and does not fail the run: no Simulator or emulator of that platform is running, or its app did not attach within 3 seconds, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. FastSim uses the bundle you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
+With `all` or a list of names, a target the machine does not have is listed with the reason and does not fail the run: no Simulator or emulator of that platform is running, or its app did not attach within 3 seconds, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. Each FastSim target uses the bundle of its platform you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
 
 ### Several cases at once: jobs
 

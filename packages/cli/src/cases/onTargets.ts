@@ -1,8 +1,9 @@
 /**
  * `case run --on`: the same cases on several targets at once (the app on the iOS Simulator, the app on the Android
  * emulator, Lynkeus FastSim, the headless host), each run as `case run` runs on it alone, and answered with one line
- * per case per target. A target this machine cannot run on is said once, with why, and fails nothing. `simulator` is
- * whichever device's app is attached, as before there were two.
+ * per case per target. A target this machine cannot run on is said once, with why, and fails nothing, unless the project
+ * declared it (`--on targets`): then the check is incomplete and says so. `simulator` is whichever device's app is
+ * attached, as before there were two.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,12 +14,14 @@ import type { ProgressEvent } from './progress.js';
 import { writeLastRun } from './progress.js';
 import type { CaseReport } from './runner.js';
 
-export const TARGETS = ['simulator', 'ios', 'android', 'fastsim', 'headless'] as const;
+export const TARGETS = ['simulator', 'ios', 'android', 'fastsim', 'fastsim:ios', 'fastsim:android', 'headless'] as const;
 export type TargetName = (typeof TARGETS)[number];
 /** The targets that drive an app on a Simulator, emulator or phone, which dials the driver's own port. */
 export const DEVICE_TARGETS: readonly TargetName[] = ['simulator', 'ios', 'android'];
-// `all` names each platform's device once: `simulator` would be one of them again.
-const ALL: readonly TargetName[] = ['ios', 'android', 'fastsim', 'headless'];
+/** The targets a CI job can start on its own, with no device: hosts. */
+export const CI_TARGETS: readonly TargetName[] = ['headless', 'fastsim', 'fastsim:ios', 'fastsim:android'];
+// `all` names each platform's device and FastSim once: `simulator` and `fastsim` would be one of them again.
+const ALL: readonly TargetName[] = ['ios', 'android', 'fastsim:ios', 'fastsim:android', 'headless'];
 
 const NAMES: Record<string, TargetName> = {
   simulator: 'simulator',
@@ -27,24 +30,61 @@ const NAMES: Record<string, TargetName> = {
   ios: 'ios',
   android: 'android',
   fastsim: 'fastsim',
+  'fastsim:ios': 'fastsim:ios',
+  'fastsim:android': 'fastsim:android',
   headless: 'headless',
 };
-const NAMED = 'ios, android, fastsim, headless, simulator (the attached app on either platform; emulator and device stand for it)';
+const NAMED =
+  'headless, fastsim:ios, fastsim:android, ios (the app on the iOS Simulator or an iPhone), android (the app on the Android emulator or a phone), fastsim (the last bundle, either platform), simulator (the attached app on either platform; emulator and device stand for it)';
 
-/** The targets `--on` names, in the order the answer lists them; a sentence when one is not a target. */
-export const parseTargets = (value: string): TargetName[] | string => {
-  const words = value
-    .split(',')
-    .map((w) => w.trim().toLowerCase())
-    .filter(Boolean);
+/** A target as a file or folder name: `fastsim:ios` would not survive every file system. */
+export const targetSlug = (t: TargetName): string => t.replace(':', '-');
+
+const wordsOf = (value: string | readonly string[]): string[] =>
+  (typeof value === 'string' ? value.split(',') : [...value]).map((w) => String(w).trim().toLowerCase()).filter(Boolean);
+
+/** The targets a list names, in the order answers list them; a sentence starting with `where` when one is not a target. */
+export const targetList = (value: string | readonly string[], where: string): TargetName[] | string => {
+  const picked = new Set<TargetName>();
+  for (const word of wordsOf(value)) {
+    if (!NAMES[word]) return `${where}: ${word} is not a target. Name ${NAMED}`;
+    picked.add(NAMES[word]);
+  }
+  if (picked.size === 0) return `${where} is empty: name one or more of ${NAMED}`;
+  return TARGETS.filter((t) => picked.has(t));
+};
+
+/**
+ * What `--on` names: targets, or `declared` for `targets`, each case on its own declared targets (the case's
+ * `targets:`, else `cases.targets`). A sentence when it names something else.
+ */
+export const parseTargets = (value: string): TargetName[] | 'declared' | string => {
+  const words = wordsOf(value);
+  if (words.includes('targets')) return words.length === 1 ? 'declared' : '--on targets: alone, as each case declares its own (cases.targets)';
+  if (words.length === 0) return `--on: name ${NAMED}, comma-separated, all, or targets`;
   const picked = new Set<TargetName>();
   for (const word of words) {
     if (word === 'all') for (const t of ALL) picked.add(t);
     else if (NAMES[word]) picked.add(NAMES[word]);
-    else return `--on ${word}: not a target. Name ${NAMED}, comma-separated, or all`;
+    else return `--on ${word}: not a target. Name ${NAMED}, comma-separated, all (every one this machine has), or targets (the project's, cases.targets)`;
   }
-  if (picked.size === 0) return `--on: name ${NAMED}, comma-separated, or all`;
   return TARGETS.filter((t) => picked.has(t));
+};
+
+/**
+ * The targets a case must pass on: its own `targets:` frontmatter, else the project's `cases.targets`. Undefined when
+ * neither declares any; a sentence when one names something that is not a target.
+ */
+export const declaredTargets = (meta: Record<string, unknown>, project: readonly string[] | undefined, file?: string): TargetName[] | string | undefined => {
+  const own = meta.targets;
+  if (own !== undefined) {
+    if (typeof own !== 'string' && !(Array.isArray(own) && own.every((t) => typeof t === 'string')))
+      return `${file ?? 'a case'}: targets is a list of target names, as cases.targets`;
+    return targetList(own as string | string[], `${file ?? 'a case'}: targets`);
+  }
+  if (project === undefined) return undefined;
+  if (!Array.isArray(project)) return 'cases.targets in lynkeus.config.json is a list of target names';
+  return targetList(project, 'cases.targets in lynkeus.config.json');
 };
 
 export type SuiteReport = CaseReport & { retried?: boolean };
@@ -59,8 +99,16 @@ export type TargetPlan = { flags: FlagValues; jobs: number; label?: string; base
 
 export type OnTargetsOptions = {
   targets: TargetName[];
-  /** The cases the runs take, in the order the answer lists them. */
-  cases: { id: string; title?: string }[];
+  /**
+   * The cases the runs take, in the order the answer lists them. A case with `targets` runs only on those (its file
+   * is what that target's run is given); one without, on every target.
+   */
+  cases: { id: string; title?: string; file?: string; targets?: readonly TargetName[] }[];
+  /**
+   * The targets are the ones the project declared (`--on targets`): one this machine cannot run on leaves the check
+   * incomplete, and the run fails, instead of being named and passed over.
+   */
+  declared?: boolean;
   plan: (target: TargetName) => Promise<TargetPlan>;
   run: (ctx: Ctx, target: TargetName) => Promise<SuiteResult>;
   /** A failed case in full, for verbose. */
@@ -99,26 +147,41 @@ const indent = (text: string, by: string) =>
 const stopPlans = (planned: { plan: TargetPlan }[]) =>
   Promise.all(planned.map(({ plan }) => ('stop' in plan && plan.stop ? plan.stop().catch(() => undefined) : undefined)));
 
+const wants = (c: OnTargetsOptions['cases'][number], t: TargetName) => !c.targets || c.targets.includes(t);
+
 export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Result> => {
   const startedAt = Date.now();
+  const casesOn = (t: TargetName) => o.cases.filter((c) => wants(c, t));
+  // A target no case asks for is not even planned: planning one can start a connection or ask for a grant.
+  const asked = o.targets.filter((t) => casesOn(t).length > 0);
   const planned = await Promise.all(
-    o.targets.map(async (target) => ({
+    asked.map(async (target) => ({
       target,
       plan: await o.plan(target).catch((error: unknown): TargetPlan => ({ unavailable: (error as Error).message.split('\n')[0] ?? 'unknown' })),
     })),
   );
-  const missing = planned.flatMap(({ target, plan }) => ('unavailable' in plan ? [`○ ${target} not available: ${plan.unavailable}`] : []));
+  const missing = planned.flatMap(({ target, plan }) =>
+    'unavailable' in plan ? [`${o.declared ? '✖' : '○'} ${target} not available: ${plan.unavailable}`] : [],
+  );
+  const unchecked = planned.flatMap(({ target, plan }) => ('unavailable' in plan ? [`${target} (${casesOn(target).length} case(s))`] : []));
+  const incomplete =
+    o.declared && unchecked.length > 0
+      ? `⚠ check incomplete: ${unchecked.join(', ')} declared but not available here, so not checked there; run on a machine that has ${unchecked.length === 1 ? 'it' : 'them'}, or change the declared targets`
+      : undefined;
   let offset = 0;
   // Each target's jobs get their own numbers in the events, after the targets before it.
   const lanes = planned.flatMap(({ target, plan }) => {
     if ('unavailable' in plan) return [];
-    const lane = { target, label: plan.label ?? target, flags: plan.flags, jobs: plan.jobs, offset, base: plan.base };
+    const own = casesOn(target);
+    // Only the files of the cases this target takes; every case wanting it leaves the caller's arguments alone.
+    const files = own.length < o.cases.length && own.every((c) => c.file) ? [...new Set(own.map((c) => c.file as string))] : undefined;
+    const lane = { target, label: plan.label ?? target, flags: plan.flags, jobs: plan.jobs, offset, base: plan.base, cases: own, files };
     offset += plan.jobs;
     return [lane];
   });
   if (lanes.length === 0) {
     await stopPlans(planned);
-    return { text: [...missing, 'no target could run the cases'].join('\n'), code: 1 };
+    return { text: [...missing, incomplete ?? 'no target could run the cases'].join('\n'), code: 1 };
   }
 
   const halt = new AbortController();
@@ -153,9 +216,9 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     type: 'run-start',
     at: new Date().toISOString(),
     pid: process.pid,
-    total: o.cases.length * lanes.length,
+    total: lanes.reduce((n, lane) => n + lane.cases.length, 0),
     jobs: offset,
-    cases: lanes.flatMap((lane) => o.cases.map((c) => ({ id: named(c.id, lane.label), ...(c.title ? { title: c.title } : {}) }))),
+    cases: lanes.flatMap((lane) => lane.cases.map((c) => ({ id: named(c.id, lane.label), ...(c.title ? { title: c.title } : {}) }))),
   });
 
   let results: { lane: (typeof lanes)[number]; result: SuiteResult }[];
@@ -165,6 +228,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
         const sub: Ctx = {
           ...ctx,
           ...(lane.base ? { device: lane.base.device, forPort: lane.base.forPort, forApp: lane.base.forApp, shares: lane.base.shares } : {}),
+          ...(lane.files ? { args: lane.files } : {}),
           flags: { ...ctx.flags, on: undefined, bundle: undefined, progress: 'none', ...lane.flags },
           err: (line) => ctx.err(indent(line, `${lane.label}: `)),
           // A target's own start and end are not the run's: the run starts and ends once, for all of them.
@@ -217,7 +281,8 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
       ...planned.flatMap(({ target, plan }) => ('unavailable' in plan ? [`${target} not available`] : [])),
     ].join(' · '),
   );
-  const failed = results.some(({ result }) => (result.code ?? 0) !== 0 || !result.reports);
+  if (incomplete) lines.push(incomplete);
+  const failed = results.some(({ result }) => (result.code ?? 0) !== 0 || !result.reports) || incomplete !== undefined;
   if (failed && !o.verbose && results.some(({ result }) => count(result.reports, 'failed') > 0))
     lines.push("a failure's screen and requests: run that target again alone, or with verbose");
 

@@ -65,6 +65,7 @@ For a value that can come from three places, flags win over the environment, and
   },
   "cases": {
     "dir": "cases",
+    "targets": ["headless", "ios"],
     "flows": "flows",
     "start": "Home.Main",
     "fixtures": {
@@ -191,7 +192,7 @@ Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), whi
 | `ci.backend.ready` | string | none | A URL to poll until it answers with a 2xx status, before the hosts start. |
 | `ci.backend.timeoutMs` | number (ms) | `300000` | How long to wait for `ready`. |
 | `ci.hosts.count` | number | `2` | How many hosts, and so how many cases run at once. `--jobs` overrides it. |
-| `ci.hosts.command` | string | a headless host | The shell command that starts one host. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
+| `ci.hosts.command` | string | a headless host | The shell command that starts one host. With `cases.targets`, it is used for the FastSim target of its bundle's platform, or for `headless` when it does not start FastSim. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
 | `ci.hosts.timeoutMs` | number (ms) | `600000` | How long a host may take to attach, passed to `case run` as `--host-timeout`. A host builds the app first, which is the slow part. |
 | `ci.push` | boolean | `false` | Upload the run to the report service. Needs `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | string[] | none | More `case run` flags, as on the command line: `["--video", "--once"]`. |
@@ -205,6 +206,7 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `cases.dir` | string | `cases` | The folder of case files. `case run` without arguments runs every `.md` file in it and its subfolders, in path order, except `README.md`, `FORMAT.md`, `CATALOG.md` and files that start with a dot. A folder named on the command line stands for the cases under it. |
+| `cases.targets` | string[] | none | Where a case must pass for this project: any of `headless`, `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone) and `android` (the app on the Android emulator or a phone). `case run --on targets` runs each case there and nowhere else, and a declared target the machine lacks makes that check incomplete. `lynkeus ci` runs the `headless` and FastSim ones. A case's `targets` in its frontmatter replaces this list for that case. `lynkeus init` writes a proposal when the key is missing, and `lynkeus status` shows it. |
 | `cases.flows` | string | `flows` | The folder of the flows an `app.run` step names. |
 | `cases.fixtures` | object | none | The command that answers fixture steps. Without it, a case can only use `app.*` and `exec` steps. |
 | `cases.fixtures.command` | string | required | A shell command. Lynkeus starts it once per run and speaks JSON lines to it: one line in per step, one line out. |

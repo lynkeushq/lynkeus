@@ -99,7 +99,7 @@ To write cases, spend tokens in this order and stop as soon as you know enough:
 3. No known way to the screen: crawl from the nearest one.
 4. Only then drive the app (press, type, wait; press with settle: true answers with the settled screen) and call screen to fill what the draft could not know. Prefer testIDs (#id) over texts. Read the app's source only for what the screen cannot tell.
 5. Write the case as a markdown file in the cases folder (case_init writes it once, with a README.md of the format) and run it with case_run. A failed step comes back with its error and screen; why explains it. Fix the case or report the app's bug, never weaken the check.
-6. A case is done when one case_run with on: all passes it on every target this machine has (a target it lacks is named, not failed). Write it where it is cheapest: Lynkeus FastSim when the organization has it, else headless; a Simulator or emulator when it needs a device.
+6. A case is done when one case_run with on: targets passes it on the project's targets (cases.targets in lynkeus.config.json; a case's own targets: frontmatter overrides them). Run nowhere else. If the project declares none, ask the person which targets matter (status proposes a value). Write it where it is cheapest among them.
 
 After changing the app's code, or to review a branch: case_impact with base lists the cases the changes reach; run those and fix what broke.
 
@@ -109,7 +109,7 @@ A native module or value the app reads that nobody provides is answered empty (h
 
 Lynkeus FastSim is optional and paid (Team plan): use it when the person asks or their organization has it. When the service refuses (no plan, no seat, no key), tell the person what it said and carry on with headless or a device; never retry with other credentials.
 
-Everything else is in the guide tool, one short topic per call: read the one the task needs before guessing. cases: the format, text matching, app commands, macros, on: blocks, interruptions, mocks, app.relaunch, teardown. targets: hosts, host_command, jobs, FastSim setup. evidence: frames, film, report.html, sharing a run. ci: case_impact, lynkeus ci, map ci. determinism: seed, locale, time zone, epoch. troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.`;
+Everything else is in the guide tool, one short topic per call: read the one the task needs before guessing. cases: the format, text matching, app commands, macros, on: blocks, interruptions, mocks, app.relaunch, teardown. targets: cases.targets, hosts, host_command, jobs, FastSim setup. evidence: frames, film, report.html, sharing a run. ci: case_impact, lynkeus ci, map ci. determinism: seed, locale, time zone, epoch. troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };
