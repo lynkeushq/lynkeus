@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -10,6 +10,9 @@ import { screensAffectedBy } from '../knowledge/query.js';
 import { DEFAULT_PORT, portFromEnv } from '../config.js';
 import { define } from '../registry.js';
 import { caseFiles } from './cases.js';
+import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
+import { freePorts } from '../cases/portClaim.js';
+import { PROGRESS_FILE } from '../cases/progress.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { changedSources } from './map.js';
 
@@ -49,6 +52,56 @@ const waitFor = async (ok: () => boolean | Promise<boolean>, timeoutMs: number, 
     if (Date.now() > until) return false;
     await sleep(every);
   }
+};
+
+/**
+ * Runs `case run` as a child and waits for it, passing SIGINT and SIGTERM on so it stops its hosts. Whatever hosts
+ * it left running when it ended, as a run that dies out of memory or is killed does, are stopped by the list it
+ * keeps in `hostsFile`.
+ */
+export const runSuite = async (
+  node: string,
+  args: string[],
+  cwd: string,
+  hostsFile: string,
+  say: (line: string) => void,
+): Promise<{ code: number; signal?: NodeJS.Signals; report?: string }> => {
+  fs.rmSync(hostsFile, { force: true });
+  const child = spawn(node, args, { cwd, stdio: ['ignore', 'pipe', 'inherit'] });
+  let report: string | undefined;
+  let partial = '';
+  child.stdout.on('data', (chunk: Buffer) => {
+    process.stdout.write(chunk);
+    const lines = (partial + chunk.toString()).split('\n');
+    partial = lines.pop() ?? '';
+    for (const line of lines) report ??= /report: (https?:\/\/\S+)/.exec(line)?.[1];
+  });
+  let signal: NodeJS.Signals | undefined;
+  const pass = (s: NodeJS.Signals) => () => {
+    signal = s;
+    child.kill(s);
+  };
+  const onInt = pass('SIGINT');
+  const onTerm = pass('SIGTERM');
+  process.on('SIGINT', onInt);
+  process.on('SIGTERM', onTerm);
+  const code = await new Promise<number>((resolve) => {
+    child.once('error', (error) => {
+      say(`case run did not start: ${error.message}`);
+      resolve(1);
+    });
+    child.once('close', (exitCode, exitSignal) => {
+      if (exitSignal && !signal) say(`case run died (${exitSignal})`);
+      resolve(exitCode ?? 1);
+    });
+  }).finally(() => {
+    process.off('SIGINT', onInt);
+    process.off('SIGTERM', onTerm);
+  });
+  report ??= /report: (https?:\/\/\S+)/.exec(partial)?.[1];
+  const left = await stopLeftHosts(hostsFile);
+  if (left > 0) say(`stopped ${left} host(s) the run left running`);
+  return { code, ...(signal ? { signal } : {}), ...(report ? { report } : {}) };
 };
 
 export const ciCommands = [
@@ -103,7 +156,11 @@ export const ciCommands = [
         }
       }
       const first = portFromEnv(ctx.config) ?? DEFAULT_PORT;
-      const ports = Array.from({ length: jobs }, (_, i) => first + i);
+      // A port some process listens on (a `lynkeus mcp` server of this project on 8123) or another run claims is
+      // passed over: a host dialing it would attach to that driver, not to this run.
+      const ports = await freePorts(jobs, first - 1);
+      if (ports.length < jobs) return { text: `no ${jobs} free driver port(s) from ${first} up: free some, or set LYNKEUS_PORT`, code: 1 };
+      const moved = ports[0] !== first ? `port ${first} is in use or claimed by another run, so the hosts take ${ports.join(', ')}` : undefined;
       const hostCommand = ci.hosts?.command ?? `LYNKEUS_PORT={port} "${process.execPath}" "${self}" headless start`;
       // The run keeps one host per job and starts it again when it dies or runs short of heap.
       const runArgs = [
@@ -128,7 +185,7 @@ export const ciCommands = [
         const plan = [
           picked,
           ci.backend ? `backend: \`${ci.backend.up}\`${ci.backend.ready ? `, ready at ${ci.backend.ready}` : ''}` : 'backend: none declared (ci.backend)',
-          `hosts: ${jobs} × \`${hostCommand}\` on ${ports.join(', ')}`,
+          `hosts: ${jobs} × \`${hostCommand}\` on ${ports.join(', ')}${moved ? ` (${moved})` : ''}`,
           `run: lynkeus ${runArgs.slice(0, 2).join(' ')} … ${runArgs.slice(2 + files.length).join(' ')}`,
         ];
         return { text: plan.join('\n'), json: { files, ports, hostCommand, runArgs } };
@@ -160,18 +217,13 @@ export const ciCommands = [
             if (!ready) return { text: `${url} never answered`, code: 1 };
           }
         }
+        if (moved) say(moved);
         say(`running ${files.length} case file(s) on ${jobs} host(s): ${hostCommand}`);
-        const run = spawnSync(process.execPath, [self, ...runArgs], {
-          cwd: ctx.root,
-          encoding: 'utf8',
-          stdio: ['ignore', 'pipe', 'inherit'],
-          maxBuffer: 64 * 1024 * 1024,
-        });
-        process.stdout.write(run.stdout ?? '');
-        const report = /report: (https?:\/\/\S+)/.exec(run.stdout ?? '')?.[1];
-        const summary = summaryOf(resultsOf(out), report, picked);
+        const run = await runSuite(process.execPath, [self, ...runArgs], ctx.root, hostsFileOf(path.join(out, PROGRESS_FILE)), say);
+        if (run.signal) return { text: `stopped by ${run.signal}`, code: run.signal === 'SIGINT' ? 130 : 143 };
+        const summary = summaryOf(resultsOf(out), run.report, picked);
         if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
-        return { text: summary, code: run.status ?? 1 };
+        return { text: summary, code: run.code };
       } finally {
         down();
       }

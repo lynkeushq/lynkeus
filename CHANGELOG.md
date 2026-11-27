@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `lynkeus ci` ran out of memory (a 4 GB heap within a minute, no case run) when a `lynkeus mcp` server of the same project held port 8123, and left its hosts running. Each kept host was asked whether its app had attached in a loop with no pause: the probe failed at once on the taken port, so the loop spun for the whole `--host-timeout` (10 minutes), never yielding to the event loop, until the heap ran out and the run died without stopping its hosts. Now `lynkeus ci` passes over ports another process listens on or another run claims and says which ones its hosts take; `case run --host-command` refuses a `--ports` entry another process listens on before any host starts, and ends the run with that reason if a host's port is taken later; a kept host still coming up is asked at most every 250 ms; a `--host` host that never came up is stopped. `case run` lists the hosts it started next to its `progress.ndjson`, and `lynkeus ci` passes SIGINT and SIGTERM on to it and stops whatever hosts are left when it ends, even when it died.
+
 ## 0.7.6
 
 - `press` over MCP and in a session waits, as a case's press does, for a control a screen is still sliding over (up to 3 s), but not for one only the keyboard covers. Pressed right after a `wait` for the new route, the tap landed during the transition and was lost, and the next `wait` timed out.

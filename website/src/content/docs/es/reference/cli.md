@@ -1071,6 +1071,7 @@ Si mezclas opciones que dependen unas de otras, el comando lo dice y no ejecuta 
 - `--screenshots and --video keep what they take in the run directory: add --out <dir>`
 - `--push uploads the run directory: add --out <dir>`
 - `--jobs and --host-command need a driver port per job: --ports with <n>`, cuando `--ports` trae menos puertos que `--jobs`. Sin `--ports`, el comando elige puertos libres.
+- `port <n> is already in use by another process …`, cuando otro proceso (un `lynkeus mcp`, por ejemplo) ya escucha en uno de los puertos de `--ports`. Se comprueba antes de arrancar los hosts.
 - `--progress x: json or none`, cuando `--progress` recibe otro valor.
 
 #### Seguir una ejecución larga
@@ -1281,7 +1282,7 @@ lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [-
 
 Ejecuta la suite como lo hace un job de CI: levanta el backend y N hosts, reparte los casos entre ellos, genera el reporte y lo desmonta todo. El código de salida es el de la suite.
 
-Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. Lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en puertos consecutivos a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno), y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
+Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. Lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts usan los primeros puertos libres a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno); uno en el que ya escucha otro proceso, o que reservó otra ejecución, se salta y el comando lo avisa. Cuando la ejecución termina, falla o recibe SIGINT o SIGTERM, se detienen todos los hosts que arrancó, aunque `case run` haya muerto sin hacerlo, y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
 
 | Opción | Qué hace |
 |---|---|

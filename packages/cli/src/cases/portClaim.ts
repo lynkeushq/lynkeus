@@ -73,6 +73,13 @@ const free = (port: number, host: string): Promise<boolean> =>
     server.listen(port, host, () => server.close(() => resolve(true)));
   });
 
+/** The ones of `ports` some process listens on already. */
+export const listenedPorts = async (ports: number[], host = '127.0.0.1'): Promise<number[]> => {
+  const taken: number[] = [];
+  for (const port of ports) if (!(await free(port, host))) taken.push(port);
+  return taken;
+};
+
 /**
  * `count` driver ports nobody listens on or claims, counted up from just past `after`: the port an attached app
  * dials is left to it, or its app would attach to a case's host instead.

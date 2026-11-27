@@ -175,8 +175,12 @@ long a host may take to attach (600000 ms: it builds the app first). `--ahead N`
 cases run (`case prepare` does the same into `--prepared`), and only starts one
 while `--idle` of the CPU is free. A case that is `exclusive` waits for the others
 (above). `lynkeus ci` does all of this from the config, with `--keep-hosts`;
-its first port is `LYNKEUS_PORT`, else `port` in the config, else 8123, and
-`--keep-up` leaves only the backend up (the hosts end with the run).
+its ports are the free ones from `LYNKEUS_PORT`, else `port` in the config, else
+8123, up (one another process listens on, such as a `lynkeus mcp` server, or
+another run claims is passed over), and `--keep-up` leaves only the backend up:
+every host ends with the run, also when `case run` died or ci got SIGINT or
+SIGTERM. With `--host-command`, `case run` refuses a `--ports` entry another
+process listens on before any host starts.
 
 ## Coverage and impact
 

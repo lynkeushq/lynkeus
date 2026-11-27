@@ -92,9 +92,15 @@ or, from `case run`:
 port 8123 is held by another lynkeus case run (pid 4242), which is probably still going: stop it, or give this run other --ports
 ```
 
+or, from `case run` with `--host-command`, when a port in `--ports` already has a listener:
+
+```text
+port 8123 is already in use by another process (a `lynkeus mcp` server or another run's driver?): this run's hosts would dial it. Stop that process, or give this run other --ports
+```
+
 **Why.** Only one driver can listen on a port. A `lynkeus session`, a `lynkeus mcp` server or another run is still holding it. Sharing a port would hand the app to whichever driver it dials next, and two runs' steps would mix.
 
-**Fix.** Stop the other process. To run two at once on purpose, give each pair its own port: set `LYNKEUS_PORT` for the driver and for the headless host, and the `port` option of an app on a simulator.
+**Fix.** Stop the other process. To run two at once on purpose, give each pair its own port: set `LYNKEUS_PORT` for the driver and for the headless host, and the `port` option of an app on a simulator. `lynkeus ci` needs neither: it passes over a port that is taken and says which ones its hosts use instead.
 
 ### `No booted simulator matching "…"`
 
