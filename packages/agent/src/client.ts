@@ -55,6 +55,9 @@ const UNTRACED = new Set(['screen', 'find', 'trace', 'requests', 'ping', 'debug'
 const NO_TOKEN =
   "lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.";
 
+const refusedBy = (url: string) =>
+  `lynkeus: the driver at ${url} does not hold this app's token, so the link was dropped and nothing is served to it. Another project's Lynkeus is probably listening there (each project has its own .lynkeus/token; \`lynkeus status\` in this project names the process), or this bundle carries an older token (restart Metro with --reset-cache).`;
+
 const openSocket = (url: string): Socket => new (globalThis as unknown as { WebSocket: new (url: string) => Socket }).WebSocket(url);
 
 // Hermes has no WebCrypto everywhere; where it lacks getRandomValues, time and Math.random still make the nonce
@@ -106,6 +109,13 @@ export const start = (options: ClientOptions): (() => void) => {
   let socket: Socket | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  // Said once until a driver proves the token again: the agent redials every 1.5 s, and a line per dial would bury the app's own logs.
+  let warnedRefusal = false;
+  const refused = (url: string) => {
+    if (warnedRefusal) return;
+    warnedRefusal = true;
+    console.warn(refusedBy(url));
+  };
 
   const send = (message: Response | AgentEvent) => {
     if (socket?.readyState === OPEN) socket.send(JSON.stringify(message));
@@ -172,7 +182,8 @@ export const start = (options: ClientOptions): (() => void) => {
 
   const connect = () => {
     if (stopped) return;
-    const ws = (options.createSocket ?? openSocket)(`ws://${hosts[at]}:${options.port ?? 8123}`);
+    const url = `ws://${hosts[at]}:${options.port ?? 8123}`;
+    const ws = (options.createSocket ?? openSocket)(url);
     socket = ws;
     let opened = false;
     let authenticated = options.token === undefined && options.allowUnauthenticated === true;
@@ -219,8 +230,13 @@ export const start = (options: ClientOptions): (() => void) => {
         }
         if (parsed.event === 'verified' && options.token && appNonce) {
           // Whatever listens on the port gets nothing but our proof unless it proves the token too.
-          if (sameHex(parsed.proof, hmacSha256Hex(options.token, `lynkeus/driver/${session}/${driverNonce}/${appNonce}`))) authenticated = true;
-          else ws.close();
+          if (sameHex(parsed.proof, hmacSha256Hex(options.token, `lynkeus/driver/${session}/${driverNonce}/${appNonce}`))) {
+            authenticated = true;
+            warnedRefusal = false;
+          } else {
+            refused(url);
+            ws.close();
+          }
         }
         return;
       }
@@ -232,6 +248,8 @@ export const start = (options: ClientOptions): (() => void) => {
     };
     ws.onclose = () => {
       if (socket === ws) socket = null;
+      // A driver that closes after our proof and before its own refused the proof: its token is another one.
+      if (appNonce && !authenticated && !stopped) refused(url);
       if (stopped) return;
       if (!opened) at = (at + 1) % hosts.length;
       if (eagerUntil === Number.POSITIVE_INFINITY) eagerUntil = Date.now() + EAGER_MS;

@@ -49,7 +49,16 @@ answering, not the agent; `lynkeus requests` says so.
 
 **Two runs fight over the port.** Set `LYNKEUS_PORT` on both the app (or the
 host) and the driver; each pair is independent. `port` in `lynkeus.config.json`
-sets the driver's default.
+sets the driver's default. `lynkeus status` names the process holding the port
+(pid and command, from `lsof` and `ps`) and, for a Lynkeus CLI, its release and
+the project folder it serves.
+
+**Another project's server holds the port.** It cannot drive this project's
+app: the app and the driver each prove the project token to the other with an
+HMAC over fresh nonces, and each drops a peer whose proof is wrong. The driver
+answers `An app dialed in … with another token and was refused`; the app logs
+`lynkeus: the driver at ws://… does not hold this app's token` once and keeps
+dialing until the port is free.
 
 **The driver never attaches.** The app dials out to `localhost:8123` on iOS
 and, on Android, `10.0.2.2:8123` (the emulator) and then `localhost:8123` (a phone on

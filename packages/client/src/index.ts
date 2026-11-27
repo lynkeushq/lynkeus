@@ -71,6 +71,8 @@ export class AgentServer extends EventEmitter {
   #token?: string;
   /** An app connected and stayed silent after the auth: the sign of a token that does not match. */
   #unanswered = false;
+  /** An app proved a token and it was not this one: another project's app, or a bundle with an older token. */
+  #refused = 0;
   #session = Math.random().toString(36).slice(2) + Date.now().toString(36);
   #server: WebSocketServer | null = null;
   #socket: WebSocket | null = null;
@@ -153,10 +155,14 @@ export class AgentServer extends EventEmitter {
       const timer = setTimeout(() => {
         this.off('hello', onHello);
         // An app that dials in and never says hello is one whose token is not ours: the agent stays silent then.
-        const why = this.#unanswered
-          ? ' An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.'
-          : ' Is a dev build running with <Lynkeus>?';
-        reject(new AgentError(`No app attached on ${this.host}:${this.port} within ${timeoutMs}ms.${why}`));
+        const why = this.#refused
+          ? ` An app dialed in ${this.#refused === 1 ? 'once' : `${this.#refused} times`} with another token and was refused: it is another project's app (each project has its own .lynkeus/token), or its bundle carries an older token. Open this project's development build, or restart Metro with --reset-cache.`
+          : this.#unanswered
+            ? ' An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.'
+            : ' Is a dev build running with <Lynkeus>?';
+        reject(
+          new AgentError(`No app attached on ${this.host}:${this.port} within ${timeoutMs}ms.${why}`, this.#refused || this.#unanswered ? 'wrong-token' : undefined),
+        );
       }, timeoutMs);
       const onHello = (hello: HelloEvent) => {
         clearTimeout(timer);
@@ -292,6 +298,7 @@ export class AgentServer extends EventEmitter {
             (typeof nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(nonce) || !sameToken(given, proof(this.#token, 'app', this.#session, driverNonce, nonce)))
           ) {
             this.#unanswered = true;
+            if (typeof given === 'string') this.#refused++;
             settle();
             drop(1008, 'invalid token');
             return;
@@ -306,6 +313,7 @@ export class AgentServer extends EventEmitter {
           this.#cancelGrace();
           this.#hello = safe as HelloEvent;
           this.#unanswered = false;
+          this.#refused = 0;
           this.#goneSince = null;
           this.#appState = typeof this.#hello.appState === 'string' ? this.#hello.appState : undefined;
           this.#heard++;
