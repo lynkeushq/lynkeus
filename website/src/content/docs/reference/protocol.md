@@ -535,6 +535,7 @@ await server.close();
 | `host` | `127.0.0.1` | The address to listen on. |
 | `token` | none | Must match the app's token. |
 | `reconnectGraceMs` | `2500` | How long requests in flight wait for the app to reconnect before they fail. |
+| `accepts` | any app | A function of the app's `hello` that says whether this server drives it, such as `(hello) => hello.platform === 'android'`. Servers in one process may then share a port: each app goes to the server that accepts it, else to the one without `accepts`, and an app no server takes is let go. All of them must hold the same token. This is how `case run --on ios,android` drives the iOS Simulator's app and the emulator's at once. |
 
 | Member | Meaning |
 |---|---|

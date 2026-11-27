@@ -71,8 +71,9 @@ let mismatchTold = false;
 let switchTold = false;
 let lastApp: string | undefined;
 
-// `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device.
-const contextFor = (argv: string[], attached = false, port?: number, ownHost = false): Session => {
+// `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device. `accepts`: the
+// apps this context drives, sharing the port with others of this process that drive the rest.
+const contextFor = (argv: string[], attached = false, port?: number, ownHost = false, accepts?: (hello: HelloEvent) => boolean, shares?: string): Session => {
   const g = globals(argv);
   const root = path.resolve((g.root as string | undefined) ?? process.cwd());
   const currentConfig = configReader(root);
@@ -91,11 +92,12 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? currentConfig().app;
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
-    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(currentConfig()) });
+    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(currentConfig()), accepts });
     server.on('hello', (hello: HelloEvent) => {
       const identity = helloIdentity(hello);
-      const switched = switchTold ? undefined : appSwitched(lastApp, identity, server.port);
-      lastApp = identity;
+      // A context that drives one platform's app shares the port by design: another app there is not a switch.
+      const switched = switchTold || accepts ? undefined : appSwitched(lastApp, identity, server.port);
+      if (!accepts) lastApp = identity;
       if (switched) {
         switchTold = true;
         err(switched);
@@ -147,6 +149,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       return currentConfig();
     },
     attached,
+    ...(shares ? { shares } : {}),
     err,
     graph: () => {
       const mtimeMs = fs.statSync(graphFile(root), { throwIfNoEntry: false })?.mtimeMs ?? 0;
@@ -164,6 +167,10 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     },
     forPort: (other) => {
       const scoped = contextFor(argv, attached, other, true);
+      return { base: scoped.ctx, stop: scoped.stop };
+    },
+    forApp: (which, share) => {
+      const scoped = contextFor(argv, attached, port, ownHost, which, share);
       return { base: scoped.ctx, stop: scoped.stop };
     },
   };

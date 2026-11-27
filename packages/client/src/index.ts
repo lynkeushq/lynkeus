@@ -47,7 +47,23 @@ export type AgentServerOptions = {
    * before they fail as gone (default 10000 ms). A reload redials within moments; a crashed app never does.
    */
   goneMs?: number;
+  /**
+   * Which apps this server drives, by what they say in hello (`platform: 'android'`, say). Servers in one process may
+   * share a port when each says which apps it takes: an app goes to the one that accepts it, else to the one that takes
+   * any. Every server on a port proves the same token.
+   */
+  accepts?: (hello: HelloEvent) => boolean;
 };
+
+/** Every server of this process listening on one host and port, and the socket server they share. */
+type Hub = { key: string; wss: WebSocketServer; servers: AgentServer[]; token?: string };
+const hubs = new Map<string, Hub>();
+
+const portTaken = (port: number) =>
+  new AgentError(
+    `Port ${port} is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`,
+    'port-in-use',
+  );
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -74,7 +90,8 @@ export class AgentServer extends EventEmitter {
   /** An app proved a token and it was not this one: another project's app, or a bundle with an older token. */
   #refused = 0;
   #session = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  #server: WebSocketServer | null = null;
+  #hub: Hub | null = null;
+  #accepts?: (hello: HelloEvent) => boolean;
   #socket: WebSocket | null = null;
   #pending = new Map<number, Pending>();
   #nextId = 1;
@@ -96,6 +113,7 @@ export class AgentServer extends EventEmitter {
     this.#token = options.token;
     this.#reconnectGraceMs = options.reconnectGraceMs ?? 2500;
     this.#goneMs = options.goneMs ?? 10_000;
+    this.#accepts = options.accepts;
   }
 
   get connected(): boolean {
@@ -118,24 +136,45 @@ export class AgentServer extends EventEmitter {
   }
 
   async listen(): Promise<void> {
-    if (this.#server) return;
-    const server = new WebSocketServer({ port: this.port, host: this.host, maxPayload: MAX_FRAME });
-    this.#server = server;
-    server.on('connection', (socket) => this.#attach(socket));
+    if (this.#hub) return;
+    const key = `${this.host}:${this.port}`;
+    const shared = hubs.get(key);
+    if (shared) {
+      // Two servers that each take any app would hand it to whichever it dials next: two runs' steps mixed.
+      const unclaimed = !this.#accepts && shared.servers.some((s) => !s.#accepts);
+      if (unclaimed || shared.token !== this.#token) throw portTaken(this.port);
+      shared.servers.push(this);
+      this.#hub = shared;
+      // An app the server taking any holds and this one wants dials again, and comes here.
+      if (this.#accepts)
+        for (const other of shared.servers)
+          if (!other.#accepts && other.#hello && this.#accepts(other.#hello)) other.#socket?.close(1012, 'another driver on this port takes this app');
+      return;
+    }
+    const wss = new WebSocketServer({ port: this.port, host: this.host, maxPayload: MAX_FRAME });
+    const hub: Hub = { key, wss, servers: [this], token: this.#token };
+    hubs.set(key, hub);
+    this.#hub = hub;
+    wss.on('connection', (socket) => {
+      const first = hub.servers[0];
+      if (first) first.#attach(socket);
+      else socket.terminate();
+    });
     await new Promise<void>((resolve, reject) => {
-      server.once('listening', () => resolve());
-      server.once('error', (error: NodeJS.ErrnoException) => {
-        this.#server = null;
-        if (error.code !== 'EADDRINUSE') return reject(error);
-        // Sharing the port would hand the app to whichever driver it dials next: two runs' steps mixed.
-        reject(
-          new AgentError(
-            `Port ${this.port} is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).`,
-            'port-in-use',
-          ),
-        );
+      wss.once('listening', () => resolve());
+      wss.once('error', (error: NodeJS.ErrnoException) => {
+        if (hubs.get(key) === hub) hubs.delete(key);
+        for (const s of hub.servers) s.#hub = null;
+        hub.servers = [];
+        reject(error.code === 'EADDRINUSE' ? portTaken(this.port) : error);
       });
     });
+  }
+
+  /** Who drives an app that said `hello`: the server that accepts it, else the one that takes any app. */
+  #ownerOf(hello: HelloEvent): AgentServer | undefined {
+    const servers = this.#hub?.servers ?? [];
+    return servers.find((s) => s.#accepts?.(hello)) ?? servers.find((s) => !s.#accepts);
   }
 
   async close(): Promise<void> {
@@ -145,8 +184,13 @@ export class AgentServer extends EventEmitter {
     this.#socket = null;
     this.#hello = null;
     this.#goneSince = null;
-    await new Promise<void>((resolve) => (this.#server ? this.#server.close(() => resolve()) : resolve()));
-    this.#server = null;
+    const hub = this.#hub;
+    this.#hub = null;
+    if (!hub) return;
+    hub.servers = hub.servers.filter((s) => s !== this);
+    if (hub.servers.length > 0) return;
+    if (hubs.get(hub.key) === hub) hubs.delete(hub.key);
+    await new Promise<void>((resolve) => hub.wss.close(() => resolve()));
   }
 
   async waitForApp(timeoutMs = 15_000): Promise<HelloEvent> {
@@ -242,6 +286,10 @@ export class AgentServer extends EventEmitter {
     this.#pending.clear();
   }
 
+  #peers(): AgentServer[] {
+    return this.#hub?.servers.length ? this.#hub.servers : [this];
+  }
+
   #attach(socket: WebSocket): void {
     // A new connection is only a candidate: the app it replaces keeps the link until this one proves the token, so a
     // local process that connects in a loop cannot knock the real app off.
@@ -259,13 +307,15 @@ export class AgentServer extends EventEmitter {
     const driverNonce = randomBytes(16).toString('hex');
     socket.send(JSON.stringify({ event: 'auth', session: this.#session, nonce: driverNonce }));
     let candidate = true;
+    // The handshake is this server's; the app it proves goes to whichever server on the port takes it.
+    let owner: AgentServer = this;
     const settle = () => {
       if (!candidate) return;
       candidate = false;
       this.#candidates--;
     };
     const silence = setTimeout(() => {
-      if (candidate && socket.readyState === WebSocket.OPEN) this.#unanswered = true;
+      if (candidate && socket.readyState === WebSocket.OPEN) for (const s of this.#peers()) s.#unanswered = true;
     }, 2000);
     const expire = setTimeout(() => {
       if (!candidate) return;
@@ -300,8 +350,10 @@ export class AgentServer extends EventEmitter {
             this.#token !== undefined &&
             (typeof nonce !== 'string' || !/^[0-9a-f]{32,128}$/.test(nonce) || !sameToken(given, proof(this.#token, 'app', this.#session, driverNonce, nonce)))
           ) {
-            this.#unanswered = true;
-            if (typeof given === 'string') this.#refused++;
+            for (const s of this.#peers()) {
+              s.#unanswered = true;
+              if (typeof given === 'string') s.#refused++;
+            }
             settle();
             drop(1008, 'invalid token');
             return;
@@ -309,17 +361,23 @@ export class AgentServer extends EventEmitter {
           settle();
           clearTimeout(silence);
           clearTimeout(expire);
+          const found = this.#ownerOf(safe as HelloEvent);
+          if (!found) {
+            drop(1013, 'no driver on this port takes this app');
+            return;
+          }
+          owner = found;
           // A relaunch reconnects before the old socket notices; the newest proven one wins.
-          const previous = this.#socket;
-          this.#socket = socket;
+          const previous = owner.#socket;
+          owner.#socket = socket;
           if (previous && previous !== socket) previous.close();
-          this.#cancelGrace();
-          this.#hello = safe as HelloEvent;
-          this.#unanswered = false;
-          this.#refused = 0;
-          this.#goneSince = null;
-          this.#appState = typeof this.#hello.appState === 'string' ? this.#hello.appState : undefined;
-          this.#heard++;
+          owner.#cancelGrace();
+          owner.#hello = safe as HelloEvent;
+          owner.#unanswered = false;
+          owner.#refused = 0;
+          owner.#goneSince = null;
+          owner.#appState = typeof owner.#hello.appState === 'string' ? owner.#hello.appState : undefined;
+          owner.#heard++;
           socket.send(
             JSON.stringify(
               this.#token !== undefined && typeof nonce === 'string'
@@ -328,41 +386,41 @@ export class AgentServer extends EventEmitter {
             ),
           );
           // Resend what the previous socket may have dropped, now that this one has proved the project token.
-          for (const pending of this.#pending.values()) socket.send(pending.request);
-          this.emit('hello', this.#hello);
+          for (const pending of owner.#pending.values()) socket.send(pending.request);
+          owner.emit('hello', owner.#hello);
           return;
         }
-        if (this.#socket === socket && this.#hello && APP_EVENTS.has(message.event)) {
-          this.#heard++;
-          if (message.event === 'appstate') this.#appState = message.state;
-          this.emit(message.event, message);
+        if (owner.#socket === socket && owner.#hello && APP_EVENTS.has(message.event)) {
+          owner.#heard++;
+          if (message.event === 'appstate') owner.#appState = message.state;
+          owner.emit(message.event, message);
         }
         return;
       }
-      if (this.#socket !== socket || !this.#hello) return;
-      this.#heard++;
-      const pending = this.#pending.get(message.id);
+      if (owner.#socket !== socket || !owner.#hello) return;
+      owner.#heard++;
+      const pending = owner.#pending.get(message.id);
       if (!pending) return;
-      this.#pending.delete(message.id);
+      owner.#pending.delete(message.id);
       clearTimeout(pending.timer);
       if ('error' in message) pending.reject(new AgentError(message.error.message, message.error.code));
       else pending.resolve(message.result);
     });
 
     socket.on('close', () => {
-      if (this.#socket !== socket) return;
-      this.#socket = null;
-      this.#hello = null;
+      if (owner.#socket !== socket) return;
+      owner.#socket = null;
+      owner.#hello = null;
       const since = Date.now();
-      this.#goneSince = since;
-      this.emit('disconnected');
+      owner.#goneSince = since;
+      owner.emit('disconnected');
       // Dev builds redial within moments: hold in-flight calls for the next hello to resend.
-      if (this.#pending.size === 0) return;
-      this.#graceTimer = setTimeout(() => {
-        this.#graceTimer = null;
-        const gone = this.#goneError(since);
-        this.#failPending(new AgentError(`App disconnected mid-call: ${gone.message}`, 'disconnected'));
-      }, this.#reconnectGraceMs);
+      if (owner.#pending.size === 0) return;
+      owner.#graceTimer = setTimeout(() => {
+        owner.#graceTimer = null;
+        const gone = owner.#goneError(since);
+        owner.#failPending(new AgentError(`App disconnected mid-call: ${gone.message}`, 'disconnected'));
+      }, owner.#reconnectGraceMs);
     });
   }
 }

@@ -337,15 +337,16 @@ npx lynkeus case run cases/settings-dark-mode.md --on all
 ```
 
 ```text
-✅ simulator  settings-dark-mode
-✅ headless   settings-dark-mode
+✅ ios       settings-dark-mode
+✅ android   settings-dark-mode
+✅ headless  settings-dark-mode
 ○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
-simulator 1/1 passed · headless 1/1 passed · fastsim not available
+ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim not available
 ```
 
-`--on` takes `simulator`, `fastsim` and `headless`, separated by commas, or `all`. `simulator` is the app attached to Lynkeus on a Simulator, an emulator or a phone; on Android its line reads `emulator`. The targets run side by side, so checking three costs about as long as the slowest one.
+`--on` takes `ios`, `android`, `fastsim` and `headless`, separated by commas, or `all` for the four. `ios` is your app on the iOS Simulator and `android` your app on the Android emulator (or a phone on USB). With a Simulator and an emulator both running, both apps attach to the same Lynkeus port and each is driven on its own connection, so the iOS and Android runs go on side by side. You do not need to rebuild either app or give it another port. `simulator` is still there: it means whichever device app is attached, and with two apps open that is the one that connected last. The targets run side by side, so checking four costs about as long as the slowest one.
 
-A target the machine does not have is listed with the reason and does not fail the run: no app is attached, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. FastSim uses the bundle you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
+A target the machine does not have is listed with the reason and does not fail the run: no Simulator or emulator of that platform is running, or its app did not attach within 3 seconds, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. FastSim uses the bundle you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
 
 ### Several cases at once: jobs
 

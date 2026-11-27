@@ -2,6 +2,8 @@
  * One definition per command, read by every surface: the terminal's parser and
  * usage, session lines, the MCP tools and the reference document.
  */
+import type { HelloEvent } from 'lynkeus-protocol';
+
 import type { ProgressEvent } from './cases/progress.js';
 import type { LynkeusConfig } from './config.js';
 import type { Device } from './device/driver.js';
@@ -34,6 +36,10 @@ export type Base = {
   waited?: boolean;
   /** The same, but waiting for its app on another port: one per host when several run side by side. */
   forPort?: (port: number) => { base: Base; stop: () => Promise<void> };
+  /** The same, on this port, for the apps `accepts` takes: an iOS Simulator's and an emulator's app attach side by side. */
+  forApp?: (accepts: (hello: HelloEvent) => boolean, share: string) => { base: Base; stop: () => Promise<void> };
+  /** Made by `forApp`: which apps of the port it drives (`ios`), so runs of this process on its other apps go on beside it. */
+  shares?: string;
   /** Where a long command says how far it has got, for a caller that follows it (an MCP client's progress). */
   progress?: (event: ProgressEvent) => void;
   /** Aborted when the caller gives up on the command (an MCP client cancelling its request): a long one stops. */

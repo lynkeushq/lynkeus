@@ -184,19 +184,25 @@ npx lynkeus case run cases/login.md --on all
 ```
 
 ```text
-✅ simulator  login
-❌ headless   login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
+✅ ios       login
+✅ android   login
+❌ headless  login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
 ○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
-simulator 1/1 passed · headless 0/1 passed · fastsim not available
+ios 1/1 passed · android 1/1 passed · headless 0/1 passed · fastsim not available
 a failure's screen and requests: run that target again alone, or with verbose
 ```
 
-`--on` takes `simulator` (the app attached on the driver port, on a Simulator, an emulator or a phone; `emulator` and
-`device` name it too, and its line reads `emulator` on Android), `fastsim` and `headless`, comma-separated, or `all`.
-Every target that can run here takes the cases at the same time, as `case run` would on it alone: the attached app on
-its port, headless and FastSim on hosts kept for the run on free ports picked together (`--jobs` gives each of them
+`--on` takes `ios` (the app on the iOS Simulator, or an iPhone), `android` (the app on the Android emulator or a
+phone), `fastsim` and `headless`, comma-separated, or `all` for those four. `simulator` is the app attached on the
+driver port whichever platform it runs on (`emulator` and `device` name it too, and its line reads `emulator` on
+Android), as before there were two. Both device apps dial the same driver port (the Android one through 10.0.2.2, or
+`adb reverse` on a phone), and the driver hands each to the connection of its platform by what the app says when it
+attaches, so the two run side by side with no rebuild and no port of their own; with only `simulator`, the app that
+dialed last is the one driven. Every target that can run here takes the cases at the same time, as `case run` would on
+it alone: the device apps on the driver port, headless and FastSim on hosts kept for the run on free ports picked together (`--jobs` gives each of them
 that many). A target this machine lacks is named once with why and fails nothing: no app on a Simulator or emulator is
-attached (or the one attached runs on a host), headless is not set up (`lynkeus headless init`), or FastSim is not
+attached (or the one attached runs on a host; for `ios` and `android`, no Simulator, emulator or phone of that
+platform is up, or its app does not attach within 3 s), headless is not set up (`lynkeus headless init`), or FastSim is not
 installed, has no bundle or gets no grant. FastSim runs `ci.hosts.command` when that starts `fastsim-run`, else the
 installed kit's `fastsim-run` on `--bundle`, else on the bundle made last under `.lynkeus`
 (`<kit>/bin/fastsim-bundle . .lynkeus/fastsim-ios ios`); a bundle older than the app's code is bundled again first.
@@ -205,7 +211,7 @@ The answer is one line per case per target, with the failing step and the first 
 each failure in full, as a run on one target shows it, and notices a target gave (native values a host did not answer,
 the run folder) follow under its name. The run fails when a case fails on any target that ran, or a target could not
 start. `--out <dir>` keeps each target's run in `<dir>/<target>` (`--events` likewise), the hosts keep flake ledgers
-of their own (`.lynkeus/flakes.headless.json`, `.lynkeus/flakes.fastsim.json`), and `case status` and `case stop` see
+of their own (`.lynkeus/flakes.headless.json`, `.lynkeus/flakes.ios.json`…), and `case status` and `case stop` see
 one run, each case named with its target. `--on` starts each target's hosts itself, so it refuses `--host`,
 `--host-command`, `--keep-hosts` and `--ports`.
 

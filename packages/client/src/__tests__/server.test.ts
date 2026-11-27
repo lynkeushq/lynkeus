@@ -26,7 +26,7 @@ type Message = { event?: string; token?: string; session?: string; nonce?: strin
 const hmac = (token: string, text: string) => createHmac('sha256', token).update(text).digest('hex');
 
 /** An app holding `token` (the real agent's handshake): proves it in hello and checks the driver's proof. */
-const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = () => ({ ok: true }), token = 'secret') => {
+const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = () => ({ ok: true }), token = 'secret', platform = 'ios') => {
   const socket = new WebSocket(`ws://127.0.0.1:${server.port}`);
   const seen: Message[] = [];
   let expected = '';
@@ -38,7 +38,7 @@ const fakeApp = async (server: AgentServer, answer: (m: Message) => unknown = ()
       const nonce = randomBytes(16).toString('hex');
       expected = hmac(token, `lynkeus/driver/${m.session}/${m.nonce}/${nonce}`);
       const proof = hmac(token, `lynkeus/app/${m.session}/${m.nonce}/${nonce}`);
-      socket.send(JSON.stringify({ event: 'hello', protocolVersion: 2, platform: 'ios', native: false, commands: [], nonce, proof }));
+      socket.send(JSON.stringify({ event: 'hello', protocolVersion: 2, platform, native: false, commands: [], nonce, proof }));
     } else if (m.event === 'verified') verified = m.proof === expected;
     else if (m.id !== undefined) {
       const reply = answer(m);
@@ -244,4 +244,50 @@ test('a call that hears nothing at all from the app says so, as a suspended app 
     /screen timed out after 100ms: nothing at all came from the app meanwhile \(another app in front/,
   );
   app.socket.close();
+});
+
+test('servers of one process share a port, each driving the apps it accepts', async () => {
+  const ios = await serve({ token: 'secret', accepts: (hello) => hello.platform === 'ios' });
+  const android = new AgentServer({ port: ios.port, token: 'secret', accepts: (hello) => hello.platform === 'android' });
+  servers.push(android);
+  await android.listen();
+  const iosApp = await fakeApp(ios, () => ({ result: { on: 'ios' } }));
+  const androidApp = await fakeApp(ios, () => ({ result: { on: 'android' } }), 'secret', 'android');
+  assert.equal((await ios.waitForApp(2000)).platform, 'ios');
+  assert.equal((await android.waitForApp(2000)).platform, 'android');
+  assert.deepEqual(await ios.call('ping', undefined, 1000), { on: 'ios' });
+  assert.deepEqual(await android.call('ping', undefined, 1000), { on: 'android' });
+  // The first server leaving keeps the port for the other.
+  await ios.close();
+  assert.deepEqual(await android.call('ping', undefined, 1000), { on: 'android' });
+  iosApp.socket.close();
+  androidApp.socket.close();
+});
+
+test('a server that takes one platform takes its app from the one that takes any, and leaves it the rest', async () => {
+  const any = await serve({ token: 'secret' });
+  const app = await fakeApp(any, () => ({ result: { on: 'android' } }), 'secret', 'android');
+  await any.waitForApp(2000);
+  const android = new AgentServer({ port: any.port, token: 'secret', accepts: (hello) => hello.platform === 'android' });
+  servers.push(android);
+  await android.listen();
+  await new Promise((resolve) => app.socket.once('close', resolve));
+  assert.equal(any.connected, false);
+  // The agent dials again; this one stands in for it.
+  const again = await fakeApp(any, () => ({ result: { on: 'android' } }), 'secret', 'android');
+  assert.equal((await android.waitForApp(2000)).platform, 'android');
+  const ios = await fakeApp(any, () => ({ result: { on: 'ios' } }));
+  assert.equal((await any.waitForApp(2000)).platform, 'ios');
+  assert.deepEqual(await any.call('ping', undefined, 1000), { on: 'ios' });
+  again.socket.close();
+  ios.socket.close();
+});
+
+test('an app no server on the port takes is let go, and a server with another token cannot join', async () => {
+  const ios = await serve({ token: 'secret', accepts: (hello) => hello.platform === 'ios' });
+  const app = await fakeApp(ios, () => ({ ok: true }), 'secret', 'android');
+  await new Promise((resolve) => app.socket.once('close', resolve));
+  assert.equal(ios.connected, false);
+  const other = new AgentServer({ port: ios.port, token: 'other', accepts: () => true });
+  await assert.rejects(other.listen(), (error: unknown) => error instanceof AgentError && error.code === 'port-in-use');
 });

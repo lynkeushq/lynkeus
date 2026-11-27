@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 import { caseLine, parseTargets, runOnTargets, type SuiteReport, type SuiteResult, type TargetName, type TargetPlan } from '../cases/onTargets.js';
 import { lastRunFile, statusOf } from '../cases/progress.js';
-import { caseCommands, fastsimBundles, fastsimHostCommand } from '../commands/cases.js';
+import { caseCommands, deviceProbes, fastsimBundles, fastsimHostCommand } from '../commands/cases.js';
 import { driveCommands } from '../commands/drive.js';
 import type { Device } from '../device/driver.js';
 import { type Base, type Ctx, register } from '../registry.js';
@@ -59,11 +59,12 @@ const ctxIn = (root: string, flags: Record<string, string | boolean | number | u
 };
 
 test('--on takes the target names, emulator and device for simulator, and all; in the order the answer lists them', () => {
-  assert.deepEqual(parseTargets('all'), ['simulator', 'fastsim', 'headless']);
+  assert.deepEqual(parseTargets('all'), ['ios', 'android', 'fastsim', 'headless']);
   assert.deepEqual(parseTargets('headless, emulator'), ['simulator', 'headless']);
-  assert.deepEqual(parseTargets('device,fastsim,all'), ['simulator', 'fastsim', 'headless']);
-  assert.match(String(parseTargets('web')), /^--on web: not a target\. Name simulator, fastsim, headless/);
-  assert.match(String(parseTargets(' , ')), /^--on: name simulator, fastsim, headless/);
+  assert.deepEqual(parseTargets('android,IOS'), ['ios', 'android']);
+  assert.deepEqual(parseTargets('device,fastsim,all'), ['simulator', 'ios', 'android', 'fastsim', 'headless']);
+  assert.match(String(parseTargets('web')), /^--on web: not a target\. Name ios, android, fastsim, headless, simulator \(the attached app on either platform/);
+  assert.match(String(parseTargets(' , ')), /^--on: name ios, android, fastsim, headless, simulator/);
 });
 
 test('a case on a target is one line: the result, and for a failure the step and the first line of its error', () => {
@@ -316,13 +317,27 @@ const simulatorProject = (hello: Record<string, unknown> | null) => {
   return { root, base };
 };
 
-test('case run --on all runs on the attached Simulator and names the targets this machine lacks', async () => {
+/** The Simulators and emulators the device targets find booted, for the length of `body`. */
+const withDevices = async <T>(ios: number, android: number, body: () => Promise<T>): Promise<T> => {
+  const before = { ...deviceProbes };
+  const one = (platform: 'ios' | 'android', i: number) =>
+    ({ id: `${platform}-${i}`, name: `${platform} ${i}`, platform, type: platform === 'ios' ? 'simulator' : 'emulator', connected: true }) as const;
+  deviceProbes.ios = async () => Array.from({ length: ios }, (_, i) => one('ios', i));
+  deviceProbes.android = async () => Array.from({ length: android }, (_, i) => one('android', i));
+  try {
+    return await body();
+  } finally {
+    Object.assign(deviceProbes, before);
+  }
+};
+
+test('case run --on simulator runs on the attached app and names the targets this machine lacks', async () => {
   const kits = tmp('lynkeus-on-nokits-');
   const before = process.env.LYNKEUS_FASTSIM_DIR;
   process.env.LYNKEUS_FASTSIM_DIR = kits;
   try {
     const p = simulatorProject({ native: true, commands: [], platform: 'ios' });
-    const outcome = await execute(['case', 'run', '--on', 'all', '--once'], p.base);
+    const outcome = await withDevices(1, 0, () => execute(['case', 'run', '--on', 'simulator,fastsim,headless', '--once'], p.base));
     const lines = (outcome.text ?? '').split('\n');
     assert.equal(lines[0], '✅ simulator  one');
     assert.match(lines[1] ?? '', /^○ fastsim not available: not installed/);
@@ -339,7 +354,7 @@ test('case run --on all runs on the attached Simulator and names the targets thi
 
 test('the simulator target is not available when the attached app runs on a host', async () => {
   const p = simulatorProject({ native: true, commands: ['clock', 'screenshot'], platform: 'ios' });
-  const outcome = await execute(['case', 'run', '--on', 'simulator'], p.base);
+  const outcome = await withDevices(1, 0, () => execute(['case', 'run', '--on', 'simulator'], p.base));
   assert.equal(outcome.code, 1);
   assert.match(
     outcome.text ?? '',
@@ -355,4 +370,51 @@ test('--on refuses the flags that pick one place to run, and names that are not 
   const unknown = await execute(['case', 'run', '--on', 'web'], p.base);
   assert.equal(unknown.code, 2);
   assert.match(unknown.text ?? '', /^--on web: not a target/);
+});
+
+test('--on ios,android runs on the iOS Simulator and the Android emulator side by side, each app on its own connection', async () => {
+  const ios = simulatorProject({ native: true, commands: [], platform: 'ios' });
+  const android = simulatorProject({ native: true, commands: [], platform: 'android' });
+  const apps = [await ios.base.device(), await android.base.device()];
+  const stopped: string[] = [];
+  const base: Base = {
+    ...ios.base,
+    device: async () => {
+      throw new Error('the run asked the caller for its app');
+    },
+    forApp: (accepts, share) => {
+      const app = apps.find((d) => d.server.hello && accepts(d.server.hello))!;
+      return {
+        base: { ...ios.base, device: async () => app, shares: share },
+        stop: async () => {
+          stopped.push(String(app.server.hello?.platform));
+        },
+      };
+    },
+  };
+  const outcome = await withDevices(1, 1, () => execute(['case', 'run', '--on', 'ios,android', '--once'], base));
+  const lines = (outcome.text ?? '').split('\n');
+  assert.deepEqual(lines, ['✅ ios      one', '✅ android  one', 'ios 1/1 passed · android 1/1 passed']);
+  assert.equal(outcome.code, 0);
+  assert.deepEqual(stopped.sort(), ['android', 'ios']);
+  // Side by side, each keeps a ledger of its own.
+  assert.ok(fs.existsSync(path.join(ios.root, '.lynkeus', 'flakes.ios.json')));
+  assert.ok(fs.existsSync(path.join(ios.root, '.lynkeus', 'flakes.android.json')));
+});
+
+test('a platform with no Simulator or emulator up is said at once, and its connection is let go', async () => {
+  const p = simulatorProject({ native: true, commands: [], platform: 'ios' });
+  let opened = 0;
+  const base: Base = {
+    ...p.base,
+    forApp: () => {
+      opened++;
+      return { base: p.base, stop: async () => undefined };
+    },
+  };
+  const outcome = await withDevices(1, 0, () => execute(['case', 'run', '--on', 'ios,android', '--once'], base));
+  const lines = (outcome.text ?? '').split('\n');
+  assert.equal(lines[0], '✅ ios  one');
+  assert.equal(lines[1], '○ android not available: no Android emulator or phone is up (adb devices lists none)');
+  assert.equal(opened, 1);
 });

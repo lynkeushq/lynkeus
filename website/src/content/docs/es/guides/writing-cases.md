@@ -331,16 +331,19 @@ npx lynkeus case run cases/settings-dark-mode.md --on all
 ```
 
 ```text
-✅ simulator  settings-dark-mode
-❌ headless   settings-dark-mode — step 5/5 app.see testId: theme-dark-selected: not on screen: {"testId":"theme-dark-selected"}
+✅ ios       settings-dark-mode
+✅ android   settings-dark-mode
+❌ headless  settings-dark-mode — step 5/5 app.see testId: theme-dark-selected: not on screen: {"testId":"theme-dark-selected"}
 ○ fastsim not available: no bundle under .lynkeus: make one with …/bin/fastsim-bundle … ios (or android), or pass --bundle
-simulator 1/1 passed · headless 0/1 passed · fastsim not available
+ios 1/1 passed · android 1/1 passed · headless 0/1 passed · fastsim not available
 a failure's screen and requests: run that target again alone, or with verbose
 ```
 
-Cada caso ocupa una línea por destino. Los destinos son `simulator` (la app conectada a Lynkeus en un simulador, un emulador o un teléfono; en Android la línea dice `emulator`), `fastsim` y `headless`; se separan con comas, o se pide `all`. Corren al mismo tiempo, así que revisar los tres tarda más o menos lo que tarda el más lento.
+Cada caso ocupa una línea por destino. Los destinos son `ios` (tu app en el simulador de iOS), `android` (tu app en el emulador de Android o en un teléfono por USB), `fastsim` y `headless`; se separan con comas, o se pide `all` para los cuatro. Corren al mismo tiempo, así que revisar todos tarda más o menos lo que tarda el más lento.
 
-Si en esta máquina falta un destino, la respuesta lo dice una vez y explica por qué, sin dar la ejecución por fallida: no hay una app conectada en un simulador o emulador, el modo headless no está preparado (`npx lynkeus headless init`), o FastSim no está instalado, no tiene un bundle o el servicio no da acceso. FastSim usa el último bundle que hiciste dentro de `.lynkeus`, o el que indiques con `--bundle`. Basta con que el caso falle en un destino que corrió para que el comando termine con código 1; la línea dice el paso y el error, y `--verbose` agrega la pantalla y las peticiones.
+Si tienes abiertos un simulador de iOS y un emulador de Android, las dos apps se conectan al mismo puerto de Lynkeus y cada una queda en su propia conexión. Así las ejecuciones de iOS y de Android avanzan en paralelo, sin recompilar ninguna app ni cambiarle el puerto. El destino `simulator` sigue existiendo y significa la app de dispositivo que esté conectada, sea cual sea la plataforma; con dos apps abiertas, es la última que se conectó (en Android su línea dice `emulator`).
+
+Si en esta máquina falta un destino, la respuesta lo dice una vez y explica por qué, sin dar la ejecución por fallida: no hay un simulador o emulador de esa plataforma encendido, o su app no se conectó en 3 segundos, el modo headless no está preparado (`npx lynkeus headless init`), o FastSim no está instalado, no tiene un bundle o el servicio no da acceso. FastSim usa el último bundle que hiciste dentro de `.lynkeus`, o el que indiques con `--bundle`. Basta con que el caso falle en un destino que corrió para que el comando termine con código 1; la línea dice el paso y el error, y `--verbose` agrega la pantalla y las peticiones.
 
 ### Varios casos a la vez
 
