@@ -155,6 +155,18 @@ npx lynkeus ci --affected --base origin/main
 
 It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
 
+### On the targets your project declared
+
+When `lynkeus.config.json` lists where cases must pass in `cases.targets` (see [Where a case must pass](/guides/writing-cases/#where-a-case-must-pass)), `lynkeus ci` follows it. Each case runs on its declared targets that a job can start by itself: `headless`, `fastsim:ios` and `fastsim:android`. With `"targets": ["fastsim:ios", "fastsim:android"]`, a job runs every case on FastSim for iOS, then on FastSim for Android, and never on headless.
+
+- The targets run one after another, each with `ci.hosts.count` hosts, so a runner never holds two targets' hosts at once.
+- With more than one target, each run goes to its own folder (`lynkeus-run/fastsim-ios`, `lynkeus-run/headless`), and the job summary names each case with its target and links each target's report.
+- A FastSim target uses `ci.hosts.command` when that command runs `fastsim-run` on a bundle of the same platform. Otherwise it uses the installed FastSim for that platform and the last bundle of that platform under `.lynkeus`. A `ci.hosts.command` that does not start FastSim is taken to be your own headless host.
+- `ios` and `android` need a Simulator, an emulator or a phone, so the job lists them as not run. Check them on a machine that has one, with `case run --on targets`.
+- If a declared FastSim target cannot start in the job (FastSim is not installed, or there is no bundle for that platform), the job fails and says the check is incomplete. It does not pass with fewer targets than you declared.
+
+Without `cases.targets`, the job runs every case on `ci.hosts.command`, or on headless hosts, as described above. `--dry-run` shows the plan for each target.
+
 ## Run on a simulator or an emulator
 
 Use this for what the headless host cannot show: screenshots, contrast, and anything native. The device here is a simulator or an emulator; an Android phone over USB also works, an iPhone does not.

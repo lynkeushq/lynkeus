@@ -188,6 +188,14 @@ Dos opciones útiles:
 
 Cuando existe `$GITHUB_STEP_SUMMARY`, `lynkeus ci` escribe ahí el resumen del job: cuántos casos pasaron, una tabla con los que fallaron y el enlace al reporte.
 
+### Con los destinos que declaró el proyecto
+
+Si `lynkeus.config.json` dice en `cases.targets` dónde tienen que pasar los casos, `lynkeus ci` se guía por eso: corre cada caso en los destinos declarados que un job puede levantar por su cuenta, es decir `headless`, `fastsim:ios` y `fastsim:android`. Con `"targets": ["fastsim:ios", "fastsim:android"]`, el job corre todos los casos en FastSim para iOS, después en FastSim para Android, y nunca en headless.
+
+Los destinos van uno detrás del otro, cada uno con sus `ci.hosts.count` hosts, para que el runner no cargue con los hosts de dos destinos al mismo tiempo. Si hay más de uno, cada ejecución queda en su carpeta (`lynkeus-run/fastsim-ios`, `lynkeus-run/headless`) y el resumen nombra cada caso con su destino y enlaza el reporte de cada uno. Un destino de FastSim usa `ci.hosts.command` si ese comando corre `fastsim-run` sobre un bundle de la misma plataforma; si no, el FastSim instalado para esa plataforma con su último bundle dentro de `.lynkeus`. Un `ci.hosts.command` que no arranca FastSim se toma como tu propio host headless.
+
+`ios` y `android` necesitan un simulador, un emulador o un teléfono: el job los menciona como no corridos, y se comprueban con `case run --on targets` en una máquina que tenga uno. Si un destino de FastSim declarado no puede arrancar en el job (no está instalado o no hay bundle de esa plataforma), el job falla y avisa que la comprobación quedó incompleta, en lugar de pasar con menos destinos de los declarados. Sin `cases.targets`, todo sigue como antes: cada caso en `ci.hosts.command` o en hosts headless. `--dry-run` muestra el plan de cada destino.
+
 El token no sale de `.lynkeus/token`, porque ese archivo no está en un checkout limpio: en CI, `LYNKEUS_TOKEN` tiene que estar definida.
 
 ## Seguir la ejecución

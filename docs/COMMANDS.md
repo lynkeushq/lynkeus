@@ -683,7 +683,7 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
-A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on all` runs the cases on every target this machine has at once (the app on the iOS Simulator, the app on the Android emulator, Lynkeus FastSim, headless) and answers one line per case per target; a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
+A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
 
 | Argument | |
 |---|---|
@@ -691,8 +691,8 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 
 | Flag | |
 |---|---|
-| `--on <targets>` | run the cases on each target at once: ios (the app on the iOS Simulator), android (the app on the Android emulator or phone), fastsim, headless, simulator (whichever device app is attached; emulator and device are the same), comma-separated, or all (ios, android, fastsim, headless); a target this machine lacks is said, not failed |
-| `--bundle <dir>` | with --on fastsim: the folder fastsim-bundle made (default: the last one under .lynkeus) |
+| `--on <targets>` | run the cases on several targets at once: targets (each case's declared ones, cases.targets; a missing one makes the check incomplete), all (every one this machine has; a missing one is said, not failed), or names, comma-separated: headless, fastsim:ios, fastsim:android, ios (the app on the iOS Simulator or an iPhone), android (the app on the Android emulator or a phone), fastsim (the last bundle), simulator (whichever device app is attached; emulator and device are the same) |
+| `--bundle <dir>` | with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform) |
 | `--host` | start `headless start` for the run (one per job with --jobs) and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
@@ -838,7 +838,7 @@ Reads the attached app’s screen and writes a case that goes to its route (`app
 
 Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down
 
-Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
+Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. With `cases.targets` declared, each case runs on its declared targets CI can start (headless, fastsim:ios, fastsim:android; a case’s own `targets:` replaces the project’s), one target after another, each in `<out>/<target>` when there are several; `ios` and `android` need a device and are listed, not run; a declared FastSim target with no kit or bundle here fails the job as an incomplete check. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
 
 | Flag | |
 |---|---|

@@ -389,6 +389,6 @@
   },
   "surface/help/ci": {
     "why": "With cases.targets declared, lynkeus ci runs each case on its declared targets a CI job can start (headless, fastsim:ios, fastsim:android), one after another, lists the device ones as not run, and fails as incomplete when a declared FastSim target cannot start.",
-    "now": "fb07e284e791f196"
+    "now": "cf9ccc82d349a1b5"
   }
 }

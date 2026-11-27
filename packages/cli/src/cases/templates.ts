@@ -53,6 +53,7 @@ teardown step that fails does not change the result, and the result names it.
 | \`given\` | optional | what is true when it starts |
 | \`ticket\` | optional | the ticket it covers |
 | \`exclusive\` | optional | \`true\`: under \`case run --jobs\` it runs with no other case at once, for a case that changes state every case shares (a global flag) |
+| \`targets\` | optional | where this case must pass, replacing the project's \`cases.targets\` (\`[ios, android]\` for a device-only feature); \`case run --on targets\` checks them |
 
 A report shows \`description\`, \`why\`, \`given\`, \`ticket\` and \`expected\` above the steps, so a reader
 who never opened the file knows what they are looking at.

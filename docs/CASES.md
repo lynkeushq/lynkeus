@@ -174,44 +174,86 @@ under `launch.unsupported` the ones an attached Simulator or emulator could not
 apply. On an attached app that includes the seed: it still makes the case's own
 `{{random.*}}` repeatable, but the app's `Math.random` is its own.
 
+## Where a case must pass
+
+Where a case must pass is the project's decision, declared once in `lynkeus.config.json`:
+
+```json
+{ "cases": { "targets": ["fastsim:ios", "fastsim:android"] } }
+```
+
+The targets are `headless` (the app in Node), `fastsim:ios` and `fastsim:android` (Lynkeus FastSim drawing each
+platform), `ios` (the app on the iOS Simulator, or an iPhone) and `android` (the app on the Android emulator, or a
+phone). One team with FastSim for both platforms declares those two and nothing else; another declares
+`["headless", "ios"]`. A case that needs something only some targets have (a device-only feature) declares its own in
+its frontmatter, which replace the project's for that case:
+
+```yaml
+---
+id: scan-card
+targets: [ios, android]
+---
+```
+
+`--on targets` checks each case on its declared targets, all of them at once, and on nothing else:
+
+```sh
+npx lynkeus case run cases/login.md --on targets
+```
+
+```text
+✅ fastsim:ios      login
+❌ fastsim:android  login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
+fastsim:ios 1/1 passed · fastsim:android 0/1 passed
+```
+
+A declared target this machine cannot run on is named with why, and the check is incomplete: the run fails and its
+last line says which targets were not checked (`⚠ check incomplete: fastsim:android (3 case(s)) declared but not
+available here…`). A case is done when `--on targets` passes on every target it declares. With no `cases.targets`
+(and a case without its own), `--on targets` refuses and asks for them. `lynkeus status` shows the declared targets
+and whether each runs here, or proposes a value when there are none (FastSim for each of the app's platforms when it
+is installed, else `headless` and the platforms the app builds for, from its `ios` and `android` folders); `lynkeus
+init` writes that proposal when the config has none, and says so. Plain `case run` still runs on the attached app,
+the fast loop while a case is written.
+
 ## On every target
 
-A case is done when it passes everywhere it will run: on a Simulator or emulator, on Lynkeus FastSim and on the
-headless host. `--on` checks that in one run:
+`--on all` runs the cases on every target this machine has instead, and a target it lacks fails nothing:
 
 ```sh
 npx lynkeus case run cases/login.md --on all
 ```
 
 ```text
-✅ ios       login
-✅ android   login
-❌ headless  login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
-○ fastsim not available: not installed: `lynkeus fastsim install --platform ios|android` (Team plan)
-ios 1/1 passed · android 1/1 passed · headless 0/1 passed · fastsim not available
+✅ ios        login
+✅ android    login
+❌ headless   login — step 4/7 app.see #welcome: not on screen: {"testId":"welcome"}
+○ fastsim:ios not available: not installed: `lynkeus fastsim install --platform ios` (Team plan)
+○ fastsim:android not available: not installed: `lynkeus fastsim install --platform android` (Team plan)
+ios 1/1 passed · android 1/1 passed · headless 0/1 passed · fastsim:ios not available · fastsim:android not available
 a failure's screen and requests: run that target again alone, or with verbose
 ```
 
-`--on` takes `ios` (the app on the iOS Simulator, or an iPhone), `android` (the app on the Android emulator or a
-phone), `fastsim` and `headless`, comma-separated, or `all` for those four. `simulator` is the app attached on the
+`--on` also takes target names, comma-separated: `headless`, `fastsim:ios`, `fastsim:android`, `ios`, `android`.
+`all` is those five. `fastsim` is FastSim on the last bundle, whichever platform it draws. `simulator` is the app attached on the
 driver port whichever platform it runs on (`emulator` and `device` name it too, and its line reads `emulator` on
 Android), as before there were two. Both device apps dial the same driver port (the Android one through 10.0.2.2, or
 `adb reverse` on a phone), and the driver hands each to the connection of its platform by what the app says when it
 attaches, so the two run side by side with no rebuild and no port of their own; with only `simulator`, the app that
 dialed last is the one driven. Every target that can run here takes the cases at the same time, as `case run` would on
 it alone: the device apps on the driver port, headless and FastSim on hosts kept for the run on free ports picked together (`--jobs` gives each of them
-that many). A target this machine lacks is named once with why and fails nothing: no app on a Simulator or emulator is
+that many). Outside `--on targets`, a target this machine lacks is named once with why and fails nothing: no app on a Simulator or emulator is
 attached (or the one attached runs on a host; for `ios` and `android`, no Simulator, emulator or phone of that
 platform is up, or its app does not attach within 3 s), headless is not set up (`lynkeus headless init`), or FastSim is not
-installed, has no bundle or gets no grant. FastSim runs `ci.hosts.command` when that starts `fastsim-run`, else the
-installed kit's `fastsim-run` on `--bundle`, else on the bundle made last under `.lynkeus`
+installed, has no bundle or gets no grant. A FastSim target runs `ci.hosts.command` when that starts `fastsim-run` on a bundle
+of its platform, else the installed kit's `fastsim-run` on `--bundle` (when it draws that platform), else on that platform's bundle made last under `.lynkeus`
 (`<kit>/bin/fastsim-bundle . .lynkeus/fastsim-ios ios`); a bundle older than the app's code is bundled again first.
 
 The answer is one line per case per target, with the failing step and the first line of its error; `--verbose` adds
 each failure in full, as a run on one target shows it, and notices a target gave (native values a host did not answer,
 the run folder) follow under its name. The run fails when a case fails on any target that ran, or a target could not
-start. `--out <dir>` keeps each target's run in `<dir>/<target>` (`--events` likewise), the hosts keep flake ledgers
-of their own (`.lynkeus/flakes.headless.json`, `.lynkeus/flakes.ios.json`…), and `case status` and `case stop` see
+start. `--out <dir>` keeps each target's run in `<dir>/<target>` (`<dir>/fastsim-ios` for `fastsim:ios`; `--events` likewise), the hosts keep flake ledgers
+of their own (`.lynkeus/flakes.headless.json`, `.lynkeus/flakes.fastsim-ios.json`…), and `case status` and `case stop` see
 one run, each case named with its target. `--on` starts each target's hosts itself, so it refuses `--host`,
 `--host-command`, `--keep-hosts` and `--ports`.
 
@@ -304,6 +346,15 @@ everything torn down, failure or not. Lynkeus knows no backend; the config says 
 `ci.hosts.command` starts a host other than headless (`{port}` is where it dials), `ci.run` adds `case run` flags as on the
 command line, and `ci.backend.timeoutMs` and `ci.hosts.timeoutMs` bound how long each takes to come up.
 
+With `cases.targets` declared, the job runs each case on its declared targets a CI job can start: `headless` and
+`fastsim:ios` / `fastsim:android`, one target after another (each brings up its `hosts.count` hosts, so two targets
+never double a runner's memory), each in `<out>/<target>` when there are several, and the summary links each target's
+report. A FastSim target runs `ci.hosts.command` when that is `fastsim-run` on a bundle of its platform, else the
+installed kit on that platform's last bundle; a `ci.hosts.command` that starts no FastSim is the project's own
+headless host. `ios` and `android` need a device and are listed as not run. A declared FastSim target the job cannot
+start (no kit, no bundle) fails it as an incomplete check. Without `cases.targets`, the job runs every case on
+`ci.hosts.command`, or headless, as before.
+
 ```yaml
 - run: npx lynkeus ci --affected --base origin/main   # only the cases this pull request's changes reach
 ```
@@ -313,6 +364,7 @@ command line, and `ci.backend.timeoutMs` and `ci.hosts.timeoutMs` bound how long
 ```json
 "cases": {
   "dir": "cases",
+  "targets": ["headless", "ios"],
   "flows": "flows",
   "fixtures": { "command": "node cases/fixtures.mjs", "cwd": ".", "timeoutMs": 120000 },
   "inspect": "inspect",
@@ -327,7 +379,7 @@ command line, and `ci.backend.timeoutMs` and `ci.hosts.timeoutMs` bound how long
 command is started once per run, in `cwd`, and can be anything that reads a
 line and writes a line: a Node script, a Rails runner, a container.
 
-The other keys under `cases`: `start` (the screen `case new` begins on),
+`targets` is where a case must pass (above). The other keys under `cases`: `start` (the screen `case new` begins on),
 `interruptions` and `macros` (above), `serverEvents` (`{ fixture, provider? }`:
 the fixture is asked after each app step with `{ since }` and answers
 `{ events: [{ name, props, provider? }] }`, the backend's own analytics),

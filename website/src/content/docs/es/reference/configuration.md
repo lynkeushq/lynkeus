@@ -73,6 +73,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 
   "cases": {
     "dir": "cases",
+    "targets": ["fastsim:ios", "fastsim:android"],
     "start": "Home.Main",
     "flows": "flows",
     "fixtures": {
@@ -144,7 +145,7 @@ Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y l
 | `ci.backend.ready` | texto | ninguno | Una URL que responde con éxito cuando el backend ya puede servir. `lynkeus ci` la consulta hasta que responde. |
 | `ci.backend.timeoutMs` | número (ms) | `300000` | Cuánto espera a esa URL. |
 | `ci.hosts.count` | número | `2` | Cuántos hosts y jobs. `--jobs` lo reemplaza. |
-| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. `{port}` es el puerto donde se conecta; el primero sale de `LYNKEUS_PORT` o de `port` (`8123` si no hay ninguno) y los demás lo siguen. Por defecto, `headless start` con ese puerto. |
+| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. Con `cases.targets`, se usa para el destino de FastSim de la plataforma de su bundle, o para `headless` si no arranca FastSim. `{port}` es el puerto donde se conecta; el primero sale de `LYNKEUS_PORT` o de `port` (`8123` si no hay ninguno) y los demás lo siguen. Por defecto, `headless start` con ese puerto. |
 | `ci.hosts.timeoutMs` | número (ms) | `600000` | Cuánto puede tardar cada host en conectarse; compilar la app es lo lento. Se pasa a `case run` como `--host-timeout`. |
 | `ci.push` | booleano | `false` | Sube la ejecución al servicio de reportes. Necesita `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | lista de textos | ninguno | Opciones extra de `case run`, tal como las escribirías en la línea de comandos. |
@@ -216,6 +217,7 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 |---|---|---|---|
 | `cases.dir` | texto | `cases` | La carpeta donde viven los casos. Sin archivos en la línea de comandos, `case run` ejecuta todos los `.md` que haya allí y en sus subcarpetas, en orden de ruta; también acepta una carpeta como argumento. |
 | `cases.start` | texto | ninguno | La pantalla donde empieza un caso, para los borradores de `lynkeus case new`: la primera que ve una persona que ya inició sesión, por ejemplo. |
+| `cases.targets` | lista de textos | ninguno | Dónde tiene que pasar un caso en este proyecto: cualquiera de `headless`, `fastsim:ios`, `fastsim:android`, `ios` (la app en el simulador de iOS o en un iPhone) y `android` (la app en el emulador de Android o en un teléfono). `case run --on targets` corre cada caso ahí y en ningún otro lado; si a la máquina le falta un destino declarado, la comprobación queda incompleta. `lynkeus ci` corre los de `headless` y FastSim. El `targets` del encabezado de un caso reemplaza esta lista para ese caso. Si falta, `lynkeus init` escribe una propuesta y `lynkeus status` la muestra. |
 | `cases.flows` | texto | `flows` | La carpeta donde viven los flows que un caso ejecuta con `app.run`. |
 | `cases.fixtures` | objeto | ninguno | El comando que responde los pasos de fixtures. Ver abajo. |
 | `cases.inspect` | texto | `inspect` | El nombre del fixture por el que `assert` lee el backend. |

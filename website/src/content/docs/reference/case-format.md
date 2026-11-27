@@ -50,6 +50,7 @@ The file must start with `---` on its first line. A file without frontmatter is 
 | `ticket` | string | none | The ticket the case covers. Shown in a report. Since 0.5.0. |
 | `matrix` | object of lists | none | Inputs to run the case over. See [Matrix](#matrix). |
 | `exclusive` | boolean | `false` | `true` runs the case with no other case at the same time under `case run --jobs`: it waits for the cases in flight to end, and no other starts until it has ended. For a case that changes state every case shares, such as a global feature flag. Its setup is never made ahead. |
+| `targets` | list of strings | `cases.targets` | Where this case must pass, replacing the project's list for this case: `[ios, android]` for a case that needs a feature only a device has. Same names as `cases.targets`. `case run --on targets` and `lynkeus ci` read it. |
 
 Other keys are allowed and ignored by the runner.
 

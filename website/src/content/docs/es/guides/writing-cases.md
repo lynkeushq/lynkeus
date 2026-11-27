@@ -322,28 +322,54 @@ La respuesta es corta a propósito. Un caso que pasa ocupa una línea. Uno que f
 
 Un caso que falla se ejecuta una vez más antes de contarse como fallido. Si pasa en el segundo intento, el resumen lo dice: `⚠ passed on retry`. `--once` quita esa segunda oportunidad. Qué hacer con los casos que pasan a veces está en [tests intermitentes](/es/guides/flaky-tests/).
 
+### Dónde tiene que pasar un caso
+
+Eso lo decide el proyecto, una sola vez, en `lynkeus.config.json`:
+
+```json
+{ "cases": { "targets": ["fastsim:ios", "fastsim:android"] } }
+```
+
+Los destinos posibles son `headless` (la app en Node, sin pantalla), `fastsim:ios` y `fastsim:android` (Lynkeus FastSim dibujando cada plataforma), `ios` (tu app en el simulador de iOS o en un iPhone) y `android` (tu app en el emulador de Android o en un teléfono). Un equipo que tiene FastSim para las dos plataformas declara esos dos y nada más; otro puede preferir `["headless", "ios"]`. Si un caso necesita algo que solo da un dispositivo real, lleva su propia lista en el encabezado (`targets: [ios, android]`) y esa lista reemplaza la del proyecto para ese caso.
+
+Para dar un caso por terminado, se corre en sus destinos y en ningún otro:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on targets
+```
+
+```text
+✅ fastsim:ios      settings-dark-mode
+❌ fastsim:android  settings-dark-mode — step 5/5 app.see testId: theme-dark-selected: not on screen: {"testId":"theme-dark-selected"}
+fastsim:ios 1/1 passed · fastsim:android 0/1 passed
+```
+
+Si esta máquina no tiene alguno de los destinos declarados, la respuesta lo nombra con el motivo y la última línea avisa `⚠ check incomplete`: la comprobación quedó a medias y el comando termina con código 1, porque el caso no se probó en todos los lugares donde tiene que pasar. Si el proyecto todavía no declaró destinos, `--on targets` no corre nada y los pide. `npx lynkeus status` sugiere una lista según lo que hay en la máquina (FastSim para cada plataforma de la app si está instalado; si no, `headless` y las plataformas para las que se compila la app), y `npx lynkeus init` la escribe cuando falta. Revísala y cámbiala si no es la que quieres.
+
+Mientras escribes el caso, `case run` a secas sobre la app conectada sigue siendo la vuelta rápida.
+
 ### En todos los destinos a la vez
 
-Un caso no está terminado hasta que pasa en todos los lugares donde va a correr: el simulador o emulador, Lynkeus FastSim y el host sin pantalla. Con `--on` se comprueba todo en una sola ejecución:
+`--on all` corre el caso en todo lo que esta máquina puede ejecutar, haya sido declarado o no:
 
 ```bash
 npx lynkeus case run cases/settings-dark-mode.md --on all
 ```
 
 ```text
-✅ ios       settings-dark-mode
-✅ android   settings-dark-mode
-❌ headless  settings-dark-mode — step 5/5 app.see testId: theme-dark-selected: not on screen: {"testId":"theme-dark-selected"}
-○ fastsim not available: no bundle under .lynkeus: make one with …/bin/fastsim-bundle … ios (or android), or pass --bundle
-ios 1/1 passed · android 1/1 passed · headless 0/1 passed · fastsim not available
-a failure's screen and requests: run that target again alone, or with verbose
+✅ ios        settings-dark-mode
+✅ android    settings-dark-mode
+✅ headless   settings-dark-mode
+○ fastsim:ios not available: no ios bundle under .lynkeus: make one with …/bin/fastsim-bundle … ios, or pass --bundle
+○ fastsim:android not available: not installed: `lynkeus fastsim install --platform android` (Team plan)
+ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim:ios not available · fastsim:android not available
 ```
 
-Cada caso ocupa una línea por destino. Los destinos son `ios` (tu app en el simulador de iOS), `android` (tu app en el emulador de Android o en un teléfono por USB), `fastsim` y `headless`; se separan con comas, o se pide `all` para los cuatro. Corren al mismo tiempo, así que revisar todos tarda más o menos lo que tarda el más lento.
+Cada caso ocupa una línea por destino. También puedes nombrar los destinos separados por comas: `ios`, `android`, `fastsim:ios`, `fastsim:android` y `headless`; `all` equivale a esos cinco, y `fastsim` a secas usa el último bundle que hiciste, sea de la plataforma que sea. Corren al mismo tiempo, así que revisar varios tarda más o menos lo que tarda el más lento.
 
 Si tienes abiertos un simulador de iOS y un emulador de Android, las dos apps se conectan al mismo puerto de Lynkeus y cada una queda en su propia conexión. Así las ejecuciones de iOS y de Android avanzan en paralelo, sin recompilar ninguna app ni cambiarle el puerto. El destino `simulator` sigue existiendo y significa la app de dispositivo que esté conectada, sea cual sea la plataforma; con dos apps abiertas, es la última que se conectó (en Android su línea dice `emulator`).
 
-Si en esta máquina falta un destino, la respuesta lo dice una vez y explica por qué, sin dar la ejecución por fallida: no hay un simulador o emulador de esa plataforma encendido, o su app no se conectó en 3 segundos, el modo headless no está preparado (`npx lynkeus headless init`), o FastSim no está instalado, no tiene un bundle o el servicio no da acceso. FastSim usa el último bundle que hiciste dentro de `.lynkeus`, o el que indiques con `--bundle`. Basta con que el caso falle en un destino que corrió para que el comando termine con código 1; la línea dice el paso y el error, y `--verbose` agrega la pantalla y las peticiones.
+Con `all` o con una lista de nombres, si en esta máquina falta un destino la respuesta lo dice una vez y explica por qué, sin dar la ejecución por fallida: no hay un simulador o emulador de esa plataforma encendido, o su app no se conectó en 3 segundos, el modo headless no está preparado (`npx lynkeus headless init`), o FastSim no está instalado, no tiene un bundle o el servicio no da acceso. Cada destino de FastSim usa el último bundle de su plataforma dentro de `.lynkeus`, o el que indiques con `--bundle`. Basta con que el caso falle en un destino que corrió para que el comando termine con código 1; la línea dice el paso y el error, y `--verbose` agrega la pantalla y las peticiones.
 
 ### Varios casos a la vez
 

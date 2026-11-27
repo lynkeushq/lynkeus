@@ -74,7 +74,7 @@ Corre todos los casos en headless, de a tres, y avísame cómo va.
 
 Con `host`, si el host headless se cae a mitad de un caso, o si su memoria pasa del porcentaje que indica `host_heap`, la corrida lo vuelve a levantar antes del caso siguiente. Una caída hace fallar ese caso y no todos los que vienen después.
 
-Un caso recién está listo cuando pasa en todos los destinos que tiene la máquina. Para comprobarlo alcanza con un `case_run` con `on: all`: corre el caso a la vez en el simulador o emulador conectado, en Lynkeus FastSim y en el host headless, y contesta con una línea por caso y por destino. Si falta alguno, lo nombra con el motivo y no cuenta como fallo.
+Un caso está listo cuando pasa en los destinos de tu proyecto: la lista `cases.targets` de `lynkeus.config.json`, o la que el caso trae en su encabezado con `targets:`. El agente lo comprueba con un solo `case_run` con `on: targets`, que corre cada caso a la vez en sus destinos, solo en esos, y contesta con una línea por caso y por destino. Si a la máquina le falta un destino declarado, lo nombra con el motivo y la comprobación queda incompleta. Si el proyecto no tiene destinos declarados, el agente te pregunta cuáles importan; `status` sugiere una lista a partir de lo que hay en la máquina. `on: all` sigue disponible para correr en todo lo que tenga la máquina, si se lo pides.
 
 Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run`, además recibe notificaciones de progreso de MCP con esa misma línea.
 
