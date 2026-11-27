@@ -664,7 +664,7 @@ Solo simulador. Vuelve a abrir la app en otro idioma.
 
 ## Mapa (`map`)
 
-El mapa es lo que Lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee una vez con `map build`, y los recorridos reales, que dejan `crawl` y las ejecuciones. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
+El mapa es lo que Lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee con `map build`, y los recorridos reales, que dejan `crawl`, los casos, los flows y cada `press` de una sesión o de un cliente MCP. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
 
 ### `lynkeus map build`
 
@@ -673,6 +673,8 @@ lynkeus map build [--as-base]
 ```
 
 Lee el código fuente una vez y escribe en `.lynkeus/graph.json` las rutas, los `testID` y las navegaciones que encuentra.
+
+Casi nunca hace falta llamarlo. Los comandos que usan el grafo lo construyen si no existe, y lo vuelven a construir si cambió o desapareció alguno de los archivos de los que salió, o si apareció un archivo nuevo en una de sus carpetas (en Expo Router, una pantalla nueva es solo eso). Para decidirlo comparan fechas de archivos, nada más. Sirve llamarlo a mano para ver qué se leyó y qué no, o para guardar una base con `--as-base`.
 
 | Opción | Qué hace |
 |---|---|
@@ -700,7 +702,7 @@ Muestra los `testID` y las navegaciones que una pantalla probablemente tiene, se
 lynkeus map paths <route>
 ```
 
-Muestra qué lleva a una ruta: primero lo observado en recorridos reales, después lo deducido del código.
+Muestra qué lleva a una ruta: primero lo observado en recorridos reales, después lo deducido del código. Lo observado sale de `crawl` y de cualquier toque que haya llevado a otra ruta, o abierto o cerrado una hoja, durante un caso, un flow, una sesión o una conversación por MCP.
 
 | Argumento | Qué es |
 |---|---|
@@ -918,6 +920,8 @@ lynkeus crawl [Route] [--depth <n>] [--max <n>] [--to <Route>] [--fresh] [--over
 Pulsa todos los controles que encuentra y aprende adónde lleva cada uno. Lo que aprende alimenta a `map paths` y `map plan`.
 
 Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl` lo que no llegó a pulsar, así que una segunda ejecución continúa en lugar de repetir.
+
+Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas y toques que escribieron y por eso no siguió), no una línea por toque.
 
 :::caution
 Por defecto, el recorrido es de solo lectura. En cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), `crawl` lo informa, deja de explorar más allá y no vuelve a pulsar ese control. Aun así, esa primera pulsación sí ocurre. Los controles que no deben pulsarse nunca van en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). Lynkeus no trae ninguna lista propia, porque cuáles controles son irreversibles depende de cada app.
@@ -1204,7 +1208,7 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Dice qué pantallas de la app tocan los casos, cuáles no toca ninguno y cuáles nombra algún caso que la app ya no tiene.
 
-Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (`case run --seen <dir>`). Las pantallas salen del grafo de rutas, así que antes hay que ejecutar `lynkeus map build`.
+Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (`case run --seen <dir>`). Las pantallas salen del grafo de rutas, que se arma solo la primera vez y se rehace cuando el código cambia.
 
 | Opción | Qué hace |
 |---|---|
@@ -1607,7 +1611,7 @@ No todos los comandos están disponibles dentro de una sesión. Quedan fuera los
 
 ### `lynkeus mcp`
 
-Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show` y `map plan`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
+Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
 
 | Opción | Qué hace |
 |---|---|

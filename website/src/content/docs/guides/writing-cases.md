@@ -348,7 +348,6 @@ A run of many cases says where it is. In a terminal a status line stays under th
 ### Run only the cases a change reaches
 
 ```bash
-npx lynkeus map build
 npx lynkeus case coverage                          # which screens the cases touch, which none does
 npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
 ```

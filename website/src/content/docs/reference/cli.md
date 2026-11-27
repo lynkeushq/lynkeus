@@ -723,6 +723,8 @@ lynkeus map build [--as-base]
 
 Reads the source once and writes routes, `testID`s and navigations to `.lynkeus/graph.json`. Most other `map` commands need this file.
 
+You rarely need to run it. A command that reads the graph builds it first when the file is missing. It builds it again when a source file the graph was read from has changed or gone, or when a folder holding one has a new file. The check only reads file dates. Run `map build` yourself to see what was read and what could not be, or to keep a base for `map check`.
+
 | Flag | Meaning |
 |---|---|
 | `--as-base` | Also keep it as `graph.base.json`, for `map check` to diff against. |
@@ -753,7 +755,7 @@ Lists the `testID`s and navigations a screen is likely to have, as read from sou
 lynkeus map paths <route>
 ```
 
-Lists what leads to a route: edges observed in runs first, then edges read from source.
+Lists what leads to a route: edges observed in runs first, then edges read from source. Observed edges come from crawls and from every press a case, a flow, a session or an MCP client makes that lands on another route or opens or closes a sheet.
 
 | Argument | Meaning |
 |---|---|
@@ -978,6 +980,8 @@ The crawl finishes a screen before it goes anywhere, and remembers in `.lynkeus/
 
 It is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`) the crawl reports it, stops exploring past it, and never presses that control again. Controls that must not be pressed at all go under `crawl.never` in `lynkeus.config.json`. Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
 
+Over MCP, `crawl` is one of the default tools. A call there stops after one level and 12 presses unless it passes `depth` or `max`. It answers with a summary: the screens it stood on, the new edges, the problems, and the presses it did not explore past because they wrote. It never sends one line per press.
+
 | Argument | Meaning |
 |---|---|
 | `Route` | Optional. Where to start. Without it, the current screen. |
@@ -1197,7 +1201,7 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Says which of the app's screens the cases touch, which none does, and which screens a case names that the app no longer has.
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`). The screens come from the route graph, so run `lynkeus map build` first.
+A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`). The screens come from the route graph, which is built or rebuilt first when it is missing or older than the source.
 
 | Flag | Default | Meaning |
 |---|---|---|
@@ -1244,7 +1248,7 @@ Drafts a case for a screen, for you to finish. It prints:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--to <Route>` | | Required. The screen the case is about. It must be in the route graph, so run `lynkeus map build` first. |
+| `--to <Route>` | | Required. The screen the case is about. It must be in the route graph, which is built or rebuilt first when it is missing or older than the source. |
 | `--from <Route>` | `cases.start` | Where the case begins. One of the two is required. |
 | `--title <text>` | | What a person can do there, as the report will title it. |
 | `--write` | | Save it as `<cases dir>/<id>.md` instead of printing it. It never overwrites a file that is there. |
@@ -1608,7 +1612,7 @@ The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the
 lynkeus mcp [--full]
 ```
 
-Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
+Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `crawl`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
 
 | Flag | Meaning |
 |---|---|

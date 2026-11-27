@@ -83,7 +83,7 @@ The server comes in two sizes. The size matters because tool definitions are sen
 | `npx lynkeus mcp` | The 23 core tools | About 3,500 tokens |
 | `npx lynkeus mcp --full` | All 56 commands | About 7,300 tokens |
 
-Start with the core. Add `--full` for an agent whose job is crawling, recording or snapshots.
+Start with the core. Add `--full` for an agent whose job is recording or snapshots.
 
 ### The core tools
 
@@ -113,22 +113,21 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `os_deeplink` | Opens a URL in the app, as the operating system would hand it over. |
 | `map_show` | The testIDs and navigations a screen is likely to have, read from source. |
 | `map_plan` | Directions from one route to another: which buttons to press, screen by screen. |
+| `crawl` | Presses the controls on the current screen and records where each one leads. Short by default: one level, 12 presses. |
 
 A tool takes its command's arguments and most of its flags. A few that a model rarely needs, such as `--nth` and `--hold` on `press`, are left out of the core tools to keep their definitions small. Tool names are the command names with spaces replaced by underscores.
 
 When `lynkeus.config.json` sets `language` or `locale`, the server adds one more tool, `app_locale`, which tells the model the language and region the app is built for.
 
-## Step 5: Build the map
+## Step 5: Let the map fill itself
 
-`map_show` and `map_plan` answer from a map of the app that Lynkeus builds by reading the source. Build it once, and again when navigation changes:
+`map_show`, `map_plan`, `case_new` and `case_coverage` answer from a map of the app, `.lynkeus/graph.json`. There is nothing to build by hand. The first tool that needs the map reads the app's source and writes it. After that, any tool that needs it checks whether a source file changed since, and reads the source again when one did. The check only looks at file dates, so it costs milliseconds.
 
-```bash
-npx lynkeus map build
-```
+Reading the source gives every route, the testIDs each screen is likely to have, and the navigations the code makes. Some ways between screens only show up when someone taps through the app. Lynkeus collects those as it goes. Every `press` the agent makes and every press in a `case_run` that lands on another screen, or opens or closes a sheet, is saved as a step `map_plan` can use next time. That costs the app no extra calls.
 
-You should see `.lynkeus/graph.json` written. The map lists every route, the testIDs each screen is likely to have, and the navigations it can perform.
+When `map_plan` or `case_new` still has no way to a screen, have the agent call `crawl` from the screen nearest to it. Over MCP a crawl stops after one level and 12 presses, and it answers in a few lines: the screens it found, the new steps it learned, and anything that went wrong. Calling it again carries on from where it stopped. Pass `max` or `depth` for a longer walk.
 
-The static map only knows the navigations it can read from source. If `map_plan` has no directions, run `npx lynkeus crawl` from the starting screen: it presses the controls it finds and records where each one actually leads.
+You can still run `npx lynkeus map build` in a terminal to see what was read from the source and what could not be.
 
 ## Step 6: Give the agent its instructions
 
@@ -217,7 +216,7 @@ Some commands are never served over MCP, in either size: `record` and the `repor
 
 **Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has another token than the server: the one in `.lynkeus/token`, or `LYNKEUS_TOKEN` when the server's environment sets it. Call `status`: it says which piece is missing. After `init` made a token, the bundle needs Metro restarted with `--reset-cache` to carry it.
 
-**`map_plan` has no directions.** Build the map with `npx lynkeus map build`, then add observed edges with `npx lynkeus crawl`.
+**`map_plan` has no directions.** The code does not show that way between the two screens. Call `crawl` from the starting screen, or from a screen close to the target, and ask again.
 
 **The agent keeps calling `screen`.** Tell it, in its instructions, to call `why` after a failure and `map_show` before exploring.
 
