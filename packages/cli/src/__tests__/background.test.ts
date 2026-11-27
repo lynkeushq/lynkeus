@@ -8,9 +8,15 @@ import { test } from 'node:test';
 import type { AgentServer } from 'lynkeus-client';
 import type { Element, Screen } from 'lynkeus-protocol';
 
+import { parseCase } from '../cases/format.js';
+import { runCase } from '../cases/runner.js';
 import { crawl, describeCrawl } from '../commands/crawl.js';
+import { driveCommands } from '../commands/drive.js';
 import { Device } from '../device/driver.js';
 import type { PlatformLifecycle } from '../device/platform.js';
+import { type Base, register } from '../registry.js';
+
+register(driveCommands);
 
 const button = (i: number, testId: string, y: number): Element => ({
   i,
@@ -39,7 +45,9 @@ const phoneApp = (options: { opensWith: 'url' | 'appstate'; comesBack?: boolean 
       if (server.appState === 'background') throw new Error(`${method} timed out after 2800ms: the app went to the background (another app is in front)`);
       calls.push(method === 'press' ? `press ${String(params?.testId)}` : method);
       if (method === 'screen') return screen;
-      if (method === 'requests') return { requests: [] };
+      if (method === 'find') return screen.elements.find((e) => e.testId === params?.testId || e.text === params?.text) ?? null;
+      if (method === 'trace') return { last: 0, events: [] };
+      if (method === 'requests') return { inFlight: 0, requests: [] };
       if (method === 'waitFor') return { passed: true };
       // The agent waits for the screen to go quiet before it answers; the OS takes about as long to put another app up.
       if (method === 'idle') {
@@ -53,7 +61,7 @@ const phoneApp = (options: { opensWith: 'url' | 'appstate'; comesBack?: boolean 
         setTimeout(() => goAway(), 5);
         return { x: 0, y: 0, mode: 'native', ...(options.opensWith === 'url' ? { opened: 'https://community.infinite.red' } : {}) };
       }
-      throw new Error(`unexpected ${method}`);
+      return null;
     },
   });
   const calls: string[] = [];
@@ -64,7 +72,11 @@ const phoneApp = (options: { opensWith: 'url' | 'appstate'; comesBack?: boolean 
   const screen: Screen = {
     route: 'Demo.Community',
     path: ['Demo', 'Demo.Community'],
-    elements: [button(0, 'community-slack', 200), button(1, 'community-about', 300)],
+    elements: [
+      button(0, 'community-slack', 200),
+      button(1, 'community-about', 300),
+      { i: 2, kind: 'text', text: 'Join the community', frame: { x: 20, y: 100, w: 300, h: 20 }, enabled: true, depth: 1 },
+    ],
     commit: 1,
     busy: false,
     window: { w: 400, h: 800 },
@@ -162,4 +174,47 @@ test('a host never counts as in the background, whatever its AppState says', () 
   const server = Object.assign(new EventEmitter(), { appState: 'background', hello: { native: true, commands: ['clock'] } });
   const device = new Device({ id: 'headless', name: 'fastsim', platform: 'ios' } as never, { server: server as unknown as AgentServer });
   assert.equal(device.inBackground, false);
+});
+
+const baseFor = (device: Device): Base => ({
+  root: outDir(),
+  config: {},
+  attached: true,
+  err: () => undefined,
+  graph: () => {
+    throw new Error('no graph');
+  },
+  device: async () => device,
+});
+
+test('a case that leaves the app behind the browser is the one that fails for it, and the next case starts with the app in front', async () => {
+  const { device, launches } = phoneApp({ opensWith: 'url' });
+  const base = baseFor(device);
+  const leaves = parseCase(
+    '---\nid: opens-slack\n---\nsteps:\n  - app.press: "#community-slack"\n  - app.see: { text: "Join the community" }\n',
+    'opens-slack.md',
+  );
+  const next = parseCase('---\nid: reads-community\n---\nsteps:\n  - app.see: { text: "Join the community" }\n', 'reads-community.md');
+  const lines: string[] = [];
+  const first = await runCase(leaves, { base, config: {}, log: (line) => lines.push(line) });
+  assert.equal(first.result, 'failed');
+  assert.match(first.diagnosis?.join('\n') ?? '', /this case left the app in the background: a press opened https:\/\/community\.infinite\.red/);
+  assert.deepEqual(launches, []);
+  const second = await runCase(next, { base, config: {}, log: (line) => lines.push(line) });
+  assert.equal(second.result, 'passed', JSON.stringify(second.steps));
+  assert.deepEqual(launches, [{ appId: 'com.example.ignite', fresh: false }]);
+  assert.ok(
+    lines.some((l) => /brought it back to the front$/.test(l)),
+    lines.join('\n'),
+  );
+});
+
+test('a case that starts with the app in front asks the OS for nothing', async () => {
+  const { device, launches } = phoneApp({ opensWith: 'url' });
+  const report = await runCase(parseCase('---\nid: plain\n---\nsteps:\n  - app.see: { text: "Join the community" }\n', 'plain.md'), {
+    base: baseFor(device),
+    config: {},
+  });
+  assert.equal(report.result, 'passed');
+  assert.deepEqual(launches, []);
 });

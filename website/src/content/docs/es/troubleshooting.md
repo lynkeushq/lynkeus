@@ -175,6 +175,8 @@ Los errores correspondientes son:
 
 **Cómo se arregla.** Si el caso lo buscaba, trae la app de vuelta con `lynkeus os appstate active` y sigue. Si no, el control pulsado no es el que el caso quería.
 
+En una corrida, el fallo lo carga el caso que dejó la app en segundo plano, y lo dice: `this case left the app in the background: a press opened https://…`. Los casos siguientes no lo heredan. Antes de empezar cada caso en un simulador, emulador o teléfono, Lynkeus trae la app al frente igual que la lanza (`simctl launch`, el intent del launcher), así que conserva su estado, y solo la relanza si no vuelve. Para eso necesita el id de la app: `app` en `lynkeus.config.json` o `--app`. `crawl` hace lo mismo después de cada toque así, y lo anota como un toque que sacó a la app.
+
 ### En Android, todos los controles aparecen `~covered`
 
 **Qué ves.** En un build de desarrollo, `lynkeus screen` marca cada control como `~covered`, y un caso agota su plazo antes de cada pulsación.

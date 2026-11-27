@@ -186,7 +186,7 @@ export class Device {
     this.#walk?.pressing();
     try {
       const result = await this.server.call<CoreMethods['press']['result']>('press', params);
-      if (result.opened) this.#opened = result.opened;
+      this.#opened = result.opened;
       this.#walk?.pressed(viaOf(result.element) ?? ('testId' in params || 'text' in params ? viaOf(params) : undefined));
       return result;
     } catch (error) {

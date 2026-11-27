@@ -21,7 +21,9 @@ in through an app command so the suite does not meet it.
 
 **`! the app went to the background` after a press.** The control opened a link
 or another app; what the agent lists then is not what is on screen. Bring the
-app back with `lynkeus os appstate active`.
+app back with `lynkeus os appstate active`. In a run, the case that left the app
+there fails saying so, and the next case brings the app back to the front before
+it starts (the way it launches it; a relaunch only if it does not come back).
 
 **No keyboard on the simulator while typing.** `type` taps the field first,
 so it is focused the way a person focuses it and the system keyboard comes up.
