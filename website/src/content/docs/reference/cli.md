@@ -422,7 +422,7 @@ Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynke
 | Flag | Meaning |
 |---|---|
 | `--no-install` | Do not add `lynkeus-agent` to the app. Mount it only. |
-| `--no-skill` | Do not install the Lynkeus skill. |
+| `--no-skill` | Do not install the Lynkeus skill or its subagents. `LYNKEUS_NO_SKILL=1` does the same. |
 
 What it does, in order:
 
@@ -436,7 +436,7 @@ What it does, in order:
 | Expo Router (`"main": "expo-router/entry"`, no entry file) | Writes an `index.js` that mounts the agent and then loads the router, and points `main` in `package.json` at it. Writes the token to `.env.local` as above. No Babel plugin. |
 
 3. **Makes the project's token** in `.lynkeus/token`, kept out of git. The CLI, `lynkeus mcp`, the Babel plugin and the headless host all read that file, so nobody has to set `LYNKEUS_TOKEN`. See [Environment variables](/reference/environment-variables/#lynkeus_token).
-4. **Installs the Lynkeus skill** in `.claude/skills/lynkeus`, as [`lynkeus skill install`](#lynkeus-skill-install) does. Commit it with the project.
+4. **Installs the Lynkeus skill** in `.claude/skills/lynkeus` and its Claude Code subagents (`lynkeus-setup`, `lynkeus-runner`) in `.claude/agents`, as [`lynkeus skill install`](#lynkeus-skill-install) does. Commit them with the project.
 
 It prints one line per change. The agent has native code, so afterward build the app again (`npx react-native run-ios`, `npx expo run:ios`) and restart Metro once with `--reset-cache`. An Expo app needs a development build, not Expo Go. Run [`lynkeus status`](#lynkeus-status) to see what is left.
 
@@ -469,10 +469,10 @@ Then, under **Where cases can run on this machine**: the booted iOS Simulators, 
 ### `lynkeus guide`
 
 ```bash
-lynkeus guide [topic]
+lynkeus guide [topic] [section]
 ```
 
-Prints one topic of the Lynkeus skill: `cases`, `targets`, `evidence`, `ci`, `determinism` or `troubleshooting`. Without a topic, it prints the index: the cheap way to write a case and what each topic holds. Over MCP it is the `guide` tool, for clients that do not load skills. See [AI agents](/guides/ai-agents/#the-lynkeus-skill).
+Prints one section of the Lynkeus skill. With a topic (`cases`, `targets`, `evidence`, `ci`, `determinism` or `troubleshooting`) and no section, it prints the topic's sections, one line each. With both, it prints that section only: `lynkeus guide cases mocks`. Without a topic, it prints the index: the cheap way to write a case and each topic's sections. Over MCP it is the `guide` tool, for clients that do not load skills. See [AI agents](/guides/ai-agents/#the-lynkeus-skill).
 
 ### `lynkeus skill install`
 
@@ -480,11 +480,11 @@ Prints one topic of the Lynkeus skill: `cases`, `targets`, `evidence`, `ci`, `de
 lynkeus skill install [--force]
 ```
 
-Installs the Lynkeus skill in `.claude/skills/lynkeus`, or updates it to this CLI's version. [`lynkeus init`](#lynkeus-init) runs it too. The skill keeps a list of the files it wrote and their contents in `.lynkeus-skill.json`. When a file changed or went missing since, or when Lynkeus did not write the folder, it leaves the skill as it is and says so.
+Installs the Lynkeus skill in `.claude/skills/lynkeus` and its Claude Code subagents `lynkeus-setup` and `lynkeus-runner` in `.claude/agents`, or updates them to this CLI's version. [`lynkeus init`](#lynkeus-init) runs it too. Each keeps a list of the files it wrote and their contents: `.lynkeus-skill.json` for the skill, `.claude/agents/.lynkeus-agents.json` for the subagents. When a file changed or went missing since, or when Lynkeus did not write it, that part is left as it is, and the output says so. See [Subagents for routine work](/guides/ai-agents/#subagents-for-routine-work).
 
 | Flag | Meaning |
 |---|---|
-| `--force` | Replace the skill even when its files were changed. |
+| `--force` | Replace the skill and the subagents even when their files were changed. |
 
 ## os
 

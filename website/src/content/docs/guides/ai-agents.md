@@ -42,7 +42,7 @@ Ask the agent, in plain words:
 Set lynkeus up in this app.
 ```
 
-The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file. It also installs the [Lynkeus skill](#the-lynkeus-skill) in `.claude/skills/lynkeus`.
+The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file. It also installs the [Lynkeus skill](#the-lynkeus-skill) in `.claude/skills/lynkeus` and two [subagents](#subagents-for-routine-work) in `.claude/agents`.
 
 The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
 
@@ -116,7 +116,7 @@ Start with the core. Add `--full` for an agent whose job is recording or snapsho
 | `map_show` | The testIDs and navigations a screen is likely to have, read from source. |
 | `map_plan` | Directions from one route to another: which buttons to press, screen by screen. |
 | `crawl` | Presses the controls on the current screen and records where each one leads. Short by default: one level, 12 presses. |
-| `guide` | One topic of the [Lynkeus skill](#the-lynkeus-skill), for a client that does not load skills. |
+| `guide` | One section of the [Lynkeus skill](#the-lynkeus-skill), or a topic's list of sections, for a client that does not load skills. |
 
 A tool takes its command's arguments and most of its flags. A few that a model rarely needs, such as `--nth` and `--hold` on `press`, are left out of the core tools to keep their definitions small. Tool names are the command names with spaces replaced by underscores.
 
@@ -176,12 +176,37 @@ Two points from that text deserve an explanation.
 
 The instructions the server gives the model when it connects are short on purpose: a client reads them again with every call, so each extra line is paid for many times in a session. The rest of what an agent needs to write good cases is in the Lynkeus skill, which costs nothing until a task needs it. It covers the case format and how texts match, macros and `on:` blocks, `app.relaunch`, the targets and how to run cases side by side, evidence and how to share a run, CI, and runs that repeat exactly.
 
-`lynkeus init` installs it in `.claude/skills/lynkeus` and says so in its output. Commit that folder, so everyone who works on the app has it. Claude Code and other clients that load Agent Skills keep only its one-line description in context, and read a topic file when a task calls for it.
+`lynkeus init` installs it in `.claude/skills/lynkeus` and says so in its output. Commit that folder, so everyone who works on the app has it. Claude Code and other clients that load Agent Skills keep only its one-line description in context until a task needs it.
 
-- `lynkeus init --no-skill` leaves it out.
-- `lynkeus skill install` brings it to the version of the CLI you run. Lynkeus records what it wrote in `.lynkeus-skill.json`; when you changed one of the files, it leaves the skill alone and names the file. `--force` replaces it anyway.
+The skill is cut into short sections, one file each, of a few hundred bytes to about 1.4 KB: `cases/mocks.md`, `targets/headless.md`, `troubleshooting/port.md`. `SKILL.md` lists them by topic, and both it and the server's instructions tell the model to read a section when the task reaches it, not up front. This matters because whatever enters the conversation is paid for again on every later call. In a trial on Claude Code, the agent read four whole topics (26 KB, about 7,000 tokens) at the start and carried them through some 215 calls after that.
 
-A client that does not load skills reads the same text through the `guide` tool. `guide` with `topic` set to `cases`, `targets`, `evidence`, `ci`, `determinism` or `troubleshooting` answers that topic, and without a topic it answers the index. The server's instructions tell the model to read the topic it needs before guessing. In a terminal, `npx lynkeus guide cases` prints the same text.
+- `lynkeus init --no-skill` leaves it out, along with the subagents. `LYNKEUS_NO_SKILL=1` does the same for every `init`.
+- `lynkeus skill install` brings the skill and the subagents to the version of the CLI you run. Lynkeus records what it wrote in `.lynkeus-skill.json` and `.claude/agents/.lynkeus-agents.json`. When you changed one of those files, it leaves that part alone and names the file. `--force` replaces it anyway.
+
+A client that does not load skills reads the same text through the `guide` tool:
+
+| Call | Answer |
+|---|---|
+| `guide` | The index: the cheap way to write a case and each topic's sections. |
+| `guide` with `topic: "cases"` | That topic's sections, one line each: `mocks: Mocks: app.mock, errors, lost answers, loading states`. |
+| `guide` with `topic: "cases"`, `section: "mocks"` | That section only. |
+
+The topics are `cases`, `targets`, `evidence`, `ci`, `determinism` and `troubleshooting`. In a terminal, `npx lynkeus guide cases mocks` prints the same text.
+
+### Subagents for routine work
+
+Much of a session is routine: connecting the app, checking where cases can run, running the suite, collecting evidence. Next to the skill, `lynkeus init` installs two Claude Code subagents in `.claude/agents`:
+
+| Subagent | What it does | Tools |
+|---|---|---|
+| `lynkeus-setup` | Runs `status`, `init`, the build and Metro until the app attaches, and reports where cases can run in a few lines. | The Lynkeus tools, Bash, Read |
+| `lynkeus-runner` | Runs cases or the suite on the project's targets and returns totals and one line per failure. It does not edit cases or code. | The Lynkeus tools, Read |
+
+Both set `model: sonnet` in their frontmatter, so the routine part runs on a smaller model than the one writing cases. The bigger saving is the context: build logs, screens and run output stay in the subagent, and the main conversation gets only the summary. Change the model or the tools in the files if you want; Lynkeus then leaves them alone.
+
+Their tools are listed as `mcp__lynkeus__*`, which assumes you added the server under the name `lynkeus`, as in [Step 1](#step-1-connect-the-server). With another name, edit the `tools` line in both files.
+
+The server's instructions say the same to any client: setup, status, running suites and gathering evidence run well on a smaller model or at lower effort, and writing and debugging cases gains from a stronger one. Lynkeus only suggests this; you, or the agent, decide.
 
 ## A sample exchange
 
