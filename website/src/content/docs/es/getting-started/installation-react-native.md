@@ -63,7 +63,9 @@ Si todavía no es una dependencia, el comando instala `lynkeus-agent` con el ges
 ```
 installed lynkeus-agent (npm install lynkeus-agent); it has native code, so build the app again
 added auto() to index.js
-made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 added lynkeus-agent/babel to babel.config.js
 restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file
 next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches

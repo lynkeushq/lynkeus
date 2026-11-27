@@ -28,7 +28,7 @@ and is named in it.
 | `app.type` | `{ text, target?, submit?, clear?, timeoutMs? }` | `target` is tapped first, once it is there (`timeoutMs` is how long that may take); `submit` ends with the return key. |
 | `app.swipe` | `{ direction, target?, distance? }` or `{ from, to }` | |
 | `app.wait` | route, target, ms, `{ target, scroll?, enabled? }`, `{ anyOf: [target, ...] }` or `{ request, status? }` | `scroll` swipes until the target is in the window. `enabled` waits until the target is there, enabled and taking touches (not inert). `anyOf` accepts the first target present; an item is a string, `{ testId }` or `{ text, nth? }`, and `gone` cannot go with it. A `request` is `METHOD /path`, and a trailing slash on either side does not matter; it is waited for until it answers 2xx unless `status` names another. |
-| `app.see` | target, or `{ testId?, text?, contains?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. Letter case never matters, so a text drawn in capitals (`textTransform`) is found by the words the source writes, and spaces around a text do not count. A target that is a text matches an element's whole text (a button's label also matches a part of it); `contains: true` finds it inside a longer text, a paragraph say. `{ text }` on its own finds it inside any text. |
+| `app.see` | target, or `{ testId?, text?, contains?, route?, request?, event?, layer?, absent?, timeoutMs? }` | An assertion on what the app shows or did. Everything named must hold. Letter case never matters, so a text drawn in capitals (`textTransform`) is found by the words the source writes, and spaces around a text do not count. A target that is a text matches an element's whole text (a button's label also matches a part of it: as whole words first, then inside a word, and a press that matched by part names the element it pressed, as a warning); `contains: true` finds it inside a longer text, a paragraph say. `{ text }` on its own finds it inside any text. |
 | `app.nav` | route, or `{ route, params }` | A teleport, for getting to where the case starts. A screen inside a nested navigator can be named alone (`app.nav: DemoPodcastList`): Lynkeus finds its parents from the path a run last saw it at, else from the route graph. `params: { screen: Inner }` names the nested screen of a navigator route. The step then waits for the screen it lands on; a navigator's own name counts as reached once the focused screen is inside it. |
 | `app.back` | | |
 | `app.requests` | `mark` | A `request` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
@@ -292,7 +292,11 @@ npx lynkeus case new pay-limits --to Pay.Main --write     # a draft to finish: t
 ```
 
 `case new` begins at `--from`, else at `cases.start` in the config, else at the screen an attached app shows (in a
-session or over MCP), else at the first screen the navigator declares; a comment in the draft says which. It never
+session or over MCP), else at the first screen the navigator declares; a comment in the draft says which. Unless
+`--from` names it, a start with no known way to the screen gives way to `cases.start`, then the first declared screen,
+when the route map knows a way from there, and the comment says so (`no known way from DemoShowroom`). When no case
+reaches the screen, the draft lists under its route check, commented out, what is known to be on it: the testIDs its
+source writes, short texts runs saw there, and the presses its source has lead on. It never
 chooses the setup: one comment names the fixtures the project's server describes ([FIXTURES.md](FIXTURES.md)), and
 none while that server is still the example `case init` wrote.
 
@@ -302,8 +306,12 @@ steps after that screen. A case reaches the screen when its last passing run was
 goes to it, waits for it or checks it. The shortest way wins, and one a passing run walked wins a tie. Nothing is
 rewritten: the draft is the author's to keep or change.
 
-A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), and every
-screen a passing run went through. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
+A case touches a screen it goes to (`app.nav`), waits for (`app.wait`) or checks (`app.see: { route }`), in its own
+steps or in a macro it calls (through macros that call macros, with the `{{param.*}}` it passes), and every screen a
+passing run went through. Without `.lynkeus/seen` (a fresh CI checkout) the steps and macros are all there is. A
+route bound to a navigator (its component declares other routes, as a tab navigator nested under `Demo` does) is not
+counted as a screen: coverage leaves it out of both counts and names it on a line of its own, and `case impact` never
+lists it as reached and touched by no case. Its screens are counted instead. `case run` keeps those in `.lynkeus/seen/<case id>.json` (or in `--seen <dir>`):
 the screens of the case, and the screen the app was on after each step, read off trace marks the steps take anyway.
 The screens come from the route graph (`lynkeus map build`); `case impact` finds what a diff reaches as `map check`
 does. A change to the file that registers the app or to the root
@@ -411,7 +419,12 @@ The summary calls a case flaky when its recent runs (the ledger `--flakes` keeps
 disagree. A run of another version of the case does not count: the history
 starts again when its steps, or a macro they call, change. Nor does a failure
 that reproduced, failing again on its second chance or failing the same step
-with the same error in another run: that is a break, not a flake.
+with the same error in another run: that is a break, not a flake. Runs are only
+compared with runs on the same target (`ios`, `android`, `fastsim:ios`, `host:android`,
+from what the app said when it attached) and of the same app source (the commit plus
+the working tree's diff, leaving out the cases and `.lynkeus/`): a case that fails from
+the moment the app changed is broken, not flaky. A case whose app never attached (the
+driver's port taken, no app running) did not run and is not recorded.
 
 A failed `app.see`, or `app.wait` for a target, also keeps under its step in
 `cases.jsonl` a `looked` object: `listing`, every element of the screen at the

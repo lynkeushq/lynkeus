@@ -28,14 +28,14 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import { execute, notePrinted, onPhone, scopeWhy, unreachable, whyFor } from '../runtime.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
 import { compactFrame } from './frames.js';
 import { readsOf } from './nativeValues.js';
 import { type BackendSpan, newSpanId, newTraceId, type TraceSink, traceparent } from './traces.js';
 import { liveCommands } from './liveCommands.js';
-import { type Case, dig, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
+import { type Case, dig, fillParams, interpolate, matcherOf, matches, type Scope, seeded, type Step, stepOf, type StepValue } from './format.js';
 
 export type NativeMock = {
   result?: unknown;
@@ -183,6 +183,8 @@ export type RunOptions = {
   dry?: boolean;
   events?: boolean;
   evidence?: Evidence;
+  /** The run keeps a run folder (`--out`): each step's requests with bodies and the app's console go into it, frames or not. */
+  keep?: boolean;
   log?: (line: string) => void;
   /** The case's setup, already run by `case prepare`: the case starts from here. */
   prepared?: Prepared;
@@ -537,18 +539,6 @@ const unknownStep = (step: Step, config: CasesConfig): string | undefined => {
     return (error as Error).message;
   }
   return undefined;
-};
-
-// `{{param.x}}` in a macro's step as the case passed it, for a listing; anything else stays as written.
-const fillParams = (value: unknown, given: Record<string, unknown>): unknown => {
-  if (typeof value === 'string')
-    return value.replace(/\{\{\s*param\.([\w.*-]+)\s*\}\}/g, (ref, at: string) => {
-      const found = dig(given, at);
-      return found === undefined || found === null ? ref : typeof found === 'object' ? JSON.stringify(found) : String(found);
-    });
-  if (Array.isArray(value)) return value.map((v) => fillParams(v, given));
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillParams(v, given)]));
-  return value;
 };
 
 const listStep = (step: Step, config: CasesConfig, within: string[]): string[] => {
@@ -1011,7 +1001,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     await timed('target', () => pressable(d, target, params));
     const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
     try {
-      await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+      const outcome = await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+      const part = (outcome.json as { part?: unknown } | undefined)?.part;
+      if (typeof part === 'string') warn(`app.press ${part}: if that is not the one, write its whole label or its testID`);
     } catch (error) {
       // A one-time sheet can disappear between the presence check and the native press.
       if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';
@@ -1460,6 +1452,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // Asked when the run keeps events or a report: it is a call per step.
   const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
+  const keeping = !options.dry && (!!evidence || !!options.keep);
   let filming = false;
   // A simulator or emulator the app runs on, as against a host that films itself: its OS films it (simctl, screenrecord).
   let osFilm: Recording | undefined;
@@ -1478,7 +1471,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
   // The same for what it printed.
-  const logging = !!evidence && (await offers('logs'));
+  const logging = keeping && (await offers('logs'));
   if (logging) await (await device()).command('logs', { take: true }).catch(() => undefined);
   options.nativeLogs?.take();
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
@@ -1504,7 +1497,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const encoding: string[] = [];
   // Frames a simulator or emulator gave as PNG, being encoded again as AVIF while the case goes on.
   const compacting: Promise<void>[] = [];
-  if (evidence && (await offers('networkBodies'))) {
+  if (keeping && (await offers('networkBodies'))) {
     const d = await device();
     await d.command('networkBodies', { on: true }).catch(() => undefined);
     requestsSeen = await d.requests().then(
@@ -1582,6 +1575,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           : [],
       );
       if (logs.length > 0) report.logs = logs;
+      notePrinted(d.server.port, logs);
     }
     const native = options.nativeLogs?.take() ?? [];
     // In the order they were printed, whichever side printed them.
@@ -1905,7 +1899,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms${phaseNote(done)})`);
       ended(done.status);
-      if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      if ((keeping || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
         else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [], commit: commitBefore };
         else await record(done, steps.length, at, t0, commitBefore);
@@ -1949,7 +1943,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       log(`  ❌ ${text}  — ${(broke.error ?? message).split('\n')[0]}  (${Date.now() - t0}ms${phaseNote(broke)})`);
       ended('failed');
       await flush();
-      if (evidence || capturing) await record(broke, steps.length, at, t0, commitBefore);
+      if (keeping || capturing) await record(broke, steps.length, at, t0, commitBefore);
     }
   }
 

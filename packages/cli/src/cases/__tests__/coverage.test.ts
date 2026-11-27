@@ -17,6 +17,22 @@ test('a case touches the routes it goes to, waits for or checks', () => {
   assert.deepEqual(routesNamed(k), ['Home.Main', 'Pay.Main', 'Pay.Done']);
 });
 
+test('a case touches the routes its macros reach, through nested macros and their params', () => {
+  const macros = {
+    'app.inDemo': ['app.signedIn', { 'app.wait': 'Demo' }, { 'app.wait': '{{param.screen}}' }],
+    'app.signedIn': [{ do: [{ 'app.nav': 'Welcome' }], unless: 'x' }],
+    'app.loop': ['app.loop', { 'app.nav': 'Loop' }],
+  };
+  const k = c('showroom', [
+    { verb: 'app.inDemo', value: { screen: 'DemoShowroom' } },
+    { verb: 'app.loop', value: null },
+  ]);
+  assert.deepEqual(routesNamed(k), []);
+  assert.deepEqual(routesNamed(k, macros), ['Welcome', 'Demo', 'DemoShowroom', 'Loop']);
+  const cov = coverageOf([k], ['Welcome', 'DemoShowroom'], {}, { macros });
+  assert.deepEqual(cov.covered, ['Welcome', 'DemoShowroom']);
+});
+
 test('coverage counts named and seen routes, and flags names the app does not know', () => {
   const cov = coverageOf(
     [c('a', [{ verb: 'app.nav', value: 'Home.Main' }]), c('b', [{ verb: 'app.nav', value: 'Old.Screen' }])],
@@ -57,4 +73,25 @@ test('a change to the app entry reaches every case, with the reason', () => {
   );
   assert.equal(impact.reason, 'index.tsx starts the app, so every screen runs through it');
   assert.deepEqual(impactOf([], cov).cases, []);
+});
+
+test('a navigator is neither covered nor uncovered, and a change reaching it lists no untested screen', () => {
+  const cov = coverageOf([c('a', [{ verb: 'app.nav', value: 'Podcasts' }])], ['Demo', 'Podcasts', 'Welcome'], {}, { navigators: ['Demo'] });
+  assert.equal(cov.routes, 2);
+  assert.deepEqual(cov.covered, ['Podcasts']);
+  assert.deepEqual(cov.uncovered, ['Welcome']);
+  assert.deepEqual(cov.navigators, ['Demo']);
+  assert.deepEqual(cov.unknown, []);
+  const impact = impactOf(
+    [
+      { route: 'Demo', distance: 1, via: 'x.ts', through: [] },
+      { route: 'Podcasts', distance: 1, via: 'x.ts', through: [] },
+    ],
+    cov,
+  );
+  assert.deepEqual(impact.untested, []);
+  assert.deepEqual(
+    impact.cases.map((x) => x.id),
+    ['a'],
+  );
 });

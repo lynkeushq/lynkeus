@@ -4,7 +4,7 @@ import path from 'node:path';
 import { casesNamingIds, type IdentifierNarrowing } from '../knowledge/identifiers.js';
 import type { Affected } from '../knowledge/query.js';
 import { casesNamingText, type StringNarrowing } from '../knowledge/stringTables.js';
-import type { Case, Step } from './format.js';
+import { type Case, expandMacros, type Step } from './format.js';
 
 const ROUTE = /^[A-Z][\w.]+$/;
 
@@ -24,8 +24,14 @@ export const routeOf = (step: Step): string | undefined => {
   return undefined;
 };
 
-/** The routes a case names in its steps. */
-export const routesNamed = (c: Case): string[] => [...new Set([...c.setup, ...c.steps].map(routeOf).filter((r): r is string => !!r))];
+/** The routes a case names in its steps, and in the steps of the macros they call (with what the case passes them). */
+export const routesNamed = (c: Case, macros: Record<string, unknown[]> = {}): string[] => [
+  ...new Set(
+    expandMacros([...c.setup, ...c.steps], macros)
+      .map(routeOf)
+      .filter((r): r is string => !!r),
+  ),
+];
 
 /** A step of a passing run as `case run` labels it, and the screen the app was on when it ended. */
 export type WalkedStep = { step: string; route?: string };
@@ -62,12 +68,21 @@ export type Coverage = {
   uncovered: string[];
   /** Routes a case names that the graph does not know: renamed, or a typo. */
   unknown: string[];
+  /** Routes bound to a navigator: known, but neither covered nor uncovered, since a case tests the screens inside. */
+  navigators: string[];
   byRoute: Record<string, string[]>;
   files: Record<string, string>;
 };
 
 /** Which cases touch which of the app's routes, by what they name and what they went through last time they passed. */
-export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<string, string[]> = {}): Coverage => {
+export const coverageOf = (
+  cases: Case[],
+  graphRoutes: string[],
+  seen: Record<string, string[]> = {},
+  o: { macros?: Record<string, unknown[]>; navigators?: string[] } = {},
+): Coverage => {
+  const navigators = graphRoutes.filter((r) => o.navigators?.includes(r));
+  const screens = graphRoutes.filter((r) => !navigators.includes(r));
   const byRoute: Record<string, string[]> = {};
   const files: Record<string, string> = {};
   const add = (route: string, id: string) => {
@@ -76,18 +91,18 @@ export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<st
   };
   for (const c of cases) {
     files[c.id] = c.file;
-    for (const r of routesNamed(c)) add(r, c.id);
+    for (const r of routesNamed(c, o.macros)) add(r, c.id);
     for (const r of seen[c.id] ?? []) add(r, c.id);
   }
   const known = new Set(graphRoutes);
-  const covered = graphRoutes.filter((r) => byRoute[r]?.length);
   return {
-    routes: graphRoutes.length,
-    covered,
-    uncovered: graphRoutes.filter((r) => !byRoute[r]?.length),
+    routes: screens.length,
+    covered: screens.filter((r) => byRoute[r]?.length),
+    uncovered: screens.filter((r) => !byRoute[r]?.length),
     unknown: Object.keys(byRoute)
       .filter((r) => !known.has(r))
       .sort(),
+    navigators,
     byRoute,
     files,
   };
@@ -120,7 +135,7 @@ export const impactOf = (affected: Affected[], coverage: Coverage, everything?: 
   const untested: string[] = [];
   for (const [route, hit] of nearest) {
     const ids = coverage.byRoute[route] ?? [];
-    if (!ids.length) untested.push(route);
+    if (!ids.length && !coverage.navigators.includes(route)) untested.push(route);
     for (const id of ids) {
       const c = byCase.get(id) ?? { id, file: coverage.files[id] ?? '', routes: [], distance: hit.distance, via: hit.via };
       c.routes.push(route);

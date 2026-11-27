@@ -29,8 +29,20 @@ export const score = (element: Element, target: Target): number => {
     .map((v) => v.toLowerCase().trim());
   const control = element.kind === 'button' || element.kind === 'input';
   if (haystacks.some((h) => h === needle)) return control ? 4 : 3;
-  if (control && haystacks.some((h) => h.includes(needle))) return 2;
+  // Part of a control's label: as whole words ("Favorite" in "Add to Favorite") before inside a word ("Favorites").
+  if (control && haystacks.some((h) => hasWords(h, needle))) return 2;
+  if (control && haystacks.some((h) => h.includes(needle))) return 1;
   return 0;
+};
+
+// A letter in any script, or a digit: what a word is made of.
+const wordy = (c: string | undefined) => !!c && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+
+const hasWords = (haystack: string, needle: string): boolean => {
+  if (!needle) return false;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1))
+    if (!(wordy(needle[0]) && wordy(haystack[at - 1])) && !(wordy(needle[needle.length - 1]) && wordy(haystack[at + needle.length]))) return true;
+  return false;
 };
 
 // Hidden belongs to another screen or to no one. An inert label inside a

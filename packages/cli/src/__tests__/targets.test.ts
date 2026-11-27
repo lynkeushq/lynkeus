@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { Screen } from 'lynkeus-protocol';
+import type { Element, Screen } from 'lynkeus-protocol';
 
 import { parseAdbDevices } from '../device/devices.js';
 import { describeScreen } from '../device/driver.js';
-import { bareWordNote, expectedOf, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
+import { bareWordNote, expectedOf, isRoute, parseTarget, partMatchNote, routeOf, scopedTarget } from '../targets.js';
 
 test('a #-prefixed string is a testId', () => {
   assert.deepEqual(parseTarget('#next-button'), { testId: 'next-button' });
@@ -175,4 +175,20 @@ test('a bare word that is no known route but a text on screen says it was read a
   assert.equal(bareWordNote('route:Card', ['Card'], known), undefined);
   assert.equal(bareWordNote('"Card"', ['Card'], known), undefined);
   assert.equal(bareWordNote('Settings', ['Profile'], known), undefined);
+});
+
+test('a text target that matched part of a label names the element pressed', () => {
+  const toggle = {
+    i: 3,
+    kind: 'button',
+    text: 'Only Show Favorites',
+    testId: 'fav-toggle',
+    enabled: true,
+    depth: 1,
+    frame: { x: 0, y: 0, w: 1, h: 1 },
+  } as Element;
+  assert.equal(partMatchNote({ text: 'Favorite' }, toggle), '"Favorite" matched only part of "Only Show Favorites" (button #fav-toggle)');
+  assert.equal(partMatchNote({ text: 'only show favorites' }, toggle), undefined);
+  assert.equal(partMatchNote({ testId: 'fav-toggle' }, toggle), undefined);
+  assert.equal(partMatchNote({ text: 'Favorite' }, undefined), undefined);
 });

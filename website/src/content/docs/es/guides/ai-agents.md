@@ -174,7 +174,7 @@ Pruebas una app de React Native a través de las herramientas de lynkeus.
 
 ### Por qué `why` y no otro `screen`
 
-Es la regla que más rinde. En una sola respuesta, `why` dice si el objetivo está cubierto, oculto tras una capa, deshabilitado o si no existe (y cuál es el parecido más cercano); si la sesión se perdió, si el backend falló o limitó las peticiones, si todavía hay peticiones en curso o si no se hizo ninguna; y si el navegador murió. Un modelo que relee la pantalla tras un fallo gasta lo mismo y tiene que deducir todo eso por su cuenta.
+Es la regla que más rinde. En una sola respuesta, `why` dice si el objetivo está cubierto, oculto tras una capa, deshabilitado o si no existe (y cuál es el parecido más cercano); si la sesión se perdió, si el backend falló o limitó las peticiones, si todavía hay peticiones en curso o si no se hizo ninguna; si una respuesta llegó con 2xx pero la app registró un error en consola justo después (un cuerpo con otra forma que la que la app espera); y si el navegador murió. Un modelo que relee la pantalla tras un fallo gasta lo mismo y tiene que deducir todo eso por su cuenta.
 
 Además, cuando una herramienta falla, la respuesta de error ya trae ese diagnóstico adjunto, bajo `why:`.
 

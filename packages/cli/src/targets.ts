@@ -1,4 +1,4 @@
-import type { Target } from 'lynkeus-protocol';
+import type { Element, Target } from 'lynkeus-protocol';
 
 export const TARGET_HELP = '#testId | "text" | 12 (index) | 100,200';
 
@@ -86,4 +86,17 @@ export const bareWordNote = (raw: string, texts: string[], known: Set<string>): 
   const route = known.size ? `the app has no route ${raw} that Lynkeus knows of` : 'Lynkeus knows no routes of this app to check it against';
   const text = exact ? `${JSON.stringify(exact)} is a text on screen` : `the closest text on screen is ${JSON.stringify(close)}`;
   return `${raw} was read as a route (a bare word that starts with a capital is one), and ${route}; ${text}: quote it ('"${exact ?? close}"') to mean the text, or write route:${raw} for a route`;
+};
+
+/**
+ * When a text target matched only part of the element acted on (a control's label also matches by part), the element
+ * it was, named so a wrong match shows: `"Favorite" matched only part of "Only Show Favorites" (button #fav-toggle)`.
+ */
+export const partMatchNote = (target: Target, element: Element | undefined): string | undefined => {
+  if (!element || !('text' in target)) return undefined;
+  const want = target.text.toLowerCase().trim();
+  const labels = [element.text, element.accessibilityLabel, element.placeholder].filter((v): v is string => typeof v === 'string');
+  if (labels.length === 0 || labels.some((l) => l.toLowerCase().trim() === want)) return undefined;
+  const label = labels.find((l) => l.toLowerCase().includes(want)) ?? labels[0]!;
+  return `${JSON.stringify(target.text)} matched only part of ${JSON.stringify(label)} (${element.kind}${element.testId ? ` #${element.testId}` : ''})`;
 };

@@ -263,7 +263,9 @@ evidence (the screen, the last requests, the trace) as rules and says what
 it found: the navigator is dead, every request is 401, the backend answered
 5xx, the target is there but covered or disabled, the text is a wording or
 accent away, the list is capped by look-alikes, requests were still in
-flight. `lynkeus why <target>` asks the same question at any moment
+flight, or a request answered 2xx and the app then logged an error (its
+console, read whenever the agent keeps it): the body is not the shape the
+app reads, so the screen shows its empty state. `lynkeus why <target>` asks the same question at any moment
 (`--route <Route>` when a route was expected); in session mode the answer
 rides along in the JSON (`why`), so a runner prints it under the failure.
 

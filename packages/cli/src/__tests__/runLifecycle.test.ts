@@ -286,7 +286,7 @@ test('why reads about the last case run, not a command that failed before it', a
       return {
         last: 2,
         events: [
-          { seq: 1, t: now - 5 * 60_000, kind: 'command', method: 'memory', ms: 1, error: 'Unknown method memory' },
+          { seq: 1, t: now - 5 * 60_000, kind: 'command', method: 'signOut', ms: 1, error: 'Unknown method signOut' },
           { seq: 2, t: now - 100, kind: 'route', route: 'Home', path: ['Home'] },
         ].filter((e) => since === undefined || e.seq > since),
       };
@@ -294,11 +294,11 @@ test('why reads about the last case run, not a command that failed before it', a
   } as unknown as Device;
   const base: Base = { root: os.tmpdir(), config: {}, attached: true, err: () => undefined, graph: () => ({}) as never, device: async () => device };
   const unscoped = await execute(['why'], base);
-  assert.match(unscoped.text ?? '', /the last command that failed was memory/);
+  assert.match(unscoped.text ?? '', /the last command that failed was signOut/);
   scopeWhy(port, { at: now - 1000, case: 'login', failed: 'app.press #go: No element matches {"testId":"go"}' });
   const scoped = await execute(['why'], base);
   assert.match(scoped.text ?? '', /^the last case \(login\) failed at app\.press #go: No element matches/);
-  assert.doesNotMatch(scoped.text ?? '', /memory/);
+  assert.doesNotMatch(scoped.text ?? '', /signOut/);
   scopeWhy(port, { at: now - 1000, since: 1, case: 'login' });
   await execute(['why'], base);
   assert.equal(asked.at(-1), 1);

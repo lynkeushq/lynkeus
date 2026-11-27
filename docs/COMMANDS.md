@@ -782,7 +782,7 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.
+A screen counts as touched when a case, or a macro it calls, goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.
 
 | Flag | |
 |---|---|
@@ -806,7 +806,7 @@ The screens the diff against --base touches or imports (as `map check` finds the
 
 Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write
 
-Prints a case to finish: the frontmatter with the questions a reader needs answered, the names of the fixtures the project’s server offers (from `lynkeus.describe`, as a comment: what state the case needs is the author’s call; none while it is the example `case init` wrote), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Prints a case to finish: the frontmatter with the questions a reader needs answered, the names of the fixtures the project’s server offers (from `lynkeus.describe`, as a comment: what state the case needs is the author’s call; none while it is the example `case init` wrote), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them; without --from, a start with no known way gives way to `cases.start`, then the first declared screen. With no case through the screen, it lists (commented out) the testIDs its source writes, texts runs saw there and the presses that lead on. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|

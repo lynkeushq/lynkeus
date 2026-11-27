@@ -1449,3 +1449,33 @@ test('nav to a navigator passes once the focused screen is inside it, with an ag
   const report = await runCase(c, { base, config, fixtures });
   assert.equal(report.result, 'passed', JSON.stringify(report.steps));
 });
+
+test('a run that keeps a run folder files the app console under each step, without frames', async () => {
+  const { base } = fakeApp();
+  const device = (await base.device()) as unknown as {
+    server: { hello?: { commands: string[] } };
+    command: (name: string, params?: unknown) => Promise<unknown>;
+  };
+  device.server.hello = { commands: ['logs'] };
+  let printed: { at: number; level: string; source: string; text: string }[] = [];
+  device.command = async (name: string) => {
+    if (name !== 'logs') return {};
+    const out = printed;
+    printed = [];
+    return out;
+  };
+  const press = (base.device as () => Promise<Device>)().then((d) => d.press.bind(d));
+  const pressed = await press;
+  (device as unknown as { press: Device['press'] }).press = async (params) => {
+    printed.push({ at: Date.now(), level: 'error', source: 'js', text: 'Error fetching episodes: bad-data' });
+    return pressed(params);
+  };
+  const c = parseCase('---\nid: logs\n---\nsteps:\n  - app.press: "#refresh"\n', 'logs.md');
+  const report = await runCase(c, { base, config, fixtures, keep: true });
+  assert.deepEqual(
+    report.steps[0]!.logs?.map((l) => [l.level, l.text]),
+    [['error', 'Error fetching episodes: bad-data']],
+  );
+  const without = await runCase(c, { base, config, fixtures });
+  assert.equal(without.steps[0]!.logs, undefined);
+});

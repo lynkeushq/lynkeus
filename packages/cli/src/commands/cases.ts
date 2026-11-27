@@ -17,7 +17,7 @@ import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
-import { caseVersion, Flakes } from '../cases/flakes.js';
+import { appStamp, caseVersion, Flakes, whereOf } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
 import { SEEN_DIR } from '../cases/coverage.js';
 import { readNativeSpecs } from '../cases/nativeSpecs.js';
@@ -585,6 +585,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         }
       : undefined;
   const ledger = dry ? undefined : new Flakes(path.resolve(ctx.root, typeof ctx.flags.flakes === 'string' ? ctx.flags.flakes : '.lynkeus/flakes.json'));
+  const casesAt = path.relative(ctx.root, path.resolve(config.base ?? ctx.root, config.dir ?? 'cases'));
+  const stamp = ledger ? appStamp(ctx.root, ['.lynkeus', ...(casesAt && !casesAt.startsWith('..') ? [casesAt] : [])]) : undefined;
   // A run file files each event under its step, so it needs them collected.
   const events = typeof ctx.flags.events === 'string' || (out !== undefined && !ctx.flags['no-app-events']);
   const jobsAsked = Math.max(1, Number(ctx.flags.jobs ?? 1));
@@ -954,6 +956,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   dry,
                   events,
                   evidence: evidenceOf(c.id, n),
+                  keep: out !== undefined,
                   log,
                   prepared,
                   continue: !!ctx.flags.continue,
@@ -1016,7 +1019,11 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                 await scoped.stop();
               }
             };
-            let { report, startedAt, hello }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean } } =
+            let {
+              report,
+              startedAt,
+              hello,
+            }: { report: CaseReport & { retried?: boolean }; startedAt: Date; hello?: { platform?: string; native?: boolean; commands?: string[] } } =
               await attempt(1, store?.take(c));
             // What a stopped case did after the stop is not a result: it ran only until its step ended.
             if (halt.signal.aborted) break;
@@ -1047,7 +1054,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
               if (second) liveRun?.add(second);
             }
             if (jobs > 1) ctx.err(lines.join('\n'));
-            ledger?.note(report, new Date(), caseVersion(c, config.macros));
+            // A case whose app never attached did not run: its failure says nothing about the case.
+            if (hello) ledger?.note(report, new Date(), caseVersion(c, config.macros), { where: whereOf(hello), app: stamp });
             if (typeof ctx.flags.events === 'string' && report.events) {
               const dir = path.resolve(ctx.flags.events as string, caseArtifactId(c.id));
               fs.mkdirSync(dir, { recursive: true });
@@ -1504,7 +1512,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project\'s declared targets (cases.targets, or the case\'s own `targets:`) at once and answers one line per case per target; a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project\'s declared targets (cases.targets, or the case\'s own `targets:`) at once and answers one line per case per target; a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator none reaches the app: the seed still makes the cases\' own `{{random.*}}` repeatable, but the app keeps its own `Math.random`, language, zone and clock, and run.json lists all four under `launch.unsupported` (`os_language` sets the device\'s language). On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

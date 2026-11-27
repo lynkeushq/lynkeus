@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { leafOf, nestedNavigate, routeChain } from '../nesting.js';
+import { leafOf, navigatorRoutes, nestedNavigate, routeChain } from '../nesting.js';
 import type { Observed } from '../screens.js';
 import type { ScreenGraph } from '../types.js';
 
@@ -56,4 +56,8 @@ test('the screen a navigation lands on is the innermost params.screen', () => {
   assert.equal(leafOf('Demo', { screen: 'DemoPodcastList' }), 'DemoPodcastList');
   assert.equal(leafOf('Main', { screen: 'Demo', params: { screen: 'Episode', params: { id: 1 } } }), 'Episode');
   assert.equal(leafOf('Welcome', undefined), 'Welcome');
+});
+
+test('a route whose component declares other routes is a navigator', () => {
+  assert.deepEqual(navigatorRoutes(graph), ['Demo']);
 });
