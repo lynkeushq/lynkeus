@@ -415,6 +415,8 @@ what Lynkeus knows before touching anything, from the app's source and from walk
 
 Read the source once: routes, testIDs, navigations → .lynkeus/graph.json
 
+Rarely needed by hand: every command that reads the graph (case coverage, case new, map plan, map show, smoke…) builds it first when it is missing or when a source file it was read from changed since, or a folder of them gained or lost a file. Run it to see what was read and what could not be, or with --as-base to keep a graph for `map check`.
+
 | Flag | |
 |---|---|
 | `--as-base` | also keep it as graph.base.json, for `map check` to diff against |
@@ -585,7 +587,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 Press every control it finds, learn where each leads (feeds map paths and plan)
 
-Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
+Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. Over MCP it stops after 12 presses unless max says otherwise.
 
 | Argument | |
 |---|---|

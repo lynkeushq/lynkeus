@@ -63,6 +63,8 @@ export type CrawlOptions = {
   directions?: (from: string, to: string) => { press?: string; to: string }[] | null;
   onTransition?: (t: Transition) => void;
   log?: (line: string) => void;
+  /** Aborted when the caller gives up (an MCP client cancelling): no press starts after it. */
+  signal?: AbortSignal;
 };
 
 export const crawl = async (options: CrawlOptions): Promise<{ transitions: Transition[]; states: Record<string, Screen> }> => {
@@ -119,7 +121,7 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
         `(${origin.elements.filter((e) => e.hidden).length} hidden, ${presented(origin).filter((e) => e.covered).length} covered)`,
     );
     for (const button of buttons) {
-      if (actions >= options.maxActions || reached) return;
+      if (actions >= options.maxActions || reached || options.signal?.aborted) return;
       if (readOnly && wrote.has(pattern(button))) continue;
       const t0 = performance.now();
       const transition: Transition = { from: key, fromRoute: origin.route, fromLayer: layer, button: label(button), to: '', ms: 0, problems: [] };
@@ -188,7 +190,7 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
     const queue = [...found].sort(([, a], [, b]) => Number(b.layer !== undefined) - Number(a.layer !== undefined));
     for (const [to, { button, layer: into }] of queue) {
       if (reached) return;
-      if (actions >= options.maxActions || explored.has(to)) continue;
+      if (actions >= options.maxActions || explored.has(to) || options.signal?.aborted) continue;
       if (!(await restore(origin, layer).catch(() => false))) return;
       const target = targetOf(button);
       const back = await device
@@ -245,7 +247,7 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
 
   // The budget is per run and the app is bigger than one: what is left goes back in the frontier, and what
   // is still reachable gets walked to while there is budget.
-  while (!reached && actions < options.maxActions) {
+  while (!reached && actions < options.maxActions && !options.signal?.aborted) {
     const next = memory?.unfinished().find((node) => !walked.has(node));
     if (!next) break;
     walked.add(next);
@@ -259,4 +261,44 @@ export const crawl = async (options: CrawlOptions): Promise<{ transitions: Trans
   }
   fs.writeFileSync(path.join(options.outDir, 'transitions.json'), JSON.stringify({ transitions, states }, null, 2));
   return { transitions, states };
+};
+
+const placeOf = (route: string | undefined, layer: string | undefined) => `${route ?? '?'}${layer ? `#${layer}` : ''}`;
+const buttonOf = (t: Transition) => (t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? ''));
+
+/**
+ * What a crawl found, in a few lines a model can read whole: the places it stood, the edges it learned, the problems and
+ * the presses it did not go past; never a line per press (those go to stderr while it runs).
+ */
+export const describeCrawl = (r: {
+  transitions: Transition[];
+  learned: string[];
+  reinforced: number;
+  seconds: number;
+  /** The press budget was spent: there is more to find. */
+  spent: boolean;
+  outDir: string;
+}): string => {
+  const places = new Set<string>();
+  for (const t of r.transitions) {
+    places.add(placeOf(t.fromRoute, t.fromLayer));
+    if (t.toRoute) places.add(placeOf(t.toRoute, t.toLayer));
+  }
+  const listed = (items: string[], cap: number) => [
+    ...items.slice(0, cap).map((i) => `    ${i}`),
+    ...(items.length > cap ? [`    … ${items.length - cap} more`] : []),
+  ];
+  const problems = r.transitions
+    .filter((t) => t.problems.length)
+    .map((t) => `${placeOf(t.fromRoute, t.fromLayer)} ${buttonOf(t)} → ${placeOf(t.toRoute, t.toLayer)}: ${t.problems.join('; ')}`);
+  const wrote = r.transitions.filter((t) => t.wrote).map((t) => `${placeOf(t.fromRoute, t.fromLayer)} ${buttonOf(t)}: ${t.wrote!.join(', ')}`);
+  return [
+    `  ${r.transitions.length} presses on ${places.size} screens in ${r.seconds}s; ${r.learned.length} new edges (${r.reinforced} seen again), ${problems.length} problems`,
+    ...(places.size ? [`  screens: ${[...places].sort().join(', ')}`] : []),
+    ...(r.learned.length ? ['  new edges', ...listed(r.learned, 10)] : []),
+    ...(problems.length ? ['  problems', ...listed(problems, 5)] : []),
+    ...(wrote.length ? ['  not explored past (the press wrote)', ...listed(wrote, 5)] : []),
+    ...(r.spent ? ['  more to find: the press budget ran out; crawl again to go on where it stopped, or pass a larger max or depth'] : []),
+    `  artifacts: ${r.outDir}`,
+  ].join('\n');
 };

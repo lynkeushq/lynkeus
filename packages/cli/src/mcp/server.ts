@@ -15,11 +15,14 @@ const text = (body: string) => ({ content: [{ type: 'text' as const, text: body 
 
 type Property = { type: string; items?: { type: string }; description: string };
 
-const propertyFor = (f: FlagSpec): Property => ({
-  type: f.type === 'list' ? 'array' : f.type,
-  ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
-  description: f.help + (f.default !== undefined ? ` (default ${f.default})` : ''),
-});
+const propertyFor = (f: FlagSpec, mcpDefault?: number | string | boolean): Property => {
+  const fallback = mcpDefault ?? f.default;
+  return {
+    type: f.type === 'list' ? 'array' : f.type,
+    ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
+    description: f.help + (fallback !== undefined ? ` (default ${fallback})` : ''),
+  };
+};
 
 const describe = (c: Command) => {
   const details = c.mcpDetails ?? c.details;
@@ -56,12 +59,14 @@ export const schemaFor = (c: Command) => {
     properties[key] = p.rest ? { type: 'array', items: { type: 'string' }, description: p.help } : { type: 'string', description: p.help };
     if (p.required) required.push(key);
   }
-  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f);
+  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f, c.mcpDefaults?.[name]);
   return { type: 'object' as const, properties, ...(required.length ? { required } : {}) };
 };
 
 /** Back to an argv, so the same runtime serves both surfaces. */
-const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
+export const argvFor = (c: Command, given: Record<string, unknown>): string[] => {
+  const defaults = Object.entries(c.mcpDefaults ?? {}).map(([name, value]) => [identifier(name), value]);
+  const input: Record<string, unknown> = { ...Object.fromEntries(defaults), ...given };
   const av = c.name.split(' ');
   for (const p of c.positionals ?? []) {
     const v = input[identifier(p.name)];
@@ -93,8 +98,9 @@ Where to run: a dev build on a Simulator or emulator runs every case, picks up s
 To write cases, spend tokens in this order and stop as soon as you know enough:
 1. case_coverage: the app's screens and which ones no case reaches yet.
 2. case_new with the screen: a draft with the way there (from the route map), the backend setup to pick from and the checks left to write. map_plan answers the way between two screens. On the screen already, case_here drafts from what is shown.
-3. Only then drive the app (press, type, wait; press with settle: true answers with the screen once the app has settled) and call screen to fill what the draft could not know. Prefer testIDs (#id) over text, and short texts over paragraphs. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
-4. Write the case as a markdown file in the cases folder (case_init writes the folder and a README.md with the format, once) and call case_run with that file. A failed step comes back with its error and the screen it failed on: fix the case or report the app's bug, never weaken the check.
+3. No known way to the screen: crawl from the nearest screen learns it in one short call (the route map rebuilds itself when the source changes, and every press a case or you make teaches it too).
+4. Only then drive the app (press, type, wait; press with settle: true answers with the screen once the app has settled) and call screen to fill what the draft could not know. Prefer testIDs (#id) over text, and short texts over paragraphs. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
+5. Write the case as a markdown file in the cases folder (case_init writes the folder and a README.md with the format, once) and call case_run with that file. A failed step comes back with its error and the screen it failed on: fix the case or report the app's bug, never weaken the check.
 
 After changing the app's code, or to review a branch: case_impact with base (the branch's base) lists the cases the changes reach; run those with case_run, then fix what broke. In CI, \`lynkeus ci --affected\` does the same on every pull request, and \`lynkeus map ci\` writes a workflow that comments the screens a pull request reaches.
 

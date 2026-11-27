@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { CasesConfig } from './cases/runner.js';
-import { readJson } from './files.js';
+import { readJson, writeJson } from './files.js';
+import * as edges from './knowledge/edges.js';
+import * as frontier from './knowledge/frontier.js';
 import type { ScreenGraph } from './knowledge/types.js';
 
 export const lynkeusDir = (root = process.cwd()) => path.join(root, '.lynkeus');
@@ -69,6 +71,13 @@ export const ensureToken = (root?: string): { token: string; made: boolean } => 
 export const loadGraph = (root?: string): ScreenGraph | null => {
   const file = graphFile(root);
   return fs.existsSync(file) ? readJson<ScreenGraph>(file) : null;
+};
+
+/** Writes a graph just built and collects the walked edges and frontier rows of routes it no longer has; how many went. */
+export const saveGraph = (root: string, graph: ScreenGraph): number => {
+  writeJson(graphFile(root), graph);
+  const routes = new Set(Object.keys(graph.screens));
+  return edges.prune(edgesFile(root), routes) + frontier.prune(frontierFile(root), routes);
 };
 
 /**

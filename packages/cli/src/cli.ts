@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -19,11 +20,13 @@ import { fastsimCommands } from './commands/fastsim.js';
 import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
-import { configReader, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
+import { configReader, edgesFile, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { devMenuOnAttach } from './device/devMenu.js';
 import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reverseAndroid } from './device/devices.js';
 import { Device } from './device/driver.js';
+import * as edges from './knowledge/edges.js';
+import { walk } from './knowledge/walk.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
 import { execute } from './runtime.js';
 
@@ -73,8 +76,14 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
   const currentConfig = configReader(root);
   currentConfig();
   const err = (line: string) => console.error(line);
-  let graph: ReturnType<typeof loadGraph> | undefined;
+  // Read again when the file changes: a long session outlives a graph rebuilt because the source changed.
+  let graph: { read: ReturnType<typeof loadGraph>; mtimeMs: number } | undefined;
   let device: Promise<Device> | undefined;
+  // Every press this connection makes and sees land somewhere new is one more edge for map plan and case new.
+  const learning = (d: Device) => {
+    d.learn(walk((edge) => edges.append(edgesFile(root), edge)));
+    return d;
+  };
 
   const connect = async (): Promise<Device> => {
     const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? currentConfig().app;
@@ -99,7 +108,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? currentConfig().device;
     const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice(wantedDevice);
     if (g.launch && appId) {
-      const d = new Device(await picking, { appId, server });
+      const d = learning(new Device(await picking, { appId, server }));
       await d.launchApp(appId, { fresh: true });
       attachedIn(d);
       return d;
@@ -123,7 +132,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     };
     // The app says which platform it runs on; only then is it known whether simctl or adb names its device.
     const resolving = headless || ownHost ? undefined : info.platform === 'android' ? pickAndroidDevice(wantedDevice) : picking;
-    const d = new Device(info, { appId: appId ?? null, server, resolving });
+    const d = learning(new Device(info, { appId: appId ?? null, server, resolving }));
     attachedIn(d);
     if (resolving) void resolving.then((on) => devMenuOnAttach(root, appId, on, err)).catch(() => undefined);
     return d;
@@ -138,9 +147,10 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     attached,
     err,
     graph: () => {
-      graph ??= loadGraph(root);
-      if (!graph) throw new Error(`No graph at ${graphFile(root)}: run \`lynkeus map build\` in the app's folder first.`);
-      return graph;
+      const mtimeMs = fs.statSync(graphFile(root), { throwIfNoEntry: false })?.mtimeMs ?? 0;
+      if (graph?.mtimeMs !== mtimeMs) graph = { read: loadGraph(root), mtimeMs };
+      if (!graph.read) throw new Error(`No graph at ${graphFile(root)}: run \`lynkeus map build\` in the app's folder first.`);
+      return graph.read;
     },
     device: () => {
       // A connection that failed (no app yet) is tried again on the next command: a session outlives an app that was late.
@@ -158,7 +168,9 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
   return {
     ctx,
     stop: async () => {
-      await device?.then((d) => d.stop()).catch(() => undefined);
+      if (!device) return;
+      await device.then((d) => d.stop()).catch(() => undefined);
+      edges.fold(edgesFile(root));
     },
   };
 };

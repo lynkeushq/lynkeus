@@ -12,8 +12,8 @@
     "now": "01de158681580569"
   },
   "surface/mcp/instructions": {
-    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code.",
-    "now": "e3eeed51781b7514"
+    "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press.",
+    "now": "c5a5b3c83d7a08e1"
   },
   "surface/mcp/tool/back": {
     "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port.",
@@ -222,5 +222,17 @@
   "surface/mcp/tool/headless_init": {
     "why": "headless init no longer writes a local-backend guard: the entry runs the app's own entry and the host's network fence keeps the app off non-local hosts, so the summary says what it writes now.",
     "now": "f07d7c562f25d929"
+  },
+  "surface/help/map build": {
+    "why": "map build's help says it is rarely needed by hand now: every command that reads the graph rebuilds it when it is missing or older than the source it was read from.",
+    "now": "578255ae89a274f1"
+  },
+  "surface/help/crawl": {
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
+    "now": "7ceb0254fd213c5b"
+  },
+  "surface/mcp/tool/crawl": {
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
+    "now": "062519268c3af2ed"
   }
 }

@@ -22,7 +22,7 @@ import { type Ctx, define } from '../registry.js';
 import { execute } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { parseTarget } from '../targets.js';
-import { crawl } from './crawl.js';
+import { crawl, describeCrawl } from './crawl.js';
 import { describeFlake, summarizeRuns } from './flake.js';
 import type { Overlay } from './overlay.js';
 import { describeEvent, draftFlow } from './record.js';
@@ -253,7 +253,13 @@ export const runsCommands = [
     group: 'runs',
     summary: 'Press every control it finds, learn where each leads (feeds map paths and plan)',
     details:
-      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.',
+      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. Over MCP it stops after 12 presses unless max says otherwise.',
+    mcp: 'core',
+    mcpOmit: ['overlay-when', 'overlay-flow', 'var-cmd', 'verbose'],
+    // One call stays short and its answer small; a longer walk is asked for by name, and the next call continues it.
+    mcpDefaults: { depth: 1, max: 12 },
+    mcpDetails:
+      'Presses every control on the screen the app is on (or Route), one level deep, and records where each leads: map_plan, case_coverage and case_new then know the way without driving by hand. Read-only: a press that makes the app write is reported and not explored past. Answers with the screens found, the new edges and the problems, never a line per press. It remembers what it pressed: call it again to continue, or pass max and depth for a longer walk. to walks towards a route and stops there.',
     positionals: [{ name: 'Route', help: 'where to start (default: the current screen)' }],
     flags: {
       depth: { type: 'number', help: 'how many screens deep', default: 1, value: 'n' },
@@ -278,57 +284,71 @@ export const runsCommands = [
       }
       const started = performance.now();
       const learned = { added: 0, reinforced: 0 };
+      const newEdges: string[] = [];
       const loginFlow = ctx.flags['login-flow'] as string | undefined;
       const known = edges.open(edgesFile(ctx.root));
       const memory = ctx.flags.fresh ? undefined : frontier.open(frontierFile(ctx.root));
       const graph = loadGraph(ctx.root);
       const rules = ctx.config.crawl;
       try {
-        const { transitions, states } = await crawl({
-          device,
-          outDir,
-          depth: ctx.flags.depth as number,
-          maxActions: ctx.flags.max as number,
-          neverPress: anyOf(rules?.never),
-          closers: anyOf(rules?.close),
-          backs: anyOf(rules?.back),
-          errorCopy: anyOf(ctx.config.errorCopy),
-          safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
-          appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
-          overlay: overlayOf(ctx.flags),
-          login: loginFlow
-            ? {
-                flows: loginFlow.split(',').map((f) => readJson<Flow>(f.trim())),
-                vars: varsOf(ctx.flags),
-                varCommands: pairs(ctx.flags['var-cmd'] as string[] | undefined),
+        // The crawl records its own transitions, from screens it reads itself; the connection learning too would count each twice.
+        const { transitions, states } = await device.unlearned(() =>
+          crawl({
+            device,
+            outDir,
+            depth: ctx.flags.depth as number,
+            maxActions: ctx.flags.max as number,
+            neverPress: anyOf(rules?.never),
+            closers: anyOf(rules?.close),
+            backs: anyOf(rules?.back),
+            errorCopy: anyOf(ctx.config.errorCopy),
+            safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
+            appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
+            overlay: overlayOf(ctx.flags),
+            login: loginFlow
+              ? {
+                  flows: loginFlow.split(',').map((f) => readJson<Flow>(f.trim())),
+                  vars: varsOf(ctx.flags),
+                  varCommands: pairs(ctx.flags['var-cmd'] as string[] | undefined),
+                }
+              : undefined,
+            goal: ctx.flags.to as string | undefined,
+            signal: ctx.signal,
+            memory,
+            directions: graph ? (from, to) => plan(graph, from, to, known.all()) : undefined,
+            log: (line) => ctx.flags.verbose && ctx.err(`    · ${line}`),
+            onTransition: (t) => {
+              const b = t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? '');
+              ctx.err(
+                `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${t.toRoute ?? '?'}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
+              );
+              // A press that opened a sheet went somewhere even though the route did not change: the layer is the destination.
+              if (t.fromRoute && t.toRoute && (t.fromRoute !== t.toRoute || t.fromLayer !== t.toLayer)) {
+                const added = known.record({
+                  from: t.fromRoute,
+                  to: t.toRoute,
+                  via: t.button.testId ?? `text:${t.button.text ?? ''}`,
+                  fromLayer: t.fromLayer,
+                  toLayer: t.toLayer,
+                });
+                learned[added ? 'added' : 'reinforced'] += 1;
+                if (added) newEdges.push(`${t.fromRoute}${t.fromLayer ? `#${t.fromLayer}` : ''} ${b} → ${t.toRoute}${t.toLayer ? `#${t.toLayer}` : ''}`);
               }
-            : undefined,
-          goal: ctx.flags.to as string | undefined,
-          memory,
-          directions: graph ? (from, to) => plan(graph, from, to, known.all()) : undefined,
-          log: (line) => ctx.flags.verbose && ctx.err(`    · ${line}`),
-          onTransition: (t) => {
-            const b = t.button.testId ? `#${t.button.testId}` : JSON.stringify(t.button.text ?? '');
-            ctx.err(
-              `  ${t.problems.length ? '✗' : '✓'} ${String(t.ms).padStart(5)}ms ${(t.fromRoute ?? '?').padEnd(28)} ${b.padEnd(44)} → ${t.toRoute ?? '?'}${t.problems.length ? `  ${t.problems.join('; ')}` : ''}`,
-            );
-            // A press that opened a sheet went somewhere even though the route did not change: the layer is the destination.
-            if (t.fromRoute && t.toRoute && (t.fromRoute !== t.toRoute || t.fromLayer !== t.toLayer)) {
-              const added = known.record({
-                from: t.fromRoute,
-                to: t.toRoute,
-                via: t.button.testId ?? `text:${t.button.text ?? ''}`,
-                fromLayer: t.fromLayer,
-                toLayer: t.toLayer,
-              });
-              learned[added ? 'added' : 'reinforced'] += 1;
-            }
-          },
-        });
+            },
+          }),
+        );
         const bad = transitions.filter((t) => t.problems.length);
         const screens = Object.keys(states).length;
+        const text = describeCrawl({
+          transitions,
+          learned: newEdges,
+          reinforced: learned.reinforced,
+          seconds: seconds(started),
+          spent: transitions.length >= (ctx.flags.max as number),
+          outDir,
+        });
         return {
-          text: `\n  ${transitions.length} transitions, ${screens} screens, ${bad.length} problems in ${seconds(started)}s; learned ${learned.added} new edges (${learned.reinforced} reinforced)\n  artifacts: ${outDir}\n`,
+          text: `\n${text}\n`,
           json: { transitions: transitions.length, screens, problems: bad.length, learned, outDir },
           code: bad.length ? 1 : 0,
         };

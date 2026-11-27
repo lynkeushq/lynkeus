@@ -2,11 +2,10 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { edgesFile, frontierFile, graphFile, lynkeusDir } from '../config.js';
+import { edgesFile, graphFile, lynkeusDir, saveGraph } from '../config.js';
 import { CLI_VERSION } from '../device/agentVersion.js';
 import { readJson, writeJson } from '../files.js';
 import * as edges from '../knowledge/edges.js';
-import * as frontier from '../knowledge/frontier.js';
 import { describePlan, plan } from '../knowledge/plan.js';
 import { type Affected, pathsTo, screensAffectedBy, vocabularyOf } from '../knowledge/query.js';
 import * as screens from '../knowledge/screens.js';
@@ -60,6 +59,8 @@ export const mapCommands = [
     name: 'map build',
     group: 'map',
     summary: 'Read the source once: routes, testIDs, navigations → .lynkeus/graph.json',
+    details:
+      'Rarely needed by hand: every command that reads the graph (case coverage, case new, map plan, map show, smoke…) builds it first when it is missing or when a source file it was read from changed since, or a folder of them gained or lost a file. Run it to see what was read and what could not be, or with --as-base to keep a graph for `map check`.',
     flags: { 'as-base': { type: 'boolean', help: 'also keep it as graph.base.json, for `map check` to diff against' } },
     needs: 'nothing',
     run: async (ctx) => {
@@ -68,10 +69,9 @@ export const mapCommands = [
       if (missing) return { text: missing, code: 1 };
       const started = Date.now();
       const graph = await runtime.buildGraph(ctx.root, ctx.err);
-      writeJson(graphFile(ctx.root), graph);
+      const dropped = saveGraph(ctx.root, graph);
       if (ctx.flags['as-base']) writeJson(baseGraphFile(ctx.root), graph);
       const routes = new Set(Object.keys(graph.screens));
-      const dropped = edges.prune(edgesFile(ctx.root), routes) + frontier.prune(frontierFile(ctx.root), routes);
       const facts = Object.values(graph.files);
       const summary = {
         screens: routes.size,

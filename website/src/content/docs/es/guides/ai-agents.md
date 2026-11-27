@@ -85,7 +85,7 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 | `lynkeus mcp` | 23 | 3500 tokens |
 | `lynkeus mcp --full` | las 56 | 7300 tokens |
 
-Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
+Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea grabar o tomar snapshots.
 
 Las herramientas básicas son:
 
@@ -115,8 +115,17 @@ Las herramientas básicas son:
 | `os_deeplink` | Abre una URL en la app, como se la entregaría el sistema. |
 | `map_show` | Qué botones tiene una pantalla y a dónde llevan, según el código. |
 | `map_plan` | Indicaciones para ir de una ruta a otra. |
+| `crawl` | Recorre la pantalla actual: toca cada control y anota a dónde lleva. Por MCP es corto: un nivel y 12 toques. |
 
 Si `lynkeus.config.json` declara `language` o `locale`, aparece una más, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
+
+### El mapa no se arma a mano
+
+`map_show`, `map_plan`, `case_new` y `case_coverage` responden con el mapa de la app, `.lynkeus/graph.json`, y ninguna herramienta te pide construirlo. La primera que lo necesita lee el código y lo escribe; las siguientes miran si algún archivo del código cambió desde entonces y, si cambió, lo leen de nuevo. Esa revisión solo compara fechas de archivos, así que no se nota.
+
+El código no cuenta todos los caminos: algunos aparecen recién cuando alguien toca la app. Lynkeus los junta mientras se usa. Cada `press` del agente y cada toque de un `case_run` que lleva a otra pantalla, o abre o cierra una hoja, queda guardado como un paso que `map_plan` usa la próxima vez, sin pedirle nada más a la app.
+
+Si aun así `map_plan` o `case_new` no saben llegar a una pantalla, lo barato es un `crawl` desde la pantalla más cercana. Por MCP se detiene tras un nivel y 12 toques y contesta en pocas líneas: qué pantallas encontró, qué pasos nuevos aprendió y qué falló. Si se le acaba el presupuesto, otra llamada sigue donde quedó; con `max` o `depth` recorre más.
 
 ## 5. Enséñale a leer una pantalla
 
@@ -149,6 +158,8 @@ Pruebas una app de React Native a través de las herramientas de lynkeus.
   botones tiene y a dónde llevan, sin abrirla.
 - Para ir de una pantalla a otra, pide el camino con map_plan (from, to) y
   sigue esos toques. No pruebes botones al azar.
+- Si map_plan no conoce el camino, llama a crawl desde la pantalla más
+  cercana antes de explorar a mano.
 - Señala los controles por #testId. Usa el texto solo si no hay testId.
 - Cuando una fila repite un control, acota con "in" (el texto de esa fila)
   o con "nth".
@@ -203,7 +214,7 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 **Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
 
-**`map_plan` no devuelve indicaciones.** El grafo estático solo conoce las navegaciones que pudo leer en el código. `npx lynkeus crawl` recorre la app y agrega los caminos observados.
+**`map_plan` no devuelve indicaciones.** Ese camino no está escrito en el código de forma que se pueda leer. Haz que el agente llame a `crawl` desde la pantalla de partida, o desde una cerca del destino, y que vuelva a pedir el camino.
 
 **El modelo insiste con un texto que no coincide.** Una palabra dentro de un párrafo no es un objetivo. Indícale que use `#testId`, y agrega `testID` a los controles que no lo tengan.
 
