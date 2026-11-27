@@ -695,7 +695,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 |---|---|
 | `--on <targets>` | run the cases on several targets at once: targets (each case's declared ones, cases.targets; a missing one makes the check incomplete), all (every one this machine has; a missing one is said, not failed), or names, comma-separated: headless, fastsim:ios, fastsim:android, ios (the app on the iOS Simulator or an iPhone), android (the app on the Android emulator or a phone), fastsim (the last bundle), simulator (whichever device app is attached; emulator and device are the same) |
 | `--bundle <dir>` | with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform) |
-| `--host` | start `headless start` for the run (one per job with --jobs) and stop it after |
+| `--host` | start `headless start` for the run (one per job with --jobs), each on a free driver port of its own, and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
 | `--locale <tag>` | the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE) |
@@ -834,7 +834,7 @@ Reads the attached app’s screen and writes a case that goes to its route (`app
 |---|---|
 | `--title <text>` | what the case shows, as the report will title it |
 | `--write` | save it in the cases folder instead of printing it |
-| `--host` | start `headless start` for the read and stop it after |
+| `--host` | start `headless start` for the read, on a free driver port of its own, and stop it after |
 
 ### `lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
 
