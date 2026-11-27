@@ -39,10 +39,10 @@ test('a host the run starts gets every fact, in the environment and in the comma
   assert.equal(recordLaunch(launch, true), launch);
 });
 
-test('an attached app keeps its own locale, time zone and clock, and the manifest says so', () => {
+test('an attached app keeps its own random values, locale, time zone and clock, and the manifest says so', () => {
   const launch = { seed: '7', locale: 'es-AR', epoch: '2026-03-01T09:00:00.000Z' };
-  assert.deepEqual(recordLaunch(launch, false), { ...launch, unsupported: ['locale', 'epoch'] });
-  assert.deepEqual(recordLaunch({ seed: '7' }, false), { seed: '7' });
+  assert.deepEqual(recordLaunch(launch, false), { ...launch, unsupported: ['seed', 'locale', 'epoch'] });
+  assert.deepEqual(recordLaunch({ seed: '7' }, false), { seed: '7', unsupported: ['seed'] });
 });
 
 test('a host started for a case draws its own values, the same on every run', () => {

@@ -70,27 +70,41 @@ export const toRunCase = (c: Case, { report, attempt, startedAt }: Attempt, root
     ...(report.diagnosis ? { diagnosis: report.diagnosis } : {}),
     ...(report.evidence ? { evidence: report.evidence } : {}),
     ...(video ? { video } : {}),
+    ...(report.warnings?.length ? { warnings: report.warnings } : {}),
   };
 };
 
+/** The files `git status --porcelain` lists: `XY path`, or `XY old -> new` for a rename, whose new name is the one that changed. */
+export const porcelainFiles = (status: string): string[] =>
+  status
+    .split('\n')
+    .filter((l) => l.length > 3)
+    .map((l) =>
+      l
+        .slice(3)
+        .split(' -> ')
+        .at(-1)!
+        .replace(/^"(.*)"$/, '$1'),
+    )
+    .filter(Boolean);
+
 /** The branch and commit the run was made from, so a report can say which code it tested. */
 export const gitOf = (root: string): RunManifest['git'] => {
-  const ask = (...args: string[]) => {
+  const raw = (...args: string[]) => {
     try {
-      return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
+      return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     } catch {
       return undefined;
     }
   };
+  const ask = (...args: string[]) => raw(...args)?.trim() || undefined;
   const commit = ask('rev-parse', '--short', 'HEAD');
   if (!commit) return undefined;
   const branch = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME || ask('rev-parse', '--abbrev-ref', 'HEAD');
   const remote = webOf(ask('remote', 'get-url', 'origin'));
-  // What the run had that no commit has: a report says the app was not exactly the commit it names.
-  const changed = (ask('status', '--porcelain', '--untracked-files=no') ?? '')
-    .split('\n')
-    .map((l) => l.slice(3).trim())
-    .filter(Boolean);
+  // What the run had that no commit has: a report says the app was not exactly the commit it names. Not trimmed: the
+  // first line's status column may start with a space (` M file`).
+  const changed = porcelainFiles(raw('status', '--porcelain', '--untracked-files=no') ?? '');
   // A branch that lives only on this machine names nothing a reader can open: the run names the remote branch
   // that has its commit instead (the one it tracks first, else any), and keeps the local name beside it.
   const local = branch && branch !== 'HEAD' ? branch : undefined;
