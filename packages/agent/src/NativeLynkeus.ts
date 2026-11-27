@@ -10,6 +10,8 @@ import { TurboModuleRegistry, type TurboModule } from 'react-native';
  */
 export interface Spec extends TurboModule {
   isAvailable(): boolean;
+  /** The app's own identifier: the bundle identifier on iOS, the package name on Android. */
+  appId(): string;
   /** A finger down at (x, y) for `holdMs` (a tap is ~50 ms, a long press ~600 ms). */
   tap(x: number, y: number, holdMs: number): Promise<boolean>;
   swipe(x1: number, y1: number, x2: number, y2: number, durationMs: number): Promise<boolean>;

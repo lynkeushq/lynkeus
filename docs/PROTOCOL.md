@@ -63,6 +63,12 @@ Driver → app, once the app's proof checks out:
 - `agentVersion`: the `lynkeus-agent` release in the app; agents older than
   the field do not send it.
 
+- `appId`: the app's own bundle identifier (iOS) or application id (Android),
+  read once from the native module. The driver uses it to bring the app to the
+  front or relaunch it when `app` is not set in the config or passed with
+  `--app`. Absent from older agents, from release builds, and from hosts that
+  have none.
+
 - `native`: whether touch synthesis is compiled in (debug builds only).
 - `commands`: the names the app registered with `qa.register`. The driver
   may call them like any method.

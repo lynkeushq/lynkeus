@@ -51,7 +51,7 @@ export const createReturns = ({ device, options, goTo }: Context) => {
       if (options.login) await logIn(options.login);
       return;
     }
-    if (!options.appId) throw new RecoveryError('App disconnected and no --app to relaunch');
+    if (!options.appId) throw new RecoveryError('App disconnected and no app id to relaunch (--app, app in lynkeus.config.json, or the agent’s hello)');
     await device.launchApp(options.appId, { fresh: true });
     await clearOverlayIfShown(device, options.overlay);
   };

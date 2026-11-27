@@ -215,6 +215,8 @@ export type HelloEvent = {
   commands: string[];
   route?: string;
   app?: Record<string, unknown>;
+  /** The app's own bundle id (iOS) or application id (Android), so the driver can bring it back or relaunch it without being told; absent from older agents and from hosts that have none. */
+  appId?: string;
   /** The device's locale as the app's JavaScript sees it (a BCP 47 tag); absent from agents before it was sent. */
   locale?: string;
   /** The app's half of the handshake: a fresh nonce, and HMAC-SHA256 under the token of `lynkeus/app/<session>/<driver nonce>/<app nonce>`. */

@@ -143,6 +143,16 @@ test('without the app id there is no bringing it back, and the error says where 
   await assert.rejects(device.foreground(), /set app in lynkeus\.config\.json, or pass --app/);
 });
 
+test('the id the app said in its hello brings it back when none was configured, and the configured one wins', async () => {
+  const { server, launches } = phoneApp({ opensWith: 'url' });
+  (server as unknown as { hello: object }).hello = { ...(server as unknown as { hello: object }).hello, appId: 'com.example.said' };
+  const info = { id: 'sim-1', name: 'iPhone', platform: 'ios' } as never;
+  const said = new Device(info, { server: server as unknown as AgentServer });
+  assert.equal(said.appId, 'com.example.said');
+  assert.equal(new Device(info, { server: server as unknown as AgentServer, appId: 'com.example.given' }).appId, 'com.example.given');
+  assert.equal(launches.length, 0);
+});
+
 test('a crawl that starts with the app in the background brings it to the front first', async () => {
   const { device, launches, goAway } = phoneApp({ opensWith: 'url' });
   goAway();

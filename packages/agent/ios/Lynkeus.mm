@@ -197,6 +197,11 @@ static id<UIKeyInput> QaKeyInput(void) {
 
 @implementation Lynkeus
 
+- (NSString *)appId
+{
+  return [[NSBundle mainBundle] bundleIdentifier] ?: @"";
+}
+
 - (NSNumber *)isAvailable
 {
 #if DEBUG

@@ -11,6 +11,19 @@ const ready = (): Spec => {
   return NativeLynkeus;
 };
 
+let identifier: string | null | undefined;
+/** The app's bundle id or application id, read once; null when this build of the native module cannot say. */
+export const appId = (): string | null => {
+  if (identifier !== undefined) return identifier;
+  try {
+    const id = NativeLynkeus && typeof NativeLynkeus.appId === 'function' ? NativeLynkeus.appId() : '';
+    identifier = id || null;
+  } catch {
+    identifier = null;
+  }
+  return identifier;
+};
+
 export type SystemViews = {
   frame: number[];
   items: { text: string; kind: 'button' | 'text'; frame: number[] }[];

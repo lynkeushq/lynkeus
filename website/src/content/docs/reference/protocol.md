@@ -64,6 +64,7 @@ Neither side ever sends the token. Each proves that it holds it, with an HMAC-SH
 |---|---|---|
 | `protocolVersion` | number | The protocol version the agent speaks. |
 | `agentVersion` | string | The release of `lynkeus-agent` in the app. Absent from older agents. |
+| `appId` | string | The app's own bundle identifier (iOS) or application id (Android). The CLI uses it to bring the app back or relaunch it when neither `app` in `lynkeus.config.json` nor `--app` gives one. Absent from older agents and from hosts with none. |
 | `platform` | string | `ios`, `android`, or whatever the host reports. |
 | `native` | boolean | Whether touch synthesis is compiled in, so that presses are real touches. Debug builds only. |
 | `commands` | string[] | The commands the app answers beyond the core methods: the ones it registered with `qa.register`, and the built-in ones. The driver calls them like any method. |

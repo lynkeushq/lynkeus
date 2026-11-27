@@ -458,8 +458,8 @@ export const driveCommands = [
     needs: 'app',
     run: async (ctx) => {
       const device = await ctx.device();
-      const appId = ctx.args[0] ?? (ctx.flags.app as string | undefined) ?? ctx.config.app;
-      if (!appId) throw new Error('launch needs a bundle id (argument, --app, or app in lynkeus.config.json)');
+      const appId = ctx.args[0] ?? (ctx.flags.app as string | undefined) ?? ctx.config.app ?? device.appId ?? undefined;
+      if (!appId) throw new Error('launch needs a bundle id (argument, --app, or app in lynkeus.config.json), and the app’s agent did not say it');
       if (ctx.flags.clean) await device.command('reset').catch(() => undefined);
       await device.launchApp(appId, { fresh: true });
       await device.idle({ quietMs: 200, timeoutMs: 3000 }).catch(() => undefined);

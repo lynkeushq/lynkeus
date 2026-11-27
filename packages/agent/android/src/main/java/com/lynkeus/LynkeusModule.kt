@@ -41,6 +41,8 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
 
   override fun isAvailable(): Boolean = debuggable
 
+  override fun appId(): String = reactApplicationContext.packageName
+
   private fun rootView(): View? = currentActivity?.window?.decorView
 
   // Every window of this process, back to front: the activity's, and what opens over it (a Modal's dialog, an
