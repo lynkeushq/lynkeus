@@ -82,8 +82,8 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 23 | 3500 tokens |
-| `lynkeus mcp --full` | las 56 | 7300 tokens |
+| `lynkeus mcp` | 30 | 6200 tokens |
+| `lynkeus mcp --full` | las 60 | 9500 tokens |
 
 Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea grabar o tomar snapshots.
 
@@ -221,5 +221,5 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 ## Siguientes pasos
 
 - [Manejar la app](/es/guides/driving-the-app/): los mismos comandos, a mano.
-- [Referencia de la CLI](/es/reference/cli/): los 56 comandos que sirve `--full`.
+- [Referencia de la CLI](/es/reference/cli/): los 60 comandos que sirve `--full`.
 - [Seguridad](/es/security/): qué expone el agente y por qué solo en depuración.

@@ -80,8 +80,8 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 23 core tools | About 3,500 tokens |
-| `npx lynkeus mcp --full` | All 56 commands | About 7,300 tokens |
+| `npx lynkeus mcp` | The 30 core tools | About 6,200 tokens |
+| `npx lynkeus mcp --full` | All 60 commands | About 9,500 tokens |
 
 Start with the core. Add `--full` for an agent whose job is recording or snapshots.
 
