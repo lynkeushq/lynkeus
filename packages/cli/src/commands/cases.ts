@@ -956,6 +956,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   dry,
                   events,
                   evidence: evidenceOf(c.id, n),
+                  keep: out !== undefined,
                   log,
                   prepared,
                   continue: !!ctx.flags.continue,

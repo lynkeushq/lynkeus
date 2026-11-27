@@ -183,6 +183,8 @@ export type RunOptions = {
   dry?: boolean;
   events?: boolean;
   evidence?: Evidence;
+  /** The run keeps a run folder (`--out`): each step's requests with bodies and the app's console go into it, frames or not. */
+  keep?: boolean;
   log?: (line: string) => void;
   /** The case's setup, already run by `case prepare`: the case starts from here. */
   prepared?: Prepared;
@@ -1448,6 +1450,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // Asked when the run keeps events or a report: it is a call per step.
   const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
+  const keeping = !options.dry && (!!evidence || !!options.keep);
   let filming = false;
   // A simulator or emulator the app runs on, as against a host that films itself: its OS films it (simctl, screenrecord).
   let osFilm: Recording | undefined;
@@ -1466,7 +1469,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
   // The same for what it printed.
-  const logging = !!evidence && (await offers('logs'));
+  const logging = keeping && (await offers('logs'));
   if (logging) await (await device()).command('logs', { take: true }).catch(() => undefined);
   options.nativeLogs?.take();
   // A report shows what each request sent and got: the app keeps headers and bodies only while this case runs.
@@ -1492,7 +1495,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const encoding: string[] = [];
   // Frames a simulator or emulator gave as PNG, being encoded again as AVIF while the case goes on.
   const compacting: Promise<void>[] = [];
-  if (evidence && (await offers('networkBodies'))) {
+  if (keeping && (await offers('networkBodies'))) {
     const d = await device();
     await d.command('networkBodies', { on: true }).catch(() => undefined);
     requestsSeen = await d.requests().then(
@@ -1893,7 +1896,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       steps.push(done);
       log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms${phaseNote(done)})`);
       ended(done.status);
-      if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
+      if ((keeping || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
         else if (looksFirst && todo[index + 1]?.verb === 'app.see') held = { report: done, n: steps.length, at, t0, looks: [], commit: commitBefore };
         else await record(done, steps.length, at, t0, commitBefore);
@@ -1937,7 +1940,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       log(`  ❌ ${text}  — ${(broke.error ?? message).split('\n')[0]}  (${Date.now() - t0}ms${phaseNote(broke)})`);
       ended('failed');
       await flush();
-      if (evidence || capturing) await record(broke, steps.length, at, t0, commitBefore);
+      if (keeping || capturing) await record(broke, steps.length, at, t0, commitBefore);
     }
   }
 
