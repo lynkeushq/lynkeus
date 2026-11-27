@@ -408,10 +408,12 @@ export type RunBackendSpan = {
     error?: string;
     attributes?: Record<string, string | number | boolean>;
 };
+export type RunStepPhase = 'marks' | 'target' | 'action' | 'settle' | 'wait' | 'look' | 'events';
 export type RunStep = {
     step: string;
     status: RunStepStatus;
     ms: number;
+    phases?: Partial<Record<RunStepPhase, number>>;
     error?: string;
     section?: 'setup' | 'steps';
     heading?: string;

@@ -390,7 +390,10 @@ A line of `cases.jsonl` carries the case's id, title, description and file, the
 attempt (1, or 2 for the second chance), the result, when it started, how long
 it took, and its steps. Each step says which part of the case it is (`setup` or
 `steps`), whether it passed, failed, was skipped or is unsupported on this host, how long it took, its error, and the events the
-app sent to its analytics while it ran. A failed attempt keeps its evidence.
+app sent to its analytics while it ran. `phases` splits a step's time by what it
+waited on (`marks`, `target`, `action`, `settle`, `wait`, `look`, `events`; see
+`RunStepPhase` in lynkeus-protocol), so a step over 500 ms can be explained; the
+console writes them after such a step. A failed attempt keeps its evidence.
 
 A long case can number its parts with a comment over the step that opens each one
 (`# 3 A wrong PIN`, or `# 3b …`); every step after it, up to the next one, carries

@@ -53,11 +53,22 @@ export type RunBackendSpan = {
   attributes?: Record<string, string | number | boolean>;
 };
 
+/**
+ * Where a step's time went, timed where the runner waits anyway. `marks`: where the trace and the requests stood
+ * before it acted. `target`: waiting for its target to be listed, clear and enabled (a scroll to it included).
+ * `action`: the command itself, the agent's wait for the target to hold still included. `settle`: the app going quiet
+ * after it. `wait`: an `app.wait`, or the wait for the route a nav leads to. `look`: an `app.see`. `events`: reading
+ * what the app told its analytics. A macro's steps add to the step that runs it.
+ */
+export type RunStepPhase = 'marks' | 'target' | 'action' | 'settle' | 'wait' | 'look' | 'events';
+
 export type RunStep = {
   /** The step as the case words it. */
   step: string;
   status: RunStepStatus;
   ms: number;
+  /** Its `ms` by phase, those it spent time in; what is left is the runner's own work. */
+  phases?: Partial<Record<RunStepPhase, number>>;
   error?: string;
   /** Which part of the case it belongs to. */
   section?: 'setup' | 'steps';

@@ -56,8 +56,8 @@
     "now": "9eaed4f3158a5a0d"
   },
   "report/answer": {
-    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run.",
-    "now": "cd436d61d06e0286"
+    "why": "A failed case's summary now opens with the failing step's own error (— failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. A run with --out ends with the path of the report.html it wrote beside the run. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "fcfa75143ff3dfd3"
   },
   "surface/help/case stop": {
     "why": "case stop is new: it stops a case run that is going, from a terminal or over MCP (case_stop).",
@@ -68,8 +68,8 @@
     "now": "87d4605d6f7ddbc9"
   },
   "wire/press-by-number": {
-    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause. A target written as a bare number is an index: app.press: 2 presses element 2 instead of failing with \"Cannot use 'in' operator\".",
-    "now": "4dc3626a9bc425e7"
+    "why": "A failed case reads its reasons from the trace since the case's first step (trace since), not the whole trace, so an older failure is not given as its cause. A target written as a bare number is an index: app.press: 2 presses element 2 instead of failing with \"Cannot use 'in' operator\". Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "9cebd928b5ed8004"
   },
   "detect/empty/status": {
     "why": "status marks an optional line that fails with ○ instead of ✗ (and never ✓ for something missing, as it did for 'FastSim is not installed'), and lists headless and FastSim under 'Where cases can run on this machine' with a day-to-day and CI recommendation. Its advice says where to write cases (FastSim, else headless, else a device) and that a case is done when `case run --on all` passes.",
@@ -144,8 +144,8 @@
     "now": "f2d22b677976ddbe"
   },
   "report/file/cases.jsonl": {
-    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
-    "now": "1642c1554f7fa85f"
+    "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. Each step now carries the screen the app was on when it ended (route) and each case the screens it went through (routes): case run keeps them by default for case new and case coverage, reading the trace and the screen once more at the case's first step, which moves the virtual clock by two milliseconds. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "d971d773f42d3476"
   },
   "report/file/progress.ndjson": {
     "why": "a failed app.press or app.type reads the screen once more to tell whether a native view outside React Native covers the app; that read moves the virtual clock by a millisecond or two. case run reads the trace and the screen once more at a case's first step, to keep the screens the case goes through by default; that moves the virtual clock by two milliseconds. On a phone, a case reads the screen once more before its first step (to relaunch an app covered by a view it did not draw), which moves the virtual clock by a millisecond.",
@@ -164,52 +164,52 @@
     "now": "5c9d94316c29b84f"
   },
   "wire/failure-stops-and-tears-down": {
-    "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered.",
-    "now": "de96f3f297f4f28a"
+    "why": "a failed app.press reads the screen once more, to name a native view outside React Native that covers the app (the Expo dev menu's onboarding sheet) instead of leaving only ~covered. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "d97ed66a5a74ca7e"
   },
   "wire/compare-run-frames": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press.",
-    "now": "60583c0bc20eb7a3"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "25eb16f36e319fa5"
   },
   "wire/counter-name-and-countdown": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
-    "now": "ebcf2212c36c4144"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "4ea92c60116e33b8"
   },
   "wire/events": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
-    "now": "d363e69a85ec0a16"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "83bbc294b125781f"
   },
   "wire/every-wait": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "7f2754e1df91d9c1"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "8777ec97c6e29432"
   },
   "wire/failure-evidence-and-continue": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "de8e55b02842d403"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "07158a1b037e04fd"
   },
   "wire/interruptions": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed.",
-    "now": "aea231d90b0a9802"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. app.type goes through the type command, which now looks its field up (find) and waits while it is covered before tapping it, as MCP type right after a reset needed. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "286523675881b2e6"
   },
   "wire/list-back-and-dialog": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "9bfb78881d182c35"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "96778783f41a8e72"
   },
   "wire/macros-blocks-and-commands": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. A case that set a mock asks the app for its rules (netmock list) before it clears them, to warn about a rule no request matched.",
-    "now": "07f8249d89850c3b"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. A case that set a mock asks the app for its rules (netmock list) before it clears them, to warn about a rule no request matched. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "698283d251431d4e"
   },
   "wire/native-window-scrolls": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. On a phone, a case reads the screen once before its first step: a view the app did not draw over it (a Save Password prompt left by the case before) is relaunched away.",
-    "now": "91451ba3fed9ed7d"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. On a phone, a case reads the screen once before its first step: a view the app did not draw over it (a Save Password prompt left by the case before) is relaunched away. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "75cf0d8c00806918"
   },
   "wire/retries-until-enabled-and-listed": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",
-    "now": "75662c85c309bd73"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "3321b5a111fbd7d6"
   },
   "wire/screenshots-each-step": {
-    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press. On a phone, a case reads the screen once before its first step, to relaunch an app a view it did not draw covers.",
-    "now": "36efed228464b7a7"
+    "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one. With screenshots, an action step reads the commit count first and the frame waits for a commit past it (idle after), so a press frame no longer shows the screen from before the press. On a phone, a case reads the screen once before its first step, to relaunch an app a view it did not draw covers. Each step carries its phases (marks, target, action, settle, wait, look, events: where its ms went, timed where the runner already waits) in the case's report and cases.jsonl; timing them adds no message but reads the virtual clock in a few more places.",
+    "now": "fbfcf6bacfe74535"
   },
   "wire/unsupported-command": {
     "why": "Every case now clears the app's netmock rules before its first step (and after its last when it set one), so a mock left by an earlier case or by hand never answers for this one.",

@@ -15,6 +15,14 @@ const esc = (value: unknown): string =>
 
 const seconds = (ms: number | undefined) => (ms === undefined ? '' : ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
 
+// A step this slow has its phases written out, as the run's console does.
+const SLOW_STEP_MS = 500;
+const phaseParts = (s: RunStep) => Object.entries(s.phases ?? {}).map(([phase, ms]) => `${phase} ${seconds(ms)}`);
+
+/** Where a step's time went: on hover over any step's duration, and written out beside a slow one's. */
+const phaseTitle = (s: RunStep) => (phaseParts(s).length > 0 ? ` title="${esc(phaseParts(s).join(' · '))}"` : '');
+const phaseText = (s: RunStep) => (s.ms >= SLOW_STEP_MS && phaseParts(s).length > 0 ? ` <span class="ms">(${esc(phaseParts(s).join(' · '))})</span>` : '');
+
 const MIME: Record<string, string> = {
   '.avif': 'image/avif',
   '.png': 'image/png',
@@ -119,7 +127,7 @@ const caseSection = (dir: string, attempts: RunCase[], embed: boolean, index: nu
       heading = group;
       return `${head}<li class="step ${esc(s.status)}"${s.videoS !== undefined ? ` data-at="${s.videoS}"` : ''}>
   <div class="frame">${frame ? `<a href="${frame}" data-zoom><img loading="lazy" src="${frame}" alt="frame after step ${i + 1}"></a>` : '<span class="none">no frame</span>'}</div>
-  <div class="what"><span class="mark">${status(s.status)}</span> <span class="n">${i + 1}</span> <code>${esc(s.step)}</code> <span class="ms">${seconds(s.ms)}</span>${s.videoS !== undefined && video ? ` <button class="seek" data-at="${s.videoS}">▶ ${s.videoS.toFixed(1)} s</button>` : ''}
+  <div class="what"><span class="mark">${status(s.status)}</span> <span class="n">${i + 1}</span> <code>${esc(s.step)}</code> <span class="ms"${phaseTitle(s)}>${seconds(s.ms)}</span>${phaseText(s)}${s.videoS !== undefined && video ? ` <button class="seek" data-at="${s.videoS}">▶ ${s.videoS.toFixed(1)} s</button>` : ''}
   ${s.error ? `<pre class="err">${esc(s.error)}</pre>` : ''}${stepExtras(s)}</div>
 </li>`;
     })

@@ -9,7 +9,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import type { Element, RequestRecord, RunEdges, RunLooked, RunNativeValue, RunScroll, RunSighting, Screen, Target } from 'lynkeus-protocol';
+import type {
+  Element,
+  RequestRecord,
+  RunEdges,
+  RunLooked,
+  RunNativeValue,
+  RunScroll,
+  RunSighting,
+  RunStepPhase as StepPhase,
+  Screen,
+  Target,
+} from 'lynkeus-protocol';
 
 import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import type { Recording } from '../device/platform.js';
@@ -102,6 +113,8 @@ export type StepReport = {
   route?: string;
   /** On a failed `app.see` or `app.wait` for a target: the whole listing, the scrolls made and what the target was last seen as. */
   looked?: RunLooked;
+  /** Where its time went, in ms (see `RunStepPhase`); what is left of `ms` is the runner's own work. */
+  phases?: Partial<Record<StepPhase, number>>;
 };
 
 /** A line the app printed: `at` in ms since the epoch, `source` where it came from (`js`, `native`, `host`). */
@@ -226,6 +239,22 @@ export const newSince = (before: AppEvent[], now: AppEvent[]): AppEvent[] => {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** The phases a step spent time in, in the order they happen; none when it spent none. */
+const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'phases'> => {
+  const spent = Object.entries(phases).filter(([, ms]) => ms > 0);
+  return spent.length > 0 ? { phases: Object.fromEntries(spent) } : {};
+};
+
+// Below this a step's time needs no explaining in the console; the run's files keep its phases either way.
+const SLOW_STEP_MS = 500;
+
+/** `: action 380 · settle 120`, for a step slow enough to ask where its time went. */
+export const phaseNote = (step: Pick<StepReport, 'ms' | 'phases'>): string => {
+  if (step.ms < SLOW_STEP_MS || !step.phases) return '';
+  const parts = Object.entries(step.phases).map(([phase, ms]) => `${phase} ${ms}`);
+  return parts.length > 0 ? `: ${parts.join(' · ')}` : '';
+};
 
 /**
  * A host on another machine (fastsim in a Linux VM or on a server) films there: the path it was given is this
@@ -675,6 +704,16 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   const device = () => base.device();
+  // The current step's phases; a macro's steps add to the step that runs it.
+  let phases: Partial<Record<StepPhase, number>> = {};
+  const timed = async <T>(phase: StepPhase, work: () => Promise<T>): Promise<T> => {
+    const started = Date.now();
+    try {
+      return await work();
+    } finally {
+      phases[phase] = (phases[phase] ?? 0) + Date.now() - started;
+    }
+  };
   // A phone's app in the background is suspended: its socket may stay open, but nothing answers, so every call to it
   // waits out its whole timeout (20 s). An app away that long meets its screen lock when it comes back.
   let away = false;
@@ -954,13 +993,29 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (params.optional === true) {
       // Decided once the app has gone quiet: what it presses (a one-time question, a promo) arrives a moment
       // after the screen before it, and a fast host gets here first.
-      await d.idle({ quietMs: 150, timeoutMs: 1000 }).catch(() => undefined);
-      const there = await d.waitFor({ target, timeoutMs: 300 }).then(
-        () => true,
-        () => false,
-      );
+      const there = await timed('target', async () => {
+        await d.idle({ quietMs: 150, timeoutMs: 1000 }).catch(() => undefined);
+        return d.waitFor({ target, timeoutMs: 300 }).then(
+          () => true,
+          () => false,
+        );
+      });
       if (!there) return 'skipped';
     }
+    await timed('target', () => pressable(d, target, params));
+    const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
+    try {
+      await timed('action', () => cli(argvFor(find('press')!, rest as StepValue), true));
+    } catch (error) {
+      // A one-time sheet can disappear between the presence check and the native press.
+      if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';
+      throw error;
+    }
+    return undefined;
+  };
+
+  /** Until the target is listed, in the window and clear of what covers it, and (by testId) enabled and still. */
+  const pressable = async (d: Device, target: Target, params: Record<string, unknown>): Promise<void> => {
     // Not listed at all: arriving, or further down a page that only lists its window. A short wait, then
     // a scroll, rather than spending the whole deadline on something that is below the fold.
     const listed = async () => !!(await d.server.call('find', target));
@@ -1001,15 +1056,6 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (Date.now() > deadline && !(await d.screen()).busy) break;
       await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
     }
-    const { optional: _optional, timeoutMs: _timeout, ...rest } = params;
-    try {
-      await cli(argvFor(find('press')!, rest as StepValue), true);
-    } catch (error) {
-      // A one-time sheet can disappear between the presence check and the native press.
-      if (params.optional === true && error instanceof Error && error.message.includes('No element matches')) return 'skipped';
-      throw error;
-    }
-    return undefined;
   };
 
   const call = async (params: Record<string, unknown> | undefined): Promise<void> => {
@@ -1091,17 +1137,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             (t) => t.last,
             () => undefined,
           );
-    mark ??= await lastSeq();
-    if (!LOOKING.has(name)) actedFrom = await lastSeq();
-    if (options.routes && stepAt >= 0 && actedAt[stepAt] === undefined && !LOOKING.has(name)) actedAt[stepAt] = actedFrom;
-    // An interruption handled inside a wait is not the action the wait is about.
-    if (!away && ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined)) await markRequests(d).catch(() => undefined);
+    await timed('marks', async () => {
+      mark ??= await lastSeq();
+      if (!LOOKING.has(name)) actedFrom = await lastSeq();
+      if (options.routes && stepAt >= 0 && actedAt[stepAt] === undefined && !LOOKING.has(name)) actedAt[stepAt] = actedFrom;
+      // An interruption handled inside a wait is not the action the wait is about.
+      if (!away && ((!LOOKING.has(name) && !handling && macroDepth === 0) || requestsAfter === undefined)) await markRequests(d).catch(() => undefined);
+    });
     switch (name) {
       case 'press': {
         await interrupted(value);
         const outcome = await press(value);
         // One touch, one render: the next step reads what this one caused.
-        await d.idle({ quietMs: 50, timeoutMs: 400 }).catch(() => undefined);
+        await timed('settle', () => d.idle({ quietMs: 50, timeoutMs: 400 }).catch(() => undefined));
         return outcome;
       }
       case 'type':
@@ -1110,30 +1158,32 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         // A field that arrives with its screen (a code input that mounts a moment after the keyboard) takes
         // what is typed only once it is there: under load that moment is longer than the step's own wait.
         const field = name === 'type' && params ? targetIn(params) : undefined;
-        if (field) {
-          await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
-          await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
-        }
+        if (field)
+          await timed('target', async () => {
+            await d.waitFor({ target: field, timeoutMs: typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000 }).catch(() => undefined);
+            await d.idle({ quietMs: 100, timeoutMs: 800 }).catch(() => undefined);
+          });
         // A swipe's target still landing (a pager's page arriving, a sheet sliding in) reads as inert for a moment. The
         // agent waits for it too, but on a host with a virtual clock its wait runs out in no real time, so the wait
         // for the target to be presented happens here, on the wall clock, with the app moving on between looks.
         const swiped = name === 'swipe' && params ? targetIn(params) : undefined;
-        if (swiped && 'testId' in swiped) {
-          const until = Date.now() + (typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000);
-          while (Date.now() < until) {
-            const found = (await d.server.call('find', swiped).catch(() => null)) as Element | null;
-            if (found && found.hidden !== 'inert') break;
-            await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
-          }
-        }
+        if (swiped && 'testId' in swiped)
+          await timed('target', async () => {
+            const until = Date.now() + (typeof params?.timeoutMs === 'number' ? params.timeoutMs : 5000);
+            while (Date.now() < until) {
+              const found = (await d.server.call('find', swiped).catch(() => null)) as Element | null;
+              if (found && found.hidden !== 'inert') break;
+              await d.idle({ quietMs: 50, timeoutMs: 200 }).catch(() => undefined);
+            }
+          });
         const { timeoutMs: _timeout, ...typed } = params ?? {};
-        await cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value));
+        await timed('action', () => cli(argvFor(find(name)!, name === 'type' && params ? (typed as StepValue) : value)));
         // A pager on a device keeps moving after the finger lifts, and swallows a swipe sent into that momentum.
-        if (name === 'swipe' && onWallClock(d)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
+        if (name === 'swipe' && onWallClock(d)) await timed('settle', () => d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined));
         return undefined;
       }
       case 'see':
-        await see(value);
+        await timed('look', () => see(value));
         return undefined;
       case 'requests':
         mark = (await d.trace()).last;
@@ -1141,8 +1191,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         return undefined;
       case 'wait': {
         startTrail();
-        if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await sleep(Number(value));
-        else if (params?.request) await waitForRequest(params);
+        if (typeof value === 'number' || (typeof value === 'string' && /^\d+$/.test(value))) await timed('wait', () => sleep(Number(value)));
+        else if (params?.request) await timed('wait', () => waitForRequest(params));
         else {
           const what = typeof value === 'string' ? value : String(params?.what ?? '');
           const since = isRoute(what) && actedFrom !== undefined ? { since: actedFrom } : {};
@@ -1152,33 +1202,40 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             for (;;) {
               await interrupted(value);
               const left = deadline - Date.now();
-              const outcome = await execute(argvFor(find('wait')!, { ...asked, timeoutMs: Math.max(Math.min(left, 1000), 100) } as StepValue), base);
+              const outcome = await timed('wait', () =>
+                execute(argvFor(find('wait')!, { ...asked, timeoutMs: Math.max(Math.min(left, 1000), 100) } as StepValue), base),
+              );
               if (!outcome.error && outcome.code === 0) break;
               if (Date.now() >= deadline) {
                 why = outcome.why;
                 throw new Error(outcome.error ?? outcome.text ?? 'wait failed');
               }
             }
-          } else await cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value));
+          } else
+            await timed('wait', () =>
+              cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value)),
+            );
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
-          if (onWallClock(d) && isRoute(what)) await d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined);
+          if (onWallClock(d) && isRoute(what)) await timed('settle', () => d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined));
         }
         return undefined;
       }
       case 'nav': {
         const route = leafOf(routeOf(typeof value === 'string' ? value : String(params?.route)), params?.params);
-        await cli(argvFor(find('nav')!, value));
+        await timed('action', () => cli(argvFor(find('nav')!, value)));
         // A navigator's own name is reached once the focused screen is inside it; an agent from before 0.7.7 only
         // compares the focused screen, so its timeout is checked against the path.
-        await d.waitFor({ route, timeoutMs: 8000 }).catch(async (error: unknown) => {
-          const path = (await d.screen().catch(() => undefined))?.path;
-          if (!path?.includes(route)) throw error;
-        });
-        await d.idle({ quietMs: 300, timeoutMs: 8000 });
+        await timed('wait', () =>
+          d.waitFor({ route, timeoutMs: 8000 }).catch(async (error: unknown) => {
+            const path = (await d.screen().catch(() => undefined))?.path;
+            if (!path?.includes(route)) throw error;
+          }),
+        );
+        await timed('settle', () => d.idle({ quietMs: 300, timeoutMs: 8000 }));
         return undefined;
       }
       case 'call':
-        await call(params);
+        await timed('action', () => call(params));
         return undefined;
       case 'relaunch':
         log(`  ↺ ${await relaunch()}`);
@@ -1205,7 +1262,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           mocksSet = true;
           if (mockedFrom === undefined) mockedFrom = await lastRequest(d).catch(() => undefined);
         }
-        await cli(argvFor(command, value));
+        await timed('action', () => cli(argvFor(command, value)));
         if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
       }
@@ -1792,6 +1849,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       continue;
     }
     const t0 = Date.now();
+    phases = {};
     const place = {
       index,
       steps: todo.length,
@@ -1832,10 +1890,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     trail = undefined;
     try {
       const outcome = await perform(step);
-      if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await collect(steps.length + 1);
-      const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0 };
+      if (step.verb.startsWith('app.') || config.macros?.[step.verb]) await timed('events', () => collect(steps.length + 1));
+      const done: StepReport = { step: text, status: outcome === 'skipped' ? 'skipped' : 'passed', ms: Date.now() - t0, ...phased(phases) };
       steps.push(done);
-      log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms)`);
+      log(`  ${outcome === 'skipped' ? '⏭️' : '✅'} ${text}  (${Date.now() - t0}ms${phaseNote(done)})`);
       ended(done.status);
       if ((evidence || capturing) && outcome !== 'skipped' && (step.verb.startsWith('app.') || config.macros?.[step.verb])) {
         if (held && step.verb === 'app.see') held.looks.push(done);
@@ -1859,7 +1917,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (!failed && !why) sought = soughtBy(step);
       failed = true;
       if (index < setupLength) setupFailed = true;
-      const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message };
+      const broke: StepReport = { step: text, status: 'failed', ms: Date.now() - t0, error: message, ...phased(phases) };
       lookedScreen = undefined;
       const looked = await lookedAfter(step);
       // A see or wait has just read the screen; a press or a type reads it once more, only when it fails.
@@ -1878,7 +1936,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
         broke.error = [`${first}${sightingNote(trail)}${cover ? ` (${cover})` : ''}`, ...more].join('\n');
       }
       steps.push(broke);
-      log(`  ❌ ${text}  — ${(broke.error ?? message).split('\n')[0]}  (${Date.now() - t0}ms)`);
+      log(`  ❌ ${text}  — ${(broke.error ?? message).split('\n')[0]}  (${Date.now() - t0}ms${phaseNote(broke)})`);
       ended('failed');
       await flush();
       if (evidence || capturing) await record(broke, steps.length, at, t0, commitBefore);
