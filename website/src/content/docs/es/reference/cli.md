@@ -1007,6 +1007,8 @@ Opciones que deciden qué se ejecuta y cómo:
 
 | Opción | Qué hace |
 |---|---|
+| `--on <destinos>` | Corre los casos a la vez en cada destino: `simulator` (la app conectada en un simulador, un emulador o un teléfono), `fastsim` y `headless`, separados por comas, o `all`. Responde con una línea por caso y por destino. Un destino que esta máquina no tiene aparece con el motivo y no hace fallar la ejecución; un caso que falla en cualquier destino que corrió, sí. No se combina con `--host`, `--host-command`, `--keep-hosts` ni `--ports`. |
+| `--bundle <dir>` | Con `--on fastsim`: la carpeta que hizo `fastsim-bundle`. Por defecto, el último bundle dentro de `.lynkeus`. |
 | `--host` | Arranca `headless start` para la ejecución y lo detiene al terminar. Si el host muere en medio de un caso, o su app deja de contestar, se arranca otro antes del caso siguiente (ver [Si el host se cae](#si-el-host-se-cae)). |
 | `--host-heap <percent>` | Con `--host` o `--keep-hosts`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |
 | `--once` | No da una segunda oportunidad al caso que falla. |

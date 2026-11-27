@@ -72,6 +72,8 @@ Run every case headless, three at a time, and tell me how it goes.
 
 `case_run` takes `jobs`, `ports` and `host_command`: each job gets its own host, which `host_command` starts for every case. A case that changes something every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone. With `host`, the run starts the headless host again when it dies during a case or its heap passes `host_heap` percent of its limit, so one crash does not fail every case after it.
 
+A case is done when it passes on every target the machine has. `case_run` with `on: all` runs it on the attached Simulator or emulator, Lynkeus FastSim and the headless host at the same time and answers one line per case per target; a target that is missing is named with the reason and does not fail the run.
+
 While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` also gets MCP progress notifications, with the same line as the message.
 
 ## Step 4: Choose the tool set
