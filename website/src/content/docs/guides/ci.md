@@ -117,6 +117,8 @@ LYNKEUS_PORT=8125 npx lynkeus headless start &
 npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 ```
 
+With `--host-command`, a port in `--ports` that another process already listens on is refused before any host starts: the hosts would dial that process's driver instead of the run's.
+
 The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have Lynkeus start the hosts, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'` starts a fresh host for every case. Add `--keep-hosts` to start each job's host once and keep it for the job's cases: it is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. `--host-timeout <ms>` (600000 by default) is how long a host may take to attach.
 
 The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
@@ -143,7 +145,7 @@ npx lynkeus ci
 
 Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
 
-`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The first host's port is `LYNKEUS_PORT` or `port` in the configuration (8123 unless told).
+`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told). A port that another process listens on, such as a `lynkeus mcp` server you left running in the project, or that another case run has claimed, is passed over, and the run says which ports its hosts took. When the run ends, fails or is stopped with Ctrl-C or SIGTERM, every host it started is stopped, even when `case run` itself died.
 
 `--affected` runs only the cases that a branch's changes reach:
 

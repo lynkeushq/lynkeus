@@ -11,7 +11,8 @@ import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
 import { type CasesConfig, type CaseReport, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
-import { claimPorts, freePorts } from '../cases/portClaim.js';
+import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
+import { HostPids, hostsFileOf } from '../cases/hostPids.js';
 import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
@@ -70,8 +71,10 @@ export const startHost = async (root: string, err: (line: string) => void, launc
   await new Promise<void>((resolve, reject) => {
     const settle = (error?: Error) => {
       clearTimeout(timer);
-      if (error) reject(error);
-      else resolve();
+      if (!error) return resolve();
+      // A host that never came up is still running, and nobody holds it to stop it later.
+      if (host.pid && !exited(host)) stopGroup(host.pid);
+      reject(error);
     };
     const timer = setTimeout(() => settle(new Error(`the host did not come up within 180 s: ${tail(3)}`)), 180_000);
     const read = (chunk: Buffer) => {
@@ -383,6 +386,8 @@ type ActiveRun = { label: string; progress?: string; stop: (why: string) => void
 const active = new Set<ActiveRun>();
 
 const STOP_POLL_MS = 500;
+// How often a kept host still on its way up is asked whether its app attached, at most.
+const ATTACH_PROBE_MS = 250;
 
 export const caseCommands = [
   define({
@@ -576,8 +581,20 @@ export const caseCommands = [
         ? undefined
         : claimPorts(runPorts ? runPorts.filter(Number.isInteger).slice(0, jobsAsked) : [portFromEnv(ctx.config) ?? DEFAULT_PORT], undefined, runLabel);
       if (claimed && 'refused' in claimed) return { text: claimed.refused, code: 1 };
+      // Another process's driver on a host's port (a `lynkeus mcp` server on 8123) would take that host's app: the
+      // run would wait on an app that never reaches it.
+      const listened = claimed && runPorts ? await listenedPorts(runPorts.filter(Number.isInteger).slice(0, jobsAsked)) : [];
+      if (listened.length > 0) {
+        claimed?.release();
+        return {
+          text: `port ${listened.join(', ')} is already in use by another process (a \`lynkeus mcp\` server or another run's driver?): this run's hosts would dial it. Stop that process, or give this run other --ports`,
+          code: 1,
+        };
+      }
       // Stopped by the caller giving up (an MCP client cancelling the call), by `case stop`, or not at all.
       const halt = new AbortController();
+      // What ended the run when it could not go on (a host's port taken), as against a caller stopping it.
+      let fatal: string | undefined;
       const stopWith = (why: string) => {
         if (!halt.signal.aborted) halt.abort(why);
       };
@@ -589,9 +606,12 @@ export const caseCommands = [
         claimed?.release();
         ctx.signal?.removeEventListener('abort', cancelled);
       };
+      const progressFile = dry ? undefined : out ? path.join(out.directory, PROGRESS_FILE) : path.join(ctx.root, '.lynkeus', `last-run.${PROGRESS_FILE}`);
+      const hostPids = new HostPids(progressFile ? hostsFileOf(progressFile) : undefined);
       let runHost: ChildProcess | undefined;
       try {
         runHost = ctx.flags.host && !dry ? await startHost(ctx.root, ctx.err, launch) : undefined;
+        if (runHost) hostPids.add(runHost);
       } catch (error) {
         letGo();
         throw error;
@@ -613,7 +633,6 @@ export const caseCommands = [
       }
       // Where the run stands, as events: in the run directory (or the project's .lynkeus when there is none), on
       // stdout with --progress json, to an MCP caller, and on the live line in a terminal.
-      const progressFile = dry ? undefined : out ? path.join(out.directory, PROGRESS_FILE) : path.join(ctx.root, '.lynkeus', `last-run.${PROGRESS_FILE}`);
       // `case stop` from another process leaves this file; the run looks for it between its own steps' waits.
       const stopFile = progressFile ? `${progressFile}.stop` : undefined;
       if (progressFile) {
@@ -700,6 +719,7 @@ export const caseCommands = [
           await stopHost(runHost);
           try {
             runHost = await startHost(ctx.root, ctx.err, launch);
+            hostPids.add(runHost);
             await (await server())?.waitForApp(30_000);
           } catch (error) {
             log(`host: did not come back: ${(error as Error).message}`);
@@ -758,16 +778,27 @@ export const caseCommands = [
             await stopHost(host);
           } else if (host) log(`host on port ${port}: exited (${host.exitCode ?? host.signalCode}); starting it again`);
           const started = spawnHost(hostCommand!, port, index, ctx.root, hostEnv, launch);
+          hostPids.add(started);
           kept[index] = started;
           const until = Date.now() + Number(ctx.flags['host-timeout'] ?? 600_000);
           while (!exited(started) && Date.now() < until && !halt.signal.aborted) {
             const probe = ctx.forPort!(port);
-            const attached = await probe.base.device().then(
-              () => true,
-              () => false,
+            const tried = Date.now();
+            const failure = await probe.base.device().then(
+              () => undefined,
+              (error: unknown) => error ?? new Error('no app attached'),
             );
             await probe.stop();
-            if (attached) return;
+            if (failure === undefined) return;
+            // Waiting on would not free the port, and hosts dialing it reach the other process's driver.
+            if ((failure as { code?: string }).code === 'port-in-use') {
+              fatal ??= `port ${port} is taken by another process (a \`lynkeus mcp\` server or another run's driver?): its host cannot attach to this run. Stop that process, or give this run other --ports`;
+              stopWith(fatal);
+              return void (await stopHost(started));
+            }
+            // A probe that fails at once, with no wait for an app, would otherwise spin with no pause until the
+            // timeout, starving the event loop and filling the heap.
+            await new Promise((r) => setTimeout(r, Math.max(0, ATTACH_PROBE_MS - (Date.now() - tried))));
           }
           if (halt.signal.aborted) return void (await stopHost(started));
           log(`host on port ${port}: ${exited(started) ? `exited (${started.exitCode ?? started.signalCode})` : 'did not attach in time'}`);
@@ -856,7 +887,10 @@ export const caseCommands = [
                     hostCommand && port !== undefined && !keepHosts && !halt.signal.aborted
                       ? spawnHost(hostCommand, port, index, ctx.root, hostEnv, caseLaunch(launch, c.id, n))
                       : undefined;
-                  if (host) perCase.add(host);
+                  if (host) {
+                    perCase.add(host);
+                    hostPids.add(host);
+                  }
                   const scoped = port !== undefined && ctx.forPort ? ctx.forPort(port) : { base: ctx as Base, stop: async () => undefined };
                   const startedAt = new Date();
                   emit({
@@ -1021,11 +1055,13 @@ export const caseCommands = [
             (ctx.attached && r.result !== 'passed' ? `\n${describe(r)}` : ''),
         ),
         `${count('passed')}/${reports.length} passed${unsupported ? `, ${unsupported} cannot run on this host` : ''}`,
-        ...(stoppedBy
-          ? [
-              `⏹ stopped (${stoppedBy}) after ${reports.length} of ${cases.length} cases; no step starts after it, any host it started is stopped and its ports are let go`,
-            ]
-          : []),
+        ...(fatal
+          ? [`✖ the run could not go on after ${reports.length} of ${cases.length} cases: ${fatal}`]
+          : stoppedBy
+            ? [
+                `⏹ stopped (${stoppedBy}) after ${reports.length} of ${cases.length} cases; no step starts after it, any host it started is stopped and its ports are let go`,
+              ]
+            : []),
         // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
         ...(out ? [`run kept in ${path.resolve(ctx.flags.out as string)}`] : []),
         ...(rebundled ? [rebundled] : []),
@@ -1043,7 +1079,7 @@ export const caseCommands = [
       ].join('\n');
       ledger?.save();
       // A case this host cannot run is not a failure of the app; only a failed case fails the run.
-      const code = stoppedBy ? 130 : count('failed') === 0 ? 0 : 1;
+      const code = fatal ? 1 : stoppedBy ? 130 : count('failed') === 0 ? 0 : 1;
       // stdout holds the events alone: the summary goes where the run's lines went.
       if (jsonProgress) {
         ctx.err(summary);

@@ -118,6 +118,8 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 **Cómo se arregla.** Detén el otro proceso. Si de verdad necesitas dos ejecuciones a la vez, dale a cada par su propio puerto: `LYNKEUS_PORT` en el driver y en el host, o `--ports` en `case run --jobs`.
 
+Con `--host-command`, `case run` revisa los puertos de `--ports` antes de arrancar ningún host. Si alguno ya tiene a otro proceso escuchando, se niega con `port 8123 is already in use by another process …`: los hosts se conectarían a ese otro driver y la ejecución esperaría una app que nunca le llega. `lynkeus ci` no se detiene ahí: salta el puerto ocupado, toma el siguiente libre y avisa cuáles usa.
+
 ### Una advertencia sobre versiones distintas
 
 **Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error.`
