@@ -205,6 +205,8 @@ npx lynkeus back
 
 `back` pops the current route.
 
+A route only some navigator declares at times (an app that shows `Login` while signed out and `Welcome` once signed in) can be named right after the change that brings it: `nav` waits up to 1.5 s for a mounted navigator to declare it, then navigates. When none does, it fails with `No mounted navigator has a screen named Welcome (the root's: Login)`, instead of React Navigation dropping the navigate with a warning in Metro while the step passes.
+
 Both need a navigation adapter. With `auto()` the React Navigation container is found for you. Without an adapter you still get the screen, touches and waits, but no routes.
 
 ## Tell similar elements apart: scoping

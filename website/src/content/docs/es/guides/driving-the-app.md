@@ -187,6 +187,8 @@ npx lynkeus back
 
 `nav` salta directo a una ruta, con parámetros en JSON si los necesita. Es un teletransporte, no una acción de usuario: úsalo para llegar al punto donde empieza lo que quieres probar, no para probar la navegación. `back` saca la ruta actual de la pila.
 
+Hay apps que cambian las pantallas de un navegador según el estado: muestran `Login` sin sesión y `Welcome` con sesión. Justo después de iniciar sesión, `Welcome` todavía no existe para React Navigation, que descartaría el `navigate` con apenas un aviso en Metro. Por eso `nav` espera hasta 1,5 s a que algún navegador montado declare esa pantalla. Si ninguno lo hace, el paso falla con `No mounted navigator has a screen named Welcome (the root's: Login)`.
+
 ## Varias órdenes en una sola conexión
 
 Cada comando suelto paga por arrancar un proceso y conectarse: cerca de 1,5 s. Cuando vas a enviar varios seguidos, `session` mantiene una conexión abierta y cada paso cuesta unos 50 ms:

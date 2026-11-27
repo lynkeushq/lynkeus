@@ -39,7 +39,7 @@ expected: |
 
 ## Steps
 
-`app.press`, `app.type` (`{ text, target?, submit?, clear? }`), `app.swipe`, `app.wait` (route, target, ms, `{ target, scroll: true }` (returns once the list it scrolled has stopped, so the next press finds the target there), `{ anyOf: [...] }`, `{ request: "GET /path", status? }`), `app.see` (`{ testId?, text?, contains?, route?, request?, event?, absent? }`), `app.nav` (a teleport to where the case starts; a screen inside a nested navigator can be named alone, Lynkeus finds its parents), `app.back`, `app.relaunch`, `app.call`, `app.mock`, and any other Lynkeus command as `app.<command>` with its arguments by name. A step that is not `app.*`, `exec` or `assert` is a fixture: see the README.
+`app.press`, `app.type` (`{ text, target?, submit?, clear? }`), `app.swipe`, `app.wait` (route, target, ms, `{ target, scroll: true }` (returns once the list it scrolled has stopped, so the next press finds the target there), `{ anyOf: [...] }`, `{ request: "GET /path", status? }`), `app.see` (`{ testId?, text?, contains?, route?, request?, event?, absent? }`), `app.nav` (a teleport to where the case starts; a screen inside a nested navigator can be named alone, Lynkeus finds its parents; right after a sign-in that swaps the navigator's screens it waits for one that declares the route, and fails if none does), `app.back`, `app.relaunch`, `app.call`, `app.mock`, and any other Lynkeus command as `app.<command>` with its arguments by name. A step that is not `app.*`, `exec` or `assert` is a fixture: see the README.
 
 ## A known start: app commands
 

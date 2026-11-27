@@ -97,3 +97,28 @@ describe('waiting for a navigator route', () => {
     await expect(dispatch(handlers, 'waitFor', { route: 'Welcome', timeoutMs: 50 })).rejects.toThrow('(on Demo > DemoPodcastList)');
   });
 });
+
+describe('navigating while a conditional navigator swaps its screens', () => {
+  // Ignite's root stack lists Login until the sign-in renders, then Welcome and Demo.
+  const signedOut = { index: 0, routeNames: ['Login'], routes: [{ name: 'Login' }] };
+
+  it('waits for the navigator that lists the screen, then navigates', async () => {
+    const live: { state: object } = { state: signedOut };
+    const { adapter, navigate } = container(new Proxy(live, { get: (_, key) => Reflect.get(live.state, key) }));
+    const handlers = createHandlers(adapter, backend);
+    setTimeout(() => {
+      live.state = onWelcome;
+    }, 120);
+    await dispatch(handlers, 'navigate', { name: 'Welcome' });
+    expect(navigate).toHaveBeenCalledWith('Welcome', undefined);
+  });
+
+  it('fails, rather than dropping the navigate, when no navigator comes to list it', async () => {
+    const { adapter, navigate } = container(signedOut);
+    const handlers = createHandlers(adapter, backend);
+    const started = Date.now();
+    await expect(dispatch(handlers, 'navigate', { name: 'Welcome' })).rejects.toThrow(/No mounted navigator has a screen named Welcome \(the root's: Login\)/);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1400);
+    expect(navigate).not.toHaveBeenCalled();
+  });
+});

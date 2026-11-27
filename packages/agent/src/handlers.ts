@@ -11,6 +11,8 @@ import { lastSeq, traceSince } from './trace';
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 // 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
 const MIN_SETTLE_LOOKS = 30;
+// Longer than a conditional navigator takes to render its other branch, short enough that a wrong name fails fast.
+const NAVIGATOR_SWAP_MS = 1500;
 
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
@@ -496,6 +498,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       // hundred milliseconds more than a host).
       const deadline = Date.now() + 10_000;
       while (!navigation.isReady() && Date.now() < deadline) await sleep(50);
+      // A navigator that swaps its screens on a state change (signed in, signed out) declares the new ones a render
+      // or a remount later: a navigate sent right after the change would be dropped. Looks are counted too, for a
+      // host whose clock jumps ahead while JavaScript sleeps.
+      const listedBy = Date.now() + NAVIGATOR_SWAP_MS;
+      for (let looks = 0; navigation.declares?.(params.name) === false && (Date.now() < listedBy || looks < NAVIGATOR_SWAP_MS / 50); looks++) await sleep(50);
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },
