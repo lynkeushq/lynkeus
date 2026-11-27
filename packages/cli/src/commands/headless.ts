@@ -225,14 +225,15 @@ export const headlessCommands = [
       'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.',
     flags: {
       'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' },
-      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill out' },
+      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill out (also LYNKEUS_NO_SKILL=1)' },
     },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
       const runtime = await runtimeAt(ctx.root);
       const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
-      if (!ctx.flags['no-skill']) lines.push(installSkill(ctx.root).text);
+      // The environment form lets a team, or a measured comparison, turn it off for every init an agent runs.
+      if (!ctx.flags['no-skill'] && process.env.LYNKEUS_NO_SKILL !== '1') lines.push(installSkill(ctx.root).text);
       return { text: lines.join('\n'), json: lines };
     },
   }),

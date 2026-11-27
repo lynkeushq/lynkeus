@@ -308,16 +308,16 @@
     "now": "19d2a36d7fd76fbd"
   },
   "surface/help/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "09fb9aeb918398aa"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. --no-skill can also be set with LYNKEUS_NO_SKILL=1.",
+    "now": "0c9e9e10e4b41172"
   },
   "surface/mcp/tool/guide": {
     "why": "guide is a core MCP tool: one topic of the Lynkeus skill per call, with the topics as an enum.",
     "now": "b106dbb956f587ee"
   },
   "surface/mcp/tool/init": {
-    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",
-    "now": "544ccc8d407e20f1"
+    "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten. --no-skill can also be set with LYNKEUS_NO_SKILL=1.",
+    "now": "17f20a481b665105"
   },
   "detect/empty/init": {
     "why": "init also installs the Lynkeus skill (how to write, run and debug cases, read by clients that load Agent Skills) in .claude/skills/lynkeus and says so; --no-skill leaves it out, and a skill the person edited is never overwritten.",

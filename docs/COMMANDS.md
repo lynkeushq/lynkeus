@@ -233,7 +233,7 @@ React Native or Expo (an Expo Router app gets an entry of its own). Safe to run 
 | Flag | |
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
-| `--no-skill` | leave the Lynkeus skill out |
+| `--no-skill` | leave the Lynkeus skill out (also LYNKEUS_NO_SKILL=1) |
 
 ### `lynkeus status [--offline]`
 
