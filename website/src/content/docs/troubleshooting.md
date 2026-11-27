@@ -529,7 +529,7 @@ The errors it recognizes:
 | `the backend answered 5xx on …` | A server error, not the app. | Reproduce it with `curl` before touching the test. |
 | `a request answered 429` | The backend is rate limiting this client. | Space the runs out, or raise the limit locally. |
 | `the host broke a render loop` | A component whose effect and store feed each other. The screen is dead until a reset. | Fix the loop. |
-| `… is in the tree but not presented` | The target belongs to a screen the app is not showing. | Close what is open, or target something inside it. |
+| `… is in the tree but not presented` | Something hides the target: a screen the app is not showing, a closed drawer, a sheet over it. The step's own note says `found, hidden (a11y)`. | Open what holds it (the drawer, the tab), or close what is over it. |
 | `… is on the screen but covered` | A sheet or an overlay is over it. | Close it, or press what covers it. |
 | `… is on the screen but disabled` | A form is not valid yet, or a request it depends on is in flight. | Wait for what it depends on. |
 | `"…" is not on screen; "…" is (the text may have changed)` | A wording, accent or case difference, or the copy changed. A second line names the uncommitted change that took the text out, when there is one. | Correct the text, or use a `testID`. |

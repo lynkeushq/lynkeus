@@ -387,6 +387,24 @@ const stateOf = (found: Element | null, window: { w: number; h: number }): strin
   return facts.join(', ') || 'on screen';
 };
 
+/**
+ * An element the target names that the platform hides (a closed drawer's row, a screen behind another): the agent's
+ * `find` passes over it, but it is in the tree, and the step's note says so as `why` does, not "never in the tree".
+ */
+const hiddenMatch = (screen: Screen, target: Target): Element | null => {
+  const testId = 'testId' in target ? target.testId : undefined;
+  const text = 'text' in target ? target.text.toLowerCase() : undefined;
+  return (
+    screen.elements.find(
+      (e) =>
+        e.hidden !== undefined &&
+        e.hidden !== 'inert' &&
+        ((testId !== undefined && e.testId === testId) ||
+          (text !== undefined && ((e.text ?? '').toLowerCase() === text || (e.accessibilityLabel ?? '').toLowerCase() === text))),
+    ) ?? null
+  );
+};
+
 const fingerprint = (screen: Screen): string => JSON.stringify(presented(screen).map((e) => [e.testId, textOf(e), Math.round(e.frame.y)]));
 
 const edgesOf = (screen: Screen): RunEdges => {
@@ -786,7 +804,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (!found) return `not on screen: ${JSON.stringify(target)} (inside any text)`;
     } else if (target) {
       const found = (await d.server.call('find', target)) as Element | null;
-      note(found, screen.window);
+      note(found ?? hiddenMatch(screen, target), screen.window);
       if (!found || (found.hidden && found.hidden !== 'inert')) return `not on screen: ${JSON.stringify(target)}`;
       if (text !== undefined && !says(found, text) && !elements.some((e) => e.parent === found.i && says(e, text))) {
         return `${JSON.stringify(target)} says ${JSON.stringify(textOf(found))}, not ${JSON.stringify(text)}`;

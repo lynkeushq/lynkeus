@@ -366,6 +366,8 @@ export const headlessCommands = [
         NODE_OPTIONS: nodeOptions,
         ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
         ...(expoConfig ? { LYNKEUS_EXPO_CONFIG: expoConfig } : {}),
+        // Date reads the time zone from the process; the mocks read LYNKEUS_TIME_ZONE. One setting moves both.
+        ...(process.env.LYNKEUS_TIME_ZONE ? { TZ: process.env.LYNKEUS_TIME_ZONE } : {}),
       };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, apiEnv)}`;
       return {

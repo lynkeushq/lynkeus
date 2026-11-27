@@ -33,6 +33,21 @@ double renders and double-mounted effects double every request, commit and
 millisecond the host measures. `"strictMode": true` in `lynkeus.config.json`
 keeps it.
 
+`case run --host` starts a host for the run. With `--jobs <n>` it starts one
+per job, each with `LYNKEUS_PORT` set to its job's driver port and kept for the
+run (as `lynkeus ci` does), logging to `lynkeus-headless-<pid>-<port>.log` in
+the temporary folder. A case that finds no app on a headless host is never put
+down to a bundle with the agent off: a headless host always runs it.
+
+A headless host that serves several cases (`--host`, or `--keep-hosts` with a
+command that runs `headless start`) is reset before each case after its first,
+about 200 ms: mocked storage (MMKV, keychain, AsyncStorage), network rules,
+clock, offline state and native mocks are emptied, the app's own `reset`
+command runs if it registered one, and the app is mounted again. State the
+app keeps at module scope (a query cache, a store made at import) survives,
+since modules load once per host; an app whose cases see each other through
+it wants `--host-command` without `--keep-hosts`, a host per case.
+
 When the host crashes, the last thing printed is what the error usually
 means and the fix. `lynkeus headless doctor --explain "<first line>"` does the
 same for an error you paste.
@@ -64,8 +79,8 @@ export { App };
 ```
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
-Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view and webview. A library's own shipped jest mock or jest
+Node: MMKV, keychain, device-info, safe-area-context, react-native-localize,
+expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped jest mock or jest
 setup file is used automatically. Reanimated and gesture-handler are
 deliberately left alone (their jest story is a babel plugin, not
 `jest.mock`); pass `overrides` if your app wants them mocked.
@@ -84,6 +99,12 @@ axios, Reactotron and expo-linking work.
 Options: `skip`, `overrides`, `network` (`'real'` or `'banned'`), `networkHosts`, `websocket` (`'stub'`, `'real'` or `'none'`),
 `animations`, `deviceVersion`, `locale`, `initialUrl` (what `Linking.getInitialURL` answers).
 
+The launch locale (`case run --locale`, `launch.locale`, `LYNKEUS_LOCALE`) wins
+over `locale` and reaches expo-localization, react-native-localize and `Intl`'s
+default locale, all derived from the tag with Intl. The launch time zone
+(`--time-zone`, `LYNKEUS_TIME_ZONE`) also sets the host's `TZ`, so `Date` runs
+in it; an entry's `locale.timeZone` reaches the libraries only.
+
 `headless init` finds your App component through the app's own entry
 (`--component` otherwise), takes `--api-env <NAME>` to set the variable the
 app reads its API address from, and with
@@ -95,6 +116,19 @@ existing entry.
 - **Get**: no simulator, no build, start in ~40 s, several apps at once
   (`LYNKEUS_PORT`), a real backend if you point it at one, and the same screen
   reading and touches as on a device, layout included, computed with Yoga.
+  Where jest's stand-ins drop a style a device applies, the layout puts it
+  back: a scroll view's `contentContainerStyle` on its content view, and a
+  library's unstyled native view that only wraps a filling child fills too.
+  Reanimated's live values under jest (`jestAnimatedStyle`, `jestAnimatedProps`)
+  win over the rendered props, translations move frames, and frame callbacks
+  get performance.now's clock, so a react-native-drawer-layout drawer opens,
+  hides the screen behind it, and closes with `swipe left` (a swipe where
+  nothing scrolls that way drives the gesture-handler pan under the finger).
+  Before a scroll the host reports Yoga's sizes to the list's layout handlers
+  (`onContentSizeChange`, `onLayout` of the scroller and its rows), so a
+  FlatList or SectionList renders the rows further down and `wait --scroll`
+  reaches them; the scroller a finger lands on is the one drawn on top there.
+  A list the app scrolls itself (`scrollToIndex`) does not move yet.
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 

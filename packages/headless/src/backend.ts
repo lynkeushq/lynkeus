@@ -15,7 +15,7 @@ import {
 
 import { computeLayout, type LayoutIndex, type Rect, type YogaModule } from './layout.js';
 import { log } from './runtime.js';
-import { fiberName, rendererNode, textOf, topScreenChild, type Fiber, type ReactTestInstance } from './tree.js';
+import { fiberName, liveProps, rendererNode, textOf, topScreenChild, type Fiber, type ReactTestInstance } from './tree.js';
 
 type Point = { x: number; y: number };
 type Handler = (event: unknown) => void;
@@ -73,7 +73,7 @@ const pathOf = (node: ReactTestInstance): ReactTestInstance[] => {
 };
 
 const zIndexOf = (node: ReactTestInstance): number => {
-  const z = flatStyle(node.props).zIndex;
+  const z = flatStyle(liveProps(node)).zIndex;
   return typeof z === 'number' ? z : 0;
 };
 
@@ -97,7 +97,10 @@ const drawsOver = (over: ReactTestInstance[], under: ReactTestInstance[]): boole
 
 // `box-none`: the view itself takes no touch, only its children do, so it covers nothing (a toast host, a layer
 // that only places its children).
-const passesTouches = (node: ReactTestInstance): boolean => node.props.pointerEvents === 'box-none' || flatStyle(node.props).pointerEvents === 'box-none';
+const passesTouches = (node: ReactTestInstance): boolean => {
+  const p = liveProps(node);
+  return p.pointerEvents === 'box-none' || flatStyle(p).pointerEvents === 'box-none';
+};
 
 type Pager = { props: { children?: unknown }; state: { page: number }; setPage: (page: number) => void };
 
@@ -212,8 +215,12 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     const layers: Layer[] = [];
     const claimed = new Set<Fiber>();
     instances = [];
+    // What animations hold now, which the listed shape does not show.
+    const animated: string[] = [];
     const walk = (node: ReactTestInstance, depth: number, parent: number | undefined, inherited: HiddenReason | undefined, rootAttached: boolean) => {
-      const { type, props: p } = node;
+      const type = node.type;
+      const p = liveProps(node);
+      if (p !== node.props) animated.push(JSON.stringify([p.style, p.accessibilityElementsHidden, p.importantForAccessibility, p.pointerEvents]));
       if (isUnrendered(type, p)) return;
       if (SCREEN_CONTAINERS.has(type)) {
         const top = topScreenChild(node);
@@ -283,7 +290,8 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
         (e) => `${e.kind}|${e.testId ?? ''}|${live && e.testId !== undefined && live.test(e.testId) ? '~' : `${e.text ?? ''}|${e.value ?? ''}`}|${e.enabled}`,
       )
       .join('\n');
-    applyLayout(elements, shape);
+    // An animation moves views without changing what is listed (a drawer sliding a screen aside): it lays out again too.
+    applyLayout(elements, `${shape}\n${animated.join('\n')}`);
     if (shape !== lastShape) {
       commits += 1;
       lastShape = shape;
@@ -361,14 +369,23 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     return Math.max(node.children.filter((c) => typeof c !== 'string').length, 1);
   };
 
-  // The deepest scroller on the axis whose rect holds the point; without layout, the deepest mounted.
+  // The scroller on the axis a finger at the point lands on: of those whose rect holds it, the one drawn on top (a
+  // closed drawer's list lies under its screen), and the innermost of nested ones; without layout, the deepest mounted.
   const scrollerAt = (point: Point, horizontal: boolean): ReactTestInstance | undefined => {
     let found: ReactTestInstance | undefined;
+    let foundPath: ReactTestInstance[] = [];
     const visit = (node: ReactTestInstance) => {
-      if (isUnrendered(node.type, node.props)) return;
+      const p = liveProps(node);
+      if (isUnrendered(node.type, p) || blocksTouches(p)) return;
       if (scrollsAlong(node, horizontal)) {
         const rect = layoutRects?.get(node);
-        if (!rect || rect.w === 0 || rect.h === 0 || contains(rect, point)) found = node;
+        if (!rect || rect.w === 0 || rect.h === 0 || contains(rect, point)) {
+          const path = pathOf(node);
+          if (!found || path.includes(found) || drawsOver(path, foundPath)) {
+            found = node;
+            foundPath = path;
+          }
+        }
       }
       for (const child of node.children) if (typeof child !== 'string') visit(child);
     };
@@ -386,12 +403,62 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     return true;
   };
 
+  // What was last reported to each view's layout handlers, so an unchanged size is not sent again.
+  const reported = new WeakMap<ReactTestInstance, string>();
+  const report = (node: ReactTestInstance, key: string, send: () => void) => {
+    if (reported.get(node) === key) return;
+    reported.set(node, key);
+    send();
+  };
+
+  /**
+   * Jest's scroll view never measures anything, and a VirtualizedList (FlatList, SectionList) learns its content
+   * length and its cells' sizes only from layout events: without them it renders its first cells forever, whatever
+   * the scroll, and an item further down is never in the tree. Before a scroll the host reports what Yoga measured
+   * for the scroller, its content and the cells in it (the first views with an `onLayout` on each branch), as a
+   * device would have by then.
+   */
+  const reportLayouts = (node: ReactTestInstance, rect: Rect, extent: number, horizontal: boolean) => {
+    const rects = layoutRects;
+    if (!rects) return;
+    const p = node.props;
+    const width = horizontal ? extent : rect.w;
+    const height = horizontal ? rect.h : extent;
+    const onContentSizeChange = p.onContentSizeChange;
+    if (typeof onContentSizeChange === 'function')
+      report(node, `size ${width}x${height}`, () => (onContentSizeChange as (w: number, h: number) => void)(width, height));
+    const parent = node.parent ? rects.get(node.parent) : undefined;
+    const layout = (r: Rect, origin: { x: number; y: number } | undefined) => ({
+      x: r.x - (origin?.x ?? 0),
+      y: r.y - (origin?.y ?? 0),
+      width: r.w,
+      height: r.h,
+    });
+    const fire = (target: ReactTestInstance, r: Rect, origin: { x: number; y: number } | undefined) => {
+      const nativeEvent = { layout: layout(r, origin) };
+      report(target, JSON.stringify(nativeEvent.layout), () => fireEvent(rendererNode(target) as never, 'layout', { nativeEvent }));
+    };
+    if (typeof p.onLayout === 'function') fire(node, rect, parent);
+    const content = node.children.find((c): c is ReactTestInstance => typeof c !== 'string');
+    const origin = content ? rects.get(content) : undefined;
+    const cells = (n: ReactTestInstance) => {
+      for (const child of n.children) {
+        if (typeof child === 'string') continue;
+        const r = rects.get(child);
+        if (typeof child.props.onLayout === 'function' && r) fire(child, r, origin);
+        else cells(child);
+      }
+    };
+    if (content) cells(content);
+  };
+
   const scroll = async (node: ReactTestInstance, delta: Point) => {
     const horizontal = node.props.horizontal === true;
     const paged = Boolean(node.props.pagingEnabled);
     const rect = layoutRects?.get(node) ?? { x: 0, y: 0, w: window.w, h: window.h };
     const viewport = horizontal ? rect.w : rect.h;
     const extent = contentExtent(node, rect, horizontal);
+    await act(async () => reportLayouts(node, rect, extent, horizontal));
     const content = paged && viewport > 0 ? Math.min(extent, pageCount(node) * viewport) : extent;
     const along = horizontal ? delta.x : delta.y;
     const offsets = scrollOffsets.get(node);
@@ -526,6 +593,50 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
     };
   };
 
+  // What a finger at the point lands on: the smallest presented element there that nothing covers.
+  const touchedAt = (point: Point): ReactTestInstance | undefined => {
+    const { elements } = snapshot();
+    let best: Element | undefined;
+    for (const e of elements) {
+      if (e.hidden || e.covered || e.offscreen || !contains(e.frame, point)) continue;
+      if (!best || e.frame.w * e.frame.h <= best.frame.w * best.frame.h) best = e;
+    }
+    return best ? instances[best.i] : undefined;
+  };
+
+  // A slider or a sheet handle is a gesture-handler pan, driven through the
+  // library's own jest utility with a synthetic event list.
+  const panNear = async (instance: ReactTestInstance, dx: number, dy: number): Promise<boolean> => {
+    const { gesture, chain } = gestureNear(instance);
+    // No gesture of its own: a finger on a row of pills drags the scroller they sit in, as `swipe` does.
+    if (!gesture) {
+      log(`swipe: no GestureDetector near the element (searched around ${chain.join(' < ')}); dragging what scrolls under it`);
+      return false;
+    }
+    // A composed gesture (Race/Simultaneous) holds several; drive the first pan.
+    const handlers = (gesture.toGestureArray?.() ?? [gesture]) as { handlerName?: string }[];
+    const pan = handlers.find((h) => h.handlerName === 'PanGestureHandler') ?? handlers[0];
+    let fireGestureHandler: (gesture: unknown, events: unknown[]) => void;
+    let State: { BEGAN: number; ACTIVE: number; END: number };
+    try {
+      fireGestureHandler = require('react-native-gesture-handler/jest-utils').fireGestureHandler;
+      State = require('react-native-gesture-handler').State;
+    } catch {
+      throw new Error('swipe on an element needs react-native-gesture-handler (its jest-utils drive the handler)');
+    }
+    const steps = 6;
+    const events: unknown[] = [{ state: State.BEGAN, translationX: 0, translationY: 0 }];
+    for (let i = 1; i <= steps; i++) {
+      events.push({ state: State.ACTIVE, translationX: (dx * i) / steps, translationY: (dy * i) / steps, velocityX: dx, velocityY: dy });
+    }
+    events.push({ state: State.END, translationX: dx, translationY: dy, velocityX: dx, velocityY: dy });
+    await act(() => {
+      fireGestureHandler(pan, events);
+    });
+    log(`swipe: pan (${dx},${dy}) via ${pan?.handlerName ?? 'gesture'} found at ${chain[chain.length - 1]}`);
+    return true;
+  };
+
   return {
     name: 'headless',
     native: false,
@@ -556,50 +667,20 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
       snapshot();
       const horizontal = Math.abs(from.x - to.x) >= Math.abs(from.y - to.y);
       const target = scrollerAt(from, horizontal);
-      if (!target) {
-        log(`swipe: nothing scrolls under ${Math.round(from.x)},${Math.round(from.y)}`);
-        return;
-      }
       const delta = { x: from.x - to.x, y: from.y - to.y };
       // Estimated geometry can put the point on a scroller already at its edge; a finger there drags the one around it.
-      for (let node: ReactTestInstance | null = target; node; node = node.parent) {
+      for (let node: ReactTestInstance | null = target ?? null; node; node = node.parent) {
         if (!scrollsAlong(node, horizontal)) continue;
         const pager = pagerOf(node);
         if (pager ? await turnPage(pager, delta) : await scroll(node, delta)) return;
       }
-      log('swipe: nothing moved');
+      // Nothing scrolls that way there: the finger drags the pan under it (a drawer, a swipeable row), as on a device.
+      // A scroller already at its edge takes the drag and moves nothing.
+      const under = target ? undefined : touchedAt(from);
+      if (under && (await panNear(under, to.x - from.x, to.y - from.y))) return;
+      log(target ? 'swipe: nothing moved' : `swipe: nothing scrolls or pans under ${Math.round(from.x)},${Math.round(from.y)}`);
     },
-    // A slider or a sheet handle is a gesture-handler pan, driven through the
-    // library's own jest utility with a synthetic event list.
-    swipeOn: async (element, dx, dy) => {
-      const { gesture, chain } = gestureNear(instanceFor(element));
-      // No gesture of its own: a finger on a row of pills drags the scroller they sit in, as `swipe` does.
-      if (!gesture) {
-        log(`swipe: no GestureDetector near the element (searched around ${chain.join(' < ')}); dragging what scrolls under it`);
-        return false;
-      }
-      // A composed gesture (Race/Simultaneous) holds several; drive the first pan.
-      const handlers = (gesture.toGestureArray?.() ?? [gesture]) as { handlerName?: string }[];
-      const pan = handlers.find((h) => h.handlerName === 'PanGestureHandler') ?? handlers[0];
-      let fireGestureHandler: (gesture: unknown, events: unknown[]) => void;
-      let State: { BEGAN: number; ACTIVE: number; END: number };
-      try {
-        fireGestureHandler = require('react-native-gesture-handler/jest-utils').fireGestureHandler;
-        State = require('react-native-gesture-handler').State;
-      } catch {
-        throw new Error('swipe on an element needs react-native-gesture-handler (its jest-utils drive the handler)');
-      }
-      const steps = 6;
-      const events: unknown[] = [{ state: State.BEGAN, translationX: 0, translationY: 0 }];
-      for (let i = 1; i <= steps; i++) {
-        events.push({ state: State.ACTIVE, translationX: (dx * i) / steps, translationY: (dy * i) / steps, velocityX: dx, velocityY: dy });
-      }
-      events.push({ state: State.END, translationX: dx, translationY: dy });
-      await act(() => {
-        fireGestureHandler(pan, events);
-      });
-      log(`swipe: pan (${dx},${dy}) via ${pan?.handlerName ?? 'gesture'} found at ${chain[chain.length - 1]}`);
-    },
+    swipeOn: (element, dx, dy) => panNear(instanceFor(element), dx, dy),
     // A wrong frame traced to the style Yoga was given, or what is mounted at all.
     debug: (params?: unknown) => {
       const p = (params ?? {}) as { testId?: string; text?: string; childrenOf?: string; composites?: string };

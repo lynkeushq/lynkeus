@@ -316,6 +316,55 @@ describe('headlessBackend with Yoga layout', () => {
     expect(byTestId(snapshot(), 'half').frame).toMatchObject({ w: 195, h: 84 });
   });
 
+  it("a library's unstyled native wrapper fills like the screen it wraps, so a form's fields do not pile up", async () => {
+    // A jest mock of a provider (a keyboard controller, say) renders its native view without the style that sizes it.
+    const Provider = 'KeyboardProvider' as unknown as ComponentType<{ children?: ReactElement }>;
+    const Field = ({ id }: { id: string }) => (
+      <Pressable accessibilityLabel={id} style={{ marginBottom: 24 }} onPress={noop}>
+        <Text>{id}</Text>
+        <View style={{ borderWidth: 1 }}>
+          <TextInput testID={id} style={{ height: 24 }} placeholder={id} onChangeText={noop} />
+        </View>
+      </Pressable>
+    );
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <Provider>
+          <View style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 48, paddingHorizontal: 24 }}>
+              <Field id="email" />
+              <Field id="password" />
+              <Pressable testID="log-in" style={{ minHeight: 48 }} onPress={noop}>
+                <Text>Log in</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </Provider>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    const email = byTestId(elements, 'email');
+    const password = byTestId(elements, 'password');
+    const button = byTestId(elements, 'log-in');
+    expect(password.covered).toBeUndefined();
+    expect(email.frame.x).toBe(25);
+    expect(password.frame.y).toBeGreaterThan(email.frame.y + email.frame.h);
+    expect(button.frame.y).toBeGreaterThan(password.frame.y + password.frame.h);
+  });
+
+  it('an unstyled core View is as tall as its content, as on a device', async () => {
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View>
+          <View testID="screen" style={{ flex: 1 }} />
+        </View>
+      </View>,
+      yoga,
+    );
+    expect(byTestId(snapshot(), 'screen').frame.h).toBe(0);
+  });
+
   it('a later, larger sibling over an element marks it covered', async () => {
     const { snapshot } = await mount(
       <View style={{ flex: 1 }}>
@@ -394,6 +443,83 @@ describe('headlessBackend with Yoga layout', () => {
     );
     const elements = snapshot();
     expect(byTestId(elements, 'pay').covered).toBeUndefined();
+  });
+
+  it("reads what reanimated's animations set under jest, not the props the view rendered with", async () => {
+    // A drawer rendered closed and then opened: reanimated keeps the open state in jestAnimatedProps and jestAnimatedStyle.
+    const opened = { value: { accessibilityElementsHidden: false } };
+    const slid = { value: { transform: [{ translateX: 200 }] } };
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View accessibilityElementsHidden {...{ jestAnimatedProps: opened }}>
+          <Pressable testID="row" style={{ width: 100, height: 40 }} onPress={noop} />
+        </View>
+        <View style={{ position: 'absolute', top: 100, left: 0 }} {...{ jestAnimatedStyle: slid }}>
+          <Pressable testID="moved" style={{ width: 100, height: 40 }} onPress={noop} />
+        </View>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    expect(byTestId(elements, 'row').hidden).toBeUndefined();
+    expect(byTestId(elements, 'moved').frame.x).toBe(200);
+  });
+
+  it('a swipe where nothing scrolls that way drives the pan under the finger, as a drawer closes', async () => {
+    const fired: { events: { translationX?: number }[] }[] = [];
+    jest.doMock(
+      'react-native-gesture-handler/jest-utils',
+      () => ({ fireGestureHandler: (_g: unknown, events: { translationX?: number }[]) => fired.push({ events }) }),
+      {
+        virtual: true,
+      },
+    );
+    jest.doMock('react-native-gesture-handler', () => ({ State: { BEGAN: 2, ACTIVE: 4, END: 5 } }), { virtual: true });
+    const pan = { handlerName: 'PanGestureHandler' };
+    const Detector = ({ children }: { gesture: unknown; children: ReactElement }) => children;
+    const { backend } = await mount(
+      <View style={{ flex: 1 }}>
+        <Detector gesture={pan}>
+          <View style={{ flex: 1 }}>
+            <Pressable testID="row" style={{ height: 300 }} onPress={noop} />
+          </View>
+        </Detector>
+      </View>,
+      yoga,
+    );
+    await backend.swipe({ x: 300, y: 100 }, { x: 60, y: 100 }, 250);
+    expect(fired).toHaveLength(1);
+    expect(fired[0]!.events.at(-1)?.translationX).toBe(-240);
+  });
+
+  it('a swipe down a FlatList reports its layout, so the list renders the rows further down', async () => {
+    const { FlatList } = require('react-native') as typeof import('react-native');
+    const rows = Array.from({ length: 200 }, (_, i) => `Row ${i}`);
+    const { backend, snapshot, rendered } = await mount(
+      <View style={{ flex: 1 }}>
+        <FlatList
+          style={{ flex: 1 }}
+          data={rows}
+          initialNumToRender={10}
+          keyExtractor={(row) => row}
+          renderItem={({ item }) => (
+            <View style={{ height: 50 }}>
+              <Text>{item}</Text>
+            </View>
+          )}
+        />
+      </View>,
+      yoga,
+    );
+    const listed = () => snapshot().some((e) => e.text === 'Row 60');
+    expect(listed()).toBe(false);
+    for (let i = 0; i < 12 && !listed(); i++) {
+      await backend.swipe({ x: 195, y: 600 }, { x: 195, y: 200 }, 250);
+      await new Promise((r) => setTimeout(r, 80));
+    }
+    expect(listed()).toBe(true);
+    // The list batches its renders on timers; unmounted, it leaves none for jest to wait on.
+    await rendered.unmount();
   });
 
   it('an element whose centre is outside the window is offscreen', async () => {

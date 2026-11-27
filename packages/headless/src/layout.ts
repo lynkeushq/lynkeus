@@ -2,10 +2,10 @@
 // from character counts. Not pixel-accurate, but enough to tell a button on
 // screen from one off it or under an overlay.
 import type { Node as YogaNode, Yoga as YogaModule } from 'yoga-layout/load';
-import { HOST_IMAGE, HOST_INPUT, HOST_SCROLL, HOST_TEXT, SCREEN_CONTAINERS } from 'lynkeus-agent/hosts';
+import { HOST_IMAGE, HOST_INPUT, HOST_SCROLL, HOST_SWITCH, HOST_TEXT, SCREEN_CONTAINERS } from 'lynkeus-agent/hosts';
 import { flatStyle, isUnrendered } from 'lynkeus-agent/presentation';
 
-import { textOf, topScreenChild, type ReactTestInstance } from './tree.js';
+import { liveProps, textOf, topScreenChild, type ReactTestInstance } from './tree.js';
 
 export type Rect = { x: number; y: number; w: number; h: number };
 export type LayoutIndex = Map<ReactTestInstance, Rect>;
@@ -161,7 +161,43 @@ const styleApplier = (Y: YogaModule) => {
 
 const appliers = new WeakMap<YogaModule, ReturnType<typeof styleApplier>>();
 
-type Box = { node: YogaNode; instance: ReactTestInstance; children: Box[] };
+const SIZING = ['width', 'height', 'flex', 'flexGrow', 'flexShrink', 'flexBasis', 'position', 'minHeight', 'maxHeight', 'minWidth', 'maxWidth'];
+const fills = (style: Style): boolean => (num(style.flex) ?? 0) > 0 || (num(style.flexGrow) ?? 0) > 0 || style.height === '100%';
+
+/**
+ * A library's native view standing in a jest mock (a keyboard or gesture provider) has lost the style its real
+ * component gives it, and with no size of its own it collapses the screen it wraps to nothing: every control then
+ * lies on the one after it and reads as covered. One that only wraps a child meant to fill gets to fill, as on a
+ * device. A core View keeps React Native's rule: unstyled, it is as tall as its content.
+ */
+const fillsLikeItsChild = (instance: ReactTestInstance, style: Style, children: Box[]): boolean =>
+  !(
+    instance.type === 'View' ||
+    instance.type === 'RCTView' ||
+    HOST_TEXT.has(instance.type) ||
+    HOST_INPUT.has(instance.type) ||
+    HOST_SCROLL.has(instance.type) ||
+    HOST_IMAGE.has(instance.type) ||
+    HOST_SWITCH.has(instance.type)
+  ) &&
+  !SIZING.some((key) => style[key] !== undefined) &&
+  children.length === 1 &&
+  fills(flatStyle(liveProps(children[0]!.instance)));
+
+type Box = { node: YogaNode; instance: ReactTestInstance; children: Box[]; shift?: { x: number; y: number } };
+
+// A transform moves what a view draws, and where touches land, without moving it in layout: a drawer slides its
+// screen aside this way. Only translations are followed; a scale or a rotation keeps the laid-out box.
+const translation = (style: Style): { x: number; y: number } | undefined => {
+  if (!Array.isArray(style.transform)) return undefined;
+  let x = 0;
+  let y = 0;
+  for (const step of style.transform as Record<string, unknown>[]) {
+    x += num(step?.translateX) ?? 0;
+    y += num(step?.translateY) ?? 0;
+  }
+  return x || y ? { x, y } : undefined;
+};
 
 // Deeper than any real screen; a runaway tree must not blow the stack.
 const MAX_DEPTH = 200;
@@ -176,21 +212,28 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
   const created: YogaNode[] = [];
 
   const build = (instance: ReactTestInstance, depth: number, override?: Style): Box | null => {
-    if (depth > MAX_DEPTH || isUnrendered(instance.type, instance.props)) return null;
+    const props = liveProps(instance);
+    if (depth > MAX_DEPTH || isUnrendered(instance.type, props)) return null;
     const node = Y.Node.create();
     created.push(node);
     const scroller = HOST_SCROLL.has(instance.type);
     // React Native's own base style: a scroller takes the space it is given, not its content's.
-    const style = { ...(scroller ? { flexGrow: 1, flexShrink: 1 } : undefined), ...flatStyle(instance.props), ...override };
+    const style = { ...(scroller ? { flexGrow: 1, flexShrink: 1 } : undefined), ...flatStyle(props), ...override };
     try {
       applyStyle(node, style, instance);
     } catch {
       // A style that cannot be mapped must not sink the whole layout.
     }
-    const box: Box = { node, instance, children: [] };
+    const box: Box = { node, instance, children: [], shift: translation(style) };
     // A node with a measure function cannot have children.
     if (HOST_TEXT.has(instance.type) || HOST_INPUT.has(instance.type)) return box;
-    const contentStyle: Style | undefined = scroller && instance.props.horizontal ? { flexDirection: 'row', alignSelf: 'flex-start' } : undefined;
+    // Jest's scroll view leaves `contentContainerStyle` off the view that holds the content; on a device it is there.
+    const contentStyle: Style | undefined = scroller
+      ? {
+          ...(instance.props.contentContainerStyle ? flatStyle({ style: instance.props.contentContainerStyle }) : undefined),
+          ...(instance.props.horizontal ? { flexDirection: 'row', alignSelf: 'flex-start' } : undefined),
+        }
+      : undefined;
     const top = SCREEN_CONTAINERS.has(instance.type) ? topScreenChild(instance) : undefined;
     for (const child of top === undefined ? instance.children : top ? [top] : []) {
       if (typeof child === 'string') continue;
@@ -198,6 +241,10 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
       if (!childBox) continue;
       node.insertChild(childBox.node, box.children.length);
       box.children.push(childBox);
+    }
+    if (fillsLikeItsChild(instance, style, box.children)) {
+      node.setFlexGrow(1);
+      node.setFlexShrink(1);
     }
     return box;
   };
@@ -211,7 +258,7 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
     // give, so unstyled provider wrappers under it would collapse to zero and
     // take every `flex: 1` screen with them.
     for (const child of root.children) {
-      const style = flatStyle(child.instance.props);
+      const style = flatStyle(liveProps(child.instance));
       if (num(style.height) === undefined && num(style.flex) === undefined && num(style.flexGrow) === undefined) {
         child.node.setFlexGrow(1);
         child.node.setFlexShrink(1);
@@ -221,8 +268,8 @@ export const computeLayout = (Y: YogaModule, rootInstance: ReactTestInstance, wi
     const rects: LayoutIndex = new Map();
     const place = (box: Box, offsetX: number, offsetY: number) => {
       const l = box.node.getComputedLayout();
-      const x = offsetX + l.left;
-      const y = offsetY + l.top;
+      const x = offsetX + l.left + (box.shift?.x ?? 0);
+      const y = offsetY + l.top + (box.shift?.y ?? 0);
       rects.set(box.instance, { x, y, w: l.width, h: l.height });
       for (const child of box.children) place(child, x, y);
     };

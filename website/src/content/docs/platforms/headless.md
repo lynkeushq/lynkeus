@@ -168,17 +168,25 @@ You should see `host: up (its log: …)` once the host is ready, then the cases.
 
 With `--host`, the run also looks after the host. If it dies during a case (out of memory, a crash) or its app stops answering, the run starts it again before the next case, so the cases after it do not all fail with `No app attached`. The case that lost the host still fails, and its reasons say how the host ended, with its last words and its log; the host started again writes a log of its own. Before each case, the run reads the host's heap (one line in the log) and starts it again past `--host-heap` percent of its limit, 60 unless told. See [Hosts that die](/reference/cli/#hosts-that-die).
 
+**Cases on one host start fresh.** A host that serves several cases (`--host`, or `--keep-hosts` with a host command that runs `headless start`, which `lynkeus ci` uses) is reset before each case after its first, in about 200 ms: its mocked storage (MMKV, keychain, AsyncStorage), network rules, clock, offline state and native mocks are emptied, the app's own `reset` command runs when it registered one, and the app is mounted again, so navigation starts over. The case's log says so with a `↺` line. One thing survives: what the app keeps at module scope, such as a query cache or a store created when a file is imported, because the app's modules are loaded once per host. When cases see each other's data that way, give each case a host of its own with `--host-command` and no `--keep-hosts`, at the cost of a host start per case.
+
 ## How it works
 
 `headless start` writes a Jest test file under `.lynkeus/host/` that imports your entry and renders its `App` with React Native Testing Library, then runs Jest on that one file. The test never ends: it hosts the app until you stop it.
 
 Inside, the agent is the same code as on a device with a different backend underneath. It reads the same React tree. Layout is computed with Yoga, so elements have frames, a swipe across a scroller scrolls it, and the frames follow the scroll. The host also respects what a device would refuse: a swipe on an element that is not presented fails.
 
+Jest's stand-ins lose some of the styles a device applies, and the host puts them back where it can tell: a scroll view's `contentContainerStyle` goes on the view that holds its content, and a library's native view with no size of its own (a keyboard or gesture provider) that only wraps a screen meant to fill fills like it. Without that, a whole screen collapsed to no height, each field lay on the next, and a control read as covered made every press and type into it wait for it to clear.
+
+What Reanimated animates reaches the screen as it does on a device. Under Jest, Reanimated keeps an animation's current style and props beside the ones the view rendered with; the host reads those, follows a `translateX` or `translateY`, and hands frame callbacks the clock Reanimated's animations run on, also when a run sets `--epoch`. A drawer built on react-native-drawer-layout opens and closes: its rows are presented while it is open, the screen behind it is hidden while it is open, and `app.swipe: { direction: left }` closes it, because a swipe where nothing scrolls that way drives the gesture-handler pan under the finger. A case that pressed the drawer's button again to close it headless (a way around this before) now fails as on a device, where that button is hidden while the drawer is open; use the swipe on every target.
+
+A long FlatList or SectionList scrolls into view as on a device. Jest's scroll view never measures, and a virtualized list renders its first rows until it learns its content length and its rows' sizes from layout events, so a row further down was never in the tree. Before each scroll the host reports what Yoga measured for the list, its content and its rows; `app.wait: { target: …, scroll: true }` then reaches a row thousands of points down. A finger lands on the list drawn on top at that point: a closed drawer's list behind its screen is never the one scrolled. `Image.getSize` answers a square of 100 points, as a device does once the image has loaded, where jest's loader answered nothing and an auto-sizing image scrolled into view took the screen down. What the host still does not do is move a list the app scrolls itself (`scrollToIndex`, `scrollToLocation`): a jump the app makes on a press stays where it was.
+
 The host renders without `React.StrictMode`. Production has none, and its double renders and double-mounted effects would double every request and every millisecond the host measures. `"strictMode": true` in `lynkeus.config.json` keeps it.
 
 ## The entry in detail
 
-`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
+`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, react-native-localize, expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
 
 The mocks for biometrics, in-app-review, vision-camera, image-picker, video, fast-image and the native half of vector-icons are opt-in. Pass the ones the app needs through `overrides`:
 
@@ -203,11 +211,13 @@ Its options:
 | `networkHosts` | local hosts only | The hosts that real requests and sockets may reach. Anything else is refused at once. |
 | `websocket` | `'stub'` | What `WebSocket` is. `'stub'` connects and stays silent; `'real'` is a real socket, restricted to `networkHosts`; `'none'` leaves it undefined. |
 | `animations` | `'deferred'` | Reanimated's mock completes `withTiming` and `withSpring` synchronously, which can loop forever when a completion triggers another animation. `'deferred'` moves completions to the next tick; `'sync'` leaves the mock as the app registered it. |
-| `locale` | US, `en-US`, `en` | The locale the localize mock reports, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. |
+| `locale` | US, `en-US`, `en`, America/New_York | The locale the app reads, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. `case run --locale` and `--time-zone` win over it. |
 | `deviceVersion` | version 9.9.9, build 9999, iOS | What the device-info mock reports. |
 | `initialUrl` | none | What `Linking.getInitialURL` answers: the deep link the app was opened with. |
 | `skip` | none | Modules to leave alone, so that you mock them yourself. |
 | `overrides` | none | Your own mock factories by module name. One wins over the default, and applies even when the module is not installed. |
+
+**Language and time zone.** A run started with `--locale es-AR` (or `launch.locale` in `lynkeus.config.json`) reaches the app wherever it asks: expo-localization, react-native-localize, and `Intl` itself, so `toLocaleString()` and `new Intl.NumberFormat()` with no locale format for es-AR. Separators, currency, 12- or 24-hour clock and first weekday are what Intl says a phone in that locale shows. `--time-zone` moves both what those libraries report and the zone `Date` runs in (the host's `TZ`). The `locale` option in the entry sets the same answers when no run says otherwise, but cannot move `Date`'s zone, which only the host's environment sets.
 
 Mocks for your own native modules are ordinary `jest.mock` calls in the entry, placed before the app is required:
 
@@ -278,7 +288,7 @@ LYNKEUS_PORT=8201 npx lynkeus screen
 
 `LYNKEUS_HOST` tells a host where its driver is listening, for a host that does not run in the same place as its driver, such as a container dialing out.
 
-`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
+`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. With `--host`, the run starts one headless host per job, each dialing its job's port (picked free when `--ports` is left out), keeps it for the run and starts it again when it dies; each writes its log to the system's temporary folder, named after the run and the port. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
 
 ## Security
 

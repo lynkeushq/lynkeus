@@ -21,7 +21,7 @@ import * as wsModule from 'ws';
 
 import { headlessBackend } from './backend.js';
 import { loadYoga } from './layout.js';
-import { listenerCounts, setSettleProbe } from './mocks/controls.js';
+import { frameNow, listenerCounts, setSettleProbe } from './mocks/controls.js';
 import { NativeMockScreen } from './mocks/native.js';
 import { discoveredNavigation, entryNavigation } from './navigation.js';
 import { installRuntime, log, onReset, reset } from './runtime.js';
@@ -172,7 +172,7 @@ const useRealFrames = () => {
     configurable: true,
     writable: true,
     // Read at each call, so the timers the clock command can advance (installed later) carry the frames too.
-    value: (callback: (time: number) => void) => setTimeout(() => callback(Date.now()), 0),
+    value: (callback: (time: number) => void) => setTimeout(() => callback(frameNow()), 0),
   });
   Object.defineProperty(globalThis, 'cancelAnimationFrame', {
     configurable: true,

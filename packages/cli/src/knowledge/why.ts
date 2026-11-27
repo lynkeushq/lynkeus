@@ -194,7 +194,7 @@ export const explain = (e: Evidence): Finding[] => {
     if (sought?.hidden) {
       out.push({
         rule: 'hidden',
-        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${sought.hidden}): it belongs to a screen the app is not showing. Close what is open, or target something inside it.`,
+        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${sought.hidden}): something hides it, such as a screen the app is not showing, a closed drawer or a sheet over it. Open what holds it, or close what is over it.`,
       });
     }
     if (sought?.covered)
