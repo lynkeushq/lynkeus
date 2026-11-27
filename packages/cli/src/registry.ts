@@ -70,6 +70,8 @@ export type Command = {
   mcpOmit?: string[];
   /** What a model is told instead of `details`. */
   mcpDetails?: string;
+  /** Flag defaults over MCP when they differ from the terminal's: a walk an agent did not ask to be long stays short. */
+  mcpDefaults?: Record<string, number | string | boolean>;
   /** Runnable from a session line (default: when it needs the app or the graph). */
   session?: boolean;
   /** The usage line, when the generated one would mislead. */

@@ -226,5 +226,13 @@
   "surface/help/map build": {
     "why": "map build's help says it is rarely needed by hand now: every command that reads the graph rebuilds it when it is missing or older than the source it was read from.",
     "now": "578255ae89a274f1"
+  },
+  "surface/help/crawl": {
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
+    "now": "7ceb0254fd213c5b"
+  },
+  "surface/mcp/tool/crawl": {
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand.",
+    "now": "062519268c3af2ed"
   }
 }

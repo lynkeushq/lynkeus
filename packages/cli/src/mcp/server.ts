@@ -15,11 +15,14 @@ const text = (body: string) => ({ content: [{ type: 'text' as const, text: body 
 
 type Property = { type: string; items?: { type: string }; description: string };
 
-const propertyFor = (f: FlagSpec): Property => ({
-  type: f.type === 'list' ? 'array' : f.type,
-  ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
-  description: f.help + (f.default !== undefined ? ` (default ${f.default})` : ''),
-});
+const propertyFor = (f: FlagSpec, mcpDefault?: number | string | boolean): Property => {
+  const fallback = mcpDefault ?? f.default;
+  return {
+    type: f.type === 'list' ? 'array' : f.type,
+    ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
+    description: f.help + (fallback !== undefined ? ` (default ${fallback})` : ''),
+  };
+};
 
 const describe = (c: Command) => {
   const details = c.mcpDetails ?? c.details;
@@ -56,12 +59,14 @@ export const schemaFor = (c: Command) => {
     properties[key] = p.rest ? { type: 'array', items: { type: 'string' }, description: p.help } : { type: 'string', description: p.help };
     if (p.required) required.push(key);
   }
-  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f);
+  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f, c.mcpDefaults?.[name]);
   return { type: 'object' as const, properties, ...(required.length ? { required } : {}) };
 };
 
 /** Back to an argv, so the same runtime serves both surfaces. */
-const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
+export const argvFor = (c: Command, given: Record<string, unknown>): string[] => {
+  const defaults = Object.entries(c.mcpDefaults ?? {}).map(([name, value]) => [identifier(name), value]);
+  const input: Record<string, unknown> = { ...Object.fromEntries(defaults), ...given };
   const av = c.name.split(' ');
   for (const p of c.positionals ?? []) {
     const v = input[identifier(p.name)];

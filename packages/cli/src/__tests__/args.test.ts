@@ -6,7 +6,9 @@ import { driveCommands } from '../commands/drive.js';
 import { headlessCommands } from '../commands/headless.js';
 import { mapCommands } from '../commands/map.js';
 import { osCommands } from '../commands/os.js';
+import { describeCrawl } from '../commands/crawl.js';
 import { runsCommands } from '../commands/runs.js';
+import { argvFor, schemaFor } from '../mcp/server.js';
 
 const FLAGS = {
   direct: { type: 'boolean' as const, help: '' },
@@ -75,6 +77,7 @@ test('MCP serves a small core by default and everything else on request', () => 
   assert.deepEqual(core.sort(), [
     'back',
     'call',
+    'crawl',
     'headless doctor',
     'headless init',
     'init',
@@ -90,6 +93,48 @@ test('MCP serves a small core by default and everything else on request', () => 
     'wait',
     'why',
   ]);
+});
+
+test('crawl over MCP is one level and a few presses unless the call asks for more', () => {
+  const crawl = runsCommands.find((c) => c.name === 'crawl')!;
+  assert.deepEqual(argvFor(crawl, {}), ['crawl', '--depth', '1', '--max', '12']);
+  assert.deepEqual(argvFor(crawl, { max: 80, depth: 3, Route: 'Settings.Main' }), ['crawl', 'Settings.Main', '--depth', '3', '--max', '80']);
+  const { properties } = schemaFor(crawl);
+  assert.match(properties.max!.description, /default 12/);
+  assert.equal(properties.verbose, undefined);
+  for (const flag of Object.keys(crawl.mcpDefaults ?? {})) assert.ok(crawl.flags?.[flag], `crawl has --${flag}`);
+});
+
+test("a crawl's answer is a few lines: screens, new edges, problems, never one per press", () => {
+  const press = (i: number) => ({ from: 'k', fromRoute: 'Home', button: { testId: `item-${i}` }, to: 'k', toRoute: 'Home', ms: 1, problems: [] });
+  const text = describeCrawl({
+    transitions: [
+      ...Array.from({ length: 30 }, (_, i) => press(i)),
+      { from: 'k', fromRoute: 'Home', button: { testId: 'menu' }, to: 'm', toRoute: 'Home', toLayer: 'menu', ms: 1, problems: [] },
+      {
+        from: 'k',
+        fromRoute: 'Home',
+        button: { text: 'Buy' },
+        to: 'c',
+        toRoute: 'Checkout',
+        ms: 1,
+        problems: ['500 POST /api/cart'],
+        wrote: ['POST /api/cart'],
+      },
+    ],
+    learned: ['Home #menu → Home#menu', 'Home "Buy" → Checkout'],
+    reinforced: 1,
+    seconds: 9,
+    spent: true,
+    outDir: '/tmp/crawl',
+  });
+  assert.match(text, /32 presses on 3 screens in 9s; 2 new edges \(1 seen again\), 1 problems/);
+  assert.match(text, /screens: Checkout, Home, Home#menu/);
+  assert.match(text, /Home "Buy" → Checkout: 500 POST \/api\/cart/);
+  assert.match(text, /not explored past/);
+  assert.match(text, /crawl again/);
+  assert.doesNotMatch(text, /item-3/);
+  assert.ok(text.split('\n').length < 15);
 });
 
 test('what MCP leaves out of a tool is still a flag of the command', () => {
