@@ -91,7 +91,9 @@ export const declaredTargets = (meta: Record<string, unknown>, project: readonly
 export const skippedOn = (meta: Record<string, unknown>, target: TargetName, label: string = target): string | undefined => {
   const own = declaredTargets(meta, undefined);
   if (!Array.isArray(own) || own.length === 0) return undefined;
-  const hit = own.some((t) => t === target || (target === 'simulator' && (t === 'ios' || t === 'android')) || (target === 'fastsim' && t.startsWith('fastsim')));
+  const hit = own.some(
+    (t) => t === target || (target === 'simulator' && (t === 'ios' || t === 'android')) || (target === 'fastsim' && t.startsWith('fastsim')),
+  );
   return hit ? undefined : `skipped on ${label}: its targets are ${own.join(', ')}`;
 };
 

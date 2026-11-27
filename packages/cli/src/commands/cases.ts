@@ -566,7 +566,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const home = config.base ?? ctx.root;
   const files = caseFiles(ctx.args, home, config.dir);
   if (typeof files === 'string') return { text: files, code: 1 };
-  const target = as.target ? undefined : (ctx.flags.host && typeof ctx.flags['host-command'] !== 'string' ? 'headless' : undefined);
+  const target = as.target ? undefined : ctx.flags.host && typeof ctx.flags['host-command'] !== 'string' ? 'headless' : undefined;
   const cases = files.flatMap(readCases).filter((c) => {
     const skip = target && skippedOn(c.meta, target);
     if (skip) ctx.err(`${c.id}: ${skip}`);

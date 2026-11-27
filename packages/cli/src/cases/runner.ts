@@ -1235,7 +1235,13 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
             }
           } else
             await timed('wait', () =>
-              cli(argvFor(find('wait')!, 'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value, isKnownRoute)),
+              cli(
+                argvFor(
+                  find('wait')!,
+                  'since' in since ? { ...(typeof value === 'string' ? { what: value } : (params ?? {})), ...since } : value,
+                  isKnownRoute,
+                ),
+              ),
             );
           // A screen that just arrived on a device is still sliding in, which no render shows: a press then lands on the one it left.
           if (onWallClock(d) && isRoute(what)) await timed('settle', () => d.idle({ quietMs: 700, timeoutMs: 8000 }).catch(() => undefined));
