@@ -117,6 +117,15 @@ class VirtualHandle {
   }
 }
 
+let frameClock = (): number => performance.now();
+
+/**
+ * The time a frame callback is handed: performance.now's timebase, which reanimated starts its animations on
+ * (`_getAnimationTimestamp`), moved on by what `clock --advance` ran. Handing it Date.now mixed two clocks, and once
+ * Date started at a launch epoch an animation never reached its end: a drawer stayed shut.
+ */
+export const frameNow = (): number => frameClock();
+
 // Installed before the app loads, so a module that captures `Date` or `setTimeout` captures these.
 const installClock = () => {
   const RealDate = Date;
@@ -142,6 +151,7 @@ const installClock = () => {
   let skewMs = 0;
   let frozenTimerMs: number | null = null;
   const timerNow = () => frozenTimerMs ?? RealDate.now() + skewMs;
+  frameClock = () => performance.now() + timerNow() - RealDate.now();
   const timers = new Map<number, VirtualTimer>();
   let nextId = 1;
   let nextSeq = 0;

@@ -3,7 +3,7 @@ import vm from 'node:vm';
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { host } from 'lynkeus-agent';
 
-import { installControls } from '../mocks/controls.js';
+import { frameNow, installControls } from '../mocks/controls.js';
 import { localize } from '../mocks/factories.js';
 import { launchLocale } from '../mocks/install.js';
 import { defaultIntlLocale, expoLocalization, localeFacts } from '../mocks/locale.js';
@@ -23,6 +23,10 @@ describe('launch facts', () => {
     delete process.env.LYNKEUS_SEED;
     Math.random = RealRandom;
     (globalThis as { Date: unknown }).Date = RealDate;
+  });
+
+  it("hands frame callbacks performance.now's time, not the epoch's, so an animation started on it reaches its end", () => {
+    expect(Math.abs(frameNow() - performance.now())).toBeLessThan(50);
   });
 
   it('starts Date at the epoch and lets it run', () => {

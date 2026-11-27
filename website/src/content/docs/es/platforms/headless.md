@@ -31,6 +31,8 @@ Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único
 
 Los componentes de reemplazo de Jest pierden algunos estilos que el dispositivo sí aplica, y el host los repone cuando puede deducirlos. El `contentContainerStyle` de un ScrollView va a la vista que contiene el contenido. Una vista nativa de una biblioteca que no tiene tamaño propio (un proveedor de teclado o de gestos) y solo envuelve una pantalla que debe ocupar todo el espacio, ocupa ese espacio como ella. Sin esto, una pantalla entera quedaba con altura cero, cada campo se encimaba con el siguiente, y un control que figuraba como tapado hacía que cada toque o escritura esperara a que se destapara.
 
+Lo que anima Reanimated llega a la pantalla como en un dispositivo. Bajo Jest, Reanimated guarda el estilo y las props actuales de cada animación aparte de los que la vista usó al renderizarse; el host lee esos valores, aplica los `translateX` y `translateY`, y entrega a los callbacks de cada fotograma el mismo reloj con el que corren las animaciones de Reanimated, también cuando la ejecución fija `--epoch`. Un cajón hecho con react-native-drawer-layout se abre y se cierra: mientras está abierto, sus filas se presentan y la pantalla de atrás queda oculta, y `app.swipe: { direction: left }` lo cierra, porque un deslizamiento donde nada se desplaza en esa dirección mueve el gesto de arrastre (pan) de gesture-handler que está bajo el dedo. Un caso que cerraba el cajón en headless volviendo a tocar su botón (el rodeo que había que hacer antes) ahora falla igual que en un dispositivo, donde ese botón está oculto mientras el cajón está abierto: usa el deslizamiento en todos los destinos.
+
 ## Antes de empezar
 
 - Node 22 o posterior.

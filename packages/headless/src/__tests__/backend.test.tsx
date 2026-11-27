@@ -445,6 +445,53 @@ describe('headlessBackend with Yoga layout', () => {
     expect(byTestId(elements, 'pay').covered).toBeUndefined();
   });
 
+  it("reads what reanimated's animations set under jest, not the props the view rendered with", async () => {
+    // A drawer rendered closed and then opened: reanimated keeps the open state in jestAnimatedProps and jestAnimatedStyle.
+    const opened = { value: { accessibilityElementsHidden: false } };
+    const slid = { value: { transform: [{ translateX: 200 }] } };
+    const { snapshot } = await mount(
+      <View style={{ flex: 1 }}>
+        <View accessibilityElementsHidden {...{ jestAnimatedProps: opened }}>
+          <Pressable testID="row" style={{ width: 100, height: 40 }} onPress={noop} />
+        </View>
+        <View style={{ position: 'absolute', top: 100, left: 0 }} {...{ jestAnimatedStyle: slid }}>
+          <Pressable testID="moved" style={{ width: 100, height: 40 }} onPress={noop} />
+        </View>
+      </View>,
+      yoga,
+    );
+    const elements = snapshot();
+    expect(byTestId(elements, 'row').hidden).toBeUndefined();
+    expect(byTestId(elements, 'moved').frame.x).toBe(200);
+  });
+
+  it('a swipe where nothing scrolls that way drives the pan under the finger, as a drawer closes', async () => {
+    const fired: { events: { translationX?: number }[] }[] = [];
+    jest.doMock(
+      'react-native-gesture-handler/jest-utils',
+      () => ({ fireGestureHandler: (_g: unknown, events: { translationX?: number }[]) => fired.push({ events }) }),
+      {
+        virtual: true,
+      },
+    );
+    jest.doMock('react-native-gesture-handler', () => ({ State: { BEGAN: 2, ACTIVE: 4, END: 5 } }), { virtual: true });
+    const pan = { handlerName: 'PanGestureHandler' };
+    const Detector = ({ children }: { gesture: unknown; children: ReactElement }) => children;
+    const { backend } = await mount(
+      <View style={{ flex: 1 }}>
+        <Detector gesture={pan}>
+          <View style={{ flex: 1 }}>
+            <Pressable testID="row" style={{ height: 300 }} onPress={noop} />
+          </View>
+        </Detector>
+      </View>,
+      yoga,
+    );
+    await backend.swipe({ x: 300, y: 100 }, { x: 60, y: 100 }, 250);
+    expect(fired).toHaveLength(1);
+    expect(fired[0]!.events.at(-1)?.translationX).toBe(-240);
+  });
+
   it('an element whose centre is outside the window is offscreen', async () => {
     const { snapshot } = await mount(
       <View style={{ flex: 1 }}>

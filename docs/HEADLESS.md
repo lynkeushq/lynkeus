@@ -119,6 +119,11 @@ existing entry.
   Where jest's stand-ins drop a style a device applies, the layout puts it
   back: a scroll view's `contentContainerStyle` on its content view, and a
   library's unstyled native view that only wraps a filling child fills too.
+  Reanimated's live values under jest (`jestAnimatedStyle`, `jestAnimatedProps`)
+  win over the rendered props, translations move frames, and frame callbacks
+  get performance.now's clock, so a react-native-drawer-layout drawer opens,
+  hides the screen behind it, and closes with `swipe left` (a swipe where
+  nothing scrolls that way drives the gesture-handler pan under the finger).
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 
