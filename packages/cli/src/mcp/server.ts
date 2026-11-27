@@ -92,7 +92,7 @@ Where to run: a dev build on a Simulator or emulator runs every case, picks up s
 
 To write cases, spend tokens in this order and stop as soon as you know enough:
 1. case_coverage: the app's screens and which ones no case reaches yet.
-2. case_new with the screen: a draft with the way there (from the route map), the backend setup to pick from and the checks left to write. map_plan answers the way between two screens. On the screen already, case_here drafts from what is shown.
+2. case_new with the screen: a draft with the way there (the steps of an existing case that reaches it, else the route map), the backend setup to pick from and the checks left to write. Keep the way it offers instead of writing navigation steps again; steps several cases open with belong in a macro (cases.macros in lynkeus.config.json, one step in each case), and case_coverage names them. map_plan answers the way between two screens. On the screen already, case_here drafts from what is shown.
 3. Only then drive the app (press, type, wait; press with settle: true answers with the screen once the app has settled) and call screen to fill what the draft could not know. Prefer testIDs (#id) over text, and short texts over paragraphs. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
 4. Write the case as a markdown file in the cases folder (case_init writes the folder and a README.md with the format, once) and call case_run with that file. A failed step comes back with its error and the screen it failed on: fix the case or report the app's bug, never weaken the check.
 

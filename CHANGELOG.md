@@ -5,6 +5,7 @@
 - `lynkeus case new` offers the way an existing case already takes to the screen, before the route map's plan: that case's setup and steps up to the screen, under a comment naming the case (`# The way to Pay.Main from case pay-ten (its last passing run was on Pay.Main after these steps)`), and with `--from` only the steps after that screen. A case reaches the screen when its last passing run was on it after a step, or when a step goes to it, waits for it or checks it. The JSON answer says which case (`reused`). In a trial, an agent spent most of its tokens finding by hand ways its cases already had.
 - `lynkeus case run` keeps the screens of each passing case in `.lynkeus/seen` without `--seen` (which still says where), now with the screen the app was on after each step (`route` on each step in `cases.jsonl` too). It reads them off trace marks the steps already take, plus one trace and one screen read per case.
 - `lynkeus case coverage` ends with one hint when three or more case files open with the same app steps: which cases, how many steps, and the `cases.macros` entry that says them once (or the declared macro that already does). It prints nothing when there is nothing to say.
+- The MCP instructions tell an agent to keep the way `case_new` offers instead of writing navigation steps again, and to put steps several cases open with in a macro.
 
 ## 0.7.6
 
