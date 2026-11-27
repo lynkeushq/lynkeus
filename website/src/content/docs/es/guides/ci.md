@@ -208,10 +208,12 @@ npx lynkeus map ci
 ```
 
 ```text
-wrote .github/workflows/lynkeus-map-check.yml
+wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)
 ```
 
-En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira (2 por defecto) y `--force` sobrescribe el archivo si ya existe.
+En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira. Por defecto son 4, igual que en `case impact` y `ci --affected`: así el comentario y los casos que corre el pipeline coinciden. `--force` sobrescribe el archivo si ya existe.
+
+La versión de lynkeus que usa el flujo sale de tu `package.json`: el rango que declares para `lynkeus` o, si no está, para `lynkeus-agent` o `lynkeus-headless`, que se publican juntos. Si no hay ninguno, usa la versión del CLI que lo escribió. Un build de desarrollo o una ruta local no se pueden instalar en CI. En ese caso el flujo usa la versión publicada a la que corresponden (`0.7.7-dev.…` pasa a ser `^0.7.7`), y el comando lo avisa.
 
 ## Si usas un simulador o un emulador
 

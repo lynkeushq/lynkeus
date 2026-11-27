@@ -9,6 +9,7 @@ import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
 import { edgesFile } from '../config.js';
 import * as edges from '../knowledge/edges.js';
 import { plan } from '../knowledge/plan.js';
+import { IMPACT_DEPTH } from '../knowledge/query.js';
 import { type Base, define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles, startHost, stopHost } from './cases.js';
@@ -83,7 +84,7 @@ export const coverageCommands = [
       'The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t(\'a.b\')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.',
     flags: {
       base: { type: 'string', help: 'git ref to diff against', default: 'main', value: 'ref' },
-      depth: { type: 'number', help: 'how many imports away a change still reaches a screen', default: 4, value: 'n' },
+      depth: { type: 'number', help: 'how many imports away a change still reaches a screen', default: IMPACT_DEPTH, value: 'n' },
       seen: { type: 'string', help: 'where `case run` kept the screens of passing cases (default .lynkeus/seen)', value: 'dir' },
       files: { type: 'boolean', help: 'print only the case files, one per line' },
     },

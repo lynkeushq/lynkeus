@@ -240,9 +240,11 @@ One check runs on every pull request with no app, no device and no backend. `map
 npx lynkeus map ci
 ```
 
-You should see `wrote .github/workflows/lynkeus-map-check.yml`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
+You should see `wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
 
-`--depth <n>` sets how many imports away the check looks (2 by default). `--force` overwrites an existing workflow file.
+The workflow runs the lynkeus your app depends on: the range in `package.json` for `lynkeus`, or else for `lynkeus-agent` or `lynkeus-headless`, which are released with it. Without one, it runs the release of the CLI that wrote it. CI cannot install a development build or a local path, so for those the workflow names the release they lead to (`0.7.7-dev.…` becomes `^0.7.7`) and the command says so.
+
+`--depth <n>` sets how many imports away the check looks. The default is 4, the same as `case impact` and `ci --affected`, so the comment and the cases the pipeline runs agree. `--force` overwrites an existing workflow file.
 
 Reviewers use the comment to know where to look, and a pipeline can use the same list to decide which cases to run.
 
