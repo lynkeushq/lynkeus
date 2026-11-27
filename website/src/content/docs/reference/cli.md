@@ -705,7 +705,7 @@ lynkeus os location <where>
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-**Simulator (iOS only).** Relaunches the app in a locale.
+**Simulator and Android.** Acts on the device the app is attached to. On an iOS Simulator it relaunches the app in a locale; on an Android emulator or phone it sets the app's own locale with `cmd locale set-app-locales`, which needs Android 13 (API 33) or later and fails with that reason below it.
 
 | Argument | Meaning |
 |---|---|
@@ -714,6 +714,7 @@ lynkeus os language [tag] [--app <bundleId>]
 | Flag | Meaning |
 |---|---|
 | `--app <bundleId>` | The app to relaunch. Without it, the app in `lynkeus.config.json`. Over MCP it is the `app` argument of `os_language`. |
+| `--device <udid\|name\|serial>` | The simulator or the emulator or phone (adb serial) to act on, when more than one is up. Without it, the device the app is attached to. Over MCP it is the `device` argument; the other `os` commands that act on a simulator or emulator take it too. |
 
 ## map
 

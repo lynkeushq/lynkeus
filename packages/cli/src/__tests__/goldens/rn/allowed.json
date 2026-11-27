@@ -8,8 +8,8 @@
     "now": "f374b38ef79785b0"
   },
   "surface/help/os language": {
-    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP.",
-    "now": "01de158681580569"
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP. os language and its siblings also take --device, and os language works on Android (API 33+).",
+    "now": "7ec7d02793a599a3"
   },
   "surface/mcp/instructions": {
     "why": "The MCP instructions lead with the cheap way to write cases (coverage, case_new, map_plan, then driving) and with case_impact after a code change; a trial agent never found those tools from the old text. The FastSim paragraph says a FastSim bundle is a release bundle, so the app must call qa.register outside if (__DEV__); a trial agent registered its commands behind __DEV__ and they were missing on FastSim. It also says case_run and fastsim_start bundle a stale FastSim bundle again (with the server's environment) or refuse the run, so an agent never reports on old code. It also places crawl in that cheap path, before driving by hand, and says the route map rebuilds itself and learns from every press. The instructions tell an agent to keep the way case_new offers and to put steps several cases open with in a macro, and that verbose shows a failed case whole.",
@@ -24,8 +24,8 @@
     "now": "531cd80fd32f9adc"
   },
   "surface/mcp/tool/os_language": {
-    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP.",
-    "now": "3e350a30f71da8c9"
+    "why": "back, mock and os language are served over MCP by default: the trial agent needed them while writing cases and the CLI cannot run beside the MCP server, which holds the driver port. os language also takes --app (os_language app), as os appstate does, so the app to relaunch can be named over MCP. os language and its siblings also take --device, and os language works on Android (API 33+).",
+    "now": "44ea453085b4e4d4"
   },
   "surface/commands": {
     "why": "fastsim start and fastsim stop: a FastSim host for a session or an MCP server to explore on",
@@ -52,8 +52,8 @@
     "now": "ad9c9cf2a470a8a1"
   },
   "surface/usage": {
-    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose.",
-    "now": "22a2c69189226241"
+    "why": "the usage lists fastsim start and fastsim stop os language also takes --app. case run lists --verbose. os language and its siblings also take --device, and os language works on Android (API 33+).",
+    "now": "fa3f2766e13b3cd2"
   },
   "report/answer": {
     "why": "A failed case's summary now opens with the failing step's own error (\u2014 failed at: <step>), which it used to leave out when the evidence explained nothing. A failed case in the summary names its step's place (failed at step 2 of 3) without a second result line, its screen is cut to what a check can name and only requests worth a look are listed (verbose keeps it all); each step and case now carry the screens the run went through.",
@@ -258,5 +258,25 @@
   "surface/mcp/tool/case_new": {
     "why": "case new offers the way an existing case takes to the screen (from the steps case run now keeps in .lynkeus/seen by default), and case coverage names steps three or more cases open with, as a macro to declare.",
     "now": "2233f6771ea1573e"
+  },
+  "surface/help/os appearance": {
+    "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
+    "now": "89ef3f89e1103367"
+  },
+  "surface/help/os appstate": {
+    "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
+    "now": "52ec899e61ab0ea9"
+  },
+  "surface/help/os location": {
+    "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
+    "now": "e59624237221c7f8"
+  },
+  "surface/help/os permissions": {
+    "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
+    "now": "6ae2bdc4797d0cf2"
+  },
+  "surface/help/os push": {
+    "why": "the os commands that act on a simulator or emulator take --device (udid, name or adb serial), so over MCP and in a session the device is chosen when both platforms are up; os language also sets the app locale on Android (API 33+).",
+    "now": "9ab10ba985eb7465"
   }
 }

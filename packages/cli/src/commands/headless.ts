@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { AgentError } from 'lynkeus-client';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import { nativeValuesEnv } from '../cases/nativeValues.js';
@@ -177,6 +178,12 @@ export const attachedCheck = (hello: HelloEvent | null, attachFix: string): { wh
   return { what: `an app is attached (${name === hello.platform ? name : `${name}, ${hello.platform}`})`, ok: true };
 };
 
+/** The status line when connecting to the app failed: a port another run holds says so, as `screen` does. */
+export const attachFailureCheck = (error: unknown, port: number, attachFix: string): { what: string; ok: boolean; fix?: string } =>
+  error instanceof AgentError && error.code === 'port-in-use'
+    ? { what: error.message, ok: false }
+    : { what: `an app is attached (Lynkeus listens on port ${port})`, ok: false, fix: attachFix };
+
 /**
  * The host file is named so that no default \`testMatch\` takes it (no __tests__, no .test.): the app's own \`jest\` run
  * must not start a host. The host run names it itself, as \`testRegex\` when the app's config uses that (jest refuses both).
@@ -243,12 +250,8 @@ export const headlessCommands = [
             check.what = check.what.replace(/\)$/, `, port ${port})`);
           }
           checks.push(check);
-        } catch {
-          checks.push({
-            what: `an app is attached (Lynkeus listens on port ${port})`,
-            ok: false,
-            fix: runtime.attachFix,
-          });
+        } catch (error) {
+          checks.push(attachFailureCheck(error, port, runtime.attachFix));
         }
       }
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');

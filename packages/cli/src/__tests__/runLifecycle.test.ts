@@ -7,7 +7,9 @@ import { test } from 'node:test';
 import { caseCommands, describe } from '../commands/cases.js';
 import { driveCommands } from '../commands/drive.js';
 import { osCommands } from '../commands/os.js';
-import { attachedCheck } from '../commands/headless.js';
+import { AgentError } from 'lynkeus-client';
+
+import { attachFailureCheck, attachedCheck } from '../commands/headless.js';
 import { claimPorts } from '../cases/portClaim.js';
 import { lastRunFile, statusOf } from '../cases/progress.js';
 import type { CaseReport } from '../cases/runner.js';
@@ -173,6 +175,19 @@ test('status names the app from its latest hello, and an app that left as gone',
     what: 'an app is attached',
     ok: false,
     fix: 'the app that was attached is gone (crashed or closed): start it again; open the app',
+  });
+});
+
+test('status says a port another run holds, as screen does, and keeps the generic line for any other failure', () => {
+  const taken = new AgentError(
+    'Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).',
+    'port-in-use',
+  );
+  assert.deepEqual(attachFailureCheck(taken, 8123, 'open the app'), { what: taken.message, ok: false });
+  assert.deepEqual(attachFailureCheck(new Error('boom'), 8123, 'open the app'), {
+    what: 'an app is attached (Lynkeus listens on port 8123)',
+    ok: false,
+    fix: 'open the app',
   });
 });
 

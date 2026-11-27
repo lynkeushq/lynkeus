@@ -1157,7 +1157,10 @@ export const caseCommands = [
           : []),
         ...onceUnlessVerbose(
           'native values the host did not answer',
-          describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), { entry: headlessEntryOf(ctx.root, ctx.config) }),
+          describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), {
+            entry: headlessEntryOf(ctx.root, ctx.config),
+            nativeMocks: ctx.config.cases?.nativeMocks,
+          }),
           verbose,
         ),
         ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),

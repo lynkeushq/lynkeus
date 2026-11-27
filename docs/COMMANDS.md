@@ -258,7 +258,7 @@ Open a URL in the app, as the OS would hand it over
 
 Also accepted: `deeplink`.
 
-### `lynkeus os appstate <state> [--app <bundleId>]`
+### `lynkeus os appstate <state> [--app <bundleId>] [--device <udid|name|serial>]`
 
 AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real
 
@@ -269,6 +269,7 @@ AppState listeners see the change (background, then active: what refetches or re
 | Flag | |
 |---|---|
 | `--app <bundleId>` | the app to bring back on a simulator or emulator (default: the config’s app) |
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
 Also accepted: `appstate`.
 
@@ -362,7 +363,7 @@ With a route and no other flag, the matching requests are answered by a rule (`-
 | `--clear` | drop every rule and gate, and let held requests go |
 | `--list` | show the rules, the gates and what is held |
 
-### `lynkeus os permissions <action> <service>`
+### `lynkeus os permissions <action> <service> [--device <udid|name|serial>]`
 
 Simulator: grant, revoke or reset a permission for the app
 
@@ -371,7 +372,11 @@ Simulator: grant, revoke or reset a permission for the app
 | `action` | grant | revoke | reset |
 | `service` | camera, photos, location, microphone, contacts, … |
 
-### `lynkeus os push <payload>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os push <payload> [--device <udid|name|serial>]`
 
 Simulator: deliver a push notification to the app
 
@@ -379,7 +384,11 @@ Simulator: deliver a push notification to the app
 |---|---|
 | `payload` | '{"alert":"…"}' or a .json file |
 
-### `lynkeus os appearance <mode>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os appearance <mode> [--device <udid|name|serial>]`
 
 Simulator: light or dark
 
@@ -387,7 +396,11 @@ Simulator: light or dark
 |---|---|
 | `mode` | light | dark |
 
-### `lynkeus os location <where>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os location <where> [--device <udid|name|serial>]`
 
 Simulator: where the device is
 
@@ -395,9 +408,15 @@ Simulator: where the device is
 |---|---|
 | `where` | <lat>,<lon> | clear |
 
-### `lynkeus os language [tag] [--app <bundleId>]`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
-Simulator: relaunch the app in a locale
+### `lynkeus os language [tag] [--app <bundleId>] [--device <udid|name|serial>]`
+
+Simulator: relaunch the app in a locale; Android (API 33+): set the app’s own locale
+
+Acts on the device the app is attached to: the simulator for an iOS app, the emulator or phone for an Android one. With several devices up, pick one with the global `--device` (or `LYNKEUS_DEVICE`). On Android it sets the app’s own locale with `cmd locale set-app-locales`, which needs API 33+.
 
 | Argument | |
 |---|---|
@@ -406,6 +425,7 @@ Simulator: relaunch the app in a locale
 | Flag | |
 |---|---|
 | `--app <bundleId>` | the app to relaunch on a simulator or emulator (default: the config’s app) |
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
 ## map
 

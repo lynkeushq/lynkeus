@@ -199,13 +199,14 @@ list of platforms) sets a constant instead of answering a call:
 "nativeMocks": {
   "RNFoo.isTablet": { "value": false },
   "RNFoo.density": { "ios": 3, "android": 2.75 },
-  "RNFoo.legacyFlag": { "absent": ["android"] }
+  "RNFoo.legacyFlag": { "absent": ["android"] },
+  "EXDevLauncher": { "absent": true }
 }
 ```
 
 `lynkeus headless start` puts the constants in `LYNKEUS_NATIVE_VALUES` (JSON) and `installDefaultMocks` applies them
 before the app is required, so a module-level read finds them. A `nativeMocks` `set` during a case applies them too,
-but the app has already read what it read. The value to use is in the library's native code under `node_modules`.
+but the app has already read what it read. A key with no property (`"EXDevLauncher": { "absent": true }`) declares a whole module absent: the app reads it as undefined, and the run no longer lists it among the native values the host does not know. The value to use is in the library's native code under `node_modules`.
 
 ## What headless cannot tell you
 

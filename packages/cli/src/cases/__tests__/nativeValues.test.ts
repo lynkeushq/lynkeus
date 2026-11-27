@@ -122,3 +122,13 @@ test('what the headless fallback answered is told once, grouped by module, with 
     5,
   );
 });
+
+test('a module the cases config declares absent is not listed as one the host does not know', () => {
+  const read = (module: string, platform: 'ios' | 'android'): RunNativeValue => ({ module, platform, host: 'headless', readAs: 'undefined' });
+  const reads = [read('EXDevLauncher', 'ios'), read('EXOther', 'ios'), read('EXAndroidOnly', 'ios')];
+  const text = describeNativeValues(reads, { nativeMocks: { EXDevLauncher: { absent: true }, EXAndroidOnly: { absent: ['android'] } } }).join('\n');
+  assert.doesNotMatch(text, /EXDevLauncher/);
+  assert.match(text, /EXOther/);
+  assert.match(text, /EXAndroidOnly/);
+  assert.deepEqual(describeNativeValues([read('EXDevLauncher', 'ios')], { nativeMocks: { EXDevLauncher: { absent: true } } }), []);
+});

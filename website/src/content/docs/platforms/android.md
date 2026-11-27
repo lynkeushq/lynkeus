@@ -141,13 +141,13 @@ The `lynkeus os` commands available for Android are fewer:
 | `lynkeus os location <lat>,<lon>` | Yes. There is no `clear`. |
 | `lynkeus os appstate <background\|active>` | Yes. `background` presses Home; `active` brings the same task back through the app's launcher intent, and needs the application ID. |
 | `lynkeus os push` | No. |
-| `lynkeus os language` | No. |
+| `lynkeus os language [tag]` | Yes, on Android 13 (API 33) and later: it sets the app's own locale with `cmd locale set-app-locales` and the app restarts in it. Below that it fails saying so. Needs the application ID. |
 | `lynkeus os biometrics` | No. It works on the headless host, and `--available` on an iOS simulator. |
 
 Asking for one that is not available fails with:
 
 ```text
-"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
+"push" is not available on Android through lynkeus; permissions, appearance, location, language and appstate are
 ```
 
 `lynkeus mock` and a case's `app.mock` work on Android too: the agent answers a matching request inside the app. With `--lost` the request is sent and only its answer is lost. See [Driving the app](/guides/driving-the-app/#change-what-the-app-sees-mock-and-os).
