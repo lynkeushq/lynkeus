@@ -5,6 +5,8 @@
  */
 import type { RunNativeValue } from 'lynkeus-protocol';
 
+import type { NativeSpecs } from './nativeSpecs.js';
+
 /** Whether a `nativeMocks` entry sets a constant (and not what a call answers). */
 const isConstant = (entry: unknown): boolean =>
   typeof entry === 'object' && entry !== null && ['value', 'ios', 'android', 'absent'].some((key) => Object.hasOwn(entry, key));
@@ -56,23 +58,31 @@ const HOST = { fastsim: 'Lynkeus FastSim', headless: 'headless' } as const;
 /**
  * What to tell after a run: each property the app read that its host did not know, as what it read as, and the
  * `nativeMocks` to paste with the value left for the person (or an agent, from the library's native code) to fill.
- * A property FastSim answered with a function the app then called is a no-op call, not a constant: it is left out.
+ * A property FastSim answered with a function the app then called is a no-op call, not a constant: it is left out. So
+ * is one the app read and never called when the module's spec declares it a method: a reference taken and not used
+ * (`setFocusTo: Native.setFocusTo`) is not wrong. One the spec does not cover may be either, and is told as such.
  */
-export const describeNativeValues = (reads: RunNativeValue[], options: { entry?: string; nativeMocks?: Record<string, unknown> } = {}): string[] => {
+export const describeNativeValues = (
+  reads: RunNativeValue[],
+  options: { entry?: string; nativeMocks?: Record<string, unknown>; specs?: NativeSpecs } = {},
+): string[] => {
   reads = reads.filter((r) => !declaredAbsent(options.nativeMocks?.[r.module], r.platform));
   const fallback = new Set(reads.filter((r) => r.readAs === 'empty').map((r) => `${r.platform}:${r.module}`));
   const answered = describeFallbacks(
     reads.filter((r) => fallback.has(`${r.platform}:${r.module}`)),
     options.entry,
   );
-  const shown = reads.filter((r) => !r.called && !fallback.has(`${r.platform}:${r.module}`));
+  const kind = (r: RunNativeValue) => (r.property === undefined ? undefined : options.specs?.get(r.module)?.get(r.property));
+  const shown = reads.filter((r) => !r.called && !fallback.has(`${r.platform}:${r.module}`) && !(r.readAs === 'function' && kind(r) === 'method'));
   if (shown.length === 0) return answered;
-  if (shown.length === 0) return [];
+  const unsure = (r: RunNativeValue) => r.readAs === 'function' && kind(r) === undefined;
   const lines = shown.map((r) => {
     const what = r.property === undefined ? `the native module ${r.module}` : `${r.module}.${r.property}`;
     const outcome =
       r.readAs === 'function'
-        ? 'it read as true (a function), and was never called: a constant with a wrong value'
+        ? unsure(r)
+          ? 'it read as a function and was never called: a constant read as true, or a method the app only took a reference to (then nothing is wrong)'
+          : 'its spec declares it a constant, and it read as true (a function)'
         : r.property === undefined
           ? 'the module is not there: it read as undefined'
           : 'it read as undefined';
@@ -82,7 +92,7 @@ export const describeNativeValues = (reads: RunNativeValue[], options: { entry?:
   const snippet =
     properties.length > 0
       ? [
-          `  Set what a device answers in the cases config (\`value\` for both platforms, \`ios\` and \`android\` for one each, \`absent: true\` where the platform has none; the library's native code in node_modules says which):`,
+          `  Set what a device answers in the cases config (\`value\` for both platforms, \`ios\` and \`android\` for one each, \`absent: true\` where the platform has none; the library's native code in node_modules says which)${shown.some(unsure) ? ', for a constant only: a method given a value stops being callable' : ''}:`,
           JSON.stringify({ nativeMocks: Object.fromEntries(properties.map((key) => [key, { value: null }])) }, null, 2)
             .split('\n')
             .map((l) => `  ${l}`)

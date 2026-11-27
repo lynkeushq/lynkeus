@@ -20,6 +20,7 @@ import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { caseVersion, Flakes } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
 import { SEEN_DIR } from '../cases/coverage.js';
+import { readNativeSpecs } from '../cases/nativeSpecs.js';
 import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
@@ -1086,6 +1087,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     ...(uploaded?.url ? { report: uploaded.url } : {}),
     ...(stoppedBy ? { stopped: stoppedBy } : {}),
   });
+  const nativeReads = mergeNativeValues(reports.map((r) => r.nativeValues));
   const notes = [
     ...(fatal
       ? [`✖ the run could not go on after ${reports.length} of ${cases.length} cases: ${fatal}`]
@@ -1109,9 +1111,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       : []),
     ...onceUnlessVerbose(
       `native values the ${as.target ? `${as.target} ` : ''}host did not answer`,
-      describeNativeValues(mergeNativeValues(reports.map((r) => r.nativeValues)), {
+      describeNativeValues(nativeReads, {
         entry: headlessEntryOf(ctx.root, ctx.config),
         nativeMocks: ctx.config.cases?.nativeMocks,
+        specs: readNativeSpecs(ctx.root, new Set(nativeReads.filter((r) => r.readAs === 'function' && !r.called).map((r) => r.module))),
       }),
       verbose,
     ),
@@ -1424,7 +1427,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: all` runs them on every target at once (the attached Simulator or emulator, FastSim, headless) and answers one line per case per target; a target not available here is named with why and fails nothing (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator only the seed applies, and run.json lists the rest under `launch.unsupported`. On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);
