@@ -220,6 +220,70 @@ test('an app that left and dials back in within the window is used, and is no lo
   second.socket.close();
 });
 
+test('an app whose process still runs after the window is loading its JavaScript: calls wait for it, bounded', async () => {
+  let asked = 0;
+  const server = await serve({
+    goneMs: 50,
+    reloadMs: 3000,
+    stillRunning: async () => {
+      asked++;
+      return true;
+    },
+  });
+  const first = await fakeApp(server);
+  await server.waitForApp(2000);
+  first.socket.close();
+  await new Promise((r) => setTimeout(r, 150));
+  const pending = server.call('ping', undefined, 20_000);
+  await new Promise((r) => setTimeout(r, 300));
+  const second = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await pending, { pong: true });
+  assert.equal(asked, 1);
+  second.socket.close();
+});
+
+test('an app whose process still runs and never attaches again fails saying it is still loading, after reloadMs', async () => {
+  const server = await serve({ goneMs: 50, reloadMs: 400, stillRunning: async () => true });
+  const app = await fakeApp(server);
+  await server.waitForApp(2000);
+  app.socket.close();
+  await new Promise((r) => setTimeout(r, 100));
+  const t0 = Date.now();
+  await assert.rejects(server.call('screen', undefined, 20_000), (e: unknown) => {
+    assert.ok(e instanceof AgentError);
+    assert.equal(e.code, 'loading');
+    assert.match(e.message, /^the app is still running but its JavaScript has not attached again: it disconnected [\d.]+ s ago/);
+    return true;
+  });
+  assert.ok(Date.now() - t0 < 1000);
+});
+
+test('an app whose process is gone still fails as gone once the window has passed', async () => {
+  const server = await serve({ goneMs: 50, reloadMs: 5000, stillRunning: async () => false });
+  const app = await fakeApp(server);
+  await server.waitForApp(2000);
+  app.socket.close();
+  await new Promise((r) => setTimeout(r, 100));
+  await assert.rejects(server.call('screen', undefined, 20_000), (e: unknown) => e instanceof AgentError && e.code === 'gone');
+});
+
+test('after expectBack (a relaunch Lynkeus made), calls wait for the app past the window it had after leaving', async () => {
+  const server = await serve({ goneMs: 50 });
+  const first = await fakeApp(server);
+  await server.waitForApp(2000);
+  first.socket.close();
+  await new Promise((r) => setTimeout(r, 150));
+  server.expectBack(3000);
+  const pending = server.call('ping', undefined, 20_000);
+  await new Promise((r) => setTimeout(r, 200));
+  const second = await fakeApp(server, () => ({ result: { pong: true } }));
+  assert.deepEqual(await pending, { pong: true });
+  second.socket.close();
+  // The hello ends what expectBack asked for: a later departure gets the usual window.
+  await new Promise((r) => setTimeout(r, 150));
+  await assert.rejects(server.call('screen', undefined, 20_000), (e: unknown) => e instanceof AgentError && e.code === 'gone');
+});
+
 test('a call to an app that said it went to the background times out saying so', async () => {
   const server = await serve();
   const app = await fakeApp(server, () => undefined);

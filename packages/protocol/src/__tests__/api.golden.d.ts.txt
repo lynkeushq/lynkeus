@@ -209,6 +209,7 @@ export type CoreMethods = {
             pong: true;
             native: boolean;
             commands: string[];
+            js?: JsAge;
         };
     };
     screen: {
@@ -362,6 +363,11 @@ export type HelloEvent = {
     nonce?: string;
     proof?: string;
     appState?: string;
+    js?: JsAge;
+};
+export type JsAge = {
+    loadedMs: number;
+    refreshedMs?: number;
 };
 export type NavigationEvent = {
     event: 'navigation';

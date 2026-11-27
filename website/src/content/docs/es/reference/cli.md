@@ -683,7 +683,7 @@ Solo simulador. Define dónde está el dispositivo.
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
+Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma, y cada vez que Lynkeus vuelve a abrir esa app en ese simulador (`app.relaunch`, el reinicio antes de un caso, traerla de nuevo al frente) le pasa los mismos argumentos de arranque, que guarda en `~/.cache/lynkeus/launch-args/`; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
 
 | Argumento | Qué es |
 |---|---|
@@ -1054,7 +1054,7 @@ Opciones que deciden qué queda guardado:
 |---|---|
 | `--out <dir>` | Escribe la ejecución como un directorio que un reporte puede leer: `run.json` y `cases.jsonl`, con una línea por intento. |
 | `--screenshots` | Con `--out`: una captura de pantalla después de cada paso de la app. |
-| `--settle <ms>` | Con `--screenshots`: cuánto tiempo tiene que estar quieta la pantalla antes de tomar la captura. Por defecto `150`; usa `700` para capturas que dos ejecuciones van a comparar. |
+| `--settle <ms>` | Con `--screenshots`: cuánto tiempo tiene que estar quieta la pantalla antes de tomar la captura. Por defecto `150`; usa `700` para capturas que dos ejecuciones van a comparar. Por MCP, `case_run` acepta también `settle`, `still` y `frames`. |
 | `--frames-on-change` | Con `--screenshots`: un paso que solo mira (`app.see`, `app.wait`) sobre una pantalla que no cambió comparte la última captura en lugar de tomar otra. |
 | `--still <ms>` | Con `--screenshots`, en un simulador o un emulador: repite cada captura hasta que dos seguidas coinciden, con esta separación en milisegundos. Sirve para una transición nativa que el agente no ve. |
 | `--frames <avif\|png>` | Con `--screenshots`: el formato de las capturas. `avif` (por defecto) pesa cerca de un quinto de un PNG cuando lo escribe el host (Lynkeus FastSim), y un 4 % cuando la CLI recodifica el PNG de un simulador o un emulador; `png` es exacto, y solo hace falta cuando dos ejecuciones se comparan píxel por píxel. |

@@ -69,6 +69,12 @@ Driver → app, once the app's proof checks out:
   `--app`. Absent from older agents, from release builds, and from hosts that
   have none.
 
+- `js`: how old the JavaScript the app runs is, in ms before the message:
+  `loadedMs` since the bundle loaded, `refreshedMs` since a Fast Refresh last
+  applied an edit (absent when none has). Ages, so the device's clock does not
+  matter; `ping` answers it too. `case run` warns when the app on a device runs
+  code older than the app's newest source file. Absent from older agents.
+
 - `native`: whether touch synthesis is compiled in (debug builds only).
 - `commands`: the names the app registered with `qa.register`. The driver
   may call them like any method.

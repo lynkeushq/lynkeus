@@ -729,7 +729,7 @@ lynkeus os location <where>
 lynkeus os language [tag] [--app <bundleId>]
 ```
 
-**Simulator and Android.** Acts on the device the app is attached to. On an iOS Simulator it relaunches the app in a locale; on an Android emulator or phone it sets the app's own locale with `cmd locale set-app-locales`, which needs Android 13 (API 33) or later and fails with that reason below it.
+**Simulator and Android.** Acts on the device the app is attached to. On an iOS Simulator it relaunches the app in a locale, and every later relaunch Lynkeus makes of that app on that Simulator (`app.relaunch`, the relaunch before a case, bringing the app back to the front) passes the same launch arguments, kept in `~/.cache/lynkeus/launch-args/`; on an Android emulator or phone it sets the app's own locale with `cmd locale set-app-locales`, which needs Android 13 (API 33) or later and fails with that reason below it.
 
 | Argument | Meaning |
 |---|---|
@@ -1104,7 +1104,7 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--out <dir>` | | Write the run as a directory a report can read: `run.json` and `cases.jsonl`, one line per attempt, and `progress.ndjson`. |
 | `--no-app-events` | | With `--out`: leave the app's own event list unread. Reading it can turn on the app's tracking debug, which may draw on the screen, and frames that two runs compare should not have it. |
 | `--screenshots` | | With `--out`: a frame of the screen after every app step. |
-| `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. |
+| `--settle <ms>` | `150` | With `--screenshots`: how long the screen must stay still before a frame is taken. Use 700 for frames that two runs are compared by. Over MCP, `case_run` takes `settle`, `still` and `frames` too. |
 | `--frames-on-change` | | With `--screenshots`: a step that only looks (`app.see`, `app.wait`) on an unchanged screen shares the last frame. |
 | `--still <ms>` | | With `--screenshots`, on a simulator or an emulator: take each frame again until two in a row match, this many ms apart. For a native transition the agent cannot see. |
 | `--frames <avif\|png>` | `avif` | With `--screenshots`: `avif` is about a fifth of a PNG's bytes where the host writes it (Lynkeus FastSim), and about 4 % where the CLI encodes a simulator's or an emulator's PNG again. `png` is exact, and only for frames that two runs compare pixel for pixel. |

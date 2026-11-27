@@ -68,6 +68,10 @@ const OBSERVING = new Set([
   'nativeMocks',
 ]);
 
+// After Lynkeus starts the app again, the commands that follow wait this long for it to attach: a development build
+// fetching its bundle from Metro can take well past the 10 s an app that just left gets.
+const RELAUNCH_BACK_MS = 60_000;
+
 export class Device {
   info: DeviceInfo;
   readonly server: AgentServer;
@@ -188,8 +192,20 @@ export class Device {
     await this.server.close();
   }
 
+  /**
+   * Whether the app's process runs on the Simulator, emulator or phone while its agent is away: it is loading or
+   * reloading its JavaScript, not crashed. False on a host, which the run starts and stops itself, and when unknown.
+   */
+  async processRunning(): Promise<boolean> {
+    this.#hello = this.server.hello ?? this.#hello;
+    const appId = this.appId;
+    if (!appId || !onPhone({ hello: this.#hello })) return false;
+    return this.#lifecycle.running((await this.resolved()).id, appId).catch(() => false);
+  }
+
   async launchApp(appId: string, options: { fresh?: boolean } = {}): Promise<void> {
     this.#appId = appId;
+    this.server.expectBack?.(RELAUNCH_BACK_MS);
     await this.server.listen();
     await this.#lifecycle.launchApp((await this.resolved()).id, appId, options.fresh ?? true);
     await this.server.waitForApp();
@@ -224,6 +240,7 @@ export class Device {
       () => false,
     );
     if (!launched) active.cancel();
+    else this.server.expectBack?.(RELAUNCH_BACK_MS);
     if (await active.done) return 'returned';
     // The old connection can outlive the relaunch for a moment and answer for an app that is not there any more.
     const relaunched = untilActive(this.server, timeoutMs);
@@ -248,6 +265,7 @@ export class Device {
     this.#walk?.acted(true);
     // The old connection can answer for a moment after the launch: only the new process's hello counts.
     const attached = nextHello(this.server, timeoutMs);
+    this.server.expectBack?.(RELAUNCH_BACK_MS);
     try {
       await this.server.listen();
       await this.#lifecycle.launchApp(id, appId, true);

@@ -178,6 +178,8 @@ lynkeus screen
 - When its words are listed, press its button by its text, as a person would: `lynkeus press "Not Now"`. To get past it in any step of any case, add it to [`cases.interruptions`](/reference/configuration/#casesinterruptions): `see` its text, `do` the press.
 - When the line says another process draws it (iOS draws "Save Password?" that way), nothing from inside the app can read or tap it. Relaunch the app, or answer it on the device. To keep a suite from meeting it, sign in through an app command (`qa.register`) rather than through the form.
 
+React Native's own development banner ("Refreshing...", "Loading from Metro..."), which a development build or the Expo dev client shows at the top while Metro sends new code, is not a system view: Lynkeus knows its window by the class that handles its touches and leaves it out, and `idle`, and so each frame of a run, waits until it has gone. An app built with an older `lynkeus-agent` still lists it as `+system` until it is rebuilt.
+
 ### A press sent the app to the background
 
 **What you see.** `press` answers `! the app went to the background: it opened https://…, and the browser is in front`, or `screen` starts with that line.
@@ -209,6 +211,12 @@ In a run, the case that leaves the app in the background is the one whose failur
 **Why.** In an app that draws under the status bar, an older native module placed elements a status bar's height too high.
 
 **Fix.** Update `lynkeus-agent` and rebuild the app. The fix is in the native module, so a Metro reload is not enough.
+
+### `the app is gone (crashed or closed)` right after a relaunch or a reload
+
+**Why.** The app's connection closed and it has not dialed back in. An app that just left gets 10 seconds; after a relaunch Lynkeus made (`app.relaunch`, the relaunch before a case, bringing the app back), the commands that follow wait up to 60 seconds. Past those 10 seconds, Lynkeus asks the Simulator or emulator whether the app's process still runs: if it does, the app is loading or reloading its JavaScript (a Fast Refresh, a development build fetching its bundle from Metro), and the command waits for it, up to 60 seconds from when it left. Only an app whose process is gone fails as gone.
+
+**Fix.** When it says `the app is still running but its JavaScript has not attached again`, look at Metro and at the app: a bundle still building, a red screen, or a reload of a bundle without the agent. When it says the app is gone, the app crashed or was closed: open it again, or `lynkeus launch`.
 
 ### `No element matches …`
 

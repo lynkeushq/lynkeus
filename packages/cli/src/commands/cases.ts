@@ -14,7 +14,7 @@ import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
 import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
 import { HostPids, hostsFileOf } from '../cases/hostPids.js';
 import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
-import { nextHello } from '../device/driver.js';
+import { type Device, nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
 import { appStamp, caseVersion, Flakes, whereOf } from '../cases/flakes.js';
@@ -41,7 +41,7 @@ import {
   type TargetPlan,
   targetSlug,
 } from '../cases/onTargets.js';
-import { fastsimBundleDir, freshBundle } from '../cases/staleBundle.js';
+import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -77,11 +77,11 @@ const phoneProbe = async (ctx: Ctx, platform?: 'ios' | 'android'): Promise<strin
       : 'no Simulator or emulator is running';
 };
 
-export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
+export const startHost = async (root: string, err: (line: string) => void, port: number, launch?: RunLaunch): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
     cwd: root,
-    env: { ...process.env, ...launchEnv(launch) },
+    env: { ...process.env, ...launchEnv(launch), LYNKEUS_PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
@@ -533,6 +533,26 @@ export const keptOrDeleted = (dir: string, afterPush: 'keep' | 'delete', complet
 type ActiveRun = { label: string; progress?: string; stop: (why: string) => void; done: Promise<void> };
 const active = new Set<ActiveRun>();
 
+/**
+ * A warning when the app on a Simulator, emulator or phone runs JavaScript older than the app's source (an edit Fast
+ * Refresh did not apply); undefined when its code is current, it runs on a host, or its agent does not say how old it is.
+ */
+const deviceJsWarning = async (device: Device, root: string, skip: string[]): Promise<string | undefined> => {
+  if (!onPhone(device.server)) return undefined;
+  const ask = async () => {
+    const at = Date.now();
+    const pong = await device.server.call('ping', undefined, 3000);
+    return pong.js ? staleDeviceJs(root, pong.js, at, skip) : undefined;
+  };
+  let stale = await ask();
+  // A file saved a moment ago may still be on its way through Metro: one more look before calling the code old.
+  if (stale && stale.changedAgoS < 3) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    stale = await ask();
+  }
+  return stale ? staleJsWarning(stale, device.info.name) : undefined;
+};
+
 const STOP_POLL_MS = 500;
 // A host started again for `app.relaunch` boots as the case's first did: a FastSim host takes seconds, not minutes.
 const HOST_RELAUNCH_MS = 120_000;
@@ -554,7 +574,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const notApplied = recordLaunch(launch, startsHost)?.unsupported;
   if (notApplied?.length && !ctx.flags['dry-run'])
     ctx.err(
-      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}`,
+      `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}${notApplied.includes('locale') ? `; for the app's language on a Simulator or emulator run \`os language ${launch.locale}\` once, which every relaunch Lynkeus makes keeps` : ''}`,
     );
   const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
   const out =
@@ -594,7 +614,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const runPorts =
     typeof ctx.flags.ports === 'string'
       ? ctx.flags.ports.split(',').map(Number)
-      : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string') && !dry
+      : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host) && !dry
         ? await freePorts(jobsAsked, portFromEnv(ctx.config) ?? DEFAULT_PORT)
         : undefined;
   if (runPorts && typeof ctx.flags.ports !== 'string') ctx.err(`driver ports: ${runPorts.join(', ')} (picked free; --ports chooses them)`);
@@ -635,17 +655,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       ? path.join(out.directory, PROGRESS_FILE)
       : path.join(ctx.root, '.lynkeus', `last-run.${as.target ? `${targetSlug(as.target)}.` : ''}${PROGRESS_FILE}`);
   const hostPids = new HostPids(progressFile ? hostsFileOf(progressFile) : undefined);
-  // `--host` with several jobs starts a host per job on that job's port, as `lynkeus ci` does: one host dialing the
-  // configured port would attach to no job's driver, and every case would fail with "No app attached".
-  const hostPerJob = !!ctx.flags.host && jobsAsked > 1 && typeof ctx.flags['host-command'] !== 'string' && !dry;
-  let runHost: ChildProcess | undefined;
-  try {
-    runHost = ctx.flags.host && !dry && !hostPerJob ? await startHost(ctx.root, ctx.err, launch) : undefined;
-    if (runHost) hostPids.add(runHost);
-  } catch (error) {
-    letGo();
-    throw error;
-  }
+  // `--host` starts a host per job on a free port of its own, as `lynkeus ci` and `--on headless` do. A host dialing the
+  // configured port would meet whatever app is attached there (a Simulator's, an emulator's): the run would drive both,
+  // mixing their screens and mocks, and with several jobs it would attach to no job's driver.
+  const hostPerJob = !!ctx.flags.host && typeof ctx.flags['host-command'] !== 'string' && !dry;
   // With --keep-hosts, each job's own long-lived host, by job.
   const kept: (ChildProcess | undefined)[] = [];
   const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
@@ -655,7 +668,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       await traces.start();
     } catch (error) {
       fixtures?.close();
-      if (runHost?.pid) stopGroup(runHost.pid);
       letGo();
       return { text: `--traces could not listen on port ${traces.port}: ${(error as Error).message}`, code: 2 };
     }
@@ -702,7 +714,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     traces?.close();
     letGo();
     fixtures?.close();
-    if (runHost?.pid) stopGroup(runHost.pid);
     for (const h of kept) if (h?.pid) stopGroup(h.pid);
     for (const h of perCase) if (h.pid) stopGroup(h.pid);
     if (watching) clearInterval(watching);
@@ -726,40 +737,14 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     }),
   };
   if (!dry) active.add(registered);
-  // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
-  // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
-  // starts on a host started again. A host whose heap is near its limit would die in the middle of the next case,
-  // so it is asked before each one and started again past --host-heap percent of the limit.
-  const server = async () => (await ctx.device().catch(() => undefined))?.server;
   const heapPercent = Number(ctx.flags['host-heap'] ?? 60);
-  let reviving: Promise<void> | undefined;
-  const hostUp = (log: (line: string) => void): Promise<void> => {
-    reviving ??= (async () => {
-      if (!runHost || halt.signal.aborted) return;
-      const dead = await hostLost(runHost, await server(), 5000);
-      const memory = dead ? undefined : await (await ctx.device().catch(() => undefined))?.command<HostMemory>('memory').catch(() => undefined);
-      if (memory?.heapUsedMb) log(`host: heap ${memory.heapUsedMb} MB of ${memory.heapLimitMb ?? '?'} MB`);
-      const full = heapPast(memory, heapPercent);
-      const why = dead ?? (full ? `its heap is at ${full}` : undefined);
-      if (!why) return;
-      log(`host: ${why}; starting it again`);
-      await stopHost(runHost);
-      try {
-        runHost = await startHost(ctx.root, ctx.err, launch);
-        hostPids.add(runHost);
-        await (await server())?.waitForApp(30_000);
-      } catch (error) {
-        log(`host: did not come back: ${(error as Error).message}`);
-      }
-    })().finally(() => {
-      reviving = undefined;
-    });
-    return reviving;
-  };
   const reports: (CaseReport & { retried?: boolean })[] = [];
   let localReport: ReturnType<typeof writeRunReport> | undefined;
   // Said again with the summary: over MCP the summary is all the caller reads.
   let rebundled: string | undefined;
+  // An app on a device running JavaScript older than the source, said again with the summary.
+  let staleJs: string | undefined;
+  let staleJsCheck: Promise<void> | undefined;
   try {
     // A case that names a fixture the server does not have fails halfway, after it has changed the backend. Better not to start.
     const described = await fixtures?.describe();
@@ -772,8 +757,13 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     const ports = runPorts ?? [];
     const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : hostPerJob ? selfHeadlessCommand() : undefined;
     const keepHosts = (!!ctx.flags['keep-hosts'] || hostPerJob) && hostCommand !== undefined;
-    const headlessHosts = !!runHost || startsHeadless(hostCommand);
-    if (hostPerJob) ctx.err(`--host with --jobs ${jobs}: one headless host per job, on ports ${ports.slice(0, jobs).join(', ')}, kept for the run`);
+    const headlessHosts = startsHeadless(hostCommand);
+    if (hostPerJob)
+      ctx.err(
+        jobs > 1
+          ? `--host with --jobs ${jobs}: one headless host per job, on ports ${ports.slice(0, jobs).join(', ')}, kept for the run`
+          : `--host: a headless host on port ${ports[0]}, its own (an app attached on the configured port is left alone), kept for the run`,
+      );
     // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
     // which finds nothing when lynkeus itself runs from the npx cache.
     let hostEnv: NodeJS.ProcessEnv = process.env;
@@ -846,6 +836,20 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
             .then((info) => startNativeLogs(info, ctx.config.app as string))
             .catch(() => undefined)
         : undefined;
+    // Checked beside the first case, once the app attaches: waiting for it here would add the attach wait twice when no app comes.
+    staleJsCheck =
+      !dry && !hostCommand && !ctx.flags.host
+        ? ctx
+            .device()
+            .then((d) => deviceJsWarning(d, ctx.root, [path.resolve(home, config.dir ?? 'cases')]))
+            .then(
+              (warning) => {
+                staleJs = warning;
+                if (warning) ctx.err(warning);
+              },
+              () => undefined,
+            )
+        : undefined;
     // Several jobs finish together only if the longest cases start first: one left for the end runs alone
     // while the other jobs wait. A case the ledger has not timed goes first too, as it may be long.
     if (jobs > 1 && ledger && !ctx.flags['in-order']) {
@@ -915,7 +919,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
             log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
             store?.start(c);
             const attempt = async (n: number, prepared?: Prepared) => {
-              await hostUp(log);
               if (keepHosts && port !== undefined) await keptUp(index, port, log);
               let host =
                 hostCommand && port !== undefined && !keepHosts && !halt.signal.aborted
@@ -946,7 +949,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                     .catch(() => undefined);
                 // A headless host shared by cases (`--host`, kept hosts) still holds what the last case left: mocked
                 // storage, network rules, the clock, the screen. It starts this one as a host of its own would.
-                const shared = headlessHosts && !host ? (keepHosts ? kept[index] : runHost) : undefined;
+                const shared = headlessHosts && keepHosts && !host ? kept[index] : undefined;
                 const reset = shared !== undefined && served.has(shared) && (await resetSharedHost(scoped.base, log));
                 if (shared) served.add(shared);
                 const report = await runCase(c, {
@@ -964,7 +967,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   routes: seenDir ? (host || reset ? 'fresh' : true) : false,
                   traces,
                   nativeLogs: native,
-                  ownHost: !!hostCommand || !!runHost,
+                  ownHost: !!hostCommand,
                   signal: halt.signal,
                   // A host the run started is started again for a relaunch, as the next case would find it.
                   ...(hostCommand && port !== undefined
@@ -990,11 +993,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                     : {}),
                   onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                 });
-                const mine = keepHosts ? kept[index] : (host ?? runHost);
-                const lost =
-                  report.result === 'failed' && mine
-                    ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine, headlessHosts))
-                    : undefined;
+                const mine = keepHosts ? kept[index] : host;
+                const lost = report.result === 'failed' && mine ? ((await hostLost(mine, undefined)) ?? agentSilent(report, mine, headlessHosts)) : undefined;
                 if (lost) {
                   report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
                   report.evidence = {
@@ -1087,7 +1087,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     stop();
     // Signalled is not gone: a run that ends while its hosts are still on their way out leaves them listed and
     // alive for whoever started it (`lynkeus ci` stops "hosts the run left running").
-    await Promise.all([runHost, ...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
+    await Promise.all([...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
     active.delete(registered);
     settle();
   }
@@ -1116,6 +1116,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     ...(uploaded?.url ? { report: uploaded.url } : {}),
     ...(stoppedBy ? { stopped: stoppedBy } : {}),
   });
+  await staleJsCheck;
   const nativeReads = mergeNativeValues(reports.map((r) => r.nativeValues));
   const notes = [
     ...(fatal
@@ -1130,6 +1131,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     // A push may have deleted the folder (report.afterPush: delete).
     ...(localReport && 'file' in localReport && fs.existsSync(localReport.file) ? [`report: ${localReport.file} (open it in a browser, offline)`] : []),
     ...(rebundled ? [rebundled] : []),
+    ...(staleJs ? [staleJs] : []),
     ...(out
       ? missingEvidence(reports, {
           video: !!ctx.flags.video,
@@ -1382,7 +1384,7 @@ export const caseCommands = [
         help: "with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform)",
         value: 'dir',
       },
-      host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs) and stop it after' },
+      host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs), each on a free driver port of its own, and stop it after' },
       'host-heap': {
         type: 'number',
         help: 'with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit',
@@ -1497,10 +1499,7 @@ export const caseCommands = [
       'seen',
       'report',
       'events',
-      'settle',
-      'still',
       'frames-on-change',
-      'frames',
       'traces-port',
       'video-fps',
       'video-scale',
@@ -1512,7 +1511,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project\'s declared targets (cases.targets, or the case\'s own `targets:`) at once and answers one line per case per target; a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator none reaches the app: the seed still makes the cases\' own `{{random.*}}` repeatable, but the app keeps its own `Math.random`, language, zone and clock, and run.json lists all four under `launch.unsupported` (`os_language` sets the device\'s language). On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
+      'Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project\'s declared targets (cases.targets, or the case\'s own `targets:`) at once and answers one line per case per target; a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: "png"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts (a random-value seed, a language tag, an IANA time zone, the instant the clock starts at) on a host the run starts (`host` or `host_command`); on an attached simulator or emulator none reaches the app: the seed still makes the cases\' own `{{random.*}}` repeatable, but the app keeps its own `Math.random`, language, zone and clock, and run.json lists all four under `launch.unsupported` (`os_language` sets the device\'s language). On Lynkeus FastSim and headless the answer also lists the native values the app read that the host does not know (a constant FastSim answers as true, headless as undefined; a member read and never called that the library\'s TurboModule spec declares a method is left out, as nothing is wrong with it): each is `Module.name` with a `nativeMocks` snippet to put in the project\'s cases config, with `value: null` left for you to fill. Work the value out from the library\'s native code in node_modules (the iOS or Android source that defines the constant, or its Java/Kotlin/Swift/Objective-C `constantsToExport`), then add `{ "value": <json> }`, `{ "ios": …, "android": … }` or `{ "absent": true }` and run again; the same list is `nativeValues` in the run\'s run.json.',
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

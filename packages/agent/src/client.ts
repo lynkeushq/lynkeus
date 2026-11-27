@@ -11,6 +11,8 @@ import { addDefault, host } from './registry';
 import { trackOpenedUrls } from './opened';
 import { trackRequests } from './requests';
 import { appId } from './native';
+import { watchDevLoading } from './devLoading';
+import { jsAge, watchFastRefresh } from './jsAge';
 import { readLogs, tapLogs } from './logs';
 import { readSdkCalls, tapSdks } from './sdks';
 import { record as trace } from './trace';
@@ -89,6 +91,8 @@ export const start = (options: ClientOptions): (() => void) => {
   }
   trackRequests();
   trackOpenedUrls();
+  watchFastRefresh();
+  watchDevLoading();
   // Before `hello`, which lists the commands: the host's own (FastSim's screenshots and clock) are among them.
   installHostControls();
   // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,
@@ -134,6 +138,7 @@ export const start = (options: ClientOptions): (() => void) => {
     ...(appId() ? { appId: appId() as string } : {}),
     ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
     locale: deviceLocale(),
+    js: jsAge(),
     ...proof,
   });
 

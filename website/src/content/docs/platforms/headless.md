@@ -166,7 +166,7 @@ With the host running, `npx lynkeus case run` uses it like any other host. To ha
 API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-You should see `host: up (its log: …)` once the host is ready, then the cases. The run waits up to 180 seconds for the host to come up, and reports the last lines of its output if it does not.
+You should see `--host: a headless host on port 8124, its own …` and the host's log, then the cases. The host dials a free port of its own, never the configured one, so a development build attached there from a Simulator or emulator is not driven by the same run. The run waits up to 10 minutes for the host to attach (`--host-timeout`), and says so if it does not; its log has what it printed.
 
 With `--host`, the run also looks after the host. If it dies during a case (out of memory, a crash) or its app stops answering, the run starts it again before the next case, so the cases after it do not all fail with `No app attached`. The case that lost the host still fails, and its reasons say how the host ended, with its last words and its log; the host started again writes a log of its own. Before each case, the run reads the host's heap (one line in the log) and starts it again past `--host-heap` percent of its limit, 60 unless told. See [Hosts that die](/reference/cli/#hosts-that-die).
 

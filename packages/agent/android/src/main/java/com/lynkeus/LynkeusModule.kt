@@ -64,6 +64,34 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
 
   private fun flags(root: View): Int = (root.layoutParams as? WindowManager.LayoutParams)?.flags ?: 0
 
+  // React Native's own development overlay (its DevLoadingView's "Refreshing..." banner, a popup window over the app)
+  // is neither the app's nor the system's. It is known by the class that handles its touches, never by its words; the
+  // listener is a hidden field, so an Android that hides it otherwise leaves the banner listed, as before.
+  private fun isDevTooling(view: View, depth: Int = 4): Boolean {
+    if (clickListenerClass(view)?.contains("DevLoadingView") == true) return true
+    if (depth == 0 || view !is ViewGroup) return false
+    for (i in 0 until view.childCount) {
+      val child = view.getChildAt(i) ?: continue
+      if (isDevTooling(child, depth - 1)) return true
+    }
+    return false
+  }
+
+  private fun clickListenerClass(view: View): String? = try {
+    val infoField = View::class.java.getDeclaredField("mListenerInfo")
+    infoField.isAccessible = true
+    val info = infoField.get(view)
+    if (info == null) {
+      null
+    } else {
+      val listenerField = info.javaClass.getDeclaredField("mOnClickListener")
+      listenerField.isAccessible = true
+      listenerField.get(info)?.javaClass?.name
+    }
+  } catch (e: Exception) {
+    null
+  }
+
   private fun origin(view: View): IntArray = IntArray(2).also { view.getLocationOnScreen(it) }
 
   /**
@@ -271,6 +299,7 @@ class LynkeusModule(reactContext: ReactApplicationContext) :
       for (root in windowRoots().asReversed()) {
         if (root == activity || hasReactRoot(root)) break
         if (flags(root) and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE != 0) continue
+        if (isDevTooling(root)) continue
         val at = origin(root)
         val modal = flags(root) and (WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) == 0
         val area = if (modal) RectF(0f, 0f, activity.width.toFloat(), activity.height.toFloat())

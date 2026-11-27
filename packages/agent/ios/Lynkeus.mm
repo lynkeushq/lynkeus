@@ -84,6 +84,26 @@ static BOOL QaIsKeyboardWindow(UIWindow *window) {
   return [name containsString:@"Keyboard"] || [name containsString:@"TextEffects"];
 }
 
+// React Native's own development overlay (RCTDevLoadingView's "Refreshing..." banner, a window of its own over the app)
+// is neither the app's nor the system's. It is known by the class that handles its touches, never by its words; a
+// gesture's targets are private, so a UIKit that names them otherwise leaves the banner listed, as before.
+static BOOL QaIsDevToolingView(UIView *view, NSInteger depth) {
+  for (UIGestureRecognizer *gesture in view.gestureRecognizers) {
+    @try {
+      for (id target in [gesture valueForKey:@"_targets"]) {
+        id owner = [target valueForKey:@"_target"];
+        if (owner && [NSStringFromClass([owner class]) containsString:@"DevLoadingView"]) return YES;
+      }
+    } @catch (__unused NSException *exception) {
+    }
+  }
+  if (depth == 0) return NO;
+  for (UIView *child in view.subviews) {
+    if (QaIsDevToolingView(child, depth - 1)) return YES;
+  }
+  return NO;
+}
+
 static UIViewController *QaPresented(UIWindow *window) {
   UIViewController *top = window.rootViewController.presentedViewController;
   while (top.presentedViewController) top = top.presentedViewController;
@@ -381,6 +401,7 @@ static id<UIKeyInput> QaKeyInput(void) {
     CGRect covers = CGRectNull;
     for (UIWindow *window in QaWindowsFrontFirst()) {
       UIView *root = window;
+      if (QaIsDevToolingView(window, 4)) continue;
       if (QaIsKeyboardWindow(window)) {
         root = QaPresented(window).view;
         if (!root) continue;

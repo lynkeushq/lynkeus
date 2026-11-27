@@ -171,6 +171,14 @@ Los errores correspondientes son:
 
 **Una comparación útil.** `--js` llama al `onPress` de React en lugar de sintetizar un toque. Si con `--js` funciona y sin él no, el control existe y algo se interpone entre el dedo y él. Es un diagnóstico, no un arreglo: un test que solo pasa con `--js` no está probando lo que haría un usuario.
 
+### `the app is gone (crashed or closed)` justo después de reiniciar o recargar la app
+
+**Qué ves.** Un `wait` o un `press` falla enseguida con `the app is gone (crashed or closed): it disconnected 20.7 s ago and has not dialed back in`, mientras la app todavía está cargando.
+
+**Por qué pasa.** La conexión de la app se cerró y no volvió a llamar. Una app que acaba de irse tiene 10 segundos para volver. Si fue Lynkeus quien la reinició (`app.relaunch`, el reinicio antes de un caso, traerla al frente), los comandos siguientes esperan hasta 60 segundos. Pasados los 10 segundos, Lynkeus le pregunta al simulador o al emulador si el proceso de la app sigue vivo: si sigue, la app está cargando su JavaScript (un Fast Refresh, una app de desarrollo que baja el bundle de Metro) y el comando la espera, hasta 60 segundos desde que se fue. Solo falla como `gone` una app cuyo proceso ya no existe.
+
+**Cómo se arregla.** Si dice `the app is still running but its JavaScript has not attached again`, mira Metro y la app: un bundle que sigue compilando, una pantalla roja o una recarga con un bundle sin el agente. Si dice que la app se fue, se cerró o falló: ábrela de nuevo, o usa `lynkeus launch`.
+
 ### Hay una alerta del sistema delante de la app
 
 **Qué ves.** El encabezado termina en `+system` y una línea que empieza con `!` avisa que delante de la app hay una vista que la app no dibujó. Pulsar un control que quedó debajo falla con `… is under a view the app did not draw`, en lugar de tocar la app por detrás de la alerta.
@@ -181,6 +189,8 @@ Los errores correspondientes son:
 
 - Si su texto aparece en el listado, pulsa el botón por su texto, como lo haría una persona: `lynkeus press "Ahora no"`. Para quitarla en cualquier paso de cualquier caso, agrégala a [`cases.interruptions`](/es/reference/configuration/#casesinterruptions): en `see` su texto, en `do` la pulsación.
 - Si la línea dice que la dibuja otro proceso (así lo hace iOS con "¿Guardar contraseña?"), nada desde dentro de la app puede leerla ni tocarla. Vuelve a abrir la app, o respóndela en el dispositivo. Para que una suite no se la cruce, inicia sesión con un comando de la app (`qa.register`) en lugar del formulario.
+
+El aviso de desarrollo de React Native ("Refreshing...", "Loading from Metro..."), que una app de desarrollo o el Expo dev client muestran arriba mientras Metro manda código nuevo, no es una vista del sistema: Lynkeus reconoce su ventana por la clase que atiende sus toques y la deja fuera, e `idle` (y con él cada captura de una ejecución) espera a que desaparezca. Una app compilada con un `lynkeus-agent` anterior la sigue mostrando como `+system` hasta que la vuelvas a compilar.
 
 ### Un toque mandó la app a segundo plano
 

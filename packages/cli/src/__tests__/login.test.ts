@@ -201,7 +201,8 @@ test('fastsim install with no key and no sign-in exits 2 naming both ways', asyn
     code: number;
   };
   assert.equal(result.code, 2);
-  assert.match(result.text, /^no way to sign in to \S+: run lynkeus login in a terminal/);
+  assert.match(result.text, /^A step only the person can do: run `lynkeus login`/);
+  assert.match(result.text, /no way to sign in to \S+/);
   assert.match(result.text, /in CI, set LYNKEUS_CLOUD_KEY.*May download Lynkeus FastSim/);
 });
 
@@ -211,7 +212,7 @@ test('a 401 with a sign-in says to sign in again', async () => {
   await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
   cloud.issued.access = 'lka_revoked';
   const result = (await install.run(ctx({ cloud: cloud.url, version: 'latest', platform: 'ios', variant: 'linux-x64-ios' }))) as { text: string; code: number };
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.text, /sign in again with lynkeus login/);
   cloud.close();
 });
@@ -349,7 +350,7 @@ test('a refused saved sign-in at a terminal signs in once and retries once', asy
   cloud.close();
 });
 
-test('a refused saved sign-in without a terminal keeps the old message and opens nothing', async () => {
+test('a refused saved sign-in without a terminal says first that only the person can sign in, and opens nothing', async () => {
   isolate();
   delete process.env.CI;
   const cloud = await fakeCloud();
@@ -357,8 +358,27 @@ test('a refused saved sign-in without a terminal keeps the old message and opens
   cloud.issued.access = 'lka_revoked';
   const { opened, install: cmd } = withTty(cloud, { tty: false });
   const result = (await cmd.run(ctx(flagsFor(cloud.url)))) as Out;
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
+  assert.match(result.text.split('\n')[0] ?? '', /^A step only the person can do: run `lynkeus login` in a terminal/);
   assert.match(result.text, /sign in again with lynkeus login/);
+  assert.equal(opened.length, 0);
+  cloud.close();
+});
+
+test('a sign-in whose refresh the service no longer takes, without a terminal, says first that only the person can sign in', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  const file = credentialsPath();
+  const all = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, Record<string, unknown>>;
+  all[cloud.url] = { ...all[cloud.url], expiresAt: 0, refreshToken: 'lkr_used' };
+  fs.writeFileSync(file, JSON.stringify(all), { mode: 0o600 });
+  const { opened, install: cmd } = withTty(cloud, { tty: false });
+  const result = (await cmd.run(ctx(flagsFor(cloud.url)))) as Out;
+  assert.equal(result.code, 2);
+  assert.match(result.text.split('\n')[0] ?? '', /^A step only the person can do/);
+  assert.match(result.text, /could not be renewed.*invalid_grant/);
   assert.equal(opened.length, 0);
   cloud.close();
 });

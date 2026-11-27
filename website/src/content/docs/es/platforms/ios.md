@@ -73,7 +73,7 @@ En un simulador, la capa nativa es real. Los comandos del grupo `os` actúan sob
 | `lynkeus os push <payload>` | Entrega una notificación push. Recibe un JSON o un archivo `.json`. |
 | `lynkeus os appearance <light\|dark>` | Cambia entre modo claro y oscuro. |
 | `lynkeus os location <lat>,<lon>` | Fija la ubicación del dispositivo. Con `clear` la borra. |
-| `lynkeus os language [tag]` | Reinicia la app en otro idioma, por ejemplo `de-DE`. Sin argumento usa el de `lynkeus.config.json`. Con un simulador y un emulador a la vez, `--device` elige cuál. |
+| `lynkeus os language [tag]` | Reinicia la app en otro idioma, por ejemplo `de-DE`. Sin argumento usa el de `lynkeus.config.json`. El idioma se mantiene cada vez que Lynkeus vuelve a abrir la app (`app.relaunch`, el reinicio antes de un caso, traerla al frente); si la reinicias a mano, vuelve en el idioma del simulador. Con un simulador y un emulador a la vez, `--device` elige cuál. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. |
 | `lynkeus os appstate <active\|background>` | Manda la app al fondo o la trae de vuelta, de verdad: quienes escuchan `AppState` se enteran, y con `active` el comando espera a que el agente se conecte otra vez. `--app` nombra la app que se trae de vuelta. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Inscribe o quita Face ID o Touch ID en el simulador. Lo que responde cada solicitud (`--next`, `--fallback`) lo decide la persona frente al dispositivo, así que un caso que lo pide queda como no compatible. |

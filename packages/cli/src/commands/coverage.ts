@@ -7,7 +7,8 @@ import { Fixtures } from '../cases/fixtures.js';
 import { FIXTURES } from '../cases/templates.js';
 import { readCases } from '../cases/format.js';
 import { macroSnippet, repeatedOpening, wayTo } from '../cases/reuse.js';
-import { edgesFile, lynkeusDir } from '../config.js';
+import { DEFAULT_PORT, edgesFile, lynkeusDir, portFromEnv } from '../config.js';
+import { freePorts } from '../cases/portClaim.js';
 import * as edges from '../knowledge/edges.js';
 import { navigatorRoutes } from '../knowledge/nesting.js';
 import { plan } from '../knowledge/plan.js';
@@ -263,23 +264,27 @@ export const coverageCommands = [
     flags: {
       title: { type: 'string', help: 'what the case shows, as the report will title it', value: 'text' },
       write: { type: 'boolean', help: 'save it in the cases folder instead of printing it' },
-      host: { type: 'boolean', help: 'start `headless start` for the read and stop it after' },
+      host: { type: 'boolean', help: 'start `headless start` for the read, on a free driver port of its own, and stop it after' },
     },
     needs: 'app',
     mcp: 'core',
     run: async (ctx) => {
       const id = ctx.args[0]!;
       if (!/^[a-z0-9][a-z0-9._-]*$/.test(id)) return { text: `${id}: an id is lower case letters, digits, dots, dashes and underscores`, code: 2 };
-      // Over MCP no shell keeps a host running: --host brings one up for the read, as `case run --host` does for a run.
-      const host = ctx.flags.host ? await startHost(ctx.root, ctx.err) : undefined;
+      // Over MCP no shell keeps a host running: --host brings one up for the read, as `case run --host` does for a run,
+      // on a free port of its own so an app attached on the configured port is not the one read.
+      const port = ctx.flags.host && ctx.forPort ? (await freePorts(1, portFromEnv(ctx.config) ?? DEFAULT_PORT))[0] : undefined;
+      const scoped = port !== undefined ? ctx.forPort!(port) : undefined;
+      const host = port !== undefined ? await startHost(ctx.root, ctx.err, port) : undefined;
       let locale: string | undefined;
       const screen = await (async () => {
         try {
-          const device = await ctx.device();
+          const device = await (scoped?.base ?? ctx).device();
           locale = device.server.hello?.locale;
           return await device.screen();
         } finally {
           if (host) await stopHost(host);
+          await scoped?.stop();
         }
       })();
       const text = hereCase(id, screen, ctx.flags.title as string | undefined, { locale, language: ctx.config.language });
