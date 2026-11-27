@@ -33,10 +33,13 @@ double renders and double-mounted effects double every request, commit and
 millisecond the host measures. `"strictMode": true` in `lynkeus.config.json`
 keeps it.
 
-`case run --host` starts a host for the run. With `--jobs <n>` it starts one
-per job, each with `LYNKEUS_PORT` set to its job's driver port and kept for the
-run (as `lynkeus ci` does), logging to `lynkeus-headless-<pid>-<port>.log` in
-the temporary folder. A case that finds no app on a headless host is never put
+`case run --host` starts a host for the run, one per job with `--jobs <n>`, each
+with `LYNKEUS_PORT` set to a free driver port of its own and kept for the run
+(as `lynkeus ci` and `--on headless` do), logging to
+`lynkeus-headless-<pid>-<port>.log` in the temporary folder. The host never
+dials the configured port, so an app attached there from a Simulator or
+emulator (to a `lynkeus mcp` server, say) is left alone instead of being driven
+alongside the host. `case here --host` does the same for its read. A case that finds no app on a headless host is never put
 down to a bundle with the agent off: a headless host always runs it.
 
 A headless host that serves several cases (`--host`, or `--keep-hosts` with a

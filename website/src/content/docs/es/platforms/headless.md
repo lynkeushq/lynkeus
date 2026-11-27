@@ -108,7 +108,7 @@ Para ejecutar casos no necesitas los pasos 3 y 4. La opción `--host` levanta el
 API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-Verás `host: up (its log: …)` cuando esté listo; esa ruta es el registro de todo lo que imprime el host. Si el host no arranca en 180 segundos, la ejecución termina con las últimas líneas de su salida.
+Verás `--host: a headless host on port 8124, its own …` y la ruta del registro de todo lo que imprime el host. El host se conecta a un puerto libre propio y nunca al configurado: si tienes la app de desarrollo abierta en un simulador o emulador conectada a ese puerto, la ejecución no la mezcla con el host. La ejecución espera hasta 10 minutos a que el host se conecte (`--host-timeout`) y avisa si no lo hace; su registro tiene lo que imprimió.
 
 Con `--jobs <n>`, `--host` levanta un host por trabajo, cada uno conectado al puerto de su trabajo (Lynkeus elige puertos libres si no pasas `--ports`). Cada host sirve a los casos de su trabajo durante toda la ejecución y escribe su registro en la carpeta temporal del sistema, con el número de puerto en el nombre.
 

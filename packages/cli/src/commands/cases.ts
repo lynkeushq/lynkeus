@@ -77,11 +77,11 @@ const phoneProbe = async (ctx: Ctx, platform?: 'ios' | 'android'): Promise<strin
       : 'no Simulator or emulator is running';
 };
 
-export const startHost = async (root: string, err: (line: string) => void, launch?: RunLaunch): Promise<ChildProcess> => {
+export const startHost = async (root: string, err: (line: string) => void, port: number, launch?: RunLaunch): Promise<ChildProcess> => {
   // Its own process group: the host starts a test runner of its own, and stopping one without the other leaves an app dialing in.
   const host = spawn(process.execPath, [process.argv[1]!, 'headless', 'start'], {
     cwd: root,
-    env: { ...process.env, ...launchEnv(launch) },
+    env: { ...process.env, ...launchEnv(launch), LYNKEUS_PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: true,
   });
@@ -594,7 +594,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const runPorts =
     typeof ctx.flags.ports === 'string'
       ? ctx.flags.ports.split(',').map(Number)
-      : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string') && !dry
+      : (jobsAsked > 1 || typeof ctx.flags['host-command'] === 'string' || !!ctx.flags.host) && !dry
         ? await freePorts(jobsAsked, portFromEnv(ctx.config) ?? DEFAULT_PORT)
         : undefined;
   if (runPorts && typeof ctx.flags.ports !== 'string') ctx.err(`driver ports: ${runPorts.join(', ')} (picked free; --ports chooses them)`);
@@ -635,17 +635,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       ? path.join(out.directory, PROGRESS_FILE)
       : path.join(ctx.root, '.lynkeus', `last-run.${as.target ? `${targetSlug(as.target)}.` : ''}${PROGRESS_FILE}`);
   const hostPids = new HostPids(progressFile ? hostsFileOf(progressFile) : undefined);
-  // `--host` with several jobs starts a host per job on that job's port, as `lynkeus ci` does: one host dialing the
-  // configured port would attach to no job's driver, and every case would fail with "No app attached".
-  const hostPerJob = !!ctx.flags.host && jobsAsked > 1 && typeof ctx.flags['host-command'] !== 'string' && !dry;
-  let runHost: ChildProcess | undefined;
-  try {
-    runHost = ctx.flags.host && !dry && !hostPerJob ? await startHost(ctx.root, ctx.err, launch) : undefined;
-    if (runHost) hostPids.add(runHost);
-  } catch (error) {
-    letGo();
-    throw error;
-  }
+  // `--host` starts a host per job on a free port of its own, as `lynkeus ci` and `--on headless` do. A host dialing the
+  // configured port would meet whatever app is attached there (a Simulator's, an emulator's): the run would drive both,
+  // mixing their screens and mocks, and with several jobs it would attach to no job's driver.
+  const hostPerJob = !!ctx.flags.host && typeof ctx.flags['host-command'] !== 'string' && !dry;
   // With --keep-hosts, each job's own long-lived host, by job.
   const kept: (ChildProcess | undefined)[] = [];
   const fixtures = config.fixtures && !dry ? new Fixtures(config.fixtures, home) : undefined;
@@ -655,7 +648,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       await traces.start();
     } catch (error) {
       fixtures?.close();
-      if (runHost?.pid) stopGroup(runHost.pid);
       letGo();
       return { text: `--traces could not listen on port ${traces.port}: ${(error as Error).message}`, code: 2 };
     }
@@ -702,7 +694,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     traces?.close();
     letGo();
     fixtures?.close();
-    if (runHost?.pid) stopGroup(runHost.pid);
     for (const h of kept) if (h?.pid) stopGroup(h.pid);
     for (const h of perCase) if (h.pid) stopGroup(h.pid);
     if (watching) clearInterval(watching);
@@ -726,36 +717,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     }),
   };
   if (!dry) active.add(registered);
-  // The run's own host (--host) can die with a case (out of memory, a crash) and take the app with it: every case
-  // after it would fail with "No app attached". The case that lost it keeps its failure, with why; the next one
-  // starts on a host started again. A host whose heap is near its limit would die in the middle of the next case,
-  // so it is asked before each one and started again past --host-heap percent of the limit.
-  const server = async () => (await ctx.device().catch(() => undefined))?.server;
   const heapPercent = Number(ctx.flags['host-heap'] ?? 60);
-  let reviving: Promise<void> | undefined;
-  const hostUp = (log: (line: string) => void): Promise<void> => {
-    reviving ??= (async () => {
-      if (!runHost || halt.signal.aborted) return;
-      const dead = await hostLost(runHost, await server(), 5000);
-      const memory = dead ? undefined : await (await ctx.device().catch(() => undefined))?.command<HostMemory>('memory').catch(() => undefined);
-      if (memory?.heapUsedMb) log(`host: heap ${memory.heapUsedMb} MB of ${memory.heapLimitMb ?? '?'} MB`);
-      const full = heapPast(memory, heapPercent);
-      const why = dead ?? (full ? `its heap is at ${full}` : undefined);
-      if (!why) return;
-      log(`host: ${why}; starting it again`);
-      await stopHost(runHost);
-      try {
-        runHost = await startHost(ctx.root, ctx.err, launch);
-        hostPids.add(runHost);
-        await (await server())?.waitForApp(30_000);
-      } catch (error) {
-        log(`host: did not come back: ${(error as Error).message}`);
-      }
-    })().finally(() => {
-      reviving = undefined;
-    });
-    return reviving;
-  };
   const reports: (CaseReport & { retried?: boolean })[] = [];
   let localReport: ReturnType<typeof writeRunReport> | undefined;
   // Said again with the summary: over MCP the summary is all the caller reads.
@@ -772,8 +734,13 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     const ports = runPorts ?? [];
     const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : hostPerJob ? selfHeadlessCommand() : undefined;
     const keepHosts = (!!ctx.flags['keep-hosts'] || hostPerJob) && hostCommand !== undefined;
-    const headlessHosts = !!runHost || startsHeadless(hostCommand);
-    if (hostPerJob) ctx.err(`--host with --jobs ${jobs}: one headless host per job, on ports ${ports.slice(0, jobs).join(', ')}, kept for the run`);
+    const headlessHosts = startsHeadless(hostCommand);
+    if (hostPerJob)
+      ctx.err(
+        jobs > 1
+          ? `--host with --jobs ${jobs}: one headless host per job, on ports ${ports.slice(0, jobs).join(', ')}, kept for the run`
+          : `--host: a headless host on port ${ports[0]}, its own (an app attached on the configured port is left alone), kept for the run`,
+      );
     // One grant for the whole run, in the hosts' environment: fastsim-run would otherwise run `npx --no-install lynkeus`,
     // which finds nothing when lynkeus itself runs from the npx cache.
     let hostEnv: NodeJS.ProcessEnv = process.env;
@@ -915,7 +882,6 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
             log(`▶ ${c.id}${c.title ? ` — ${c.title}` : ''}`);
             store?.start(c);
             const attempt = async (n: number, prepared?: Prepared) => {
-              await hostUp(log);
               if (keepHosts && port !== undefined) await keptUp(index, port, log);
               let host =
                 hostCommand && port !== undefined && !keepHosts && !halt.signal.aborted
@@ -946,7 +912,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                     .catch(() => undefined);
                 // A headless host shared by cases (`--host`, kept hosts) still holds what the last case left: mocked
                 // storage, network rules, the clock, the screen. It starts this one as a host of its own would.
-                const shared = headlessHosts && !host ? (keepHosts ? kept[index] : runHost) : undefined;
+                const shared = headlessHosts && keepHosts && !host ? kept[index] : undefined;
                 const reset = shared !== undefined && served.has(shared) && (await resetSharedHost(scoped.base, log));
                 if (shared) served.add(shared);
                 const report = await runCase(c, {
@@ -964,7 +930,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                   routes: seenDir ? (host || reset ? 'fresh' : true) : false,
                   traces,
                   nativeLogs: native,
-                  ownHost: !!hostCommand || !!runHost,
+                  ownHost: !!hostCommand,
                   signal: halt.signal,
                   // A host the run started is started again for a relaunch, as the next case would find it.
                   ...(hostCommand && port !== undefined
@@ -990,11 +956,8 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
                     : {}),
                   onStep: (p) => emit({ type: 'step', at: now(), id: c.id, job: index, ...p }),
                 });
-                const mine = keepHosts ? kept[index] : (host ?? runHost);
-                const lost =
-                  report.result === 'failed' && mine
-                    ? ((await hostLost(mine, mine === runHost ? await server() : undefined)) ?? agentSilent(report, mine, headlessHosts))
-                    : undefined;
+                const mine = keepHosts ? kept[index] : host;
+                const lost = report.result === 'failed' && mine ? ((await hostLost(mine, undefined)) ?? agentSilent(report, mine, headlessHosts)) : undefined;
                 if (lost) {
                   report.diagnosis = [...(report.diagnosis ?? []), `during this case the host ${lost}`];
                   report.evidence = {
@@ -1087,7 +1050,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     stop();
     // Signalled is not gone: a run that ends while its hosts are still on their way out leaves them listed and
     // alive for whoever started it (`lynkeus ci` stops "hosts the run left running").
-    await Promise.all([runHost, ...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
+    await Promise.all([...kept, ...perCase].flatMap((h) => (h ? [stopHost(h)] : [])));
     active.delete(registered);
     settle();
   }
@@ -1382,7 +1345,7 @@ export const caseCommands = [
         help: "with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform)",
         value: 'dir',
       },
-      host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs) and stop it after' },
+      host: { type: 'boolean', help: 'start `headless start` for the run (one per job with --jobs), each on a free driver port of its own, and stop it after' },
       'host-heap': {
         type: 'number',
         help: 'with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit',
