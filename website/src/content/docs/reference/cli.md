@@ -461,7 +461,7 @@ Says what the project has of Lynkeus and what is missing, and where cases can ru
 - `lynkeus-agent` is a dependency and is installed.
 - The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
 - The project has a token, and in an Expo app Expo is given it.
-- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds.
+- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds. When several apps dial the port (the iOS Simulator's and the emulator's development builds), the line lists each with its device, says which one this session drives and which one it turns away, and how to drive the other: `case run --on android` and `why --on android`, or close the driven app so the other attaches.
 - There are cases to run. `lynkeus case init` writes an example.
 - Runs can be pushed to the report service: `LYNKEUS_REPORTS_KEY` is set. Optional.
 

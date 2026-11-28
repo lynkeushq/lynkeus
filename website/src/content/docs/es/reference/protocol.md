@@ -134,6 +134,8 @@ Una pulsación no se puede repetir sin consecuencias. Por eso, si la conexión s
 
 Un `session` distinto le indica a la app que es otro driver, que numera sus peticiones desde 1, y descarta lo guardado.
 
+Cuando una app se relanza, se conecta de nuevo antes de que el driver note que la conexión anterior se cerró; `lynkeus-client` se queda con la nueva. Otra app distinta (de otra plataforma, o con otro app id) no desplaza a la que está conectada y en primer plano: una vez que ambos lados probaron el token, `lynkeus-client` cierra la conexión nueva con el código 1013. Esa app entra cuando vuelve a llamar después de que la primera se fue.
+
 ## Objetivos
 
 Casi todos los métodos reciben un **objetivo**: el elemento sobre el que actúan.

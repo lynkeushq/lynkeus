@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { AgentError } from 'lynkeus-client';
+import { AgentError, type PortApp } from 'lynkeus-client';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import { nativeValuesEnv } from '../cases/nativeValues.js';
@@ -11,9 +11,10 @@ import { configFile, DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, 
 import { readJson, writeJson } from '../files.js';
 import { prepareDevMenu } from '../device/devMenu.js';
 import { describeHolder, portHolder } from '../device/portHolder.js';
-import { reverseAndroid } from '../device/devices.js';
+import { type DeviceInfo, reverseAndroid } from '../device/devices.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
+import { laneLabel } from '../runtime.js';
 import { doctor } from './doctor.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { installedFastsim, installedKit } from './fastsim.js';
@@ -184,6 +185,28 @@ export const attachedCheck = (hello: HelloEvent | null, attachFix: string): { wh
 };
 
 /**
+ * The status line when several apps dial the driver's port (an iOS Simulator's and an emulator's development build):
+ * each with its lane and device, which one this session drives, and how to drive the other. Undefined for one app.
+ */
+export const portAppsCheck = (apps: PortApp[], port: number, devices: DeviceInfo[] = []): { what: string; ok: boolean } | undefined => {
+  if (apps.length < 2) return undefined;
+  const onDevice = (a: PortApp) => {
+    const own = devices.filter((d) => d.platform === a.hello.platform && a.hello.native && !a.hello.commands?.includes('clock'));
+    return own.length === 1 ? own[0] : undefined;
+  };
+  const role = { this: 'driven by this session', other: 'driven by a run', none: 'turned away while the other is attached' };
+  const listed = apps.map((a) => {
+    const device = onDevice(a);
+    const lane = laneLabel(a.hello, device?.type) ?? a.hello.platform;
+    return `${String(a.hello.app?.name ?? a.hello.appId ?? a.hello.platform)} on ${lane}${device ? ` (${device.name})` : ''}: ${role[a.driven]}`;
+  });
+  const driven = apps.find((a) => a.driven === 'this');
+  const others = [...new Set(apps.filter((a) => a !== driven).map((a) => a.hello.platform))];
+  const switchTo = `case run and why take --on ${others.join('|') || 'ios|android'} (on, over MCP); screen, press and the other tools drive ${driven ? `the ${driven.hello.platform} app` : 'the first app that attaches'} until it closes: close it (xcrun simctl terminate booted <app id>, adb shell am force-stop <app id>) and the other attaches within 2 s`;
+  return { what: `${apps.length} apps dial port ${port}: ${listed.join('; ')}. To drive another: ${switchTo}`, ok: true };
+};
+
+/**
  * The status line when connecting to the app failed. A port another process holds names that process (`holder`,
  * from `describeHolder`) when it can be told, else says so as `screen` does; an app refused for another token says that.
  */
@@ -311,7 +334,15 @@ export const headlessCommands = [
             attached = String(hello?.app?.name ?? hello?.platform);
             check.what = check.what.replace(/\)$/, `, port ${port})`);
           }
-          checks.push(check);
+          const up = machine ? await machine : undefined;
+          const devices = up ? [...up.simulators, ...up.android] : [];
+          let apps = device.server.apps?.() ?? [];
+          // A second device's app turned away dials again within 1.5 s: a fresh process waits that long to see it.
+          for (const until = Date.now() + 1600; check.ok && !ctx.attached && apps.length < devices.length && Date.now() < until; ) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            apps = device.server.apps?.() ?? [];
+          }
+          checks.push((check.ok ? portAppsCheck(apps, port, devices) : undefined) ?? check);
         } catch (error) {
           const taken = error instanceof AgentError && error.code === 'port-in-use';
           checks.push(attachFailureCheck(error, port, runtime.attachFix, taken ? describeHolder(port, await portHolder(port), ctx.root) : undefined));

@@ -84,8 +84,27 @@ export type AgentServerOptions = {
   ended?: () => string | undefined;
 };
 
-/** Every server of this process listening on one host and port, and the socket server they share. */
-type Hub = { key: string; http: Server; wss: WebSocketServer; servers: AgentServer[]; token?: string };
+/** An app that proved the token on a port: when it last said hello, and whether it was turned away then. */
+type Seen = { hello: HelloEvent; at: number; turnedAway: boolean };
+/** Every server of this process listening on one host and port, the socket server they share, and the apps seen there. */
+type Hub = { key: string; http: Server; wss: WebSocketServer; servers: AgentServer[]; token?: string; seen: Map<string, Seen> };
+
+/** Which app a hello is, across its relaunches: a Simulator's and an emulator's, or a FastSim host's, are different apps. */
+const identity = (hello: HelloEvent): string =>
+  [hello.platform, hello.native ? 'native' : 'headless', hello.commands?.includes('clock') ? 'host' : '', hello.appId ?? String(hello.app?.name ?? '')].join(
+    '|',
+  );
+
+const ORDER = { this: 0, other: 1, none: 2 } as const;
+
+/** An app on a driver's port, as `apps()` lists it. */
+export type PortApp = {
+  hello: HelloEvent;
+  /** When it last proved the token (ms since the epoch). */
+  at: number;
+  /** `this`: the server asked drives it; `other`: another server of the process on the port does; `none`: it was turned away. */
+  driven: 'this' | 'other' | 'none';
+};
 const hubs = new Map<string, Hub>();
 
 const portTaken = (port: number) =>
@@ -177,6 +196,24 @@ export class AgentServer extends EventEmitter {
     return this.#hello;
   }
 
+  /**
+   * Every app that proved the token on this port in the last `withinMs` (default 10 s), or is attached to a server of
+   * it now: the one this server drives, those other servers of the process drive, those turned away, newest first.
+   */
+  apps(withinMs = 10_000): PortApp[] {
+    const hub = this.#hub;
+    if (!hub) return this.#hello ? [{ hello: this.#hello, at: Date.now(), driven: 'this' }] : [];
+    const now = Date.now();
+    const holder = (key: string) => hub.servers.find((s) => s.connected && identity(s.#hello!) === key);
+    return [...hub.seen.entries()]
+      .filter(([key, seen]) => holder(key) || now - seen.at <= withinMs)
+      .map(([key, seen]): PortApp => {
+        const by = holder(key);
+        return { hello: (by ? by.#hello : null) ?? seen.hello, at: seen.at, driven: by === this ? 'this' : by ? 'other' : 'none' };
+      })
+      .sort((a, b) => ORDER[a.driven] - ORDER[b.driven] || b.at - a.at);
+  }
+
   /** An app was attached and has disconnected without dialing back in: it crashed, was closed, or is reloading. */
   get gone(): boolean {
     return this.#goneSince !== null && !this.connected;
@@ -218,7 +255,7 @@ export class AgentServer extends EventEmitter {
       response.end('Upgrade Required');
     });
     const wss = new WebSocketServer({ server: http, maxPayload: MAX_FRAME });
-    const hub: Hub = { key, http, wss, servers: [this], token: this.#token };
+    const hub: Hub = { key, http, wss, servers: [this], token: this.#token, seen: new Map() };
     hubs.set(key, hub);
     this.#hub = hub;
     wss.on('connection', (socket) => {
@@ -465,6 +502,19 @@ export class AgentServer extends EventEmitter {
           const found = this.#ownerOf(safe as HelloEvent);
           if (!found) {
             drop(1013, 'no driver on this port takes this app');
+            return;
+          }
+          // Another app of a server that takes any (a second device's on the session's port) does not knock off the
+          // one attached: they would take turns, each redialing, and the commands would drive both by turns. It is told
+          // why after the token is proven both ways, so it redials quietly instead of reporting a refused token.
+          const hello = safe as HelloEvent;
+          const turnedAway =
+            !found.#accepts && found.connected && found.#socket !== socket && found.#appState !== 'background' && identity(found.#hello!) !== identity(hello);
+          this.#hub?.seen.set(identity(hello), { hello, at: Date.now(), turnedAway });
+          if (turnedAway) {
+            if (this.#token !== undefined && typeof nonce === 'string')
+              socket.send(JSON.stringify({ event: 'verified', proof: proof(this.#token, 'driver', this.#session, driverNonce, nonce) }));
+            drop(1013, 'another app is attached on this port');
             return;
           }
           owner = found;

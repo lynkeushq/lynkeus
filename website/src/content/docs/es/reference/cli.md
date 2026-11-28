@@ -419,6 +419,8 @@ Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependenc
 |---|---|
 | `--offline` | Revisa solo los archivos; no espera a que haya una app conectada. |
 
+Si hay más de una app llamando al puerto (por ejemplo, el build de desarrollo del simulador de iOS y el del emulador de Android), la línea de la app conectada las nombra a todas, cada una con su dispositivo, y aclara cuál maneja esta sesión, a cuál rechaza mientras tanto y cómo pasar a la otra: `case run --on android` o `why --on android`, o cerrar la app que está conectada para que entre la otra.
+
 Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o con `○` si falta algo opcional. Las `✗` y las `○` terminan con la solución tras un guion largo.
 
 Después viene **Where cases can run on this machine**: dónde pueden correr los casos en esta máquina. Muestra los simuladores de iOS encendidos, los emuladores y teléfonos Android que lista `adb devices`, si la app puede correr sin pantalla y si Lynkeus FastSim está instalado. La última línea recomienda qué usar en el día a día y qué usar en CI.

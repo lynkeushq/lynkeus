@@ -9,7 +9,7 @@ import { driveCommands } from '../commands/drive.js';
 import { osCommands } from '../commands/os.js';
 import { AgentError } from 'lynkeus-client';
 
-import { attachFailureCheck, attachedCheck } from '../commands/headless.js';
+import { attachFailureCheck, attachedCheck, portAppsCheck } from '../commands/headless.js';
 import { claimPorts } from '../cases/portClaim.js';
 import { lastRunFile, statusOf } from '../cases/progress.js';
 import type { CaseReport } from '../cases/runner.js';
@@ -430,4 +430,26 @@ test('why with no target explains the last failed case of the last run on its ow
   const after = await execute(['why'], attached);
   assert.equal(after.lane, undefined);
   assert.doesNotMatch(after.text ?? '', /podcast/);
+});
+
+test('status lists every app on the port with its device, says which one the session drives and how to drive the other', () => {
+  const hello = (platform: string) => ({ event: 'hello' as const, protocolVersion: 2, platform, native: true, commands: [], app: { name: 'ShopTrial' } });
+  const devices = [
+    { id: 'A1', name: 'iPhone 17 Pro', platform: 'ios' as const, type: 'simulator' as const, connected: true },
+    { id: 'emulator-5554', name: 'lynkeus-trial', platform: 'android' as const, type: 'emulator' as const, connected: true },
+  ];
+  assert.equal(portAppsCheck([{ hello: hello('ios'), at: 1, driven: 'this' }], 8123, devices), undefined);
+  const check = portAppsCheck(
+    [
+      { hello: hello('ios'), at: 2, driven: 'this' },
+      { hello: hello('android'), at: 1, driven: 'none' },
+    ],
+    8123,
+    devices,
+  );
+  assert.equal(check?.ok, true);
+  assert.equal(
+    check?.what,
+    '2 apps dial port 8123: ShopTrial on iOS Simulator (iPhone 17 Pro): driven by this session; ShopTrial on Android emulator (lynkeus-trial): turned away while the other is attached. To drive another: case run and why take --on android (on, over MCP); screen, press and the other tools drive the ios app until it closes: close it (xcrun simctl terminate booted <app id>, adb shell am force-stop <app id>) and the other attaches within 2 s',
+  );
 });
