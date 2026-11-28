@@ -458,6 +458,20 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 **Cómo se arregla.** Elige otro puerto con `--traces-port` y apunta la variable `OTEL_EXPORTER_OTLP_ENDPOINT` de tu backend al mismo.
 
+## Problemas con el inicio de sesión
+
+### `your sign-in could not be renewed; run lynkeus login again: invalid_grant: …`
+
+**Por qué pasa.** lynkeus.io entrega un refresh token nuevo cada vez que lynkeus renueva la sesión que guardó `lynkeus login`, y el anterior deja de valer. Si alguien vuelve a usar uno ya gastado, el servicio supone que se lo robaron y cierra la sesión entera. Eso ocurre cuando hay dos copias de `credentials.json` con el mismo token, por ejemplo si copiaste el archivo a otra carpeta o corriste lynkeus con otro `XDG_CONFIG_HOME`: la primera copia que renueva deja inválida a la otra, y cuando la otra intenta renovar se cierra la sesión de las dos. Los procesos que comparten un mismo archivo no tienen este problema, porque lynkeus toma `credentials.json.lock` mientras renueva; así, un servidor MCP y una terminal en la misma máquina renuevan una sola vez.
+
+**Cómo se arregla.** Vuelve a correr `lynkeus login` y deja un único `credentials.json`. No lo copies: usa el mismo `XDG_CONFIG_HOME` (o ninguno) en todos los procesos. En CI, contenedores y otros procesos automáticos, define `LYNKEUS_CLOUD_KEY` con una API key en lugar de llevar una copia de la sesión.
+
+### `another lynkeus process holds …/credentials.json.lock`
+
+**Por qué pasa.** Otro proceso de lynkeus estaba renovando la sesión y no terminó en 45 segundos. Si el proceso dueño del bloqueo ya terminó en esta máquina, o el bloqueo tiene más de 30 segundos, lynkeus lo toma por su cuenta.
+
+**Cómo se arregla.** Vuelve a intentarlo. Si no hay ningún lynkeus corriendo, borra ese archivo `.lock`.
+
 ## Problemas con el mapa
 
 ### `No graph at …/.lynkeus/graph.json`
