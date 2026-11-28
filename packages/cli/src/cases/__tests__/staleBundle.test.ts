@@ -167,9 +167,99 @@ test('the real bundler runs and its exit code decides', async () => {
   const fresh = await freshBundle(`${k}/bin/fastsim-run .lynkeus/fastsim-ios {port}`, root);
   assert.equal(fresh.ok, true, fresh.ok ? '' : fresh.text);
   fs.writeFileSync(path.join(k, 'bin', 'fastsim-bundle'), '#!/bin/sh\necho "no node_modules" >&2\nexit 2\n', { mode: 0o755 });
-  at(path.join(root, 'index.js'), Date.now() / 1000 + 5);
+  at(path.join(root, 'index.js'), Date.now() / 1000 + 5, '// edited');
   const failed = await freshBundle(`${k}/bin/fastsim-run .lynkeus/fastsim-ios {port}`, root);
   assert.match(failed.ok ? '' : failed.text, /exit 2[\s\S]*no node_modules/);
+});
+
+const app = (files: Record<string, string>, bundledAt = 2000) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-inputs-'));
+  for (const [file, body] of Object.entries(files)) at(path.join(root, file), 1000, body);
+  fs.mkdirSync(path.join(root, 'node_modules', 'react-native'), { recursive: true });
+  at(path.join(root, '.lynkeus', 'fastsim-ios', 'app.hbc'), bundledAt);
+  return root;
+};
+
+test('only what the bundle is made from counts, by content: lynkeus.config.json, a file nothing imports and a touch do not', () => {
+  const root = app({
+    'package.json': '{"main":"index.tsx"}',
+    'tsconfig.json': '{ "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["./app/*"] } } }',
+    'index.tsx': "import { AppRegistry } from 'react-native'\nimport App from './app/App'\n",
+    'app/App.tsx': "import {\n  Home, // the first screen's\n} from '@/screens/Home'\nconst logo = require('./logo.png')\n",
+    'app/screens/Home.tsx': 'export const Home = 1\n',
+    'app/logo.png': 'png',
+    'app/utils/crashReporting.ts': 'export const report = 1\n',
+    'lynkeus.config.json': '{}',
+  });
+  assert.equal(staleBundle(RUN, root), undefined);
+  assert.ok(fs.existsSync(path.join(root, '.lynkeus', 'fastsim-ios', 'inputs.json')));
+  at(path.join(root, 'lynkeus.config.json'), 3000, '{"cases":{}}');
+  at(path.join(root, 'app', 'utils', 'crashReporting.ts'), 3000, 'export const report = 2\n');
+  at(path.join(root, 'app', 'screens', 'Home.tsx'), 3000, 'export const Home = 1\n');
+  assert.equal(staleBundle(RUN, root), undefined);
+  at(path.join(root, 'app', 'logo.png'), 3000, 'png2');
+  assert.equal(staleBundle(RUN, root)?.newest, path.join('app', 'logo.png'));
+  at(path.join(root, 'app', 'logo.png'), 3000, 'png');
+  at(path.join(root, 'app', 'screens', 'Home.tsx'), 3000, 'export const Home = 2\n');
+  assert.equal(staleBundle(RUN, root)?.newest, path.join('app', 'screens', 'Home.tsx'));
+});
+
+test('a bundle with no kept inputs is judged by its inputs’ dates, and a dependency or app config is an input', () => {
+  const root = app({ 'index.js': "import './App'\n", 'App.js': '', 'unused.js': '', 'package.json': '{}' });
+  at(path.join(root, 'unused.js'), 3000, 'x');
+  assert.equal(staleBundle(RUN, root), undefined);
+  at(path.join(root, 'app.json'), 3000, '{"expo":{"name":"b"}}');
+  assert.equal(staleBundle(RUN, root)?.newest, 'app.json');
+});
+
+test('a new route in an Expo Router app and a platform file beside an input make the bundle stale', () => {
+  const root = app({ 'package.json': '{"main":"expo-router/entry"}', 'app/index.tsx': "import { B } from '../components/B'\n", 'components/B.tsx': '' });
+  fs.mkdirSync(path.join(root, 'node_modules', 'expo-router'));
+  assert.equal(staleBundle(RUN, root), undefined);
+  at(path.join(root, 'app', 'settings.tsx'), 3000);
+  assert.equal(staleBundle(RUN, root)?.newest, path.join('app', 'settings.tsx'));
+  fs.rmSync(path.join(root, 'app', 'settings.tsx'));
+  assert.equal(staleBundle(RUN, root), undefined);
+  at(path.join(root, 'components', 'B.ios.tsx'), 3000);
+  fs.utimesSync(path.join(root, 'components'), 3000, 3000);
+  assert.equal(staleBundle(RUN, root)?.newest, path.join('components', 'B.ios.tsx'));
+});
+
+test('an import that is neither a file nor a package (a Babel alias) falls back to dates; a source map beside the bundle lists the inputs', () => {
+  const root = app({ 'index.js': "import x from 'components/X'\n", 'components/X.js': '', 'other.js': '' });
+  at(path.join(root, 'other.js'), 3000, 'x');
+  assert.equal(staleBundle(RUN, root)?.newest, 'other.js');
+  fs.writeFileSync(
+    path.join(root, '.lynkeus', 'fastsim-ios', 'app.js.map'),
+    JSON.stringify({
+      sources: [path.join(root, 'index.js'), path.join(root, 'components', 'X.js'), path.join(root, 'node_modules', 'react-native', 'index.js')],
+    }),
+  );
+  assert.equal(staleBundle(RUN, root), undefined);
+  at(path.join(root, 'components', 'X.js'), 3000, 'y');
+  assert.equal(staleBundle(RUN, root)?.newest, path.join('components', 'X.js'));
+});
+
+test('a stale bundle bundled again keeps the inputs it was made from, read before the bundler ran', async () => {
+  const root = app({ 'index.js': "import './App'\n", 'App.js': 'a' });
+  const k = kit();
+  at(path.join(root, 'App.js'), 3000, 'b');
+  const bundle: Bundle = async () => {
+    fs.utimesSync(path.join(root, '.lynkeus', 'fastsim-ios', 'app.hbc'), 4000, 4000);
+    // Edited while the bundler ran: the bundle may not have it.
+    at(path.join(root, 'App.js'), 3500, 'c');
+    return { code: 0, output: '' };
+  };
+  const command = `${k}/bin/fastsim-run .lynkeus/fastsim-ios {port}`;
+  assert.equal((await freshBundle(command, root, { bundle })).ok, true);
+  const kept = JSON.parse(fs.readFileSync(path.join(root, '.lynkeus', 'fastsim-ios', 'inputs.json'), 'utf8')) as {
+    built: number;
+    files: Record<string, string>;
+  };
+  assert.equal(kept.built, 4_000_000);
+  assert.deepEqual(Object.keys(kept.files).sort(), ['App.js', 'index.js']);
+  at(path.join(root, 'App.js'), 5000, 'c');
+  assert.equal(staleBundle(command, root)?.newest, 'App.js');
 });
 
 // Seconds on this computer's clock; the app's ages are measured at NOW.

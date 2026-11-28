@@ -59,3 +59,38 @@ test('a failed check of a text names the closest text on screen and the uncommit
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('an absent check of something still in a list is unsupported headless, where nothing leaves a window; outside a list it fails', async () => {
+  const { runCase } = await import('../cases/runner.js');
+  const { parseCase } = await import('../cases/format.js');
+  const elements = [
+    { i: 0, kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 844 }, enabled: true, depth: 1, tag: 1 },
+    { i: 1, kind: 'text', text: 'Renders a boolean input.', frame: { x: 0, y: 2000, w: 300, h: 20 }, enabled: true, depth: 2, tag: 2, parent: 0 },
+    { i: 2, kind: 'text', text: 'Invalid email', frame: { x: 0, y: 100, w: 300, h: 20 }, enabled: true, depth: 1, tag: 3 },
+  ];
+  const device = {
+    server: { connected: true, hello: { platform: 'ios', native: false, commands: [] }, port: 19_998, call: async () => null },
+    screen: async () => ({ route: 'DemoShowroom', path: ['DemoShowroom'], commit: 1, busy: false, window: { w: 390, h: 844 }, costMs: 1, elements }),
+    trace: async () => ({ last: 0, events: [] }),
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    waitFor: async () => undefined,
+    idle: async () => ({ idle: true }),
+    command: async () => [],
+  } as unknown as Device;
+  const base: Base = { root: os.tmpdir(), config: {}, attached: true, err: () => undefined, graph: () => ({}) as ScreenGraph, device: async () => device };
+  const inList = await runCase(
+    parseCase('---\nid: showroom\n---\nsteps:\n  - app.see: { text: "Renders a boolean input.", absent: true, timeoutMs: 50 }\n', 'showroom.md'),
+    {
+      base,
+      config: {},
+    },
+  );
+  assert.equal(inList.result, 'unsupported');
+  assert.match(inList.steps[0]?.error ?? '', /^this host has no window \(headless renders every item of a list and scrolls none, so .*Renders a boolean input/);
+  const alone = await runCase(parseCase('---\nid: sign-in\n---\nsteps:\n  - app.see: { text: "Invalid email", absent: true, timeoutMs: 50 }\n', 'sign-in.md'), {
+    base,
+    config: {},
+  });
+  assert.equal(alone.result, 'failed');
+  assert.match(alone.steps[0]?.error ?? '', /^still on screen/);
+});

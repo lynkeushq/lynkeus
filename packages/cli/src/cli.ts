@@ -248,7 +248,7 @@ const session = async (argv: string[]) => {
       continue;
     }
     const r = await execute(av, ctx);
-    const lane = found?.needs === 'app' ? ctx.lane?.() : undefined;
+    const lane = r.lane ?? (found?.needs === 'app' ? ctx.lane?.() : undefined);
     console.log(
       JSON.stringify(
         r.error

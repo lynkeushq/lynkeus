@@ -149,6 +149,11 @@ export type LynkeusConfig = {
     close?: string[];
     /** Go back. Without them the crawl takes a small control in the top-left corner for one. */
     back?: string[];
+    /**
+     * How to sign in: a macro's name in cases.macros (`app.signIn`) or a list of steps. The crawl runs it when a press
+     * signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for.
+     */
+    login?: string | unknown[];
   };
 };
 

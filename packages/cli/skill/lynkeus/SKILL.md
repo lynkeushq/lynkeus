@@ -14,7 +14,7 @@ Spend in this order and stop as soon as you know enough:
 1. `status` in a project you do not know: what is set up, where cases can run, the one fix for each gap. `setup` connects the app in one call: `init`, the device, Metro, the development build (never Expo Go), launch and attach.
 2. `case coverage`: the app's screens and which no case reaches yet.
 3. `case new <id> --to <Route>`: a draft with the way there (an existing case's steps when one reaches it), the backend setup to pick from and the checks left to write. Keep the way it offers. On the screen already, `case here` drafts from what is shown.
-4. No known way to the screen: `crawl` from the nearest screen. The route map rebuilds itself when the source changes, and every press a case or you make teaches it.
+4. No known way to the screen: `crawl` from the nearest screen (behind a sign-in, set `crawl.login` to the macro that signs in). The route map rebuilds itself when the source changes, and every press a case or you make teaches it.
 5. Only then drive the app (`press`, `type`, `wait`, `screen`) to fill what the draft could not know. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
 6. Write the case in the cases folder, `case run <file>` until it passes, then `case run <file> --on targets`: a case is done when it passes on the project's targets (`cases.targets`), and nowhere else needs checking. No targets declared: ask the person which matter (`status` proposes a value).
 

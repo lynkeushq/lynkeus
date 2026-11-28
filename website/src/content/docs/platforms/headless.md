@@ -315,6 +315,7 @@ The host runs your JavaScript against a real backend with the native layer mocke
 - **Native crashes.** There is no native code to crash. A native module that is missing surfaces as a Jest error instead.
 - **Pixels.** The host renders nothing to capture. `lynkeus screenshot` and `lynkeus snapshot --pixels` need a simulator; the tree baseline of `lynkeus snapshot` works under the host.
 - **Video.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so it offers none and a run has no video.
+- **Something leaving the window.** A list here renders every item and scrolls none, so a check that a text has scrolled out of view (`app.see: { text: …, absent: true }` on an item still in a list or scroll view) cannot pass. When it times out on such an item, the step is reported as unsupported (`this host has no window (…)`), not failed. An absent check of something that was unmounted, such as a closed modal or an error that went away, still works and still fails when the thing stays.
 
 For those, run the same cases on a simulator or emulator. Only the way the app is started differs.
 

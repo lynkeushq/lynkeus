@@ -189,3 +189,25 @@ test('fastsim start finds the newest installed FastSim that draws the bundle’s
   assert.equal(installedKit('ios', path.join(dir, 'none')), undefined);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('the FastSim folder in use is said with the variable that moved it, so a shell and an MCP server reading different installs show it', async () => {
+  const { fastsimCacheNote } = await import('../commands/fastsim.js');
+  const saved = { dir: process.env.LYNKEUS_FASTSIM_DIR, xdg: process.env.XDG_CACHE_HOME };
+  try {
+    delete process.env.LYNKEUS_FASTSIM_DIR;
+    process.env.XDG_CACHE_HOME = '/trial/xdg/cache';
+    assert.equal(fastsimCacheNote(), '/trial/xdg/cache/lynkeus/fastsim (from XDG_CACHE_HOME)');
+    process.env.LYNKEUS_FASTSIM_DIR = '/kits';
+    assert.equal(fastsimCacheNote(), '/kits (from LYNKEUS_FASTSIM_DIR)');
+    delete process.env.LYNKEUS_FASTSIM_DIR;
+    delete process.env.XDG_CACHE_HOME;
+    assert.equal(fastsimCacheNote(), path.join(os.homedir(), '.cache', 'lynkeus', 'fastsim'));
+  } finally {
+    for (const [key, value] of [
+      ['LYNKEUS_FASTSIM_DIR', saved.dir],
+      ['XDG_CACHE_HOME', saved.xdg],
+    ] as const)
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+  }
+});

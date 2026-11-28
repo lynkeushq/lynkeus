@@ -36,6 +36,7 @@ Cada línea de su respuesta corresponde a una regla. Esta tabla dice qué signif
 | `N request(s) still in flight when the command gave up` | La pantalla no había terminado de cargar. | Dale más tiempo con `--timeout`, o espera la petición que necesita. |
 | `no request left the app while this ran` | No se pidió nada. | Comprueba que el usuario tenga sesión y que la app hable con el backend correcto. |
 | `N request(s) were refused by the host` | El host sin pantalla bloqueó peticiones a servidores que no están permitidos. | Si la pantalla necesita alguno, permítelo en `networkHosts` o simúlalo con `lynkeus mock`. |
+| `this host has no network: … never left it` | Un host de FastSim no tiene red: solo llega a esta máquina (`localhost`, `127.0.0.1`, `10.0.2.2`). La petición a cualquier otro servidor no sale nunca; la app recibe `network error or aborted` y el log del host la marca `(offline)`. No es una caída del servidor ni de tu conexión. | Simula la respuesta en el caso con `app.mock: { route: "GET /v1/feed", body: {...} }`. |
 | `the last command that failed was …` | Ninguna otra regla explicó el fallo; este es el último error registrado. | Parte de ese error. |
 | `nothing in the evidence explains it` | La pantalla, las peticiones y la traza se ven normales. | Lee la pantalla con `lynkeus screen` y compárala con lo que esperabas. |
 

@@ -299,12 +299,14 @@ Vuelve a abrir la app y espera a que el agente se conecte.
 ### `lynkeus why`
 
 ```bash
-lynkeus why [target] [--route <Route>]
+lynkeus why [target] [--route <Route>] [--on <lane>]
 ```
 
 Explica por qué falló lo último que intentaste. Lee la pantalla, las últimas peticiones y la traza, y les aplica una serie de reglas: el objetivo está tapado, la sesión venció, el backend respondió 500. Las reglas sobre el backend (5xx, 401, 403, 429) leen solo lo que el servidor respondió: una respuesta que dio un mock tuyo no se le atribuye al backend.
 
 Se ejecuta solo después de un `press`, `wait`, `type`, `swipe` o `nav` que falla. Si le dices qué buscabas, la respuesta es más precisa.
+
+Sin argumentos, `why` se ocupa del último caso que falló en el `case run` más reciente, sin importar dónde corrió: en un host de FastSim, en el host headless o en un simulador, emulador o teléfono. La respuesta empieza por ese carril (`[FastSim iOS]`) y muestra lo que la corrida leyó en el momento del fallo; el host que levantó la corrida ya no existe cuando preguntas. Si después de la corrida diste un comando tú (`press`, `wait`), `why` vuelve a hablar de ese comando y de la app conectada. Si la última corrida no tuvo fallos, lo dice, en vez de rescatar un fallo anterior.
 
 Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó a `"Sign Out"`), `why` ofrece los controles del mismo tipo que son nuevos en la pantalla, primero el más cercano a donde estaba el anterior si Lynkeus guardó su marco (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
@@ -315,6 +317,7 @@ Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó 
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | La ruta que esperabas. |
+| `--on <lane>` | Qué carril explicar: `ios`, `android`, `fastsim:ios`, `fastsim:android` o `headless`. Sirve cuando la corrida pasó por varios, o cuando dos apps comparten el puerto. |
 
 Las reglas que aplica están en [Solución de problemas](/es/troubleshooting/).
 
@@ -415,6 +418,8 @@ Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependenc
 | Opción | Qué hace |
 |---|---|
 | `--offline` | Revisa solo los archivos; no espera a que haya una app conectada. |
+
+Si hay más de una app llamando al puerto (por ejemplo, el build de desarrollo del simulador de iOS y el del emulador de Android), la línea de la app conectada las nombra a todas, cada una con su dispositivo, y aclara cuál maneja esta sesión, a cuál rechaza mientras tanto y cómo pasar a la otra: `case run --on android` o `why --on android`, o cerrar la app que está conectada para que entre la otra.
 
 Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o con `○` si falta algo opcional. Las `✗` y las `○` terminan con la solución tras un guion largo.
 
@@ -981,6 +986,8 @@ Pulsa todos los controles que encuentra y aprende adónde lleva cada uno. Lo que
 Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl` lo que no llegó a pulsar, así que una segunda ejecución continúa en lugar de repetir.
 
 Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas, toques que escribieron y por eso no siguió, y toques que sacaron a la app con lo que abrieron), no una línea por toque.
+
+Un toque que cierra la sesión (un botón Log Out) deja el camino de vuelta detrás del inicio de sesión: la raíz de la app pasa a tener solo las pantallas de entrada, y la pantalla de la que venía el recorrido ya no está montada. Si en `lynkeus.config.json` declaras `crawl.login`, una macro de `cases.macros` que inicia sesión (por ejemplo `app.signIn`), el recorrido la ejecuta en ese punto, vuelve y sigue. También la ejecuta al empezar si arranca en la pantalla que esa macro espera. Una pantalla que solo existe sin sesión (el propio Login) se recorre una vez y después se deja, porque `crawl` nunca cierra la sesión para volver a ella. Sin `crawl.login`, el recorrido se detiene en el inicio de sesión y el resumen lo dice, con la clave que hay que declarar.
 
 Hay toques que mandan la app al fondo: un enlace que se abre en el navegador, un botón que abre otra app. Para `crawl` eso es una salida de la app. Anota qué se abrió, no vuelve a tocar ese control y trae la app de nuevo al frente como Lynkeus la lanza (`simctl launch` en el simulador, el intent del launcher en Android), así que la app conserva su estado. Solo si no vuelve, la relanza. Para eso necesita el bundle id o el application id de la app: `app` en `lynkeus.config.json` o `--app`.
 

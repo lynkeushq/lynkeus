@@ -182,11 +182,11 @@ Relaunch the app and wait for the agent
 |---|---|
 | `--clean` | run the app's reset command first, if it is attached |
 
-### `lynkeus why [target] [--route <Route>] [--on <platform>]`
+### `lynkeus why [target] [--route <Route>] [--on <lane>]`
 
 Why the last thing failed: screen, requests and trace read as rules
 
-Runs by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.
+Runs by itself after a failed press, wait, type, swipe or nav. With no target it explains the last failed case of the last `case run`, on whichever lane it ran (a FastSim host, the headless host, a Simulator, emulator or phone), named in the answer, as the run read it at the failure; after a command of yours, that command. Give it what you were looking for to read the app now and sharpen the answer.
 
 | Argument | |
 |---|---|
@@ -195,7 +195,7 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 | Flag | |
 |---|---|
 | `--route <Route>` | the route that was expected |
-| `--on <platform>` | the lane to explain when two apps share the port: ios or android (default: the attached app’s) |
+| `--on <lane>` | the lane to explain: ios, android, fastsim:ios, fastsim:android, headless (default: the last run's last failed case, else the attached app) |
 
 ### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 
@@ -645,7 +645,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 Press every control it finds, learn where each leads (feeds map paths and plan)
 
-Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. Over MCP it stops after 12 presses unless max says otherwise.
+Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. A press that signs out leaves the way back behind the sign-in: with crawl.login in lynkeus.config.json (a macro that signs in, such as app.signIn) the crawl signs in again there and goes on, and signs in first when it starts on the screen that macro waits for; without it, it stops there and says so. Over MCP it stops after 12 presses unless max says otherwise.
 
 | Argument | |
 |---|---|

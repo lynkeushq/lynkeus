@@ -24,6 +24,11 @@ export type Evidence = {
   sourceDiff?: string;
   /** What the app wrote to its console while the command ran (warnings and errors are read), oldest first. */
   logs?: { level: string; text: string }[];
+  /**
+   * The host has no network beyond this machine (a FastSim host reaches only localhost and 10.0.2.2): a request to any
+   * other host failed there by design, not because a server or the connection broke.
+   */
+  noNetwork?: boolean;
   /** The route's screen as Lynkeus last kept it (before this failure), where a text that is gone used to stand. */
   lastSeen?: { elements: Element[]; frames: Record<string, { x: number; y: number; w: number; h: number }> };
 };
@@ -48,6 +53,9 @@ const OWN_PROBES = new Set([
 ]);
 
 export type Finding = { rule: string; message: string };
+
+// React's test renderer warns about updates outside act() on the headless host: the host's doing, never why a step failed.
+const ACT_WARNING = /not wrapped in act\(|wrapped into act\(|not configured to support act\(|environment is not configured to support act/;
 
 const fold = (t: string): string =>
   t
@@ -173,6 +181,15 @@ const isTarget = (el: Element, { testId, text }: NonNullable<Evidence['target']>
 
 const refusedByHost = (r: RequestRecord) => r.status === 0 && !!r.error && /networkHosts|is off/.test(r.error);
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '10.0.2.2']);
+const isLocal = (url: string): boolean => {
+  try {
+    return LOCAL_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+
 const describeRequest = (r: RequestRecord) => `${r.method} ${pathOf(r.url)} ${r.status ? r.status : (r.error ?? 'failed')}${r.mocked ? ' (mocked)' : ''}`;
 
 export const explain = (e: Evidence): Finding[] => {
@@ -237,6 +254,18 @@ export const explain = (e: Evidence): Finding[] => {
       message: `the host broke a render loop${stall.component ? ` in ${stall.component}` : ''} (${stall.renders} updates in ${stall.windowMs}ms): the screen is dead until a reset. A component whose effect and store feed each other.`,
     });
 
+  // On a host with no network the app's error ("network error or aborted") says nothing: the request never left.
+  const offline = e.noNetwork ? done.filter((r) => !r.mocked && !r.status && !!r.error && !refusedByHost(r) && !isLocal(r.url)) : [];
+  if (offline.length) {
+    const first = offline.at(-1)!;
+    out.push({
+      rule: 'host-offline',
+      message: `this host has no network: ${[...new Set(offline.map((r) => `${r.method} ${pathOf(r.url)}`))]
+        .slice(-3)
+        .join(', ')} never left it (it reaches only this machine); mock the request (app.mock: { route: "${first.method} ${pathOf(first.url)}", body: … })`,
+    });
+  }
+
   const sought = e.target ? els.find((el) => isTarget(el, e.target!)) : undefined;
   const missing = !sought || (sought.hidden !== undefined && sought.hidden !== 'inert');
   const target = e.target?.testId ? `#${e.target.testId}` : e.target?.text !== undefined ? JSON.stringify(e.target.text) : undefined;
@@ -288,7 +317,7 @@ export const explain = (e: Evidence): Finding[] => {
     // A screen shows its empty or error state when its data did not come: a missing row next to a failed request is
     // that request's doing, whoever answered it.
     if (missing && target) {
-      const failed = done.filter((r) => (r.status ?? 0) >= 400 || (r.error && !refusedByHost(r)));
+      const failed = done.filter((r) => ((r.status ?? 0) >= 400 || (r.error && !refusedByHost(r))) && !offline.includes(r));
       if (failed.length)
         out.push({
           rule: 'request-failed',
@@ -345,8 +374,15 @@ export const explain = (e: Evidence): Finding[] => {
 
   // A 2xx whose body the app could not use: it logs the parse or type error, and shows its empty state.
   const answered = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 300);
-  const complaints = (e.logs ?? []).filter((l) => l.level === 'error' || l.level === 'warn').map((l) => clip(l.text.split('\n')[0]!));
-  if (missing && complaints.length && answered.length && !out.some((f) => f.rule === 'request-failed' || f.rule === 'backend-error')) {
+  const complaints = (e.logs ?? [])
+    .filter((l) => (l.level === 'error' || l.level === 'warn') && !ACT_WARNING.test(l.text))
+    .map((l) => clip(l.text.split('\n')[0]!));
+  if (
+    missing &&
+    complaints.length &&
+    answered.length &&
+    !out.some((f) => f.rule === 'request-failed' || f.rule === 'backend-error' || f.rule === 'host-offline')
+  ) {
     const mocked = answered.some((r) => r.mocked);
     out.push({
       rule: 'bad-body',

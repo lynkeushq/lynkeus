@@ -344,10 +344,12 @@ Relaunches the app and waits for the agent.
 ### `lynkeus why`
 
 ```bash
-lynkeus why [target] [--route <Route>]
+lynkeus why [target] [--route <Route>] [--on <lane>]
 ```
 
 Explains why the last thing failed, by reading the screen, the requests and the trace as rules. It runs by itself after a failed `press`, `wait`, `type`, `swipe` or `nav`. Give it what you were looking for to sharpen the answer.
+
+With no target, `why` explains the last failed case of the most recent `case run`, whichever lane it ran on: a FastSim host, the headless host, a Simulator, an emulator or a phone. The answer names the lane (`[FastSim iOS] the last failed case of the last run (podcast-list, on FastSim iOS) failed at …`) and gives what the run read at the failure, because a host the run started is gone by then. After a command of your own (`press`, `wait`), `why` is about that command and the attached app again. When the last run failed nothing, it says so instead of explaining an older failure.
 
 When a text is gone and nothing on screen is close to it (`"Log Out"` became `"Sign Out"`), `why` offers the controls of the same kind that are new on the screen, nearest first to where the old one was when Lynkeus kept its frame (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
@@ -358,9 +360,11 @@ When a text is gone and nothing on screen is close to it (`"Log Out"` became `"S
 | Flag | Meaning |
 |---|---|
 | `--route <Route>` | The route that was expected. |
+| `--on <lane>` | The lane to explain: `ios`, `android`, `fastsim:ios`, `fastsim:android` or `headless`. Useful when a run covered several lanes, or two apps share the port. |
 
 ```bash
 lynkeus why 'Log in'
+lynkeus why --on fastsim:android
 lynkeus why --route Settings.Main
 ```
 
@@ -457,7 +461,7 @@ Says what the project has of Lynkeus and what is missing, and where cases can ru
 - `lynkeus-agent` is a dependency and is installed.
 - The app's entry mounts the agent, and in a React Native CLI app `babel.config.js` has `lynkeus-agent/babel`.
 - The project has a token, and in an Expo app Expo is given it.
-- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds.
+- An app is attached, and on which port Lynkeus listens. This is the only check that waits, and it runs only when everything above holds. When several apps dial the port (the iOS Simulator's and the emulator's development builds), the line lists each with its device, says which one this session drives and which one it turns away, and how to drive the other: `case run --on android` and `why --on android`, or close the driven app so the other attaches.
 - There are cases to run. `lynkeus case init` writes an example.
 - Runs can be pushed to the report service: `LYNKEUS_REPORTS_KEY` is set. Optional.
 
@@ -1037,6 +1041,8 @@ The crawl finishes a screen before it goes anywhere, and remembers in `.lynkeus/
 It is read-only by default. Every press happens, but the moment one makes the app write (a `POST`, `PUT`, `PATCH` or `DELETE`) the crawl reports it, stops exploring past it, and never presses that control again. Controls that must not be pressed at all go under `crawl.never` in `lynkeus.config.json`. Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
 
 A press that sends the app to the background, such as a link that opens in the browser or a control that opens another app, leads outside the app. The crawl records what it opened, never presses that control again, and brings the app back to the front the way Lynkeus launches it (`simctl launch` on a simulator, the launcher intent on Android), so the app keeps its state. Only when the app does not come back is it relaunched. It needs the app's bundle id or application id: `app` in `lynkeus.config.json` or `--app`.
+
+A press that signs out (a Log Out button) leaves the way back behind the sign-in: the app's root then holds only the sign-in screens, and the screen the crawl came from is not mounted. With `crawl.login` in `lynkeus.config.json`, a macro from `cases.macros` that signs in (such as `app.signIn`), the crawl runs that macro there, goes back and carries on; it also signs in first when it starts on the screen the macro waits for. A screen that only a signed-out app shows (Login itself) is pressed through once and then left, since the crawl never signs out to return to it. Without `crawl.login`, the crawl stops at the sign-in and its summary says so, naming the key to set.
 
 Over MCP, `crawl` is one of the default tools. A call there stops after one level and 12 presses unless it passes `depth` or `max`. It answers with a summary: the screens it stood on, the new edges, the problems, the presses it did not explore past because they wrote, and the presses that left the app and what they opened. It never sends one line per press.
 

@@ -269,7 +269,7 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     heartbeat?.unref();
     const r = await execute(argvFor(c, input), ctx).finally(() => clearInterval(heartbeat));
     // Several apps can be attached at once (a Simulator's, an emulator's, a FastSim host's): an answer about the app says whose.
-    const lane = c.needs === 'app' ? ctx.lane?.() : undefined;
+    const lane = r.lane ?? (c.needs === 'app' ? ctx.lane?.() : undefined);
     if (r.error) return { ...text(`✗ ${fromLane(lane, r.error)}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
     const body = text(fromLane(lane, r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok')));
     // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is

@@ -72,7 +72,7 @@ test('with cases.targets, CI runs each case on its declared headless and FastSim
   assert.equal(plan.lanes[1]!.hostCommand, headless);
   assert.deepEqual(plan.device, ['ios (1 case file(s))']);
   assert.equal(plan.missing.length, 1);
-  assert.match(plan.missing[0]!, /^fastsim:android \(1 case file\(s\)\): not installed: `lynkeus fastsim install --platform android`/);
+  assert.match(plan.missing[0]!, /^fastsim:android \(1 case file\(s\)\): not installed in \S+: `lynkeus fastsim install --platform android`/);
 
   // A configured host command that starts no FastSim is the project's own headless host.
   const own = ciLanes([a], { root, config: { cases: { targets: ['headless'] }, ci: { hosts: { command: 'docker run app {port}' } } }, headless, kits });

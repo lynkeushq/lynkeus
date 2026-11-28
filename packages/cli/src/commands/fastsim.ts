@@ -40,6 +40,16 @@ export const fastsimCacheDir = (): string =>
   process.env.LYNKEUS_FASTSIM_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lynkeus', 'fastsim');
 
 /**
+ * The FastSim folder in use, said with the variable that moved it: a shell and an MCP server started with another
+ * XDG_CACHE_HOME see other installs, and the answer has to show which one it read.
+ */
+export const fastsimCacheNote = (dir: string = fastsimCacheDir()): string => {
+  const moved =
+    dir === process.env.LYNKEUS_FASTSIM_DIR ? 'LYNKEUS_FASTSIM_DIR' : process.env.XDG_CACHE_HOME && dir === fastsimCacheDir() ? 'XDG_CACHE_HOME' : undefined;
+  return `${dir}${moved ? ` (from ${moved})` : ''}`;
+};
+
+/**
  * A random id for this install, kept next to the sign-in (not in the cache, which CI restores onto many runners and
  * would make them one machine). The service counts machines and CI hosts by it; it identifies an install, not a person.
  */
@@ -550,7 +560,8 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       }
       const platform = /--platform (\w+)/.exec(args)?.[1] ?? 'ios';
       const kit = typeof ctx.flags.kit === 'string' ? path.resolve(ctx.root, ctx.flags.kit) : installedKit(platform);
-      if (!kit) return { text: `no Lynkeus FastSim for ${platform} is installed: run fastsim install --platform ${platform}`, code: 2 };
+      if (!kit)
+        return { text: `no Lynkeus FastSim for ${platform} is installed in ${fastsimCacheNote()}: run fastsim install --platform ${platform}`, code: 2 };
       const run = path.join(kit, 'bin', 'fastsim-run');
       if (!fs.existsSync(run)) return { text: `${kit} has no bin/fastsim-run: is it a Lynkeus FastSim folder?`, code: 2 };
       if (!ctx.forPort || !ctx.takeOver) return { text: 'fastsim start needs a session or an MCP server that can drive a second port', code: 2 };
@@ -605,6 +616,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       return {
         text: [
           `${lane}: a host on port ${port} of its own runs ${bundle}; this session drives only it now, until fastsim stop (apps on port ${portFromEnv(ctx.config) ?? 8123} stay attached, not driven). Its log: ${log}`,
+          `FastSim: ${kit} (the FastSim folder in use: ${fastsimCacheNote()})`,
           ...notes,
         ].join('\n'),
         json: { bundle, kit, port, platform, lane, commands: offered },

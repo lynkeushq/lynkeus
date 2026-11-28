@@ -18,7 +18,7 @@ The roles are the reverse of what you might expect. The **driver** is the WebSoc
 | Where the app dials | `ws://localhost:8123` on iOS, `ws://10.0.2.2:8123` on the Android emulator. The app can be given another host and port. |
 | When nobody answers | The app retries quietly: every 100 ms for the first 3 seconds after it starts or loses a connection, then with a wait that doubles each time, up to 1.5 seconds. |
 | When the app does not dial at all | An app with no `token` option, or one whose value is empty, keeps its agent off and logs why (unless it was given `allowUnauthenticated`). It never opens a socket, so a driver sees the same thing as with no app running. |
-| When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. |
+| When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. Another app (another platform, or another app id) does not take the place of one that is attached and in the foreground: once both sides have proven the token, `lynkeus-client` closes the newcomer with code 1013, and it attaches when it dials again after the first one leaves. |
 
 There are three kinds of message:
 

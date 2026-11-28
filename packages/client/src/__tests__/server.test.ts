@@ -387,6 +387,44 @@ test('an app no server on the port takes is let go, and a server with another to
   await assert.rejects(other.listen(), (error: unknown) => error instanceof AgentError && error.code === 'port-in-use');
 });
 
+test('a second app on a server that takes any is turned away while the first stays attached, and both are listed', async () => {
+  const any = await serve({ token: 'secret' });
+  const ios = await fakeApp(any, () => ({ result: { on: 'ios' } }));
+  await any.waitForApp(2000);
+  const android = await fakeApp(any, () => ({ result: { on: 'android' } }), 'secret', 'android');
+  const closed = await new Promise<number>((resolve) => android.socket.once('close', (code) => resolve(code)));
+  // Told after the token is proven both ways, so the agent redials quietly instead of reporting a refused token.
+  assert.equal(closed, 1013);
+  assert.equal(android.verified(), true);
+  assert.equal(any.hello?.platform, 'ios');
+  assert.deepEqual(await any.call('ping', undefined, 1000), { on: 'ios' });
+  assert.deepEqual(
+    any.apps().map((a) => [a.hello.platform, a.driven]),
+    [
+      ['ios', 'this'],
+      ['android', 'none'],
+    ],
+  );
+  // The first one leaving lets the other in when it dials again.
+  ios.socket.close();
+  await new Promise((resolve) => any.once('disconnected', resolve));
+  const again = await fakeApp(any, () => ({ result: { on: 'android' } }), 'secret', 'android');
+  assert.equal((await any.waitForApp(2000)).platform, 'android');
+  assert.deepEqual(any.apps()[0] && [any.apps()[0]!.hello.platform, any.apps()[0]!.driven], ['android', 'this']);
+  again.socket.close();
+});
+
+test('the same app dialing again replaces its old link, as a relaunch does', async () => {
+  const any = await serve({ token: 'secret' });
+  const first = await fakeApp(any, () => ({ result: { n: 1 } }));
+  await any.waitForApp(2000);
+  const second = await fakeApp(any, () => ({ result: { n: 2 } }));
+  await new Promise((resolve) => first.socket.once('close', resolve));
+  assert.deepEqual(await any.call('ping', undefined, 1000), { n: 2 });
+  assert.equal(any.apps().length, 1);
+  second.socket.close();
+});
+
 /**
  * An app whose WebSocket reads the driver's close frame and never answers it, nor ends the connection: FastSim's
  * Android host did that, as React Native's own module keeps a client the server closed until JavaScript closes it.

@@ -73,7 +73,7 @@ Lynkeus starts a host on a free port for each case, waits for the app to attach 
 
 A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
 
-A run never tests old code. Before it starts the hosts, `case run` compares the bundle with the app's source files (leaving out `node_modules`, the native projects, tests and the cases folder). When a file changed after the bundle was made, it runs the `fastsim-bundle` that sits next to the command's `fastsim-run` again, for the app and platform the bundle was made for, and says so in the summary. That bundling uses Lynkeus's own environment, so start Lynkeus (or the MCP server) with the variables your bundle needs. If there is no `fastsim-bundle` next to `fastsim-run`, or bundling fails, the run stops before any host starts and prints the command to run yourself. `fastsim start` does the same check.
+A run never tests old code. Before it starts the hosts, `case run` checks the files the bundle is made from: the app's files its entry reaches through imports (every file of an Expo Router `app` folder included), plus the bundler's own inputs (`package.json`, the lockfile, `babel.config.js`, `metro.config.js`, `app.json`, `app.config.*`, `tsconfig.json`, `.env` files). A source map beside the bundle (`app.js.map`), when there is one, gives that list instead. It keeps a hash of each in `inputs.json` in the bundle folder, so a file that was only touched, or saved unchanged, does not count, and neither does a file the bundle does not include, such as `lynkeus.config.json` or a module nothing imports. When an import cannot be followed (an alias only Babel knows), it falls back to comparing dates across the app's source files. When one of those files changed after the bundle was made, it runs the `fastsim-bundle` that sits next to the command's `fastsim-run` again, for the app and platform the bundle was made for, and says so in the summary. That bundling uses Lynkeus's own environment, so start Lynkeus (or the MCP server) with the variables your bundle needs. If there is no `fastsim-bundle` next to `fastsim-run`, or bundling fails, the run stops before any host starts and prints the command to run yourself. `fastsim start` does the same check.
 
 ## From an AI agent over MCP
 
@@ -96,6 +96,8 @@ How closely it matches a real device depends on the platform:
 Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
+
+**`Lynkeus FastSim for android not installed in <folder>`, or `declared but not startable here: fastsim:android`, though you installed it.** The FastSim folder is `~/.cache/lynkeus/fastsim`, moved by `XDG_CACHE_HOME` or `LYNKEUS_FASTSIM_DIR`. A shell and an MCP server started with different values of those variables read different installs. `lynkeus status`, `fastsim start` and the message itself name the folder they read, and which variable moved it: start the shell and the server with the same values, or install again where the message points.
 
 **`the FastSim bundle at ... is older than ...`, followed by a `fastsim-bundle` command.** The app's code changed after the bundle was made and Lynkeus could not bundle it again: the host command does not start `fastsim-run` from an installed FastSim folder, or `fastsim-bundle` failed (its last lines follow). Run the command it prints, fix what it reports, and run the cases again.
 

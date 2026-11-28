@@ -566,5 +566,6 @@ The errors it recognizes:
 | `N request(s) still in flight when the command gave up` | The screen had not finished loading. | Use a longer timeout, or wait for the request it needs. |
 | `no request left the app while this ran` | Nothing was fetched. | Check that the user is logged in and that the app talks to the backend it should. |
 | `N request(s) were refused by the host` | The headless host blocked hosts outside `networkHosts`. | Allow the host, or mock it. |
+| `this host has no network: … never left it` | A FastSim host reaches only this machine (`localhost`, `127.0.0.1`, `10.0.2.2`). A request to any other server never leaves it; the app sees `network error or aborted`, and the host log marks it `(offline)`. | Mock the request in the case: `app.mock: { route: "GET /v1/feed", body: {...} }`. |
 | `the last command that failed was …` | Nothing else explains it; this is the last error the app recorded. | Start from that error. |
 | `nothing in the evidence explains it` | The screen, requests and trace look ordinary. | Read `lynkeus screen` and `lynkeus trace --last 20` yourself. |

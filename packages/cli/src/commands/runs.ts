@@ -22,7 +22,10 @@ import { type Ctx, define } from '../registry.js';
 import { execute } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { parseTarget } from '../targets.js';
-import { crawl, describeCrawl } from './crawl.js';
+import { stepOf } from '../cases/format.js';
+import { runCase } from '../cases/runner.js';
+import { isRoute, routeOf } from '../targets.js';
+import { crawl, describeCrawl, describeGate } from './crawl.js';
 import { describeFlake, summarizeRuns } from './flake.js';
 import type { Overlay } from './overlay.js';
 import { describeEvent, draftFlow } from './record.js';
@@ -30,6 +33,33 @@ import { smoke } from './smoke.js';
 import { baselinePath, describeSnapshot, snapshot } from './snapshot.js';
 
 const VAR_FLAG = { var: { type: 'list' as const, help: 'a flow variable (repeatable)', value: 'k=v' } };
+
+/**
+ * The sign-in `crawl.login` declares, run as a one-step case (a macro's name, or its own steps), and the screen it
+ * begins on (its first wait for, or look at, a route); a sentence when it names no macro the project has.
+ */
+const crawlLogin = (ctx: Ctx): { signIn: () => Promise<string | undefined>; from?: string } | string | undefined => {
+  const login = ctx.config.crawl?.login;
+  if (login === undefined) return undefined;
+  const macros = ctx.config.cases?.macros ?? {};
+  if (typeof login === 'string' && !macros[login])
+    return `crawl.login names ${login}, which is not a macro in cases.macros (${Object.keys(macros).join(', ') || 'none'})`;
+  const steps = typeof login === 'string' ? [login] : login;
+  const expanded = (typeof login === 'string' ? macros[login]! : login).map((s) => stepOf(s, 'crawl.login'));
+  const first = expanded.find((s) => s.verb === 'app.wait' || s.verb === 'app.see');
+  const value = first?.value;
+  const named =
+    typeof value === 'string' ? value : value && typeof value === 'object' && 'route' in value ? String((value as { route: unknown }).route) : undefined;
+  const from = named && (isRoute(named) || named.startsWith('route:')) ? routeOf(named) : undefined;
+  const signIn = async () => {
+    const c = { file: 'crawl.login', id: 'crawl-login', meta: {}, setup: [], steps: steps.map((s) => stepOf(s, 'crawl.login')), teardown: [] };
+    const report = await runCase(c, { base: ctx, config: ctx.config.cases ?? {} });
+    if (report.result === 'passed') return undefined;
+    const broke = report.steps.find((s) => s.status !== 'passed' && s.status !== 'skipped');
+    return `${broke?.step ?? 'a step'}: ${(broke?.error ?? 'failed').split('\n')[0]}`;
+  };
+  return { signIn, ...(from ? { from } : {}) };
+};
 
 const OVERLAY_FLAGS = {
   'overlay-when': { type: 'string' as const, help: 'a target the app raises on its own (a lock screen, a rating prompt)', value: 'target' },
@@ -253,13 +283,13 @@ export const runsCommands = [
     group: 'runs',
     summary: 'Press every control it finds, learn where each leads (feeds map paths and plan)',
     details:
-      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. Over MCP it stops after 12 presses unless max says otherwise.',
+      'Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. A press that signs out leaves the way back behind the sign-in: with crawl.login in lynkeus.config.json (a macro that signs in, such as app.signIn) the crawl signs in again there and goes on, and signs in first when it starts on the screen that macro waits for; without it, it stops there and says so. Over MCP it stops after 12 presses unless max says otherwise.',
     mcp: 'core',
     mcpOmit: ['overlay-when', 'overlay-flow', 'var-cmd', 'verbose'],
     // One call stays short and its answer small; a longer walk is asked for by name, and the next call continues it.
     mcpDefaults: { depth: 1, max: 12 },
     mcpDetails:
-      'Presses every control on the screen the app is on (or Route), one level deep, and records where each leads: map_plan, case_coverage and case_new then know the way without driving by hand. Read-only: a press that makes the app write is reported and not explored past; one that opens another app (a link in the browser) is reported, never repeated, and the app is brought back. Answers with the screens found, the new edges and the problems, never a line per press. It remembers what it pressed: call it again to continue, or pass max and depth for a longer walk. to walks towards a route and stops there.',
+      'Presses every control on the screen the app is on (or Route), one level deep, and records where each leads: map_plan, case_coverage and case_new then know the way without driving by hand. Read-only: a press that makes the app write is reported and not explored past; one that opens another app (a link in the browser) is reported, never repeated, and the app is brought back. Answers with the screens found, the new edges and the problems, never a line per press. It remembers what it pressed: call it again to continue, or pass max and depth for a longer walk. to walks towards a route and stops there. Behind a sign-in, crawl.login in lynkeus.config.json (a macro such as app.signIn) lets it sign in first and again after a press signs out; without it, it stops at the sign-in and says so.',
     positionals: [{ name: 'Route', help: 'where to start (default: the current screen)' }],
     flags: {
       depth: { type: 'number', help: 'how many screens deep', default: 1, value: 'n' },
@@ -278,10 +308,8 @@ export const runsCommands = [
     run: async (ctx) => {
       const device = await ctx.device();
       const outDir = path.join(runsDir(ctx.root), 'crawl', stamp());
-      if (ctx.args[0]) {
-        await device.navigate(ctx.args[0]);
-        await device.idle({ quietMs: 200, timeoutMs: 2000 });
-      }
+      const login = crawlLogin(ctx);
+      if (typeof login === 'string') return { text: login, code: 2 };
       const started = performance.now();
       const learned = { added: 0, reinforced: 0 };
       const newEdges: string[] = [];
@@ -292,7 +320,7 @@ export const runsCommands = [
       const rules = ctx.config.crawl;
       try {
         // The crawl records its own transitions, from screens it reads itself; the connection learning too would count each twice.
-        const { transitions, states } = await device.unlearned(() =>
+        const { transitions, states, gate, signedOutOnly } = await device.unlearned(() =>
           crawl({
             device,
             outDir,
@@ -304,6 +332,8 @@ export const runsCommands = [
             errorCopy: anyOf(ctx.config.errorCopy),
             safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
             appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
+            ...(ctx.args[0] ? { from: ctx.args[0] } : {}),
+            ...(login ? { signIn: login.signIn, ...(login.from ? { signInFrom: login.from } : {}) } : {}),
             overlay: overlayOf(ctx.flags),
             login: loginFlow
               ? {
@@ -347,10 +377,20 @@ export const runsCommands = [
           seconds: seconds(started),
           spent: transitions.length >= (ctx.flags.max as number),
           outDir,
+          ...(gate ? { gate: describeGate(gate, !!login) } : {}),
+          ...(signedOutOnly ? { signedOutOnly } : {}),
         });
         return {
           text: `\n${text}\n`,
-          json: { transitions: transitions.length, screens, problems: bad.length, outside: transitions.filter((t) => t.outside).length, learned, outDir },
+          json: {
+            transitions: transitions.length,
+            screens,
+            problems: bad.length,
+            outside: transitions.filter((t) => t.outside).length,
+            learned,
+            outDir,
+            ...(gate ? { gate } : {}),
+          },
           code: bad.length ? 1 : 0,
         };
       } finally {
