@@ -51,6 +51,14 @@ app keeps at module scope (a query cache, a store made at import) survives,
 since modules load once per host; an app whose cases see each other through
 it wants `--host-command` without `--keep-hosts`, a host per case.
 
+The first start of a host transforms the app and every package it imports
+through babel, about 9 s on an Expo app with Reanimated. Jest keeps that work
+in `.lynkeus/jest-cache/`, and every later start reads it back: about 1.5 s on
+the same app, whatever port, job or command (`headless start`, `case run
+--host`, `--on headless`, `lynkeus ci`) starts the host. A change to a file
+transforms that file again, nothing else. The host runs the app's own jest bin
+with the CLI's node, not through `npx`.
+
 When the host crashes, the last thing printed is what the error usually
 means and the fix. `lynkeus headless doctor --explain "<first line>"` does the
 same for an error you paste.

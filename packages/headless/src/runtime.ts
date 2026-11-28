@@ -22,6 +22,23 @@ export const reset = (): void => {
   }
 };
 
+const mountHooks: Array<() => void> = [];
+
+// Work that needs the module the app got (a mock or the real one), done once the app has required it.
+export const onMounted = (fn: () => void): void => {
+  mountHooks.push(fn);
+};
+
+export const mounted = (): void => {
+  for (const fn of mountHooks.splice(0)) {
+    try {
+      fn();
+    } catch (error) {
+      log(`mount: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
 export const resolvable = (id: string): boolean => {
   try {
     require.resolve(id);

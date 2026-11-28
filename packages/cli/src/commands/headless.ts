@@ -200,12 +200,25 @@ export const attachFailureCheck = (error: unknown, port: number, attachFix: stri
 
 /**
  * The host file is named so that no default \`testMatch\` takes it (no __tests__, no .test.): the app's own \`jest\` run
- * must not start a host. The host run names it itself, as \`testRegex\` when the app's config uses that (jest refuses both).
+ * must not start a host. The flag matches every host file, as \`testRegex\` when the app's config uses that (jest
+ * refuses both), and the run picks its own by path: the pattern is part of the config jest hashes into every
+ * transform's cache key, and one naming the port threw the whole cache away each time a run got another free port.
  */
-export const hostTestFlag = (root: string, file: string): string => {
-  const config = jestConfigText(root);
-  const literal = file.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  return /\btestRegex\b/.test(config) ? `--testRegex=/\\.lynkeus/host/${literal}$` : `--testMatch=**/.lynkeus/host/${file}`;
+export const hostTestFlag = (root: string): string =>
+  /\btestRegex\b/.test(jestConfigText(root)) ? '--testRegex=/\\.lynkeus/host/[^/]+\\.host\\.tsx$' : '--testMatch=**/.lynkeus/host/*.host.tsx';
+
+/** jest's own bin in the app, run by this node; \`npx jest\` spends a few hundred ms finding it on every start. */
+export const jestCommand = (root: string): { command: string; args: string[] } => {
+  try {
+    const manifestFile = createRequire(path.join(root, 'package.json')).resolve('jest/package.json');
+    const { bin } = JSON.parse(fs.readFileSync(manifestFile, 'utf8')) as { bin?: string | Record<string, string> };
+    const file = typeof bin === 'string' ? bin : bin?.jest;
+    if (file && fs.existsSync(path.join(path.dirname(manifestFile), file)))
+      return { command: process.execPath, args: [path.join(path.dirname(manifestFile), file)] };
+  } catch {
+    // not resolvable from the app: npx finds it, or says it is missing
+  }
+  return { command: 'npx', args: ['jest'] };
 };
 
 /** Where `headless start` used to write the host, which the app's own jest run picked up. */
@@ -416,17 +429,19 @@ export const headlessCommands = [
         ...(process.env.LYNKEUS_TIME_ZONE ? { TZ: process.env.LYNKEUS_TIME_ZONE } : {}),
       };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, apiEnv)}`;
+      const jest = jestCommand(ctx.root);
       return {
         code: await runHost(
           ctx,
-          'npx',
+          jest.command,
           [
-            'jest',
+            ...jest.args,
+            '--runTestsByPath',
             testFile,
             '--runInBand',
             '--watchAll=false',
             ...jestDefaults(ctx.root),
-            hostTestFlag(ctx.root, path.basename(testFile)),
+            hostTestFlag(ctx.root),
             cache,
             ...ctx.passthrough,
           ],

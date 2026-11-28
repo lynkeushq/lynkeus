@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { appEntryFiles, changedAppEntry, exactCase, findAppComponent, headlessEntryOf } from '../commands/appEntry.js';
 import { detectApiEnv, setupMocks, transformPackages } from '../commands/appEnv.js';
 import { doctor, satisfies } from '../commands/doctor.js';
-import { hostTestFlag } from '../commands/headless.js';
+import { hostTestFlag, jestCommand } from '../commands/headless.js';
 
 const project = (files: Record<string, string>): string => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-detect-'));
@@ -90,12 +90,23 @@ test('the host takes back what the app’s jest setup mocks, unless the setup de
   assert.deepEqual(setupMocks(root, 'module.exports = { setupFilesAfterEnv: ["./test/headless-aware.ts"] }'), []);
 });
 
-test('the host file is outside every default testMatch, and named by the flag the app’s config allows', () => {
+test('the host file is outside every default testMatch, and matched by the flag the app’s config allows, whatever the port', () => {
   const plain = project({ 'jest.config.js': 'module.exports = { preset: "jest-expo" }' });
-  assert.equal(hostTestFlag(plain, 'headless.host.tsx'), '--testMatch=**/.lynkeus/host/headless.host.tsx');
+  assert.equal(hostTestFlag(plain), '--testMatch=**/.lynkeus/host/*.host.tsx');
   const regex = project({ 'jest.config.js': 'module.exports = { testRegex: "/__tests__/.*\\\\.test\\\\.tsx?$" }' });
-  assert.equal(hostTestFlag(regex, 'headless.host.tsx'), '--testRegex=/\\.lynkeus/host/headless\\.host\\.tsx$');
+  const pattern = new RegExp(hostTestFlag(regex).slice('--testRegex='.length));
+  for (const file of ['headless.host.tsx', 'headless-8128.host.tsx']) assert.match(`/app/.lynkeus/host/${file}`, pattern);
+  assert.doesNotMatch('/app/.lynkeus/host/old/headless.host.tsx', pattern);
   assert.doesNotMatch('headless.host.tsx', /\.(test|spec)\.[jt]sx?$/);
+});
+
+test('the host runs the app’s own jest bin with this node, and falls back to npx without one', () => {
+  const withJest = project({
+    'node_modules/jest/package.json': JSON.stringify({ name: 'jest', bin: './bin/jest.js', exports: { './package.json': './package.json' } }),
+    'node_modules/jest/bin/jest.js': '',
+  });
+  assert.deepEqual(jestCommand(withJest), { command: process.execPath, args: [path.join(fs.realpathSync(withJest), 'node_modules/jest/bin/jest.js')] });
+  assert.deepEqual(jestCommand(project({})), { command: 'npx', args: ['jest'] });
 });
 
 test('doctor answers each native dependency the way the host will, and checks the Testing Library range', () => {
