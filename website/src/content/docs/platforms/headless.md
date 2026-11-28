@@ -148,6 +148,8 @@ hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 
 The host stays in the foreground until you stop it. Arguments after `--` are passed to Jest.
 
+The first start is the slow one: Jest transforms your app and each package it imports, about 9 seconds for an Expo app with Reanimated. It keeps the result in `.lynkeus/jest-cache/`, so the next start takes about a second and a half, and so does a host that `case run --host`, `--on headless` or `lynkeus ci` starts on another port or for another job. Editing a file costs that file alone.
+
 ### 5. Drive it
 
 In another shell, in the same project, so that it reads the same token:

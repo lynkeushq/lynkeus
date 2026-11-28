@@ -85,6 +85,8 @@ Deberías ver, después de que Jest compile la app:
 hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 ```
 
+El primer arranque es el lento: Jest compila con Babel tu app y cada paquete que importa, unos 9 segundos en una app de Expo con Reanimated. Guarda lo compilado en `.lynkeus/jest-cache/` y los arranques siguientes lo reutilizan: rondan el segundo y medio, también cuando el host lo levanta `case run --host`, `--on headless` o `lynkeus ci` en otro puerto o para otro trabajo. Si editas un archivo, solo se vuelve a compilar ese.
+
 Dos cosas intervienen:
 
 - El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.

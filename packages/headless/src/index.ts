@@ -24,7 +24,7 @@ import { loadYoga } from './layout.js';
 import { frameNow, listenerCounts, setSettleProbe } from './mocks/controls.js';
 import { NativeMockScreen } from './mocks/native.js';
 import { discoveredNavigation, entryNavigation } from './navigation.js';
-import { installRuntime, log, onReset, reset } from './runtime.js';
+import { installRuntime, log, mounted, onReset, reset } from './runtime.js';
 import { type Fiber, hostRoot, type ReactTestInstance } from './tree.js';
 
 // The host test imports this package before the app's entry.
@@ -246,6 +246,7 @@ const startHost = async (make: () => ReactElement, options: HostOptions) => {
   host.claim();
   log('rendering the app');
   let rendered = await render(make());
+  mounted();
   let resets = 0;
   // Between the unmount and the next render the old renderer throws on every read; what idle and waitFor
   // poll meanwhile is an empty screen, which changes as soon as the app is back.
