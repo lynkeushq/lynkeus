@@ -54,6 +54,9 @@ const OWN_PROBES = new Set([
 
 export type Finding = { rule: string; message: string };
 
+// React's test renderer warns about updates outside act() on the headless host: the host's doing, never why a step failed.
+const ACT_WARNING = /not wrapped in act\(|wrapped into act\(|not configured to support act\(|environment is not configured to support act/;
+
 const fold = (t: string): string =>
   t
     .normalize('NFKD')
@@ -371,7 +374,9 @@ export const explain = (e: Evidence): Finding[] => {
 
   // A 2xx whose body the app could not use: it logs the parse or type error, and shows its empty state.
   const answered = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 300);
-  const complaints = (e.logs ?? []).filter((l) => l.level === 'error' || l.level === 'warn').map((l) => clip(l.text.split('\n')[0]!));
+  const complaints = (e.logs ?? [])
+    .filter((l) => (l.level === 'error' || l.level === 'warn') && !ACT_WARNING.test(l.text))
+    .map((l) => clip(l.text.split('\n')[0]!));
   if (
     missing &&
     complaints.length &&

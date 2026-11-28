@@ -6,4 +6,4 @@
 - `case run --jobs 4 --host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'`: a fresh host per case (`{port}` is where it dials, `{job}` the job). `--keep-hosts` starts each job's host once (faster; reset before each case, but module-scope state survives: drop it if cases see each other).
 - A host that dies or passes `--host-heap` percent of its heap is started again before the next case.
 
-Headless cannot tell you about real native views and gestures, a WebView's content, native crashes or pixels: run those cases on a device.
+Headless cannot tell you about real native views and gestures, a WebView's content, native crashes, pixels, or something scrolling out of the window (lists render every item: such an `absent` check is unsupported there): run those cases on a device.

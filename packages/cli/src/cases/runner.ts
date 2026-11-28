@@ -648,6 +648,16 @@ export const missingFixtures = (c: Case, config: CasesConfig, known: string[]): 
 /** What the app or its host answers to a method it does not have; the name is what it lacks. */
 export const lacking = (message: string): string | undefined => /Unknown method (\S+)/.exec(message)?.[1];
 
+/** A step this host cannot do for a reason of its own (no window to scroll out of), said as `this host has no <missing> (<why>)`. */
+class HostLacks extends Error {
+  constructor(
+    readonly missing: string,
+    readonly why: string,
+  ) {
+    super(`this host has no ${missing} (${why})`);
+  }
+}
+
 // A request is read from the app at the end of the step after the one that sent it when it leaves at the very
 // end of a step (a GET the app sends as an action finishes): its trace, carrying the step it left in, says where
 // it belongs. Each request without a trace in its own step moves to the step whose trace served the same method
@@ -968,6 +978,23 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     return pull(middle, middle + 110, 30, 'up');
   };
 
+  /** On a headless host, whether what an `absent` check names is still in the tree inside a list or scroll view. */
+  const inListHeadless = async (params: Record<string, unknown>): Promise<boolean> => {
+    const d = await device();
+    if (d.server.hello?.native !== false) return false;
+    const screen = await d.screen().catch(() => undefined);
+    if (!screen) return false;
+    const target = targetIn(params);
+    const text = typeof params.text === 'string' ? params.text : undefined;
+    const found = target
+      ? ((await d.server.call('find', target).catch(() => null)) as Element | null)
+      : text !== undefined
+        ? presented(screen).find((e) => says(e, text))
+        : undefined;
+    for (let p = found?.parent; p !== undefined; p = screen.elements[p]?.parent) if (screen.elements[p]?.kind === 'scroll') return true;
+    return false;
+  };
+
   const see = async (value: StepValue): Promise<void> => {
     const params = targetParams(value);
     const absent = params.absent === true;
@@ -1013,7 +1040,15 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       if (Date.now() > deadline) {
         if (!absent) throw new Error(`${missing!}${targetIn(params) && missing!.startsWith('not on screen') ? sightingNote(trail) : ''}`);
         const { absent: _, ...what } = params;
-        throw new Error(`still on screen: ${label({ verb: '', value: what as StepValue }).trim()}`);
+        const named = label({ verb: '', value: what as StepValue }).trim();
+        // Headless lays out every item of a list and scrolls nothing: what a device's window lost is still there.
+        if (await inListHeadless(what)) {
+          throw new HostLacks(
+            'window',
+            `headless renders every item of a list and scrolls none, so ${named} cannot leave the window here; check it on a device or FastSim`,
+          );
+        }
+        throw new Error(`still on screen: ${named}`);
       }
       await sleep(150);
     }
@@ -2063,12 +2098,12 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const missing = lacking(message);
+      const missing = error instanceof HostLacks ? error.missing : lacking(message);
       if (missing) {
         // Not the app's doing: the rest of the case would be standing on a step that never happened.
         unsupported = true;
         // The agent says why when it can (a release bundle, where commands registered behind __DEV__ never ran).
-        const why = /Unknown method \S+ (\(.+\))$/.exec(message)?.[1];
+        const why = error instanceof HostLacks ? `(${error.why})` : /Unknown method \S+ (\(.+\))$/.exec(message)?.[1];
         const said = `this host has no ${missing}${why ? ` ${why}` : ''}`;
         steps.push({ step: text, status: 'unsupported', ms: Date.now() - t0, error: said });
         log(`  🚫 ${text}  — ${said}`);

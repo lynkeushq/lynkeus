@@ -210,6 +210,7 @@ El host ejecuta el JavaScript de tu app contra un backend real, con la capa nati
 - **Los fallos nativos.**
 - **Los píxeles.** `lynkeus screenshot` y `lynkeus snapshot --pixels` necesitan un simulador. La comparación por árbol de `snapshot` sí funciona en el host.
 - **Una película del caso.** `case run --video` filma solo donde el host ofrece un comando `record`. Este host no dibuja nada y no lo ofrece.
+- **Que algo salga de la ventana.** Aquí una lista renderiza todos sus elementos y no se desplaza, así que no puede pasar una comprobación de que un texto quedó fuera de la vista (`app.see: { text: …, absent: true }` sobre un elemento que sigue dentro de una lista o de un scroll). Si se agota el tiempo con un elemento así, el paso queda como no compatible (`this host has no window (…)`), no como fallido. Comprobar que algo desapareció del árbol, como un modal que se cerró o un error que se fue, sigue funcionando, y falla si eso sigue ahí.
 
 Para todo eso, ejecuta los mismos casos en un simulador.
 

@@ -223,3 +223,16 @@ test('a request a host with no network could not send says so and to mock it, no
   );
   assert.ok(!rules(explain({ screen: s, requests: [feed], inFlight: 0, target: { text: 'Episode One' } })).includes('host-offline'));
 });
+
+test("React's act() warnings on the headless host are never given as why", () => {
+  const s = screen([el({ kind: 'text', text: 'Login' }, 0)], 'Login');
+  const act = {
+    level: 'error',
+    text: 'Warning: An update to ForwardRef(Screen) inside a test was not wrapped in act(...).\n\nWhen testing, code that causes React state updates should be wrapped into act(...)',
+  };
+  assert.deepEqual(rules(explain({ screen: s, requests: [], inFlight: 0, target: { text: 'Welcome' }, logs: [act] })), []);
+  assert.deepEqual(
+    rules(explain({ screen: s, requests: [], inFlight: 0, target: { text: 'Welcome' }, logs: [act, { level: 'error', text: 'TypeError: x is undefined' }] })),
+    ['app-logged'],
+  );
+});
