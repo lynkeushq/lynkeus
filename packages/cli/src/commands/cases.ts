@@ -13,7 +13,7 @@ import { type CasesConfig, type CaseReport, expandSteps, missingFixtures, NO_FIL
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
 import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
 import { HostPids, hostsFileOf } from '../cases/hostPids.js';
-import { configFile, DEFAULT_PORT, portFromEnv } from '../config.js';
+import { configFile, DEFAULT_PORT, portFromEnv, readToken } from '../config.js';
 import { type Device, nextHello } from '../device/driver.js';
 import { readJson, writeJson } from '../files.js';
 import { Ahead, InMemory, type Store } from '../cases/ahead.js';
@@ -43,7 +43,7 @@ import {
   type TargetPlan,
   targetSlug,
 } from '../cases/onTargets.js';
-import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning, startsFastsim } from '../cases/staleBundle.js';
+import { bundleToken, fastsimBundleDir, freshBundle, kitGivesToken, staleDeviceJs, staleJsWarning, startsFastsim } from '../cases/staleBundle.js';
 import { fastsimCacheNote, hostGrantEnv, installedFastsim, installedKit, runGrants } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -810,7 +810,12 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     let grants: Awaited<ReturnType<typeof runGrants>> | undefined;
     if (hostCommand) {
       // Never a run on a bundle older than the app's code: it would report on the app as it was.
-      const fresh = await freshBundle(hostCommand, ctx.root, { skip: [path.resolve(home, config.dir ?? 'cases')], log: ctx.err, signal: halt.signal });
+      const fresh = await freshBundle(hostCommand, ctx.root, {
+        skip: [path.resolve(home, config.dir ?? 'cases')],
+        log: ctx.err,
+        signal: halt.signal,
+        token: readToken(ctx.root),
+      });
       if (!fresh.ok) return { text: fresh.text, code: 1 };
       rebundled = fresh.note;
       if (rebundled) ctx.err(rebundled);
@@ -823,7 +828,32 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     const hostEnv = async (): Promise<NodeJS.ProcessEnv> => {
       const got = grants && 'env' in grants ? await grants.env() : { env: process.env };
       if ('failed' in got) throw new Error(`no Lynkeus FastSim grant for the next host: ${(got.failed.text ?? '').split('\n')[0]}`);
-      return nativeValues ? { ...got.env, LYNKEUS_NATIVE_VALUES: nativeValues } : got.env;
+      // The host hands the app's agent the project's token when its bundle carries none (a kit with `host-token`).
+      const token = readToken(ctx.root);
+      return {
+        ...got.env,
+        ...(token && !got.env.LYNKEUS_TOKEN ? { LYNKEUS_TOKEN: token } : {}),
+        ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
+      };
+    };
+    // Why a host that runs never brought its app, when its log or its bundle tells: an agent kept off for want of a token.
+    const noAppWhy = (port: number): string => {
+      if (!startsFastsim(hostCommand)) return '';
+      const log = hostCommand ? fastsimHostLog(hostCommand, port, ctx.root) : undefined;
+      const said = (() => {
+        try {
+          return log ? fs.readFileSync(log, 'utf8') : '';
+        } catch {
+          return '';
+        }
+      })();
+      const dir = hostCommand ? fastsimBundleDir(hostCommand, ctx.root) : undefined;
+      const tokenless =
+        /passed a token and it is empty|no token at all/.test(said) ||
+        (!!dir && !kitGivesToken(hostCommand!, ctx.root) && bundleToken(dir, readToken(ctx.root)) === 'missing');
+      return tokenless
+        ? `: its app's agent stayed off, as the bundle carries no Lynkeus token; bundle it with the project's token (EXPO_PUBLIC_LYNKEUS_TOKEN="$(cat .lynkeus/token)" <FastSim folder>/bin/fastsim-bundle …), or let case run bundle it again`
+        : ": the host runs, and no app dialed this port (a bundle without the project's token keeps its agent off; the host log is in its bundle folder, hosts/<port>.err)";
     };
     // Why a host this run started is gone, from how it exited and, for a FastSim host, the last line of its log.
     const hostGone = (host: ChildProcess, port: number): string | undefined => {
@@ -890,7 +920,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         await new Promise((r) => setTimeout(r, Math.max(0, ATTACH_PROBE_MS - (Date.now() - tried))));
       }
       if (halt.signal.aborted) return void (await stopHost(started));
-      const why = hostGone(started, port) ?? `the host on port ${port} did not bring its app within ${(until - startedAt) / 1000} s`;
+      const why = hostGone(started, port) ?? `the host on port ${port} did not bring its app within ${(until - startedAt) / 1000} s${noAppWhy(port)}`;
       log(why);
       await laneDown(why, started);
     };
@@ -916,7 +946,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         await new Promise((r) => setTimeout(r, Math.max(0, ATTACH_PROBE_MS - (Date.now() - tried))));
       }
       if (halt.signal.aborted) return undefined;
-      return hostGone(host, port) ?? `the host on port ${port} did not bring its app within ${waitMs / 1000} s`;
+      return hostGone(host, port) ?? `the host on port ${port} did not bring its app within ${waitMs / 1000} s${noAppWhy(port)}`;
     };
     if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
       return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };

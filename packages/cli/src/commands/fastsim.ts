@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { freePorts } from '../cases/portClaim.js';
 import { freshBundle } from '../cases/staleBundle.js';
-import { portFromEnv } from '../config.js';
+import { portFromEnv, readToken } from '../config.js';
 import { define, type Ctx, type Result } from '../registry.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
@@ -571,12 +571,19 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       if (port === undefined) return { text: 'no free driver port for the FastSim host', code: 1 };
       const command = `${JSON.stringify(run)} ${JSON.stringify(bundle)} ${port}`;
       const cases = ctx.config.cases ?? {};
-      const fresh = await freshBundle(command, ctx.root, { skip: [path.resolve(cases.base ?? ctx.root, cases.dir ?? 'cases')], log: ctx.err });
+      const fresh = await freshBundle(command, ctx.root, {
+        skip: [path.resolve(cases.base ?? ctx.root, cases.dir ?? 'cases')],
+        log: ctx.err,
+        token: readToken(ctx.root),
+      });
       if (!fresh.ok) return { text: fresh.text, code: 1 };
       const granted = await hostGrantEnv(ctx, command);
       if ('failed' in granted) return granted.failed;
       await stopExploring();
-      const child = spawn(run, [bundle, String(port)], { cwd: ctx.root, env: granted.env, stdio: ['pipe', 'ignore', 'ignore'], detached: true });
+      // The host hands the agent the project's token when the bundle carries none (a kit with `host-token`).
+      const token = readToken(ctx.root);
+      const env = token && !granted.env.LYNKEUS_TOKEN ? { ...granted.env, LYNKEUS_TOKEN: token } : granted.env;
+      const child = spawn(run, [bundle, String(port)], { cwd: ctx.root, env, stdio: ['pipe', 'ignore', 'ignore'], detached: true });
       const scoped = ctx.forPort(port, { ended: () => (hostExited(child) ? `the FastSim host exited (${child.exitCode ?? child.signalCode})` : undefined) });
       const takeOver = ctx.takeOver;
       exploring = {

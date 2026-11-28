@@ -69,6 +69,42 @@ describe('a token that did not arrive', () => {
   });
 });
 
+describe('a token from a FastSim host', () => {
+  const g = globalThis as { __fastsimDevice?: unknown };
+  afterEach(() => {
+    delete g.__fastsimDevice;
+  });
+
+  it('lets a bundle made without the token attach on a FastSim host started with one, proving it as a bundled one', () => {
+    g.__fastsimDevice = { width: 402, height: 874, lynkeusToken: 'host-secret' };
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: undefined });
+    expect(d.dials).toHaveLength(1);
+    const link = opened(d);
+    const hello = handshake(link.socket, link.sent, 'host-secret');
+    // The proof is the host's token's: a driver holding another one would be refused.
+    expect(hello.proof).toBe(hmac('host-secret', `lynkeus/app/s/${DRIVER_NONCE}/${hello.nonce}`));
+    expect(link.sent.join('\n')).not.toContain('host-secret');
+    stop();
+  });
+
+  it('is not used anywhere else, nor over a token the bundle carries', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    g.__fastsimDevice = { width: 402 };
+    const none = dialer();
+    start({ navigation: noNavigation, backend, createSocket: none.createSocket, token: undefined })();
+    expect(none.dials).toHaveLength(0);
+    g.__fastsimDevice = { lynkeusToken: 'host-secret' };
+    const bundled = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: bundled.createSocket, token: 'bundled-secret' });
+    const link = opened(bundled);
+    const hello = handshake(link.socket, link.sent, 'bundled-secret');
+    expect(hello.proof).toBe(hmac('bundled-secret', `lynkeus/app/s/${DRIVER_NONCE}/${hello.nonce}`));
+    stop();
+    warn.mockRestore();
+  });
+});
+
 describe('dialing the driver', () => {
   beforeEach(() => {
     jest.useFakeTimers({ now: 0 });

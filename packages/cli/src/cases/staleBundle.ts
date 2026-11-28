@@ -90,6 +90,30 @@ export type StaleBundle = {
  * The FastSim bundle a host command runs, when it is older than the app's code: a run on it would test the app as it
  * was. Undefined when it is current, or when the command runs no bundle that can be checked.
  */
+/** The app and platform a bundle was made for, as fastsim-bundle recorded them (bundle.json, else host.args). */
+const bundleFacts = (bundle: string, appDir: string): Omit<StaleBundle, 'newest'> => {
+  let app = appDir;
+  let platform: string | undefined;
+  try {
+    const recorded = JSON.parse(fs.readFileSync(path.join(bundle, 'bundle.json'), 'utf8')) as { app?: unknown; platform?: unknown };
+    if (typeof recorded.app === 'string' && fs.existsSync(recorded.app)) app = recorded.app;
+    if (recorded.platform === 'ios' || recorded.platform === 'android') platform = recorded.platform;
+  } catch {
+    // made before fastsim-bundle recorded its app
+  }
+  if (!platform)
+    platform = /--platform (\w+)/.exec(
+      (() => {
+        try {
+          return fs.readFileSync(path.join(bundle, 'host.args'), 'utf8');
+        } catch {
+          return '';
+        }
+      })(),
+    )?.[1];
+  return { bundle, app, platform: platform ?? 'ios' };
+};
+
 export const staleBundle = (command: string, appDir: string, skip: string[] = []): StaleBundle | undefined => {
   const bundle = fastsimBundleDir(command, appDir);
   if (!bundle) return undefined;
@@ -131,7 +155,56 @@ export const rebundleCommand = (stale: StaleBundle, bundler: string | undefined)
   [bundler ? shellWord(bundler) : '<FastSim folder>/bin/fastsim-bundle', shellWord(stale.app), shellWord(stale.bundle), stale.platform].join(' ');
 
 export type Bundling = { code: number | null; output: string };
-export type Bundle = (bundler: string, args: string[], o: { cwd: string; signal?: AbortSignal }) => Promise<Bundling>;
+export type Bundle = (bundler: string, args: string[], o: { cwd: string; signal?: AbortSignal; env?: NodeJS.ProcessEnv }) => Promise<Bundling>;
+
+/**
+ * Whether a FastSim bundle carries the project's token, read from its bytes (Hermes keeps string literals as they
+ * are): `missing` when its agent will stay off and never dial in (trial run 11: a bundle made without
+ * EXPO_PUBLIC_LYNKEUS_TOKEN waited out 60 s, saying nothing). Undefined when there is no bundle or no token to look for.
+ */
+export const bundleToken = (bundle: string, token: string | undefined): 'present' | 'missing' | undefined => {
+  if (!token) return undefined;
+  const needle = Buffer.from(token);
+  let found: boolean | undefined;
+  for (const name of ['app.hbc', 'app.js']) {
+    try {
+      const bytes = fs.readFileSync(path.join(bundle, name));
+      if (bytes.includes(needle)) return 'present';
+      found = false;
+    } catch {
+      // not in this bundle
+    }
+  }
+  return found === false ? 'missing' : undefined;
+};
+
+/**
+ * Whether the kit a host command runs hands the app's agent the token it is started with (LYNKEUS_TOKEN), so a bundle
+ * need not carry it: a kit that does lists `host-token` in `share/capabilities`.
+ */
+export const kitGivesToken = (command: string, cwd: string): boolean => {
+  const run = RUN.exec(command)?.[1];
+  if (!run) return false;
+  try {
+    const kit = path.dirname(path.dirname(path.resolve(cwd, unquote(run))));
+    return fs
+      .readFileSync(path.join(kit, 'share', 'capabilities'), 'utf8')
+      .split(/\s+/)
+      .includes('host-token');
+  } catch {
+    return false;
+  }
+};
+
+/** The environment a bundle is made in: the project's token where the app's bundler inlines it (Expo, and the babel plugin). */
+export const bundleEnv = (token: string | undefined): NodeJS.ProcessEnv =>
+  token
+    ? { ...process.env, EXPO_PUBLIC_LYNKEUS_TOKEN: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN || token, LYNKEUS_TOKEN: process.env.LYNKEUS_TOKEN || token }
+    : process.env;
+
+/** Why a bundle that still carries no token after bundling: the app's entry does not read it where the bundler sets it. */
+export const NO_TOKEN_FIX =
+  "the app's entry must pass it to the agent: auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN }) in Expo, or 'lynkeus-agent/babel' in babel.config.js with LYNKEUS_TOKEN set in React Native (`lynkeus init` writes both)";
 
 const MAX_OUTPUT = 64 * 1024;
 
@@ -142,7 +215,7 @@ const spawnBundle: Bundle = (bundler, args, o) =>
       output = (output + chunk.toString()).slice(-MAX_OUTPUT);
     };
     // The bundler inlines this process's environment (EXPO_PUBLIC_*, the backend's address) as a release build does.
-    const child = spawn(bundler, args, { cwd: o.cwd, env: process.env, stdio: ['ignore', 'pipe', 'pipe'], signal: o.signal });
+    const child = spawn(bundler, args, { cwd: o.cwd, env: o.env ?? process.env, stdio: ['ignore', 'pipe', 'pipe'], signal: o.signal });
     child.stdout.on('data', keep);
     child.stderr.on('data', keep);
     child.on('error', (error) => resolve({ code: null, output: `${output}${error.message}` }));
@@ -159,13 +232,18 @@ export type FreshBundle = { ok: true; note?: string } | { ok: false; text: strin
 export const freshBundle = async (
   command: string,
   appDir: string,
-  o: { skip?: string[]; log?: (line: string) => void; signal?: AbortSignal; bundle?: Bundle; envPath?: string } = {},
+  o: { skip?: string[]; log?: (line: string) => void; signal?: AbortSignal; bundle?: Bundle; envPath?: string; token?: string } = {},
 ): Promise<FreshBundle> => {
-  const stale = staleBundle(command, appDir, o.skip);
+  // A bundle with no token keeps its agent off, unless the host hands it the token: as stale as one on old code.
+  const tokenless = (b: string) => !kitGivesToken(command, appDir) && bundleToken(b, o.token) === 'missing';
+  const dir = fastsimBundleDir(command, appDir);
+  const stale = staleBundle(command, appDir, o.skip) ?? (dir && tokenless(dir) ? { ...bundleFacts(dir, appDir), newest: '' } : undefined);
   if (!stale) return { ok: true };
   const bundler = fastsimBundler(command, appDir, o.envPath ?? process.env.PATH);
-  const again = rebundleCommand(stale, bundler);
-  const older = `the FastSim bundle at ${stale.bundle} is older than ${stale.newest}`;
+  const again = `${o.token ? 'EXPO_PUBLIC_LYNKEUS_TOKEN="$(cat .lynkeus/token)" ' : ''}${rebundleCommand(stale, bundler)}`;
+  const older = stale.newest
+    ? `the FastSim bundle at ${stale.bundle} is older than ${stale.newest}`
+    : `the FastSim bundle at ${stale.bundle} carries no Lynkeus token, so its app's agent stays off and never attaches (it was bundled without EXPO_PUBLIC_LYNKEUS_TOKEN)`;
   if (!bundler)
     return { ok: false, text: `${older}, and no fastsim-bundle is beside the host command's fastsim-run; bundle it again, then run again:\n  ${again}` };
   o.log?.(`${older}; bundling it again: ${again}`);
@@ -175,7 +253,11 @@ export const freshBundle = async (
   const before = inputs && snapshotInputs(stale.app, inputs);
   const hbc = path.join(stale.bundle, 'app.hbc');
   const builtBefore = fs.statSync(hbc, { throwIfNoEntry: false })?.mtimeMs;
-  const done = await (o.bundle ?? spawnBundle)(bundler, [stale.app, stale.bundle, stale.platform], { cwd: stale.app, signal: o.signal });
+  const done = await (o.bundle ?? spawnBundle)(bundler, [stale.app, stale.bundle, stale.platform], {
+    cwd: stale.app,
+    signal: o.signal,
+    env: bundleEnv(o.token),
+  });
   const builtNow = fs.statSync(hbc, { throwIfNoEntry: false })?.mtimeMs;
   if (done.code === 0 && before && builtNow !== undefined && builtNow !== builtBefore) keepInputs(stale.bundle, builtNow, before);
   if (done.code !== 0) {
@@ -186,12 +268,20 @@ export const freshBundle = async (
     };
   }
   const still = staleBundle(command, appDir, o.skip);
+  if (!still && tokenless(stale.bundle))
+    return {
+      ok: false,
+      text: `the FastSim bundle at ${stale.bundle} still carries no Lynkeus token after bundling it again with EXPO_PUBLIC_LYNKEUS_TOKEN and LYNKEUS_TOKEN set: ${NO_TOKEN_FIX}`,
+    };
   if (still)
     return {
       ok: false,
       text: `the FastSim bundle at ${still.bundle} is still older than ${still.newest} after bundling it again (is that file dated in the future?); the run would test old code`,
     };
-  return { ok: true, note: `bundled ${stale.bundle} again in ${((Date.now() - t0) / 1000).toFixed(1)} s: it was older than ${stale.newest}` };
+  return {
+    ok: true,
+    note: `bundled ${stale.bundle} again in ${((Date.now() - t0) / 1000).toFixed(1)} s: ${stale.newest ? `it was older than ${stale.newest}` : 'it carried no Lynkeus token'}`,
+  };
 };
 
 // Files at the app's root that configure the tools and are not in the bundle the app runs: a change to one does not

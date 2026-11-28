@@ -302,3 +302,49 @@ test('root config files, the cases folder and tests do not make the code on a de
   at(path.join(root, 'app', 'i18n', 'es.json'), 9_990);
   assert.equal(staleDeviceJs(root, { loadedMs: 500_000 }, NOW * 1000)?.newest, path.join('app', 'i18n', 'es.json'));
 });
+
+test('a bundle with no Lynkeus token is bundled again with the project token in the bundler environment, or refused with why', async () => {
+  const root = project();
+  const k = kit();
+  const bundleDir = path.join(root, '.lynkeus', 'fastsim-ios');
+  fs.writeFileSync(path.join(bundleDir, 'app.hbc'), 'hermes bytes with no token');
+  fs.utimesSync(path.join(bundleDir, 'app.hbc'), 2000, 2000);
+  const { bundleToken } = await import('../staleBundle.js');
+  assert.equal(bundleToken(bundleDir, 'tok-123'), 'missing');
+  assert.equal(bundleToken(bundleDir, undefined), undefined);
+  const command = `${k}/bin/fastsim-run .lynkeus/fastsim-ios {port}`;
+  let env: NodeJS.ProcessEnv | undefined;
+  const inlines: Bundle = async (_b, _a, o) => {
+    env = o.env;
+    fs.writeFileSync(path.join(bundleDir, 'app.hbc'), `hermes bytes ${o.env?.EXPO_PUBLIC_LYNKEUS_TOKEN}`);
+    fs.utimesSync(path.join(bundleDir, 'app.hbc'), 4000, 4000);
+    return { code: 0, output: '' };
+  };
+  const fresh = await freshBundle(command, root, { bundle: inlines, token: 'tok-123' });
+  assert.equal(fresh.ok, true, fresh.ok ? '' : fresh.text);
+  assert.match(fresh.ok ? (fresh.note ?? '') : '', /again in .* s: it carried no Lynkeus token/);
+  assert.equal(env?.EXPO_PUBLIC_LYNKEUS_TOKEN, 'tok-123');
+  assert.equal(bundleToken(bundleDir, 'tok-123'), 'present');
+  // An entry that does not read the token: still none after bundling, and the run is refused with what to change.
+  fs.writeFileSync(path.join(bundleDir, 'app.hbc'), 'no token');
+  const ignores: Bundle = async () => {
+    fs.utimesSync(path.join(bundleDir, 'app.hbc'), 5000, 5000);
+    return { code: 0, output: '' };
+  };
+  const refused = await freshBundle(command, root, { bundle: ignores, token: 'tok-123' });
+  assert.equal(refused.ok, false);
+  assert.match(
+    refused.ok ? '' : refused.text,
+    /still carries no Lynkeus token after bundling it again .*auto\({ token: process\.env\.EXPO_PUBLIC_LYNKEUS_TOKEN }\)/,
+  );
+  // A kit whose host hands the agent its token needs none in the bundle.
+  fs.mkdirSync(path.join(k, 'share'), { recursive: true });
+  fs.writeFileSync(path.join(k, 'share', 'capabilities'), 'host-token\n');
+  let called = false;
+  const never: Bundle = async () => {
+    called = true;
+    return { code: 0, output: '' };
+  };
+  assert.deepEqual(await freshBundle(command, root, { bundle: never, token: 'tok-123' }), { ok: true });
+  assert.equal(called, false);
+});

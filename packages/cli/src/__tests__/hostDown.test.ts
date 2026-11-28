@@ -101,7 +101,29 @@ test('a kept host that never brings its app ends its job at the host timeout, no
   const took = Date.now() - t0;
   assert.ok(took < 4000, `the run took ${took} ms`);
   assert.equal(outcome.code, 1);
-  assert.match(outcome.text ?? '', new RegExp(`the host on port ${port} did not bring its app within 0.6 s; the cases left were not run`));
+  assert.match(
+    outcome.text ?? '',
+    new RegExp(
+      `the host on port ${port} did not bring its app within 0.6 s: the host runs, and no app dialed this port \\(a bundle without the project's token keeps its agent off; .*\\); the cases left were not run`,
+    ),
+  );
+});
+
+test('a FastSim host whose app kept its agent off for want of a token says so when it does not bring its app', async () => {
+  const [port] = await freePorts(1, 20_700 + (process.pid % 200));
+  const p = project(
+    `echo "lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off." > "$1/hosts/$2.err"\nexec sleep 30`,
+    400,
+  );
+  const outcome = await execute(
+    ['case', 'run', '--once', '--ports', String(port), '--host-command', p.command, '--keep-hosts', '--host-timeout', '600'],
+    p.base,
+  );
+  assert.equal(outcome.code, 1);
+  assert.match(
+    outcome.text ?? '',
+    /did not bring its app within 0\.6 s: its app's agent stayed off, as the bundle carries no Lynkeus token; bundle it with the project's token \(EXPO_PUBLIC_LYNKEUS_TOKEN=/,
+  );
 });
 
 test('the wait for a case’s app knows its host, and says the host’s last words once it has exited', async () => {

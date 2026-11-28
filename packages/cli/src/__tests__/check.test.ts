@@ -145,6 +145,8 @@ test('map ci --cases adds a job that runs the affected cases on the CI targets, 
   assert.match(yml, /- run: corepack enable && pnpm install --frozen-lockfile/);
   assert.match(yml, /'lynkeus@\^0\.7\.7' fastsim install --platform ios --json/);
   assert.match(yml, /"\$kit\/bin\/fastsim-bundle" \. \.lynkeus\/fastsim-android android/);
+  // The bundle carries the token: the checkout has no .env.local.
+  assert.match(yml, /bundle the app\n {8}# .*\n {8}env:\n {10}EXPO_PUBLIC_LYNKEUS_TOKEN: \$\{\{ secrets\.LYNKEUS_TOKEN \}\}\n {8}run: \|/);
   assert.match(yml, /run: npx --yes 'lynkeus@\^0\.7\.7' ci --affected --base origin\/\$\{\{ github\.base_ref \}\}/);
   assert.doesNotMatch(mapCheckWorkflow(4, '^0.7.7'), /cases:/);
   const headless = casesJobPlan({ cases: { targets: ['headless'] }, ci: { backend: { up: 'up' } } });
