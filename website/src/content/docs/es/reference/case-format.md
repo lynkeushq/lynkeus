@@ -516,13 +516,17 @@ steps:
 
 | Condición | Se cumple cuando |
 |---|---|
-| `device` | La app corre en un simulador o un emulador, con toques reales. |
-| `headless` | La app corre en un host sin pantalla. |
+| `device` | La app corre en un simulador, un emulador o un teléfono, con toques reales. |
+| `headless` | La app corre en el host sin pantalla, en Node. |
+| `fastsim` | La app corre en un host de Lynkeus FastSim. |
+| `host` | La app corre en cualquiera de los dos hosts, el sin pantalla o FastSim. |
 | `ios`, `android` | La app informa esa plataforma. |
 | `has:<comando>` | La app registró ese comando. Sirve cuando un build tiene comandos que otro no. |
 | `!<condición>` | Lo contrario de cualquiera de las anteriores: `!ios`, `!has:reset`. |
 
 Un bloque con `do:` y sin `on:` se rechaza.
+
+Antes de 0.7.7, `headless` también se cumplía en FastSim. Pero FastSim dibuja de forma nativa y con layout real, así que un paso pensado para el host en Node (por ejemplo, un control de texto que reemplaza a uno nativo) no le corresponde. Para un paso que necesitan los dos hosts, usa `host`.
 
 ## Referencias `{{…}}`
 

@@ -639,7 +639,7 @@ steps:
   );
 });
 
-test('a host that keeps its own clock is not a device', async () => {
+test('a host that keeps its own clock (FastSim) is not a device, and not the headless host either: it is fastsim and host', async () => {
   const c = parseCase(
     `---
 id: clock
@@ -651,6 +651,15 @@ steps:
       - app.see: { text: "never shown" }
   - on: headless
     do:
+      - app.see: { text: "never shown either" }
+  - on: fastsim
+    do:
+      - app.see: { text: "Hello" }
+  - on: host
+    do:
+      - app.see: { text: "Hello" }
+  - on: "!headless"
+    do:
       - app.see: { text: "Hello" }
 `,
     'clock.md',
@@ -661,7 +670,7 @@ steps:
   const report = await runCase(c, { base, config, fixtures });
   assert.deepEqual(
     report.steps.map((s) => s.status),
-    ['skipped', 'passed'],
+    ['skipped', 'skipped', 'passed', 'passed', 'passed'],
   );
 });
 

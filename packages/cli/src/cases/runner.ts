@@ -1500,17 +1500,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   /**
-   * `device`, `headless`, a platform, or `has:<command>` for a host whose app
-   * registered that command (a hosted build often has commands a store build
-   * does not); `!` in front turns any of them around. One case then carries the
-   * way each host does a thing, and runs on all of them.
+   * `device` (a Simulator, an emulator, a phone), `headless` (the app in Node), `fastsim` (a FastSim host), `host`
+   * (either host), a platform, or `has:<command>` for a host whose app registered that command (a hosted build often
+   * has commands a store build does not); `!` in front turns any of them around. One case then carries the way each
+   * host does a thing, and runs on all of them.
    */
   const runsHere = async (on: string): Promise<boolean> => {
     if (on.startsWith('!')) return !(await runsHere(on.slice(1)));
     const hello = helloOf(await device());
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
-    if (on === 'headless') return !phone;
+    if (on === 'host') return !phone;
+    // A FastSim host draws natively, with real layout and frames: it is not the Node host a headless step is for.
+    if (on === 'headless') return !phone && !hello?.native;
+    if (on === 'fastsim') return !phone && !!hello?.native;
     if (on.startsWith('has:')) {
       const name = on.slice(4);
       const live = await liveCommands(await device(), hello);

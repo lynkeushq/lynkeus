@@ -575,14 +575,18 @@ steps:
 
 | Condition | Holds when |
 |---|---|
-| `device` | The app runs on a simulator or an emulator. |
-| `headless` | The app runs anywhere else. |
+| `device` | The app runs on a simulator, an emulator or a phone. |
+| `headless` | The app runs on the headless host, in Node. |
+| `fastsim` | The app runs on a Lynkeus FastSim host. |
+| `host` | The app runs on either host, headless or FastSim. |
 | `ios` | The app reports the platform `ios`. |
 | `android` | The app reports the platform `android`. |
 | `has:<command>` | The app registered that command, as `lynkeus hello` lists them. |
 | `!<condition>` | The condition does not hold: `!ios`, `!has:reset`. |
 
 `do` takes one step or a list of steps. An entry with `do` and no `on` is refused.
+
+Before 0.7.7, `headless` also held on FastSim. FastSim draws natively, with real layout, so a step written for the Node host (a text control that stands in for a native one) does not belong there; write `host` for a step both hosts need.
 
 ## References
 
