@@ -1196,6 +1196,7 @@ What each host does with them:
 |---|---|---|---|---|
 | Headless (`--host`) | `Math.random` repeats from the same place at launch and after each case | `react-native-localize` answers it | the host process runs in it (`TZ`) | `Date` starts there and runs on; `lynkeus clock --reset` returns to it |
 | `--host-command` | passed in the environment and in `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
+| Lynkeus FastSim (`--on fastsim:*`, a `fastsim-run` host command) | as `--host-command` | applied only by a kit whose `share/capabilities` lists `launch-locale`; with an older kit the app keeps the host's language, the run says so once and lists `locale` under `launch.unsupported` | as `--host-command` | as `--host-command` |
 | Simulator or emulator, attached | the cases' own `{{random.*}}` values only; the app's `Math.random` is its own, so `seed` is listed as unsupported | not applied | not applied | not applied |
 
 A host started with `--host-command` receives `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (and `TZ`) and `LYNKEUS_EPOCH` in its environment, and the placeholders in the command. [Lynkeus FastSim](/guides/fastsim/) reads them as its defaults. A simulator or emulator that is only attached keeps the Mac's time zone and clock, so the run says on stderr which facts it could not pass on, and lists them under `launch.unsupported` in `run.json`. A run without the flags and without `launch` records nothing.

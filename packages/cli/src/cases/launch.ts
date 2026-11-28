@@ -77,9 +77,15 @@ export const fillLaunch = (command: string, launch: RunLaunch | undefined): stri
  * `Math.random`: all four are listed as `unsupported`. The seed still makes the case's own `{{random.*}}` repeatable,
  * which the CLI draws, but nothing the app draws.
  */
-export const recordLaunch = (launch: RunLaunch | undefined, startedHost: boolean): RunLaunch | undefined => {
+export const recordLaunch = (launch: RunLaunch | undefined, startedHost: boolean, hostIgnores: RunLaunchFact[] = []): RunLaunch | undefined => {
   if (!launch || Object.keys(launch).length === 0) return undefined;
-  if (startedHost) return launch;
-  const unsupported = (['seed', 'locale', 'timeZone', 'epoch'] as RunLaunchFact[]).filter((fact) => launch[fact] !== undefined);
+  // A host the run started passes every fact on, but one may not apply them all: a FastSim kit without `launch-locale`
+  // leaves the app's language as it was (trial run 13: es-AR asked, the app read en-US, nothing said so).
+  const facts = startedHost ? hostIgnores : (['seed', 'locale', 'timeZone', 'epoch'] as RunLaunchFact[]);
+  const unsupported = facts.filter((fact) => launch[fact] !== undefined);
   return unsupported.length ? { ...launch, unsupported } : launch;
 };
+
+/** The launch facts a host command passes on and its host does not apply: the locale, on a FastSim kit without `launch-locale`. */
+export const ignoredByHost = (startsFastsim: boolean, capabilities: string[]): RunLaunchFact[] =>
+  startsFastsim && !capabilities.includes('launch-locale') ? ['locale'] : [];

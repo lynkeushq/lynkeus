@@ -5,7 +5,7 @@ import path from 'node:path';
 import { stripVTControlCharacters } from 'node:util';
 
 import { Fixtures } from '../cases/fixtures.js';
-import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../cases/launch.js';
+import { caseLaunch, fillLaunch, launchEnv, ignoredByHost, recordLaunch, resolveLaunch } from '../cases/launch.js';
 import type { RunLaunch } from 'lynkeus-protocol';
 import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
@@ -609,14 +609,22 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const launch = resolveLaunch(ctx.flags, ctx.config);
   if (typeof launch === 'string') return { text: launch, code: 2 };
   const startsHost = !!ctx.flags.host || typeof ctx.flags['host-command'] === 'string';
-  const notApplied = recordLaunch(launch, startsHost)?.unsupported;
-  if (notApplied?.length && !ctx.flags['dry-run'])
+  const hostCommandFlag = typeof ctx.flags['host-command'] === 'string' ? ctx.flags['host-command'] : undefined;
+  const hostIgnores = ignoredByHost(startsFastsim(hostCommandFlag), kitCapabilities(hostCommandFlag, ctx.root));
+  const notApplied = recordLaunch(launch, startsHost, hostIgnores)?.unsupported;
+  if (notApplied?.length && startsHost && !ctx.flags['dry-run'])
+    ctx.err(
+      `launch: locale not applied: this Lynkeus FastSim does not set the app's language (expo-localization, Intl), so the app runs in the host's own language whatever ${launch.locale} says; run.json lists it under launch.unsupported. A FastSim whose share/capabilities lists launch-locale applies it; headless does today`,
+    );
+  else if (notApplied?.length && !ctx.flags['dry-run'])
     ctx.err(
       `launch: ${notApplied.join(', ')} not applied: the app is attached, not started by this run (start the host with them, or use --host or --host-command)${notApplied.includes('seed') ? "; the seed still makes the cases' {{random.*}} repeatable, not the app's Math.random" : ''}${notApplied.includes('locale') ? `; for the app's language on a Simulator or emulator run \`os language ${launch.locale}\` once, which every relaunch Lynkeus makes keeps` : ''}`,
     );
   const seenDir = dry ? undefined : typeof ctx.flags.seen === 'string' ? path.resolve(ctx.flags.seen) : path.join(ctx.root, SEEN_DIR);
   const out =
-    typeof ctx.flags.out === 'string' && !dry ? new RunFile(path.resolve(ctx.flags.out), ctx.root, new Date(), recordLaunch(launch, startsHost)) : undefined;
+    typeof ctx.flags.out === 'string' && !dry
+      ? new RunFile(path.resolve(ctx.flags.out), ctx.root, new Date(), recordLaunch(launch, startsHost, hostIgnores))
+      : undefined;
   if ((ctx.flags.screenshots || ctx.flags.video) && !out)
     return { text: '--screenshots and --video keep what they take in the run directory: add --out <dir>', code: 2 };
   // Checked before the run, so a missing key does not surface only after every case has run.

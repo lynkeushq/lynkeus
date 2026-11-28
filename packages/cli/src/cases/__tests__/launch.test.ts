@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
+import { caseLaunch, fillLaunch, ignoredByHost, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
 
 test('flags win over the config, the config over the environment', () => {
   const launch = resolveLaunch(
@@ -52,4 +52,16 @@ test('a host started for a case draws its own values, the same on every run', ()
   assert.notEqual(caseLaunch(launch, 'login-sign-up')?.seed, caseLaunch(launch, 'onboarding-kyc')?.seed);
   assert.deepEqual(caseLaunch({ locale: 'es-AR' }, 'login-sign-up'), { locale: 'es-AR' });
   assert.equal(caseLaunch(undefined, 'login-sign-up'), undefined);
+});
+
+test('a FastSim host that does not apply the locale has it listed as unsupported, until its kit says launch-locale', () => {
+  const launch = { locale: 'es-AR', timeZone: 'America/Argentina/Buenos_Aires', seed: 's' };
+  // Trial run 13: the app on FastSim still read "Log In" while run.json claimed es-AR.
+  assert.deepEqual(ignoredByHost(true, []), ['locale']);
+  assert.deepEqual(recordLaunch(launch, true, ignoredByHost(true, ['host-token']))?.unsupported, ['locale']);
+  assert.deepEqual(ignoredByHost(true, ['launch-locale']), []);
+  assert.equal(recordLaunch(launch, true, ignoredByHost(true, ['launch-locale'])), launch);
+  // Headless applies it; a run with no locale lists nothing.
+  assert.equal(recordLaunch(launch, true, ignoredByHost(false, [])), launch);
+  assert.equal(recordLaunch({ seed: 's' }, true, ['locale'])?.unsupported, undefined);
 });
