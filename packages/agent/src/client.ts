@@ -257,7 +257,10 @@ export const start = (options: ClientOptions): (() => void) => {
       void serve(parsed);
     };
     ws.onclose = () => {
-      if (socket === ws) socket = null;
+      // A socket already replaced must not redial: it would orphan the current one, whose own close redials again,
+      // and the two would take turns replacing each other.
+      if (socket !== ws) return;
+      socket = null;
       // A driver that closes after our proof and before its own refused the proof: its token is another one.
       if (appNonce && !authenticated && !stopped) refused(url);
       if (stopped) return;

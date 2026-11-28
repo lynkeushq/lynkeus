@@ -125,6 +125,28 @@ describe('dialing the driver', () => {
     expect(d.dials[d.dials.length - 1]! - before).toBe(100);
     stop();
   });
+  it('ignores the close of a socket it already replaced, so two sockets cannot take turns redialing', () => {
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const first = d.sockets[0]!;
+    first.onopen?.();
+    first.onclose?.();
+    jest.runOnlyPendingTimers();
+    expect(d.sockets).toHaveLength(2);
+    const second = d.sockets[1]!;
+    second.onopen?.();
+    // The stale socket closes again (a late close event, or a socket that outlived its replacement).
+    for (let i = 0; i < 5; i++) {
+      first.onclose?.();
+      jest.runOnlyPendingTimers();
+    }
+    expect(d.sockets).toHaveLength(2);
+    second.onclose?.();
+    jest.runOnlyPendingTimers();
+    jest.runOnlyPendingTimers();
+    expect(d.sockets).toHaveLength(3);
+    stop();
+  });
 });
 
 describe('replayed requests', () => {
