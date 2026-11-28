@@ -412,9 +412,13 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await backend.swipe({ x: cx + (forward ? dx : -dx), y: at.y }, { x: cx + (forward ? -dx : dx), y: at.y }, 250);
       return;
     }
-    const up = at === undefined ? back : at.y < 0;
+    // In the window but covered (a tab bar or a header over it): a short move takes it out from under, where a
+    // long one would carry it out of the window the other side (trial runs 8 and 10, Android FastSim).
+    const under = at !== undefined && at.y >= 0 && at.y <= win.h;
+    const up = at === undefined ? back : under ? at.y < cy : at.y < 0;
+    const step = under ? Math.min(dy, Math.max(target!.frame.h * 1.5, (bottom - top) * 0.1)) : dy;
     const x = at === undefined ? cx : Math.min(Math.max(at.x, left + 1), right - 1);
-    await backend.swipe({ x, y: cy + (up ? -dy : dy) }, { x, y: cy + (up ? dy : -dy) }, 250);
+    await backend.swipe({ x, y: cy + (up ? -step : step) }, { x, y: cy + (up ? step : -step) }, 250);
   };
 
   // The focused screen, and the navigators it sits in when it is nested: `Demo > DemoPodcastList`.
@@ -446,7 +450,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       // not landed) reads as enabled but inert, and a swipe or press on it would be refused.
       const stateOk = (element: Element | undefined) =>
         element !== undefined && (params.enabled === undefined || (element.enabled === params.enabled && (!params.enabled || element.hidden !== 'inert')));
-      const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
+      // A scroll wait is for a press: the target must be in the window and not under a bar or a sheet.
+      const present = params.target ? stateOk(found) && !(params.scroll && (!inWindow(found!) || found!.covered)) : true;
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;

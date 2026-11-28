@@ -313,7 +313,7 @@ export const driveCommands = [
       ...SCOPE_FLAGS,
       anyOf: { type: 'list', help: 'accept any of these targets (repeatable)', value: 'target' },
       gone: { type: 'boolean', help: 'until it leaves the screen' },
-      scroll: { type: 'boolean', help: 'scroll until it is in the window' },
+      scroll: { type: 'boolean', help: 'scroll until it is in the window and not covered (by a tab bar, a header)' },
       enabled: {
         type: 'boolean',
         help: 'until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed)',

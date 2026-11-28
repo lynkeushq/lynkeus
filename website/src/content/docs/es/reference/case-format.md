@@ -229,7 +229,7 @@ Con una ruta o un objetivo:
 |---|---|---|---|
 | `target` | ruta u objetivo | obligatorio | Lo que se espera. Un elemento también como `testId`. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
-| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
+| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana y nada lo tape (una barra de pestañas, un encabezado). Si está tapado, lo saca de abajo con un desplazamiento corto, para que no se salga de la ventana por el otro lado. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
 | `enabled` | booleano | `false` | Espera a que el objetivo esté presente, habilitado y recibiendo toques, como el botón de un formulario que depende de sus campos. |
 | `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |

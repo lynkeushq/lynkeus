@@ -438,5 +438,13 @@
   "surface/mcp/tool/why": {
     "why": "why takes on (ios or android): the lane to explain when two apps share the port. The description says that with nothing given why explains the last case_run's last failed case on its own lane, which it names, and on also takes fastsim:ios, fastsim:android and headless (trial run 8).",
     "now": "f0247394ebd8d1da"
+  },
+  "surface/help/wait": {
+    "why": "wait --scroll says it scrolls until the target is in the window and not covered: in trial runs 8 and 10 a scroll wait stopped at a target under the tab bar and the press after it failed.",
+    "now": "dd0317a8e4fde25e"
+  },
+  "surface/mcp/tool/wait": {
+    "why": "The scroll parameter says it scrolls until the target is in the window and not covered (trial runs 8 and 10).",
+    "now": "c087dc4872e0fa6d"
   }
 }

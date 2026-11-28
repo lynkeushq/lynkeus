@@ -390,3 +390,36 @@ describe('a target a wait found is one a press finds', () => {
     );
   });
 });
+
+describe('a scroll wait for a target under a bar', () => {
+  it('does not count a covered target as found: it scrolls it out from under in a short move, not past the window', async () => {
+    // The tab bar covers y 760..844; the row is under it until the list moves it up.
+    let offset = 0;
+    const swipes: { from: { y: number }; to: { y: number } }[] = [];
+    const { backend } = fakeBackend([]);
+    const handlers = createHandlers(noNavigation, {
+      ...backend,
+      native: true,
+      snapshot: () => {
+        const y = 780 - offset;
+        return {
+          elements: [
+            element({ kind: 'scroll', frame: { x: 0, y: 0, w: 390, h: 760 } }),
+            element({ i: 1, text: 'Button', frame: { x: 0, y, w: 300, h: 40 }, covered: y + 20 > 760 }),
+          ],
+        };
+      },
+      swipe: async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+        swipes.push({ from, to });
+        offset += from.y - to.y;
+      },
+    });
+    const answer = (await dispatch(handlers, 'waitFor', { target: { text: 'Button' }, scroll: true, timeoutMs: 3000 })) as { waitedMs: number };
+    expect(swipes.length).toBe(1);
+    // Moved up, by little more than its own height: still well inside the window.
+    expect(swipes[0]!.from.y).toBeGreaterThan(swipes[0]!.to.y);
+    expect(offset).toBeLessThan(200);
+    expect(780 - offset).toBeGreaterThan(0);
+    expect(answer.waitedMs).toBeGreaterThan(0);
+  });
+});

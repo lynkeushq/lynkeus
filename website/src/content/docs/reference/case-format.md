@@ -250,7 +250,7 @@ Waits for something. The value decides for what.
 | `gone` | boolean | `false` | Wait until it leaves the screen. |
 | `enabled` | boolean | `false` | Wait until the target is there, enabled and taking touches, such as a form button that waits on its fields. |
 | `anyOf` | list of targets | | Accept the first of these that is present. `target` is not needed then. Each item is a string (`"#welcome"`, `'"Try again"'`) or an object: `{ testId }`, or `{ text, nth? }` with `nth` counted from 0. `gone` cannot be combined with it. |
-| `scroll` | boolean | `false` | Swipe until the target is in the window. |
+| `scroll` | boolean | `false` | Swipe until the target is in the window and nothing covers it (a tab bar, a header). A covered target is moved out from under in a short swipe, so it does not leave the window on the other side. |
 | `request` | string | | Wait for a request the app made, written `METHOD /path`. A bare path matches any method. The path matches when the request's path ends with it. |
 | `status` | number | any 2xx | With `request`: the status the answer must have. |
 | `timeoutMs` | number (ms) | `10000` | Give up after this long. |
