@@ -13,6 +13,9 @@ const RUN = /("[^"]*fastsim-run"|'[^']*fastsim-run'|[^\s"']*fastsim-run)\s+("[^"
 
 const unquote = (word: string): string => word.replace(/^["']|["']$/g, '').replace(/^~(?=\/)/, os.homedir());
 
+/** Whether a host command starts a Lynkeus FastSim host (`fastsim-run <bundle dir> {port}`). */
+export const startsFastsim = (command: string | undefined): boolean => command !== undefined && RUN.test(command);
+
 /** The bundle folder a `fastsim-run <bundle dir> {port}` host command names, resolved; undefined for any other command. */
 export const fastsimBundleDir = (command: string, cwd: string): string | undefined => {
   const given = RUN.exec(command)?.[2];

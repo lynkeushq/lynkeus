@@ -42,7 +42,7 @@ import {
   type TargetPlan,
   targetSlug,
 } from '../cases/onTargets.js';
-import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning } from '../cases/staleBundle.js';
+import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning, startsFastsim } from '../cases/staleBundle.js';
 import { hostGrantEnv, installedFastsim, installedKit, runGrants } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -764,7 +764,14 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
     const jobs = Math.max(1, Number(ctx.flags.jobs ?? 1));
     const ports = runPorts ?? [];
     const hostCommand = typeof ctx.flags['host-command'] === 'string' && !dry ? ctx.flags['host-command'] : hostPerJob ? selfHeadlessCommand() : undefined;
-    const keepHosts = (!!ctx.flags['keep-hosts'] || hostPerJob) && hostCommand !== undefined;
+    // Nothing resets the app a FastSim host holds between cases (its storage, MMKV, navigation, module scope), and one
+    // is up in well under a second: each case gets a host of its own, kept hosts or not.
+    const fastsimHosts = startsFastsim(hostCommand);
+    if (fastsimHosts && ctx.flags['keep-hosts'])
+      ctx.err(
+        '--keep-hosts: each case still gets a FastSim host of its own, as nothing would reset the app a kept one holds (storage, navigation, module scope); --keep-hosts is for headless hosts, which are reset between cases',
+      );
+    const keepHosts = (!!ctx.flags['keep-hosts'] || hostPerJob) && hostCommand !== undefined && !fastsimHosts;
     const headlessHosts = startsHeadless(hostCommand);
     if (hostPerJob)
       ctx.err(
@@ -857,6 +864,30 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       const why = hostGone(started, port) ?? `the host on port ${port} did not bring its app within ${(until - startedAt) / 1000} s`;
       log(why);
       await laneDown(why, started);
+    };
+    // A host started for one case brings its app before the case starts, or its job ends: one that exited or never
+    // attaches would fail this case and every case after it, each step waiting out its time.
+    const hostAttached = async (base: Base, host: ChildProcess, port: number): Promise<string | undefined> => {
+      const waitMs = Number(ctx.flags['host-timeout'] ?? 600_000);
+      const until = Date.now() + waitMs;
+      const late = Symbol('late');
+      while (!halt.signal.aborted && !exited(host) && Date.now() < until) {
+        const tried = Date.now();
+        const failure = await Promise.race([
+          base.device().then(
+            () => undefined,
+            (error: unknown) => error ?? new Error('no app attached'),
+          ),
+          new Promise<typeof late>((resolve) => setTimeout(() => resolve(late), Math.max(0, until - Date.now())).unref()),
+        ]);
+        if (failure === undefined) return undefined;
+        if (failure === late) break;
+        if ((failure as { code?: string }).code === 'port-in-use')
+          return `port ${port} is taken by another process (a \`lynkeus mcp\` server or another run's driver?): its host cannot attach to this run. Stop that process, or give this run other --ports`;
+        await new Promise((r) => setTimeout(r, Math.max(0, ATTACH_PROBE_MS - (Date.now() - tried))));
+      }
+      if (halt.signal.aborted) return undefined;
+      return hostGone(host, port) ?? `the host on port ${port} did not bring its app within ${waitMs / 1000} s`;
     };
     if ((jobs > 1 || hostCommand) && (ports.length < jobs || ports.some((p) => !Number.isInteger(p)) || !ctx.forPort))
       return { text: `--jobs and --host-command need a driver port per job: --ports with ${jobs}`, code: 2 };
@@ -972,6 +1003,17 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
               };
               const scoped =
                 port !== undefined && ctx.forPort ? ctx.forPort(port, hostCommand ? { ended } : undefined) : { base: ctx as Base, stop: async () => undefined };
+              if (host && port !== undefined) {
+                const down = await hostAttached(scoped.base, host, port);
+                if (down || halt.signal.aborted) {
+                  if (down) log(down);
+                  await stopHost(host);
+                  perCase.delete(host);
+                  await scoped.stop();
+                  if (down) await laneDown(down);
+                  return undefined;
+                }
+              }
               const startedAt = new Date();
               emit({
                 type: 'case-start',
@@ -1365,7 +1407,9 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
     if (ports.length < jobs) return { unavailable: `no ${jobs} free driver port(s) past ${port}` };
     // A FastSim host is up in well under a second: one whose app has not come in this long will not come.
     const timeout = t.startsWith('fastsim') && ctx.flags['host-timeout'] === undefined ? { 'host-timeout': FASTSIM_ATTACH_MS } : {};
-    return { flags: { ...own(t), 'host-command': command, 'keep-hosts': true, ports: ports.join(','), jobs, ...timeout }, jobs };
+    // A headless host takes seconds to start and is reset between cases; a FastSim host is started for each case.
+    const keep = t === 'headless' ? { 'keep-hosts': true } : {};
+    return { flags: { ...own(t), 'host-command': command, ...keep, ports: ports.join(','), jobs, ...timeout }, jobs };
   };
   // `ios` and `android` each attach their own platform's app on the same port, side by side (the driver hands each app
   // to the connection that takes its platform); `simulator` takes whichever app is attached.
@@ -1454,7 +1498,7 @@ export const caseCommands = [
     group: 'runs',
     summary: 'Run cases: setup through fixtures, steps against the app, the evidence when one fails',
     details:
-      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
+      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       on: {
@@ -1557,9 +1601,14 @@ export const caseCommands = [
       },
       'keep-hosts': {
         type: 'boolean',
-        help: 'with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent',
+        help: 'with a headless --host-command: start each job’s host once and keep it for the job’s cases, reset between them, starting it again when it exits, its app stops answering or its heap passes --host-heap percent (a FastSim host is started for every case all the same)',
       },
-      'host-timeout': { type: 'number', help: 'with --keep-hosts: how long a host may take to attach (it builds the app first)', default: 600000, value: 'ms' },
+      'host-timeout': {
+        type: 'number',
+        help: 'how long a host the run starts may take to attach, kept or for one case (a headless host builds the app first); past it the job ends',
+        default: 600000,
+        value: 'ms',
+      },
       'in-order': { type: 'boolean', help: 'with --jobs: take the cases in the order given, not the longest first' },
       ahead: { type: 'number', help: 'make up to this many setups ahead of their cases while others run (0: none)', value: 'n', default: 0 },
       idle: { type: 'number', help: 'with --ahead: start a setup only while this share of the CPU is idle', value: 'share', default: 0.25 },
@@ -1598,7 +1647,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      "Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project's declared targets (cases.targets, or the case's own `targets:`) at once and answers one line per case per target (`brief`: only the cases that did not pass, and each target's count); a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: \"png\"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. `seed`, `locale`, `time_zone` and `epoch` pin the launch facts on a host the run starts (`host` or `host_command`); an attached simulator or emulator keeps its own, listed under `launch.unsupported` in run.json (guide determinism launch-facts). On FastSim and headless the answer lists the native values the app read that the host does not know, each with a `nativeMocks` snippet to fill from the library's native code (guide troubleshooting native-values).",
+      "Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project's declared targets (cases.targets, or the case's own `targets:`) at once and answers one line per case per target (`brief`: only the cases that did not pass, and each target's count); a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: \"png\"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. On FastSim (`on: fastsim:ios`, `fastsim:android`, or a fastsim-run `host_command`) every case gets a host of its own, started in well under a second, `keep_hosts` or not: nothing carries over from the case before (storage, MMKV, navigation, module scope). `seed`, `locale`, `time_zone` and `epoch` pin the launch facts on a host the run starts (`host` or `host_command`); an attached simulator or emulator keeps its own, listed under `launch.unsupported` in run.json (guide determinism launch-facts). On FastSim and headless the answer lists the native values the app read that the host does not know, each with a `nativeMocks` snippet to fill from the library's native code (guide troubleshooting native-values).",
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

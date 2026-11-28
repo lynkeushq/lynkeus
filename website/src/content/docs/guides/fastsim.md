@@ -69,6 +69,8 @@ npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <b
 
 Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. `case run` also gives each host the run's [launch facts](/reference/cli/#launch-facts): `--seed`, `--locale`, `--time-zone` and `--epoch` reach it as environment variables, and FastSim starts with that language, zone and clock.
 
+`case run --on fastsim:ios` (or `fastsim:android`), which finds the install folder and that platform's latest bundle by itself, and `lynkeus ci` work the same way. No case inherits anything from the one before it: not its storage (MMKV included), its navigation or its module state. On FastSim, `--keep-hosts` doesn't change this; that flag is for headless hosts, which are reset between cases.
+
 A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
 
 A run never tests old code. Before it starts the hosts, `case run` compares the bundle with the app's source files (leaving out `node_modules`, the native projects, tests and the cases folder). When a file changed after the bundle was made, it runs the `fastsim-bundle` that sits next to the command's `fastsim-run` again, for the app and platform the bundle was made for, and says so in the summary. That bundling uses Lynkeus's own environment, so start Lynkeus (or the MCP server) with the variables your bundle needs. If there is no `fastsim-bundle` next to `fastsim-run`, or bundling fails, the run stops before any host starts and prints the command to run yourself. `fastsim start` does the same check.

@@ -12,7 +12,7 @@ import { define } from '../registry.js';
 import { changedAppEntry, entryReason } from './appEntry.js';
 import { caseFiles, fastsimHostCommand } from './cases.js';
 import { CI_TARGETS, DEVICE_TARGETS, declaredTargets, TARGETS, type TargetName, targetSlug } from '../cases/onTargets.js';
-import { fastsimBundleDir } from '../cases/staleBundle.js';
+import { fastsimBundleDir, startsFastsim } from '../cases/staleBundle.js';
 import type { LynkeusConfig } from '../config.js';
 import { hostsFileOf, stopLeftHosts } from '../cases/hostPids.js';
 import { freePorts } from '../cases/portClaim.js';
@@ -58,7 +58,7 @@ export const summaryOf = (
 };
 
 /**
- * The `case run` a CI job makes: one kept host per job on its own port. Frames are asked for only from hosts the
+ * The `case run` a CI job makes: a host per job on its own port (kept for headless, one per case for FastSim). Frames are asked for only from hosts the
  * project names (`ci.hosts.command`, FastSim say): the default headless host draws nothing, so asking would only
  * warn on every run that no frame was kept.
  */
@@ -82,8 +82,9 @@ export const suiteArgs = (o: {
   o.ports.join(','),
   '--host-command',
   o.hostCommand,
-  // The run keeps one host per job and starts it again when it dies or runs short of heap.
-  '--keep-hosts',
+  // A headless host is kept per job, reset between cases and started again when it dies or runs short of heap; a
+  // FastSim host is started for each case, as nothing resets the app it holds.
+  ...(startsFastsim(o.hostCommand) ? [] : ['--keep-hosts']),
   ...(o.timeoutMs ? ['--host-timeout', String(o.timeoutMs)] : []),
   '--out',
   o.out,

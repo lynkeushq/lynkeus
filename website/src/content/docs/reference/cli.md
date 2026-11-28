@@ -1147,8 +1147,8 @@ Without files, it runs every case in `cases.dir`. A directory stands for every c
 | `--jobs <n>` | `1` | How many cases run at once, each on its own host. Needs `--ports`. |
 | `--ports <list>` | | The driver port of each job, comma-separated: where its host dials in. |
 | `--host-command <command>` | | A command that starts a fresh host for every case; Lynkeus stops it afterwards. `{port}` is replaced by the port the host must dial, `{job}` by the job's number, and `{seed}`, `{locale}`, `{time-zone}` and `{epoch}` by the run's [launch facts](#launch-facts) (empty when the run sets none). |
-| `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. |
-| `--host-timeout <ms>` | `600000` | With `--keep-hosts`: how long a host may take to attach. It builds the app first, which is the slow part. |
+| `--keep-hosts` | | With `--host-command`: start each job's host once and keep it for that job's cases, instead of a fresh host per case. It is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. A case that failed because its host died says so. A FastSim host (`fastsim-run`) is started for every case anyway, since nothing would reset the app a kept one holds. |
+| `--host-timeout <ms>` | `600000` | How long a host this run starts may take to attach, kept or started for a case (a headless host builds the app first, which is the slow part). One that doesn't attach in time ends its job, and the cases left are not run. |
 | `--in-order` | | With `--jobs`: take the cases in the order given, not the longest first. |
 | `--ahead <n>` | `0` | Make up to this many setups ahead of their cases while others run. `0` makes none. |
 | `--idle <share>` | `0.25` | With `--ahead`: start a setup only while this share of the CPU is idle. |
