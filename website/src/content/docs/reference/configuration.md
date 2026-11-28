@@ -290,6 +290,8 @@ A key can also name a constant instead of a method: `Module.name`, read as `Nati
 
 After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed. One the app read and never called is either a constant that read as `true` or a method the app only took a reference to (`setFocusTo: Native.setFocusTo`), which is fine. Lynkeus tells them apart by the module's TurboModule spec, found where codegen finds it (`codegenConfig.jsSrcsDir` in the library's `package.json`): a method there is not listed, and a constant there is listed as one. A property no spec covers is listed as possibly either, and its snippet is meant for a constant only, since a method given a value can no longer be called.
 
+FastSim also answers some constants with a placeholder instead of nothing: expo-application's `applicationId` (`com.example.app`), `applicationName` (`App`), `nativeApplicationVersion` (`1.0.0`) and `nativeBuildVersion` (`1`). No host reports what it guessed, so after a FastSim run of an app that depends on `expo-application`, the summary lists them beside what the app's config says (`app.json`'s name, version and build numbers, the bundle id and package) with a `nativeMocks` snippet filled from it. A key the project already mocks is not listed.
+
 | Key | Type | Meaning |
 |---|---|---|
 | `value` | any | What the property reads as, on both platforms. `false` and `null` count as values. |

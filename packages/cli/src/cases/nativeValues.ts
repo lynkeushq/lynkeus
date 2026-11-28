@@ -3,7 +3,12 @@
  * RunNativeValue), and the `nativeMocks` that set them. The host reports them; here they are kept per run, told to
  * the person and handed to the host as configuration.
  */
+import fs from 'node:fs';
+import path from 'node:path';
+
 import type { RunNativeValue } from 'lynkeus-protocol';
+
+import { appIdsOf } from '../device/devMenu.js';
 
 import type { NativeSpecs } from './nativeSpecs.js';
 
@@ -132,4 +137,64 @@ export const describeFallbacks = (reads: RunNativeValue[], entry = 'the headless
       : []),
     `  or per call in the cases config: "nativeMocks": { "${firstCall ? `${firstCall.module}.${firstCall.property}` : `${modules[0]!.module}.<method>`}": { "result": <what it resolves> } }`,
   ];
+};
+
+/**
+ * The constants Lynkeus FastSim answers with a placeholder rather than the app's own (expo-application's id, name and
+ * versions: `com.example.app`, `App`, `1.0.0`, `1`), set beside what the app's config says, with the `nativeMocks`
+ * that give the real ones. A host reports what it could not answer, never what it guessed, so these are named from
+ * the app's dependencies; none when the app does not use expo-application.
+ */
+export const describeGuessed = (
+  app: { dependencies: string[]; ids: { ios?: string; android?: string }; name?: string; version?: string; build?: { ios?: string; android?: string } },
+  nativeMocks: Record<string, unknown> = {},
+): string[] => {
+  if (!app.dependencies.includes('expo-application')) return [];
+  const pick = (ios?: string, android?: string) =>
+    ios && android && ios !== android ? { ios, android } : ios || android ? { value: (ios ?? android)! } : undefined;
+  const guessed: [string, string, ReturnType<typeof pick>][] = [
+    ['ExpoApplication.applicationId', 'com.example.app', pick(app.ids.ios, app.ids.android)],
+    ['ExpoApplication.applicationName', 'App', pick(app.name)],
+    ['ExpoApplication.nativeApplicationVersion', '1.0.0', pick(app.version)],
+    ['ExpoApplication.nativeBuildVersion', '1', pick(app.build?.ios, app.build?.android)],
+  ];
+  const open = guessed.filter(([key]) => nativeMocks[key] === undefined);
+  if (open.length === 0) return [];
+  const real = (v: ReturnType<typeof pick>) => (v ? ('value' in v ? v.value : `${v.ios} on iOS, ${v.android} on Android`) : undefined);
+  return [
+    `native values Lynkeus FastSim guessed (${open.length}): the app reads expo-application, which FastSim answers with placeholders`,
+    ...open.map(
+      ([key, placeholder, v]) => `  • ${key} reads ${JSON.stringify(placeholder)}${real(v) ? `; the app's config says ${JSON.stringify(real(v))}` : ''}`,
+    ),
+    '  Give the real ones in the cases config:',
+    JSON.stringify({ nativeMocks: Object.fromEntries(open.map(([key, , v]) => [key, v ?? { value: null }])) }, null, 2)
+      .split('\n')
+      .map((l) => `  ${l}`)
+      .join('\n'),
+  ];
+};
+
+const readJsonFile = (file: string): Record<string, unknown> => {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+};
+
+/** What `describeGuessed` sets beside FastSim's placeholders: the app's dependencies, ids, name and versions from its config. */
+export const appFacts = (root: string, configured?: string): Parameters<typeof describeGuessed>[0] => {
+  const pkg = readJsonFile(path.join(root, 'package.json')) as { dependencies?: object; devDependencies?: object; version?: string };
+  const json = readJsonFile(path.join(root, 'app.json')) as { expo?: Record<string, unknown> } & Record<string, unknown>;
+  const expo = (json.expo ?? json) as { name?: unknown; version?: unknown; ios?: { buildNumber?: unknown }; android?: { versionCode?: unknown } };
+  const text = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v) : undefined);
+  const ios = text(expo.ios?.buildNumber);
+  const android = text(expo.android?.versionCode);
+  return {
+    dependencies: [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})],
+    ids: appIdsOf(root, configured),
+    ...(text(expo.name) ? { name: text(expo.name) } : {}),
+    ...((text(expo.version) ?? pkg.version) ? { version: text(expo.version) ?? pkg.version } : {}),
+    ...(ios || android ? { build: { ...(ios ? { ios } : {}), ...(android ? { android } : {}) } } : {}),
+  };
 };
