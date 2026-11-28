@@ -43,7 +43,16 @@ import {
   type TargetPlan,
   targetSlug,
 } from '../cases/onTargets.js';
-import { bundleToken, fastsimBundleDir, freshBundle, kitGivesToken, staleDeviceJs, staleJsWarning, startsFastsim } from '../cases/staleBundle.js';
+import {
+  bundleToken,
+  fastsimBundleDir,
+  freshBundle,
+  kitCapabilities,
+  kitGivesToken,
+  staleDeviceJs,
+  staleJsWarning,
+  startsFastsim,
+} from '../cases/staleBundle.js';
 import { fastsimCacheNote, hostGrantEnv, installedFastsim, installedKit, runGrants } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
@@ -1325,7 +1334,9 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
         }),
         // What FastSim guessed is no unanswered read, so no host reports it (trial run 10: App Id com.example.app).
         ...(as.target?.startsWith('fastsim') || startsFastsim(ctx.flags['host-command'] as string | undefined) || nativeReads.some((r) => r.host === 'fastsim')
-          ? describeGuessed(appFacts(ctx.root, ctx.config.app), ctx.config.cases?.nativeMocks)
+          ? describeGuessed(appFacts(ctx.root, ctx.config.app), ctx.config.cases?.nativeMocks, {
+              hostApplies: kitCapabilities(ctx.flags['host-command'] as string | undefined, ctx.root).includes('expo-native-mocks'),
+            })
           : []),
       ],
       verbose,

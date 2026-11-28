@@ -148,6 +148,8 @@ export const describeFallbacks = (reads: RunNativeValue[], entry = 'the headless
 export const describeGuessed = (
   app: { dependencies: string[]; ids: { ios?: string; android?: string }; name?: string; version?: string; build?: { ios?: string; android?: string } },
   nativeMocks: Record<string, unknown> = {},
+  /** The host applies `nativeMocks` to Expo modules (its kit lists `expo-native-mocks`); FastSim's did not (trial run 12). */
+  o: { hostApplies?: boolean } = {},
 ): string[] => {
   if (!app.dependencies.includes('expo-application')) return [];
   const pick = (ios?: string, android?: string) =>
@@ -158,14 +160,23 @@ export const describeGuessed = (
     ['ExpoApplication.nativeApplicationVersion', '1.0.0', pick(app.version)],
     ['ExpoApplication.nativeBuildVersion', '1', pick(app.build?.ios, app.build?.android)],
   ];
+  const real = (v: ReturnType<typeof pick>) => (v ? ('value' in v ? v.value : `${v.ios} on iOS, ${v.android} on Android`) : undefined);
+  const line = ([key, placeholder, v]: (typeof guessed)[number], mocked: boolean) =>
+    `  • ${key} reads ${JSON.stringify(placeholder)}${mocked ? ', though nativeMocks sets it' : real(v) ? `; the app's config says ${JSON.stringify(real(v))}` : ''}`;
+  if (!o.hostApplies) {
+    // A mock that changed nothing must not read as a fix (trial run 12: the list went quiet, the app still showed the placeholder).
+    const mocked = guessed.filter(([key]) => nativeMocks[key] !== undefined);
+    return [
+      `native values Lynkeus FastSim guessed (${guessed.length}): the app reads expo-application, which this FastSim answers with placeholders, and it does not apply nativeMocks to Expo modules${mocked.length ? `: the ${mocked.length} set there had no effect` : ''}`,
+      ...guessed.map((g) => line(g, nativeMocks[g[0]] !== undefined)),
+      "  A check of these values passes on a device or headless, not on this FastSim; a FastSim whose share/capabilities lists expo-native-mocks reads them from the app's config and nativeMocks.",
+    ];
+  }
   const open = guessed.filter(([key]) => nativeMocks[key] === undefined);
   if (open.length === 0) return [];
-  const real = (v: ReturnType<typeof pick>) => (v ? ('value' in v ? v.value : `${v.ios} on iOS, ${v.android} on Android`) : undefined);
   return [
     `native values Lynkeus FastSim guessed (${open.length}): the app reads expo-application, which FastSim answers with placeholders`,
-    ...open.map(
-      ([key, placeholder, v]) => `  • ${key} reads ${JSON.stringify(placeholder)}${real(v) ? `; the app's config says ${JSON.stringify(real(v))}` : ''}`,
-    ),
+    ...open.map((g) => line(g, false)),
     '  Give the real ones in the cases config:',
     JSON.stringify({ nativeMocks: Object.fromEntries(open.map(([key, , v]) => [key, v ?? { value: null }])) }, null, 2)
       .split('\n')

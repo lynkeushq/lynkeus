@@ -171,13 +171,24 @@ test('the constants FastSim guesses are named beside what the app config says, w
       expo: { name: 'ShopTrial', version: '0.0.1', ios: { bundleIdentifier: 'com.shoptrial' }, android: { package: 'com.shoptrial', versionCode: 3 } },
     }),
   );
-  const lines = describeGuessed(appFacts(root));
+  // A FastSim whose kit applies nativeMocks to Expo modules: what to set, filled from the app's config.
+  const applies = { hostApplies: true };
+  const lines = describeGuessed(appFacts(root), {}, applies);
   assert.equal(lines[0], 'native values Lynkeus FastSim guessed (4): the app reads expo-application, which FastSim answers with placeholders');
   assert.equal(lines[1], `  • ExpoApplication.applicationId reads "com.example.app"; the app's config says "com.shoptrial"`);
   assert.equal(lines[2], `  • ExpoApplication.applicationName reads "App"; the app's config says "ShopTrial"`);
   assert.match(lines.join('\n'), /"ExpoApplication\.nativeApplicationVersion": \{\n\s+"value": "0\.0\.1"/);
   assert.match(lines.join('\n'), /"ExpoApplication\.nativeBuildVersion": \{\n\s+"value": "3"/);
-  // A key the project already mocks is not told again; an app without expo-application gets nothing.
-  assert.equal(describeGuessed(appFacts(root), { 'ExpoApplication.applicationId': { value: 'com.shoptrial' } })[0]?.includes('(3)'), true);
+  // There, a key the project mocks is not told again; an app without expo-application gets nothing.
+  assert.equal(describeGuessed(appFacts(root), { 'ExpoApplication.applicationId': { value: 'com.shoptrial' } }, applies)[0]?.includes('(3)'), true);
   assert.deepEqual(describeGuessed({ dependencies: [], ids: {} }), []);
+  // FastSim as it is (no expo-native-mocks): every guessed value stays listed, a mock set for one said to have done nothing.
+  const ignored = describeGuessed(appFacts(root), { 'ExpoApplication.applicationId': { value: 'com.shoptrial' } });
+  assert.equal(
+    ignored[0],
+    'native values Lynkeus FastSim guessed (4): the app reads expo-application, which this FastSim answers with placeholders, and it does not apply nativeMocks to Expo modules: the 1 set there had no effect',
+  );
+  assert.equal(ignored[1], '  • ExpoApplication.applicationId reads "com.example.app", though nativeMocks sets it');
+  assert.match(ignored.at(-1) ?? '', /passes on a device or headless, not on this FastSim; .*expo-native-mocks/);
+  assert.doesNotMatch(ignored.join('\n'), /"nativeMocks":/);
 });
