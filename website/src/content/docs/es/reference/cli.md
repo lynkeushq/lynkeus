@@ -368,7 +368,7 @@ La grabación está apagada hasta que la inicias, así que una app que nunca la 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install] [--no-skill]
+lynkeus init [--no-install] [--no-skill] [--targets <proposed|lista>]
 ```
 
 Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
@@ -377,6 +377,7 @@ Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agen
 |---|---|
 | `--no-install` | No agrega `lynkeus-agent` a la app; solo lo monta. |
 | `--no-skill` | No instala el skill de Lynkeus ni sus subagentes. `LYNKEUS_NO_SKILL=1` tiene el mismo efecto. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`: los propuestos, o una lista como `headless,ios`. Sin esta opción, si no hay ninguno declarado, `init` solo los propone: dónde tiene que pasar un caso lo decide la persona. |
 
 Lo que hace depende del proyecto:
 
@@ -430,7 +431,7 @@ Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto>
 ### `lynkeus setup`
 
 ```bash
-lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild]
+lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild] [--targets <proposed|lista>]
 ```
 
 Deja una app conectada partiendo de cero, con un solo comando. Es lo que un agente de IA debería llamar en vez de compilar, levantar Metro y usar `simctl` o `adb` desde su terminal. Hace esto, en orden:
@@ -449,6 +450,7 @@ Si la app de esa plataforma ya está conectada, se salta la compilación y el ar
 | `--platform <nombre>` | `ios`, `android` o las dos (repite la opción o sepáralas con comas). |
 | `--device <nombre>` | Solo con una plataforma. El simulador (nombre o UDID), el emulador (nombre del AVD o número de serie de `adb`) o el teléfono (número de serie). Si es un simulador o un AVD y no está encendido, lo enciende. |
 | `--rebuild` | Compila aunque la última compilación de `setup` esté instalada. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`, una vez que la persona dijo dónde tienen que pasar los casos. Sin esta opción, `setup` solo los propone, igual que `status`. |
 
 ### `lynkeus guide`
 

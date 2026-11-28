@@ -227,7 +227,7 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install] [--no-skill]`
+### `lynkeus init [--no-install] [--no-skill] [--targets <proposed|list>]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
@@ -237,6 +237,7 @@ React Native or Expo (an Expo Router app gets an entry of its own). Safe to run 
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
 | `--no-skill` | leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1) |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: the proposed ones, or a list (headless,ios) |
 
 ### `lynkeus status [--offline]`
 
@@ -248,7 +249,7 @@ The first thing to call in a project you do not know: each line that fails says 
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
 
-### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild]`
+### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild] [--targets <proposed|list>]`
 
 From a fresh app to an attached one, in one call: init, the device, Metro, the development build, launch, attach, status
 
@@ -259,6 +260,7 @@ Does what connecting an app takes: `init` when the agent is not set up; for each
 | `--platform <name>` | ios, android or both (default: those in cases.targets, else the app's) |
 | `--device <name>` | with one platform: Simulator name or udid, AVD name, or adb serial; one not up is booted |
 | `--rebuild` | build even when the last build is installed |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: proposed, or a list (headless,ios); without it they are only proposed |
 
 ### `lynkeus guide [topic] [section]`
 

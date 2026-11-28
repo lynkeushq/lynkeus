@@ -6,7 +6,7 @@ The project decides, once, in `lynkeus.config.json`:
 "cases": { "targets": ["fastsim:ios", "fastsim:android"] }
 ```
 
-Targets: `headless`, `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone), `android` (the app on the Android emulator or a phone). A case that needs something else (a device-only feature) says so in its frontmatter: `targets: [ios]`. With none declared, ask the person which matter; `status` proposes a value and `init` writes that proposal.
+Targets: `headless`, `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone), `android` (the app on the Android emulator or a phone). A case that needs something else (a device-only feature) says so in its frontmatter: `targets: [ios]`. With none declared, ask the person which matter (`status` and `init` propose a value), then write it: `init --targets proposed` or a list.
 
 ```sh
 npx lynkeus case run cases/sign-out.md --on targets   # each case on its declared targets, at once

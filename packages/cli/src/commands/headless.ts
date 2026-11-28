@@ -21,7 +21,7 @@ import { fastsimCacheNote, installedFastsim, installedKit } from './fastsim.js';
 import { runHost } from './hostProcess.js';
 import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
 import { appPlatforms, isAppFolder, machineTargets, type Platform, proposeTargets, runTargets } from './runTargets.js';
-import { declaredTargets } from '../cases/onTargets.js';
+import { declaredTargets, TARGETS } from '../cases/onTargets.js';
 import { bundlePlatform, fastsimBundles } from './cases.js';
 import { installSkill } from './skill.js';
 import { headlessEntryOf } from './appEntry.js';
@@ -259,11 +259,12 @@ const removeOldHostTests = (root: string): void => {
 const fastsimKits = (): Platform[] => (['ios', 'android'] as const).filter((p) => installedKit(p) !== undefined);
 
 /**
- * Writes the proposed `cases.targets` when lynkeus.config.json declares none, and says so: a project without them
- * leaves an agent to guess where a case must pass, which ends in running everything everywhere.
+ * Proposes `cases.targets` when lynkeus.config.json declares none: a project without them leaves an agent to guess
+ * where a case must pass, which ends in running everything everywhere. Where a case must pass is the person's call,
+ * so it is written only when `write` says so: `proposed`, or the targets themselves (`headless,ios`).
  */
-export const proposeCasesTargets = (root: string, config: LynkeusConfig, kits: Platform[] = fastsimKits()): string | undefined => {
-  if (config.cases?.targets !== undefined) return undefined;
+export const proposeCasesTargets = (root: string, config: LynkeusConfig, kits: Platform[] = fastsimKits(), write?: string): string | undefined => {
+  if (config.cases?.targets !== undefined && write === undefined) return undefined;
   // Not an app's folder: init says so itself, and a config written here would belong to nothing.
   if (!isAppFolder(root)) return undefined;
   const file = configFile(root);
@@ -273,10 +274,22 @@ export const proposeCasesTargets = (root: string, config: LynkeusConfig, kits: P
   } catch {
     return `cases.targets: not written, ${path.basename(file)} is not JSON Lynkeus can read; add "cases": { "targets": [...] } yourself`;
   }
-  const targets = proposeTargets({ fastsim: kits, platforms: appPlatforms(root) });
+  const proposed = proposeTargets({ fastsim: kits, platforms: appPlatforms(root) });
+  const from = `${kits.length ? 'the FastSim installed here' : 'this machine (no FastSim installed)'} and the app's platforms`;
+  if (write === undefined)
+    return `cases.targets: none declared; proposed ${JSON.stringify(proposed)} (from ${from}). Where a case must pass is the person's call: ask them, then write it (\`lynkeus init --targets proposed\`, or --targets headless,ios)`;
+  const named =
+    write === 'proposed'
+      ? proposed
+      : write
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+  const unknown = named.filter((t) => !(TARGETS as readonly string[]).includes(t));
+  if (unknown.length || named.length === 0) return `cases.targets: not written, ${unknown.join(', ') || 'none'} is not a target (${TARGETS.join(', ')})`;
   const cases = current.cases && typeof current.cases === 'object' ? (current.cases as Record<string, unknown>) : {};
-  writeJson(file, { ...current, cases: { ...cases, targets } });
-  return `wrote "cases": { "targets": ${JSON.stringify(targets)} } to ${path.basename(file)}: where a case must pass (\`case run --on targets\` checks them; \`lynkeus ci\` runs the headless and FastSim ones), proposed from ${kits.length ? 'the FastSim installed here' : 'this machine (no FastSim installed)'} and the app's platforms. Confirm it with the person, or change it`;
+  writeJson(file, { ...current, cases: { ...cases, targets: named } });
+  return `wrote "cases": { "targets": ${JSON.stringify(named)} } to ${path.basename(file)}: where a case must pass (\`case run --on targets\` checks them; \`lynkeus ci\` runs the headless and FastSim ones)${write === 'proposed' ? `, as proposed from ${from}` : ''}`;
 };
 
 export const headlessCommands = [
@@ -289,13 +302,18 @@ export const headlessCommands = [
     flags: {
       'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' },
       'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1)' },
+      targets: {
+        type: 'string',
+        help: 'write cases.targets, once the person said where cases must pass: the proposed ones, or a list (headless,ios)',
+        value: 'proposed|list',
+      },
     },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
       const runtime = await runtimeAt(ctx.root);
       const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
-      const targets = proposeCasesTargets(ctx.root, ctx.config);
+      const targets = proposeCasesTargets(ctx.root, ctx.config, undefined, typeof ctx.flags.targets === 'string' ? ctx.flags.targets : undefined);
       if (targets) lines.push(targets);
       // The environment form lets a team, or a measured comparison, turn it off for every init an agent runs.
       if (!ctx.flags['no-skill'] && process.env.LYNKEUS_NO_SKILL !== '1') lines.push(installSkill(ctx.root).text);

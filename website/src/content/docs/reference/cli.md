@@ -422,7 +422,7 @@ Reports what React spent rendering, per route, as measured by the Profiler that 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install] [--no-skill]
+lynkeus init [--no-install] [--no-skill] [--targets <proposed|list>]
 ```
 
 Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynkeus-agent`, mounts the agent from the app's entry file and makes the project's token. Run it from the app's folder. It does not need the app to be running.
@@ -431,6 +431,7 @@ Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynke
 |---|---|
 | `--no-install` | Do not add `lynkeus-agent` to the app. Mount it only. |
 | `--no-skill` | Do not install the Lynkeus skill or its subagents. `LYNKEUS_NO_SKILL=1` does the same. |
+| `--targets <proposed\|list>` | Write `cases.targets`: the proposed ones, or a list such as `headless,ios`. Without it, `init` only proposes them when none are declared, since where a case must pass is the person's call. |
 
 What it does, in order:
 
@@ -477,7 +478,7 @@ Then, under **Where cases can run on this machine**: the booted iOS Simulators, 
 ### `lynkeus setup`
 
 ```bash
-lynkeus setup [--platform <name>] [--device <name>] [--rebuild]
+lynkeus setup [--platform <name>] [--device <name>] [--rebuild] [--targets <proposed|list>]
 ```
 
 Takes an app from nothing to attached in one command, and is what an AI agent calls instead of running builds, Metro and `simctl` or `adb` through its shell. In order:
@@ -496,6 +497,7 @@ An app of the platform that is already attached skips the device's build and lau
 | `--platform <name>` | `ios`, `android`, or both (repeat the flag or separate with commas). |
 | `--device <name>` | With one platform: the Simulator (name or udid), emulator (AVD name or `adb` serial) or phone (serial) to use. One that is not up is booted, a Simulator or an AVD. |
 | `--rebuild` | Build again even when the build `setup` made last is installed. |
+| `--targets <proposed\|list>` | Write `cases.targets`, once the person has said where cases must pass. Without it, `setup` only proposes them, as `status` does. |
 
 ### `lynkeus guide`
 

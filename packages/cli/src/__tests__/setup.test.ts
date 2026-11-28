@@ -282,15 +282,22 @@ test('the proposed targets: FastSim for each of the app platforms when installed
   assert.deepEqual(appPlatforms(root), ['android']);
 });
 
-test('init writes the proposed cases.targets once, keeping the rest of the config; case init keeps them', async () => {
+test('init proposes cases.targets and writes them only when told, keeping the rest of the config; case init keeps them', async () => {
   const root = tmp('lynkeus-init-targets-');
   assert.equal(proposeCasesTargets(root, {}, []), undefined);
   write(root, { 'package.json': '{}', 'ios/Podfile': '', 'lynkeus.config.json': JSON.stringify({ port: 8200 }) });
-  const said = proposeCasesTargets(root, { port: 8200 }, []);
-  assert.match(said ?? '', /^wrote "cases": \{ "targets": \["headless","ios"\] \} to lynkeus\.config\.json: .* Confirm it with the person, or change it$/);
+  // Where a case must pass is the person's call, as status says: proposed, not written.
+  const proposed = proposeCasesTargets(root, { port: 8200 }, []);
+  assert.match(proposed ?? '', /^cases\.targets: none declared; proposed \["headless","ios"\] .*ask them, then write it \(`lynkeus init --targets proposed`/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8')), { port: 8200 });
+  assert.match(proposeCasesTargets(root, { port: 8200 }, [], 'headless,watch') ?? '', /^cases\.targets: not written, watch is not a target/);
+  const said = proposeCasesTargets(root, { port: 8200 }, [], 'proposed');
+  assert.match(said ?? '', /^wrote "cases": \{ "targets": \["headless","ios"\] \} to lynkeus\.config\.json: .*, as proposed from/);
   const written = JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8'));
   assert.deepEqual(written, { port: 8200, cases: { targets: ['headless', 'ios'] } });
   assert.equal(proposeCasesTargets(root, written, []), undefined);
+  assert.match(proposeCasesTargets(root, written, [], 'ios') ?? '', /^wrote "cases": \{ "targets": \["ios"\] \}/);
+  proposeCasesTargets(root, written, [], 'headless,ios');
   register([...caseCommands]);
   const caseInit = await execute(['case', 'init'], {
     root,
