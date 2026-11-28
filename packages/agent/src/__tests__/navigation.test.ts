@@ -149,3 +149,29 @@ describe('the open drawer back closes', () => {
     expect(openDrawerKey({ index: 0, routes: [{ name: 'Welcome' }] })).toBeUndefined();
   });
 });
+
+describe('resetToRoot', () => {
+  it('resets to the route the app began on while the root declares it, else to the first the mounted root declares', () => {
+    let state = { index: 0, routes: [{ name: 'Login' }], routeNames: ['Login'] };
+    const resets: unknown[] = [];
+    const ref = {
+      isReady: () => true,
+      getCurrentRoute: () => state.routes[state.index],
+      getRootState: () => state,
+      navigate: () => undefined,
+      canGoBack: () => false,
+      goBack: () => undefined,
+      resetRoot: (next: unknown) => resets.push(next),
+      addListener: () => undefined,
+      removeListener: () => undefined,
+    } as unknown as ContainerRef;
+    const adapter = reactNavigationAdapter(ref);
+    adapter.isReady();
+    adapter.resetToRoot!();
+    expect(resets.at(-1)).toEqual({ index: 0, routes: [{ name: 'Login' }] });
+    // Signed in: the root swapped its screens, and Login is no longer one of them.
+    state = { index: 1, routes: [{ name: 'Welcome' }, { name: 'Demo' }], routeNames: ['Welcome', 'Demo'] };
+    adapter.resetToRoot!();
+    expect(resets.at(-1)).toEqual({ index: 0, routes: [{ name: 'Welcome' }] });
+  });
+});
