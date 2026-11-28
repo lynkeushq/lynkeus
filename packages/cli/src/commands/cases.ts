@@ -1241,7 +1241,10 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       : stoppedBy
         ? [
             `⏹ stopped (${stoppedBy}) after ${reports.length} of ${cases.length} cases; no step starts after it, any host it started is stopped and its ports are let go`,
-            ...(stoppedBy.startsWith(BUDGET_SPENT) ? [budgetAdvice(cases.filter((c) => !reports.some((r) => r.id === c.id)).map((c) => c.id))] : []),
+            // Beside other targets, `--on` names what the budget left out once, for all of them.
+            ...(stoppedBy.startsWith(BUDGET_SPENT) && !as.target
+              ? [budgetAdvice(cases.filter((c) => !reports.some((r) => r.id === c.id)).map((c) => c.id))]
+              : []),
           ]
         : []),
     // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
