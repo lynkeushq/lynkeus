@@ -25,6 +25,10 @@ export type Credential = {
 export const DEFAULT_CLOUD = 'https://lynkeus.io';
 const SCOPE = 'fastsim:download';
 const REFRESH_MARGIN_MS = 60_000;
+// A renewal is two requests; both are cut off well before another process may take the lock over as stale.
+const LOCK_STALE_MS = 30_000;
+const RENEW_TIMEOUT_MS = 15_000;
+const LOCK_WAIT_MS = 45_000;
 const LOGIN_TIMEOUT_MS = 15 * 60_000;
 
 export const cloudUrl = (flag: unknown): string => serviceBase(typeof flag === 'string' ? flag : (process.env.LYNKEUS_REPORTS_URL ?? DEFAULT_CLOUD));
@@ -64,13 +68,89 @@ export const removeLogin = (cloud: string): boolean => {
   return true;
 };
 
+type LockOwner = { pid: number; host: string; nonce: string };
+
+const isStale = (lock: string, raw: string): boolean => {
+  try {
+    if (Date.now() - fs.statSync(lock).mtimeMs > LOCK_STALE_MS) return true;
+  } catch {
+    return false;
+  }
+  let owner: Partial<LockOwner>;
+  try {
+    owner = JSON.parse(raw) as Partial<LockOwner>;
+  } catch {
+    // A lock being written right now reads empty; the age check above catches one that stays broken.
+    return false;
+  }
+  if (owner.host !== os.hostname() || typeof owner.pid !== 'number') return false;
+  try {
+    process.kill(owner.pid, 0);
+    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'ESRCH';
+  }
+};
+
+/**
+ * Runs `work` holding an exclusive lock next to credentials.json, so two processes (an MCP server and a terminal, two
+ * terminals) never renew the same refresh token: the service rotates it and ends the whole sign-in when a used one comes
+ * back. A lock whose owner died on this machine, or older than LOCK_STALE_MS, is taken over.
+ */
+export const withCredentialsLock = async <T>(work: () => Promise<T> | T): Promise<T> => {
+  const file = credentialsPath();
+  const lock = `${file}.lock`;
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const me: LockOwner = { pid: process.pid, host: os.hostname(), nonce: crypto.randomBytes(8).toString('hex') };
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (;;) {
+    try {
+      fs.writeFileSync(lock, JSON.stringify(me), { flag: 'wx', mode: 0o600 });
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    let raw = '';
+    try {
+      raw = fs.readFileSync(lock, 'utf8');
+    } catch {
+      continue;
+    }
+    if (isStale(lock, raw)) {
+      // Removed only if it is still the lock judged stale, so a lock another process just took over is left alone.
+      try {
+        if (fs.readFileSync(lock, 'utf8') === raw) fs.unlinkSync(lock);
+      } catch {}
+      continue;
+    }
+    if (Date.now() > deadline) throw new Error(`another lynkeus process holds ${lock}; try again, or delete that file if no lynkeus is running`);
+    await new Promise((resolve) => setTimeout(resolve, 25 + Math.random() * 50));
+  }
+  try {
+    return await work();
+  } finally {
+    try {
+      if (fs.readFileSync(lock, 'utf8') === JSON.stringify(me)) fs.unlinkSync(lock);
+    } catch {}
+  }
+};
+
 type Fetch = typeof fetch;
+
+class OAuthError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
 
 const oauthError = async (response: Response, doing: string): Promise<Error> => {
   if (response.status >= 300 && response.status < 400) return new Error(`${doing}: the service answered a redirect, which is not followed`);
   const body = (await response.json().catch(() => undefined)) as { error?: unknown; error_description?: unknown } | undefined;
   const reason = [body?.error, body?.error_description].filter((v) => typeof v === 'string').join(': ') || `HTTP ${response.status}`;
-  return new Error(`${doing}: ${reason}`);
+  return new OAuthError(`${doing}: ${reason}`, typeof body?.error === 'string' ? body.error : undefined);
 };
 
 // Endpoints the service names get the same checks as its own address, and stay on its origin so a code or a
@@ -82,10 +162,11 @@ const endpoint = (cloud: string, value: unknown, name: string): string => {
   return url;
 };
 
-const tokenRequest = async (tokenEndpoint: string, params: Record<string, string>, doing: string, fetchImpl: Fetch) => {
+const tokenRequest = async (tokenEndpoint: string, params: Record<string, string>, doing: string, fetchImpl: Fetch, signal?: AbortSignal) => {
   const response = await fetchImpl(tokenEndpoint, {
     method: 'POST',
     redirect: 'manual',
+    signal,
     headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
     body: new URLSearchParams(params).toString(),
   });
@@ -106,8 +187,8 @@ const tokenRequest = async (tokenEndpoint: string, params: Record<string, string
   };
 };
 
-const metadata = async (cloud: string, fetchImpl: Fetch) => {
-  const response = await fetchImpl(`${cloud}/.well-known/oauth-authorization-server`, { redirect: 'manual', headers: { accept: 'application/json' } });
+const metadata = async (cloud: string, fetchImpl: Fetch, signal?: AbortSignal) => {
+  const response = await fetchImpl(`${cloud}/.well-known/oauth-authorization-server`, { redirect: 'manual', signal, headers: { accept: 'application/json' } });
   if (!response.ok) throw await oauthError(response, 'cannot read the sign-in metadata (is this service new enough?)');
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   return {
@@ -241,7 +322,7 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
       fetchImpl,
     ).catch((error: Error) => fail(failureReason.exchange(new URL(cloud).host, shortReason(error)), error));
     const credential: Credential = { cloud, clientId, ...tokens };
-    saveLogin(credential);
+    await withCredentialsLock(() => saveLogin(credential));
     answer(signedInPage({ command, cloud, organization: tokens.organization?.name, email: tokens.account?.email }));
     return credential;
   } finally {
@@ -250,21 +331,42 @@ export const login = async (o: LoginOptions): Promise<Credential> => {
   }
 };
 
-/** A bearer token from the saved sign-in for this cloud, refreshed first when it expires within a minute. */
+const fresh = (credential: Credential) => credential.expiresAt - Date.now() > REFRESH_MARGIN_MS;
+
+/**
+ * A bearer token from the saved sign-in for this cloud, refreshed first when it expires within a minute. The renewal
+ * holds the credentials lock and reads the file again under it, so a process that waited while another renewed uses
+ * the new tokens instead of presenting the used refresh token.
+ */
 export const signedInToken = async (cloud: string, fetchImpl: Fetch = fetch): Promise<string | undefined> => {
-  const saved = savedLogin(cloud);
-  if (!saved) return undefined;
-  if (saved.expiresAt - Date.now() > REFRESH_MARGIN_MS) return saved.accessToken;
-  if (!saved.refreshToken) throw new Error('your sign-in expired: run lynkeus login again');
-  const meta = await metadata(serviceBase(cloud), fetchImpl);
-  const fresh = await tokenRequest(
-    meta.token,
-    { grant_type: 'refresh_token', refresh_token: saved.refreshToken, client_id: saved.clientId },
-    'your sign-in could not be renewed; run lynkeus login again',
-    fetchImpl,
-  );
-  saveLogin({ ...saved, ...fresh, refreshToken: fresh.refreshToken ?? saved.refreshToken });
-  return fresh.accessToken;
+  const first = savedLogin(cloud);
+  if (!first) return undefined;
+  if (fresh(first)) return first.accessToken;
+  return withCredentialsLock(async () => {
+    const saved = savedLogin(cloud);
+    if (!saved) return undefined;
+    if (fresh(saved)) return saved.accessToken;
+    if (!saved.refreshToken) throw new Error('your sign-in expired: run lynkeus login again');
+    const signal = AbortSignal.timeout(RENEW_TIMEOUT_MS);
+    const meta = await metadata(serviceBase(cloud), fetchImpl, signal);
+    let renewed: Awaited<ReturnType<typeof tokenRequest>>;
+    try {
+      renewed = await tokenRequest(
+        meta.token,
+        { grant_type: 'refresh_token', refresh_token: saved.refreshToken, client_id: saved.clientId },
+        'your sign-in could not be renewed; run lynkeus login again',
+        fetchImpl,
+        signal,
+      );
+    } catch (error) {
+      // A process that does not take the lock (an older lynkeus) may have renewed meanwhile and made ours the used token.
+      const now = savedLogin(cloud);
+      if (error instanceof OAuthError && error.code === 'invalid_grant' && now && now.refreshToken !== saved.refreshToken && fresh(now)) return now.accessToken;
+      throw error;
+    }
+    saveLogin({ ...saved, ...renewed, refreshToken: renewed.refreshToken ?? saved.refreshToken });
+    return renewed.accessToken;
+  });
 };
 
 export const loginCommands = [
@@ -315,7 +417,7 @@ export const loginCommands = [
     run: async (ctx) => {
       try {
         const cloud = cloudUrl(ctx.flags.cloud);
-        return removeLogin(cloud)
+        return (await withCredentialsLock(() => removeLogin(cloud)))
           ? { text: `signed out of ${cloud}`, json: { cloud, removed: true } }
           : { text: `no sign-in saved for ${cloud}`, json: { cloud, removed: false } };
       } catch (error) {

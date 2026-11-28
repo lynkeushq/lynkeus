@@ -530,6 +530,20 @@ The errors it recognizes:
 
 **Fix.** The run directory is intact. Upload it again with `lynkeus report push <dir>`.
 
+## Signing in to lynkeus.io
+
+### `your sign-in could not be renewed; run lynkeus login again: invalid_grant: …`
+
+**Why.** Each renewal of the sign-in that `lynkeus login` saved gets a new refresh token from lynkeus.io, and the old one stops working. When the old one is presented again, the service takes it as stolen and ends the whole sign-in. That happens when two copies of `credentials.json` hold the same token: you copied the file into another folder, or ran lynkeus with another `XDG_CONFIG_HOME`. Whichever copy renews second ends the sign-in for both. Processes that share one file are safe: lynkeus takes `credentials.json.lock` beside it while it renews, so an MCP server and a terminal on the same machine renew once between them.
+
+**Fix.** Run `lynkeus login` again, then keep a single `credentials.json`: give every process the same `XDG_CONFIG_HOME` (or none) instead of copying the file. For CI, containers and other automation, set `LYNKEUS_CLOUD_KEY` to an API key instead of a copied sign-in.
+
+### `another lynkeus process holds …/credentials.json.lock`
+
+**Why.** Another lynkeus process was renewing the sign-in and did not finish within 45 seconds. A lock whose process has exited on this machine, or older than 30 seconds, is taken over by itself.
+
+**Fix.** Try again. If no lynkeus is running, delete that `.lock` file.
+
 ## What `why` tells you
 
 `lynkeus why` reads the screen, the last requests and the trace, and reports every rule that matches. The rules about the backend (every request 401, 403, a 5xx, 429) read only what the server answered: a request that a mock answered or lost (`(mocked)` in `lynkeus requests`) is the case's own doing and is left out. Each line starts with one of these.
