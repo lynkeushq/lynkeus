@@ -412,9 +412,13 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await backend.swipe({ x: cx + (forward ? dx : -dx), y: at.y }, { x: cx + (forward ? -dx : dx), y: at.y }, 250);
       return;
     }
-    const up = at === undefined ? back : at.y < 0;
+    // In the window but covered (a tab bar or a header over it): a short move takes it out from under, where a
+    // long one would carry it out of the window the other side (trial runs 8 and 10, Android FastSim).
+    const under = at !== undefined && at.y >= 0 && at.y <= win.h;
+    const up = at === undefined ? back : under ? at.y < cy : at.y < 0;
+    const step = under ? Math.min(dy, Math.max(target!.frame.h * 1.5, (bottom - top) * 0.1)) : dy;
     const x = at === undefined ? cx : Math.min(Math.max(at.x, left + 1), right - 1);
-    await backend.swipe({ x, y: cy + (up ? -dy : dy) }, { x, y: cy + (up ? dy : -dy) }, 250);
+    await backend.swipe({ x, y: cy + (up ? -step : step) }, { x, y: cy + (up ? step : -step) }, 250);
   };
 
   // The focused screen, and the navigators it sits in when it is nested: `Demo > DemoPodcastList`.
@@ -446,7 +450,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       // not landed) reads as enabled but inert, and a swipe or press on it would be refused.
       const stateOk = (element: Element | undefined) =>
         element !== undefined && (params.enabled === undefined || (element.enabled === params.enabled && (!params.enabled || element.hidden !== 'inert')));
-      const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
+      // A scroll wait is for a press: the target must be in the window and not under a bar or a sheet.
+      const present = params.target ? stateOk(found) && !(params.scroll && (!inWindow(found!) || found!.covered)) : true;
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
@@ -530,7 +535,17 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },
-    back: () => {
+    // As a person's back does: an open drawer or menu closes first, and only then the route pops (trial run 10:
+    // back on the showroom with its drawer open popped to Welcome).
+    back: async () => {
+      if (navigation.closeDrawer?.()) return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      const closer = elements().find((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim()));
+      if (closer) {
+        await press(closer.testId ? { testId: closer.testId } : { text: (closer.accessibilityLabel ?? closer.text)! }).catch(() => undefined);
+        await sleep(50);
+        if (!elements().some((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim())))
+          return { route: navigation.currentRoute()?.name, closed: (closer.accessibilityLabel ?? closer.text)! };
+      }
       if (!navigation.canGoBack()) throw new Error('Nothing to go back to');
       navigation.goBack();
       return { route: navigation.currentRoute()?.name };
@@ -559,6 +574,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
 // `__DEV__` is false in a release bundle, the kind Lynkeus FastSim runs: an app that registered its commands inside
 // `if (__DEV__)` has none there, and only this side can tell the driver why.
+// What an open drawer's or menu's own dismiss control is called: react-native-drawer-layout labels its overlay
+// "Close drawer"; a person's back closes it before it leaves the screen.
+const CLOSES = /^(close|dismiss) (drawer|menu|navigation menu|sidebar)$/i;
+
 const releaseBundle = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__ === false;
 
 /** What a command the app did not register is missing, said so that a release bundle's reason is in the error. */

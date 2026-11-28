@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import type { CaseReport } from '../cases/runner.js';
-import { FRAME_NOT_APP } from '../cases/runner.js';
+import { FRAME_MOVING, FRAME_NOT_APP } from '../cases/runner.js';
 import { caseResults, suspectFrames } from '../commands/evidence.js';
 import { emulatorBinary, pickAndroid, pickSimulator, platformsFor, relevantTail, runSetup, type SetupDeps, setupText } from '../commands/setup.js';
 import { jobNotifier } from '../mcp/server.js';
@@ -249,6 +249,45 @@ test("setup on a set-up app takes the booted Simulator, starts Metro, builds wit
   assert.match(second.lines.at(-1)!.text, /^already attached/);
 });
 
+test("a new Expo development build's dev-menu onboarding sheet is marked seen after it attaches, and the app launched once more without it", async () => {
+  const root = readyApp();
+  let built = false;
+  const marked: string[] = [];
+  const deps = fakeDeps({
+    answer: (a) => (a.includes('list') ? { code: 0, stdout: simulators(true) } : a.includes('get_app_container') ? { code: 1, stdout: '' } : undefined),
+    metro: () => true,
+    attach: () => (built ? hello : undefined),
+    build: () => {
+      built = true;
+      return 0;
+    },
+  });
+  deps.devMenu = async (device) => {
+    marked.push(device.id);
+    return 'done';
+  };
+  const result = await runSetup(ctxFor(root, []), {}, deps);
+  assert.equal(result.ok, true, JSON.stringify(result.lines));
+  assert.deepEqual(marked, [UDID]);
+  assert.equal(deps.calls.filter((c) => c.startsWith('xcrun simctl launch')).length, 1, deps.calls.join('\n'));
+  assert.match(result.lines.at(-1)!.text, /dev-menu onboarding sheet marked seen and the app launched again without it/);
+  // Already seen: no second launch.
+  built = false;
+  const seen = fakeDeps({
+    answer: (a) => (a.includes('list') ? { code: 0, stdout: simulators(true) } : a.includes('get_app_container') ? { code: 1, stdout: '' } : undefined),
+    metro: () => true,
+    attach: () => (built ? hello : undefined),
+    build: () => {
+      built = true;
+      return 0;
+    },
+  });
+  seen.devMenu = async () => 'already';
+  const again = await runSetup(ctxFor(root, []), { rebuild: true }, seen);
+  assert.equal(again.ok, true);
+  assert.equal(seen.calls.filter((c) => c.startsWith('xcrun simctl launch')).length, 0);
+});
+
 test('a failed build answers with its step, the log lines that say why and the log path', async () => {
   const root = readyApp();
   const deps = fakeDeps({
@@ -320,15 +359,21 @@ test("evidence names an action whose frame equals the step before's, and frames 
             { step: 'app.press #menu', status: 'passed', ms: 1, screenshot: '/f/3.avif' },
             { step: 'app.see "Menu"', status: 'passed', ms: 1, screenshot: '/f/4.avif' },
           ],
-          { warnings: [`${FRAME_NOT_APP} at step 3 (app.press #menu): the app was inactive, so a system view or another app is in front`] },
+          {
+            warnings: [
+              `${FRAME_NOT_APP} at step 3 (app.press #menu): the app was inactive, so a system view or another app is in front`,
+              `${FRAME_MOVING} at step 4 (app.see "Menu"): the host's screen still moved 1.5 s after the step, so the frame is of a moment`,
+            ],
+          },
         ),
       ],
     },
   ];
   const suspects = suspectFrames(runs, (f) => frames[f]);
-  assert.equal(suspects.length, 2, suspects.join('\n'));
+  assert.equal(suspects.length, 3, suspects.join('\n'));
   assert.match(suspects[0]!, /^ios drawer step 2 \(app\.press 390,450\): same frame as the step before/);
   assert.match(suspects[1]!, /^ios drawer: frame not of the app at step 3/);
+  assert.match(suspects[2]!, /^ios drawer: frame of a moving screen at step 4/);
 });
 
 test('evidence answers a line per case with its result on each target and where a failure was', () => {

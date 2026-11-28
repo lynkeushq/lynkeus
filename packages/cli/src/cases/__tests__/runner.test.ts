@@ -639,7 +639,7 @@ steps:
   );
 });
 
-test('a host that keeps its own clock is not a device', async () => {
+test('a host that keeps its own clock (FastSim) is not a device, and not the headless host either: it is fastsim and host', async () => {
   const c = parseCase(
     `---
 id: clock
@@ -651,6 +651,15 @@ steps:
       - app.see: { text: "never shown" }
   - on: headless
     do:
+      - app.see: { text: "never shown either" }
+  - on: fastsim
+    do:
+      - app.see: { text: "Hello" }
+  - on: host
+    do:
+      - app.see: { text: "Hello" }
+  - on: "!headless"
+    do:
       - app.see: { text: "Hello" }
 `,
     'clock.md',
@@ -661,7 +670,7 @@ steps:
   const report = await runCase(c, { base, config, fixtures });
   assert.deepEqual(
     report.steps.map((s) => s.status),
-    ['skipped', 'passed'],
+    ['skipped', 'skipped', 'passed', 'passed', 'passed'],
   );
 });
 
@@ -767,6 +776,34 @@ test('a step waits only for requests started after the action before it began', 
   assert.match(report.steps[3]!.error!, /not requested since the step before began: POST \/api\/points/);
 });
 
+test('a seen request wants an answer: one with status 0 fails and says so, unless the step says answered: false or names the status', async () => {
+  const c = parseCase(
+    '---\nid: offline\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { request: "GET /v1/feed.json", timeoutMs: 100 }\n  - app.see: { request: "GET /v1/feed.json", answered: false }\n  - app.see: { request: "GET /v1/feed.json", status: 0 }\n',
+    'offline.md',
+  );
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  const press = device.press.bind(device);
+  (device as unknown as { press: typeof press }).press = async (params) => {
+    const answer = await press(params);
+    requests.push({
+      id: requests.length + 1,
+      method: 'GET',
+      url: 'https://feed.example/v1/feed.json',
+      status: 0,
+      error: 'network error or aborted',
+      startedAt: 0,
+    });
+    return answer;
+  };
+  const report = await runCase(c, { base, config, fixtures, continue: true });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'failed', 'passed', 'passed'],
+  );
+  assert.match(report.steps[1]!.error!, /^GET \/v1\/feed\.json was requested but got no answer \(status 0: network error or aborted\); .*`answered: false`/);
+});
+
 test('a request the press before did not cause is not waited for', async () => {
   const c = parseCase('---\nid: stale\n---\nsteps:\n  - app.type: { text: "x" }\n  - app.wait: { request: "GET /api/points", timeoutMs: 300 }\n', 'stale.md');
   const { base } = fakeApp();
@@ -843,6 +880,39 @@ test('a host that waits for a still screen on its own clock is asked to, and the
     // A screen that never stood still keeps what moved while the host waited.
     assert.equal(frame.still, !changed);
     assert.deepEqual(frame.moving, changed ? [{ x: 1, y: 2, w: 3, h: 4 }] : undefined);
+  }
+});
+
+test('a frame on a host that can say when its screen stands still waits for its paint first, and one still moving is flagged', async () => {
+  const c = parseCase('---\nid: type\n---\nsteps:\n  - app.press: "#refresh"\n', 'type.md');
+  for (const settles of [true, false]) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot', 'still', 'clock'] };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      order.push(name === 'still' ? `still ${String(params.stepMs)}/${String(params.timeoutMs)}` : name);
+      if (name === 'screenshot') {
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      if (name === 'still') return settles ? { still: true, waitedMs: 200 } : { still: false, waitedMs: 1500, moving: [{ x: 0, y: 700, w: 390, h: 56 }] };
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-paint-'));
+    const report = await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, frames: 'png' } });
+    assert.equal(report.result, 'passed');
+    const at = order.indexOf('still 100/1500');
+    assert.ok(at >= 0 && at < order.indexOf('screenshot'), order.join(', '));
+    const frame = JSON.parse(fs.readFileSync(report.steps[0]!.screenshot!.replace(/\.png$/, '.json'), 'utf8'));
+    if (settles) {
+      assert.equal(frame.still, undefined);
+      assert.equal(report.warnings, undefined);
+    } else {
+      assert.equal(frame.still, false);
+      assert.deepEqual(frame.moving, [{ x: 0, y: 700, w: 390, h: 56 }]);
+      assert.match(report.warnings?.[0] ?? '', /^frame of a moving screen at step 1 \(app\.press #refresh\): the host's screen still moved/);
+    }
   }
 });
 

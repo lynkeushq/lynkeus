@@ -73,7 +73,7 @@ On a target the drag starts at its centre, which a wide control cannot always af
 
 ### `lynkeus back`
 
-Pop the current route
+Back, as a person goes back: an open drawer or menu closes first, else the current route pops
 
 ### `lynkeus nav <route> [params]`
 
@@ -100,7 +100,7 @@ Until a route or element appears (or leaves), any of several targets appears, or
 | `--nth <n>` | the nth match, from 0 |
 | `--anyOf <target>` | accept any of these targets (repeatable) |
 | `--gone` | until it leaves the screen |
-| `--scroll` | scroll until it is in the window |
+| `--scroll` | scroll until it is in the window and not covered (by a tab bar, a header) |
 | `--enabled` | until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed) |
 | `--timeout <ms>` | give up after (default `10000`) |
 | `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
@@ -227,7 +227,7 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install] [--no-skill]`
+### `lynkeus init [--no-install] [--no-skill] [--targets <proposed|list>]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
@@ -237,6 +237,7 @@ React Native or Expo (an Expo Router app gets an entry of its own). Safe to run 
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
 | `--no-skill` | leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1) |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: the proposed ones, or a list (headless,ios) |
 
 ### `lynkeus status [--offline]`
 
@@ -248,7 +249,7 @@ The first thing to call in a project you do not know: each line that fails says 
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
 
-### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild]`
+### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild] [--targets <proposed|list>]`
 
 From a fresh app to an attached one, in one call: init, the device, Metro, the development build, launch, attach, status
 
@@ -259,6 +260,7 @@ Does what connecting an app takes: `init` when the agent is not set up; for each
 | `--platform <name>` | ios, android or both (default: those in cases.targets, else the app's) |
 | `--device <name>` | with one platform: Simulator name or udid, AVD name, or adb serial; one not up is booted |
 | `--rebuild` | build even when the last build is installed |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: proposed, or a list (headless,ios); without it they are only proposed |
 
 ### `lynkeus guide [topic] [section]`
 
@@ -798,7 +800,7 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong
 
-The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), and a frame taken while a system view or another app was in front. The run's whole answer is in answer.txt beside the report.
+The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), a frame taken while a system view or another app was in front, and one a host took while its screen still moved. The run's whole answer is in answer.txt beside the report.
 
 | Argument | |
 |---|---|
@@ -858,7 +860,7 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 
 Draft a case from the screen the app shows now, with checks that pass as it is
 
-Reads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Reads the attached app’s screen and writes a case that goes there the way `case new` drafts it (the steps of a case that reaches it, sign-in included, else the route map’s presses from cases.start, else `app.nav` to its route, which works only where the route is mounted) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|

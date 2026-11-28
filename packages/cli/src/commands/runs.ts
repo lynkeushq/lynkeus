@@ -38,7 +38,7 @@ const VAR_FLAG = { var: { type: 'list' as const, help: 'a flow variable (repeata
  * The sign-in `crawl.login` declares, run as a one-step case (a macro's name, or its own steps), and the screen it
  * begins on (its first wait for, or look at, a route); a sentence when it names no macro the project has.
  */
-const crawlLogin = (ctx: Ctx): { signIn: () => Promise<string | undefined>; from?: string } | string | undefined => {
+const crawlLogin = (ctx: Ctx): { signIn: () => Promise<string | undefined>; from?: string; shows?: Record<string, unknown> } | string | undefined => {
   const login = ctx.config.crawl?.login;
   if (login === undefined) return undefined;
   const macros = ctx.config.cases?.macros ?? {};
@@ -51,6 +51,9 @@ const crawlLogin = (ctx: Ctx): { signIn: () => Promise<string | undefined>; from
   const named =
     typeof value === 'string' ? value : value && typeof value === 'object' && 'route' in value ? String((value as { route: unknown }).route) : undefined;
   const from = named && (isRoute(named) || named.startsWith('route:')) ? routeOf(named) : undefined;
+  // Waits for a control (`#login-button`): the sign-in is up while that is on screen.
+  const sought = value && typeof value === 'object' && 'target' in value ? (value as { target: unknown }).target : value;
+  const shows = !from && typeof sought === 'string' ? (parseTarget(sought) as Record<string, unknown>) : undefined;
   const signIn = async () => {
     const c = { file: 'crawl.login', id: 'crawl-login', meta: {}, setup: [], steps: steps.map((s) => stepOf(s, 'crawl.login')), teardown: [] };
     const report = await runCase(c, { base: ctx, config: ctx.config.cases ?? {} });
@@ -58,7 +61,7 @@ const crawlLogin = (ctx: Ctx): { signIn: () => Promise<string | undefined>; from
     const broke = report.steps.find((s) => s.status !== 'passed' && s.status !== 'skipped');
     return `${broke?.step ?? 'a step'}: ${(broke?.error ?? 'failed').split('\n')[0]}`;
   };
-  return { signIn, ...(from ? { from } : {}) };
+  return { signIn, ...(from ? { from } : {}), ...(shows ? { shows } : {}) };
 };
 
 const OVERLAY_FLAGS = {
@@ -333,7 +336,12 @@ export const runsCommands = [
             safety: ctx.flags['press-anything'] ? 'anything' : 'read-only',
             appId: (ctx.flags.app as string | undefined) ?? device.appId ?? undefined,
             ...(ctx.args[0] ? { from: ctx.args[0] } : {}),
-            ...(login ? { signIn: login.signIn, ...(login.from ? { signInFrom: login.from } : {}) } : {}),
+            ...(login ? { signIn: login.signIn, ...(login.from ? { signInFrom: login.from } : {}), ...(login.shows ? { signInShows: login.shows } : {}) } : {}),
+            // Through the navigators that hold a route, as nav goes: a screen in a navigator not open yet is no sign-in.
+            nav: async (route: string) => {
+              const r = await execute(['nav', route], ctx);
+              if (r.error) throw new Error(r.error);
+            },
             overlay: overlayOf(ctx.flags),
             login: loginFlow
               ? {

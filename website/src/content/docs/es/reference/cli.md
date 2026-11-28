@@ -130,7 +130,7 @@ Sobre un objetivo, el arrastre empieza en su centro, y un control ancho no siemp
 
 ### `lynkeus back`
 
-Vuelve a la pantalla anterior, sacando la ruta actual de la pila. No tiene argumentos ni opciones.
+Vuelve atrás como lo haría una persona. Si hay un cajón abierto, primero lo cierra: el de un navegador de cajón de React Navigation, uno cuya capa se llama "Close drawer" (`react-native-drawer-layout`), o un control llamado "Close menu". En ese caso la ruta no cambia y la respuesta dice qué cerró. Si no hay nada abierto, saca la ruta actual de la pila y vuelve a la anterior. No tiene argumentos ni opciones.
 
 ### `lynkeus nav`
 
@@ -368,7 +368,7 @@ La grabación está apagada hasta que la inicias, así que una app que nunca la 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install] [--no-skill]
+lynkeus init [--no-install] [--no-skill] [--targets <proposed|lista>]
 ```
 
 Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
@@ -377,6 +377,7 @@ Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agen
 |---|---|
 | `--no-install` | No agrega `lynkeus-agent` a la app; solo lo monta. |
 | `--no-skill` | No instala el skill de Lynkeus ni sus subagentes. `LYNKEUS_NO_SKILL=1` tiene el mismo efecto. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`: los propuestos, o una lista como `headless,ios`. Sin esta opción, si no hay ninguno declarado, `init` solo los propone: dónde tiene que pasar un caso lo decide la persona. |
 
 Lo que hace depende del proyecto:
 
@@ -430,7 +431,7 @@ Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto>
 ### `lynkeus setup`
 
 ```bash
-lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild]
+lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild] [--targets <proposed|lista>]
 ```
 
 Deja una app conectada partiendo de cero, con un solo comando. Es lo que un agente de IA debería llamar en vez de compilar, levantar Metro y usar `simctl` o `adb` desde su terminal. Hace esto, en orden:
@@ -449,6 +450,7 @@ Si la app de esa plataforma ya está conectada, se salta la compilación y el ar
 | `--platform <nombre>` | `ios`, `android` o las dos (repite la opción o sepáralas con comas). |
 | `--device <nombre>` | Solo con una plataforma. El simulador (nombre o UDID), el emulador (nombre del AVD o número de serie de `adb`) o el teléfono (número de serie). Si es un simulador o un AVD y no está encendido, lo enciende. |
 | `--rebuild` | Compila aunque la última compilación de `setup` esté instalada. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`, una vez que la persona dijo dónde tienen que pasar los casos. Sin esta opción, `setup` solo los propone, igual que `status`. |
 
 ### `lynkeus guide`
 
@@ -1222,7 +1224,7 @@ Corre los casos guardando todo lo que una persona revisa (una captura después d
 
 - dónde quedó cada `report.html` (uno por destino si usas `--on`);
 - una línea por caso con su resultado en cada destino y, si falló, en qué destino, en qué paso y la primera línea del error;
-- las capturas sospechosas: una acción (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) cuya captura es idéntica a la del paso anterior, o sea que no cambió nada en pantalla; y una captura tomada mientras la app estaba inactiva o en segundo plano en un simulador o emulador, que muestra una vista del sistema u otra app en lugar de la tuya.
+- las capturas sospechosas: una acción (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) cuya captura es idéntica a la del paso anterior, o sea que no cambió nada en pantalla; y una captura tomada mientras la app estaba inactiva o en segundo plano en un simulador o emulador, que muestra una vista del sistema u otra app en lugar de la tuya; y una captura que un host tomó mientras su pantalla todavía se movía. Antes de cada captura, a un host con reloj propio (Lynkeus FastSim) se le pide que espere a que la pantalla quede quieta, hasta 1,5 s en su reloj, sin gastar tiempo real: el árbol puede estar asentado mientras todavía se dibuja el espacio del teclado o una animación de layout. Una captura cuya pantalla nunca quedó quieta aparece en esta lista.
 
 Por debajo es `case run --out <carpeta> --screenshots --video`, en los destinos que diga `--on` (igual que en [`case run`](#lynkeus-case-run)), en la app conectada, o sin pantalla con `--host`. La corrida queda en `.lynkeus/runs/evidence/<hora>` salvo que `--out` diga otra cosa, y ahí mismo se guarda la respuesta completa de la corrida en `answer.txt`.
 
@@ -1370,7 +1372,7 @@ lynkeus case here <id> [--title <text>] [--write] [--host]
 
 Redacta un caso a partir de la pantalla que la app muestra ahora, con comprobaciones que pasan tal como está.
 
-Lee la pantalla de la app conectada y escribe un caso que va a su ruta (`app.nav`, si tiene una) y comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
+Lee la pantalla de la app conectada y escribe un caso que llega hasta ahí igual que lo redacta `case new`: con los pasos de un caso que ya llega a esa pantalla (inicio de sesión incluido), o si no con los toques que conoce el mapa de rutas desde `cases.start`, o si no con `app.nav` a su ruta y una nota de que saltar solo funciona donde la ruta está montada (a una pantalla con sesión no se salta desde una app sin sesión). Después comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
 
 | Argumento | Qué es |
 |---|---|
@@ -1717,7 +1719,7 @@ No todos los comandos están disponibles dentro de una sesión. Quedan fuera los
 
 ### `lynkeus mcp`
 
-Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
+Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `swipe`, `back`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
 
 | Opción | Qué hace |
 |---|---|

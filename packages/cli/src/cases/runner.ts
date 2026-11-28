@@ -267,6 +267,8 @@ const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'p
 
 /** How a case's warnings start for a frame that shows something other than the app; `evidence` lists them. */
 export const FRAME_NOT_APP = 'frame not of the app';
+/** How a case's warnings start for a frame taken while the host's screen still moved after the step; `evidence` lists them. */
+export const FRAME_MOVING = 'frame of a moving screen';
 /** How a case's warnings start when it was asked for a film and kept none that plays. */
 export const NO_FILM = 'no film';
 
@@ -917,8 +919,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     } else if (text !== undefined && !elements.some((e) => says(e, text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
-      if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
-        return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      const made = (await requestsSinceMark()).filter((e) => requestMatches(e, params.request as string, status));
+      if (made.length === 0) return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      // Made is not answered: a request that never got a response (status 0: no network, refused, aborted) passed this
+      // check in trial run 10. It wants an answer unless the step names a status or says `answered: false`.
+      if (status === undefined && params.answered !== false && !made.some((e) => (e.status ?? 0) > 0)) {
+        const lost = made.at(-1)!;
+        return `${params.request} was requested but got no answer (status 0${lost.error ? `: ${lost.error}` : ''}); a check that it was only sent says \`answered: false\`, one for a status names it (\`status: 500\`)`;
+      }
       markedByHand = false;
     }
     if (typeof params.event === 'string') {
@@ -1500,17 +1508,20 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   };
 
   /**
-   * `device`, `headless`, a platform, or `has:<command>` for a host whose app
-   * registered that command (a hosted build often has commands a store build
-   * does not); `!` in front turns any of them around. One case then carries the
-   * way each host does a thing, and runs on all of them.
+   * `device` (a Simulator, an emulator, a phone), `headless` (the app in Node), `fastsim` (a FastSim host), `host`
+   * (either host), a platform, or `has:<command>` for a host whose app registered that command (a hosted build often
+   * has commands a store build does not); `!` in front turns any of them around. One case then carries the way each
+   * host does a thing, and runs on all of them.
    */
   const runsHere = async (on: string): Promise<boolean> => {
     if (on.startsWith('!')) return !(await runsHere(on.slice(1)));
     const hello = helloOf(await device());
     const phone = onWallClock(await device());
     if (on === 'device') return phone;
-    if (on === 'headless') return !phone;
+    if (on === 'host') return !phone;
+    // A FastSim host draws natively, with real layout and frames: it is not the Node host a headless step is for.
+    if (on === 'headless') return !phone && !hello?.native;
+    if (on === 'fastsim') return !phone && !!hello?.native;
     if (on.startsWith('has:')) {
       const name = on.slice(4);
       const live = await liveCommands(await device(), hello);
@@ -1831,6 +1842,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           () => false,
         );
       let still: boolean | undefined;
+      // The tree can be settled while the picture is not: a keyboard inset or a layout animation the host runs on its
+      // own clock (trial run 10: the login button a thin bar after app.type, its frame h: 56). A host that can say
+      // when its screen stands still is waited for, on its clock (no real time passes), before the picture.
+      if (!hostStill && !away && helloOf(d)?.commands?.includes('clock') && (await offers('still'))) {
+        const painted = (await d.command('still', { stepMs: 100, timeoutMs: 1500 }).catch(() => undefined)) as
+          | { still?: unknown; moving?: unknown }
+          | undefined;
+        if (painted?.still === false) {
+          still = false;
+          if (Array.isArray(painted.moving)) moving = painted.moving;
+          warn(`${FRAME_MOVING} at step ${index} (${report.step}): the host's screen still moved 1.5 s after the step, so the frame is of a moment`);
+        }
+      }
       let file = `${stem}.png`;
       let taken: boolean;
       if (await offers('screenshot')) {

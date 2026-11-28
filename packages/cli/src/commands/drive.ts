@@ -237,6 +237,7 @@ export const driveCommands = [
   }),
   define({
     name: 'swipe',
+    mcp: 'core',
     group: 'drive',
     summary: 'A drag; on a target, drives its gesture (a slider, a sheet)',
     details:
@@ -277,10 +278,18 @@ export const driveCommands = [
   define({
     name: 'back',
     group: 'drive',
-    summary: 'Pop the current route',
+    summary: 'Back, as a person goes back: an open drawer or menu closes first, else the current route pops',
     needs: 'app',
     mcp: 'core',
-    run: async (ctx) => ({ json: await (await ctx.device()).back() }),
+    run: async (ctx) => {
+      const result = await (await ctx.device()).back();
+      return {
+        text: result?.closed
+          ? `closed the ${result.closed.replace(/^(close|dismiss) /i, '')}; still on ${result.route ?? '?'}`
+          : `back on ${result?.route ?? '?'}`,
+        json: result,
+      };
+    },
   }),
   define({
     name: 'nav',
@@ -313,7 +322,7 @@ export const driveCommands = [
       ...SCOPE_FLAGS,
       anyOf: { type: 'list', help: 'accept any of these targets (repeatable)', value: 'target' },
       gone: { type: 'boolean', help: 'until it leaves the screen' },
-      scroll: { type: 'boolean', help: 'scroll until it is in the window' },
+      scroll: { type: 'boolean', help: 'scroll until it is in the window and not covered (by a tab bar, a header)' },
       enabled: {
         type: 'boolean',
         help: 'until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed)',

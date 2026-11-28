@@ -229,7 +229,7 @@ Con una ruta o un objetivo:
 |---|---|---|---|
 | `target` | ruta u objetivo | obligatorio | Lo que se espera. Un elemento también como `testId`. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
-| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
+| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana y nada lo tape (una barra de pestañas, un encabezado). Si está tapado, lo saca de abajo con un desplazamiento corto, para que no se salga de la ventana por el otro lado. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
 | `enabled` | booleano | `false` | Espera a que el objetivo esté presente, habilitado y recibiendo toques, como el botón de un formulario que depende de sus campos. |
 | `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |
@@ -267,8 +267,9 @@ Las mayúsculas y minúsculas nunca importan, ni los espacios al principio o al 
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `text` | texto | ninguno | Solo: algún elemento presentado contiene ese texto. Con `target`: el texto del elemento, o el de un elemento que tiene dentro, lo contiene. |
 | `route` | texto | ninguno | La ruta actual es esta. |
-| `request` | texto | ninguno | La app hizo esa petición, con el formato `MÉTODO /ruta`. |
-| `status` | número | cualquiera | Con `request`: la petición respondió con ese estado. |
+| `request` | texto | ninguno | La app hizo esa petición, con el formato `MÉTODO /ruta`, y recibió respuesta. Una petición con estado 0 (el host no tiene red, la conexión se rechazó o se cortó) hace fallar el paso, y el error lo explica. |
+| `status` | número | cualquier respuesta | Con `request`: la petición respondió con ese estado. `status: 0` comprueba justamente una petición que no tuvo respuesta. |
+| `answered` | booleano | `true` | Con `request`: con `false` alcanza con que la petición se haya enviado, tenga respuesta o no. |
 | `event` | texto | ninguno | La app envió un evento de analítica con ese nombre. |
 | `props` | objeto | ninguno | Con `event`: el evento lleva estas propiedades con estos valores. |
 | `layer` | booleano o texto | ninguno | `true`: hay una capa abierta sobre la pantalla (un modal, una hoja). `false`: no hay ninguna. Un texto: hay una capa abierta cuyo `testID` lo contiene. |
@@ -516,13 +517,17 @@ steps:
 
 | Condición | Se cumple cuando |
 |---|---|
-| `device` | La app corre en un simulador o un emulador, con toques reales. |
-| `headless` | La app corre en un host sin pantalla. |
+| `device` | La app corre en un simulador, un emulador o un teléfono, con toques reales. |
+| `headless` | La app corre en el host sin pantalla, en Node. |
+| `fastsim` | La app corre en un host de Lynkeus FastSim. |
+| `host` | La app corre en cualquiera de los dos hosts, el sin pantalla o FastSim. |
 | `ios`, `android` | La app informa esa plataforma. |
 | `has:<comando>` | La app registró ese comando. Sirve cuando un build tiene comandos que otro no. |
 | `!<condición>` | Lo contrario de cualquiera de las anteriores: `!ios`, `!has:reset`. |
 
 Un bloque con `do:` y sin `on:` se rechaza.
+
+Antes de 0.7.7, `headless` también se cumplía en FastSim. Pero FastSim dibuja de forma nativa y con layout real, así que un paso pensado para el host en Node (por ejemplo, un control de texto que reemplaza a uno nativo) no le corresponde. Para un paso que necesitan los dos hosts, usa `host`.
 
 ## Referencias `{{…}}`
 

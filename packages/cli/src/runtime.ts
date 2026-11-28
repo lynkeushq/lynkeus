@@ -45,6 +45,30 @@ export const laneLabel = (hello: { platform?: string; native?: boolean; commands
   return ios ? 'iOS Simulator' : 'Android emulator';
 };
 
+/**
+ * The note `appNote` gives, from what was told last: the app now driven (its identity and lane), the apps on the port
+ * turned away. Answers the note, or undefined when nothing changed, and what to remember for the next answer.
+ */
+export const drivenNote = (
+  now: { key: string; lane: string; away: { key: string; lane: string; name: string }[]; port: number },
+  told: { key?: string; lane?: string; away?: string },
+): { note?: string; told: { key: string; lane: string; away: string } } => {
+  const notes: string[] = [];
+  if (told.key && told.key !== now.key)
+    notes.push(`now driving the ${now.lane} app; the ${told.lane} app the answers came from before left (closed, relaunched or sent away)`);
+  const away = now.away
+    .map((a) => a.key)
+    .sort()
+    .join(',');
+  if (now.away.length && away !== told.away) {
+    const others = [...new Set(now.away.map((a) => `${a.name} on ${a.lane}`))].join(', ');
+    notes.push(
+      `${others} also dials port ${now.port} and is turned away while the ${now.lane} app is attached: case run and why take --on to reach it; close the ${now.lane} app to drive it here (status lists both)`,
+    );
+  }
+  return { ...(notes.length ? { note: notes.join('; ') } : {}), told: { key: now.key, lane: now.lane, away } };
+};
+
 /** An answer to a command that drove the app, headed by the lane it came from. */
 export const fromLane = (lane: string | undefined, text: string): string => (lane ? `[${lane}] ${text}` : text);
 

@@ -63,20 +63,7 @@ export const draftCase = (d: DraftInput): string => {
   if (d.fromNote) lines.push(`  # Begins on ${d.from}: ${d.fromNote}; cases.start in lynkeus.config.json sets where drafts begin.`);
   if (d.macros?.length) lines.push(`  # The project's own steps: ${d.macros.join(', ')}`);
   const last = way ? [...way.setup, ...way.steps].at(-1) : undefined;
-  if (way) {
-    const known = way.how === 'ran' ? `its last passing run was on ${d.to} after these steps` : `its steps reach ${d.to} here`;
-    const macros = way.macros.length ? `; it calls ${way.macros.join(', ')}` : '';
-    lines.push(`  # The way to ${d.to} from case ${way.source} (${known}${macros}):`, ...way.steps.map((s) => `  ${stepLine(s)}`));
-  } else if (!d.path) {
-    lines.push(`  # No known way from ${d.from} to ${d.to}: \`lynkeus crawl --to ${d.to}\` learns one.`);
-    lines.push(`  - app.nav: ${d.to}`);
-  } else {
-    for (const s of d.path) {
-      if (s.press) lines.push(`  - app.press: ${quote(`#${s.press}`)}${s.source === 'static' ? '    # from the source: confirm it on screen' : ''}`);
-      else lines.push(`  # ${s.from} → ${s.to}: ${s.hint ?? 'find the control that leads here'}`);
-      lines.push(`  - app.wait: { what: ${s.opens ? quote(s.opens) : s.to}, timeoutMs: 10000 }`);
-    }
-  }
+  lines.push(...wayLines(d));
   if (!last || last.verb === 'app.nav' || routeOf(last) !== d.to) lines.push(`  - app.see: { route: ${d.to} }`);
   const k = d.known;
   if (!way && k && (k.ids.length || k.texts.length || k.leadsTo.length)) {
@@ -95,6 +82,33 @@ export const draftCase = (d: DraftInput): string => {
     '',
   );
   return lines.join('\n');
+};
+
+/**
+ * The steps to a screen, indented as a case's: an existing case's way there (its steps after its setup), else the
+ * route map's presses from `from`, else `app.nav` with how to learn a way (a jump works only where the route is mounted).
+ */
+export const wayLines = (d: Pick<DraftInput, 'from' | 'to' | 'way' | 'path'>, o: { setupToo?: boolean } = {}): string[] => {
+  const way = d.way;
+  if (way) {
+    const known = way.how === 'ran' ? `its last passing run was on ${d.to} after these steps` : `its steps reach ${d.to} here`;
+    const macros = way.macros.length ? `; it calls ${way.macros.join(', ')}` : '';
+    return [
+      `  # The way to ${d.to} from case ${way.source} (${known}${macros}):`,
+      ...(o.setupToo ? [...way.setup, ...way.steps] : way.steps).map((s) => `  ${stepLine(s)}`),
+    ];
+  }
+  if (!d.path)
+    return [
+      `  # No known way from ${d.from} to ${d.to}: \`lynkeus crawl --to ${d.to}\` learns one; app.nav works only where ${d.to} is mounted (signed in, say).`,
+      `  - app.nav: ${d.to}`,
+    ];
+  return d.path.flatMap((s) => [
+    s.press
+      ? `  - app.press: ${quote(`#${s.press}`)}${s.source === 'static' ? '    # from the source: confirm it on screen' : ''}`
+      : `  # ${s.from} → ${s.to}: ${s.hint ?? 'find the control that leads here'}`,
+    `  - app.wait: { what: ${s.opens ? quote(s.opens) : s.to}, timeoutMs: 10000 }`,
+  ]);
 };
 
 // A label or a heading; a paragraph is copy that is rewritten, translated and wrapped, and breaks a check on any change.
@@ -119,7 +133,14 @@ const languageOf = (tag: string | undefined) => tag?.split(/[-_]/)[0]?.toLowerCa
  * the device's, `language` the app's own (lynkeus.config.json): texts read in another language than the app's fail
  * wherever the app runs in its own.
  */
-export const hereCase = (id: string, screen: Screen, title?: string, languages: { locale?: string; language?: string } = {}): string => {
+export const hereCase = (
+  id: string,
+  screen: Screen,
+  title?: string,
+  languages: { locale?: string; language?: string } = {},
+  /** The steps to the screen (`wayLines`), as `case new` drafts them; without them, `app.nav` to its route. */
+  way?: string[],
+): string => {
   const sights = sightsOf(screen);
   const device = languageOf(languages.locale);
   const app = languageOf(languages.language);
@@ -129,7 +150,7 @@ export const hereCase = (id: string, screen: Screen, title?: string, languages: 
     `id: ${id}`,
     `title: ${quote(title ?? (screen.route ? `${screen.route} shows what it should` : 'The app opens on its first screen'))}`,
     '---',
-    ...(screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
+    ...(way?.length ? ['setup:', ...way, ''] : screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
     'steps:',
     ...(foreign
       ? [`  # The device reads ${languages.locale}, the app's language is ${languages.language}: these texts are as ${device} shows them. Prefer testIDs.`]

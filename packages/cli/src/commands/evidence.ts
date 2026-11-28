@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { REPORT_FILE } from './localReport.js';
 import { runsDir } from '../config.js';
-import { type CaseReport, FRAME_NOT_APP, NO_FILM } from '../cases/runner.js';
+import { type CaseReport, FRAME_MOVING, FRAME_NOT_APP, NO_FILM } from '../cases/runner.js';
 import { targetSlug, type TargetName } from '../cases/onTargets.js';
 import { define } from '../registry.js';
 import { execute } from '../runtime.js';
@@ -31,7 +31,8 @@ const digest = (file: string): string | undefined => {
 
 /**
  * The frames that look wrong: an action's frame identical to the step before's (the press landed nowhere, or the
- * frame was taken before the screen changed), and frames the run said are not of the app (a system view in front).
+ * frame was taken before the screen changed), frames the run said are not of the app (a system view in front), and
+ * frames a host took while its screen still moved.
  */
 export const suspectFrames = (runs: TargetRun[], hash: (file: string) => string | undefined = digest): string[] => {
   const out: string[] = [];
@@ -46,7 +47,7 @@ export const suspectFrames = (runs: TargetRun[], hash: (file: string) => string 
           );
         if (now) before = now;
       });
-      for (const w of report.warnings ?? []) if (w.startsWith(FRAME_NOT_APP)) out.push(`${run.label} ${report.id}: ${w}`);
+      for (const w of report.warnings ?? []) if (w.startsWith(FRAME_NOT_APP) || w.startsWith(FRAME_MOVING)) out.push(`${run.label} ${report.id}: ${w}`);
     }
   return out;
 };
@@ -89,7 +90,7 @@ export const evidenceCommands = [
     group: 'runs',
     summary: 'Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong',
     details:
-      "The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), and a frame taken while a system view or another app was in front. The run's whole answer is in answer.txt beside the report.",
+      "The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), a frame taken while a system view or another app was in front, and one a host took while its screen still moved. The run's whole answer is in answer.txt beside the report.",
     positionals: [{ name: 'files', help: 'case files (default: every case in cases.dir)', rest: true }],
     flags: {
       on: { type: 'string', help: 'as case run --on (default: the attached app)', value: 'targets' },
@@ -156,7 +157,7 @@ export const evidenceCommands = [
               ...suspects.slice(0, MAX_SUSPECTS).map((s) => `  ${s}`),
               ...(suspects.length > MAX_SUSPECTS ? [`  … ${suspects.length - MAX_SUSPECTS} more`] : []),
             ]
-          : ['frames: none looks wrong (no action left the screen unchanged, none shows a system view)']),
+          : ['frames: none looks wrong (no action left the screen unchanged, none shows a system view, none was taken while the screen moved)']),
         `whole answer: ${answer}`,
       ];
       // A recorder that ran and left nothing that plays makes the evidence incomplete, however the cases did.

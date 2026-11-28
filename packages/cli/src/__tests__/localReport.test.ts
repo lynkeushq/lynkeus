@@ -126,3 +126,15 @@ test('report html writes the page and says where', async () => {
   assert.match(answer.text ?? '', new RegExp(`${REPORT_FILE} \\(.* MB; open it in a browser, no network needed\\)`));
   assert.ok(fs.existsSync(path.join(dir, REPORT_FILE)));
 });
+
+test('a large embedded page says to drop only the flag that was passed', async () => {
+  const dir = run();
+  // A frame of 11 MB: --embed alone already makes the page large.
+  fs.writeFileSync(path.join(dir, 'login', '01.avif'), Buffer.alloc(11_000_000, 1));
+  const base = { root: dir, config: {}, attached: false, err: () => undefined } as unknown as Base;
+  const frames = await execute(['report', 'html', dir, '--embed'], base);
+  assert.match(frames.text ?? '', /warning: .* is large for one file; drop --embed \(the frames\) and share the folder instead\./);
+  assert.doesNotMatch(frames.text ?? '', /--embed-film or/);
+  const film = await execute(['report', 'html', dir, '--embed-film'], base);
+  assert.match(film.text ?? '', /drop --embed-film \(the film\)/);
+});

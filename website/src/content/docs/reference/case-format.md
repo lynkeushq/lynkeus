@@ -250,7 +250,7 @@ Waits for something. The value decides for what.
 | `gone` | boolean | `false` | Wait until it leaves the screen. |
 | `enabled` | boolean | `false` | Wait until the target is there, enabled and taking touches, such as a form button that waits on its fields. |
 | `anyOf` | list of targets | | Accept the first of these that is present. `target` is not needed then. Each item is a string (`"#welcome"`, `'"Try again"'`) or an object: `{ testId }`, or `{ text, nth? }` with `nth` counted from 0. `gone` cannot be combined with it. |
-| `scroll` | boolean | `false` | Swipe until the target is in the window. |
+| `scroll` | boolean | `false` | Swipe until the target is in the window and nothing covers it (a tab bar, a header). A covered target is moved out from under in a short swipe, so it does not leave the window on the other side. |
 | `request` | string | | Wait for a request the app made, written `METHOD /path`. A bare path matches any method. The path matches when the request's path ends with it. |
 | `status` | number | any 2xx | With `request`: the status the answer must have. |
 | `timeoutMs` | number (ms) | `10000` | Give up after this long. |
@@ -291,8 +291,9 @@ Letter case never matters, and spaces around a text do not count. A target that 
 | `contains` | boolean | `false` | With a target that is a text: an element whose text contains it matches, inside `within` when given; `nth` counts among those. |
 | `route` | string | | The app must be on this route. |
 | `layer` | boolean or string | | `true`: a layer (a sheet, a dialog) is open over the screen. `false`: none is. A string: one is open and its `testID` contains the string. |
-| `request` | string | | The app must have made this request, written `METHOD /path`. |
-| `status` | number | any | With `request`: the status the answer must have. |
+| `request` | string | | The app must have made this request, written `METHOD /path`, and it must have been answered: a request with status 0 (no network on the host, refused, aborted) fails the step and says so. |
+| `status` | number | any answer | With `request`: the status the answer must have. `status: 0` checks for a request that got no answer. |
+| `answered` | boolean | `true` | With `request`: `false` accepts a request that was only sent, answered or not. |
 | `event` | string | | The app must have reported this analytics event. |
 | `props` | object | | With `event`: properties the event must carry. Values are compared as text. |
 | `absent` | boolean | `false` | Turn the assertion around: the step passes when the conditions do not hold. |
@@ -575,14 +576,18 @@ steps:
 
 | Condition | Holds when |
 |---|---|
-| `device` | The app runs on a simulator or an emulator. |
-| `headless` | The app runs anywhere else. |
+| `device` | The app runs on a simulator, an emulator or a phone. |
+| `headless` | The app runs on the headless host, in Node. |
+| `fastsim` | The app runs on a Lynkeus FastSim host. |
+| `host` | The app runs on either host, headless or FastSim. |
 | `ios` | The app reports the platform `ios`. |
 | `android` | The app reports the platform `android`. |
 | `has:<command>` | The app registered that command, as `lynkeus hello` lists them. |
 | `!<condition>` | The condition does not hold: `!ios`, `!has:reset`. |
 
 `do` takes one step or a list of steps. An entry with `do` and no `on` is refused.
+
+Before 0.7.7, `headless` also held on FastSim. FastSim draws natively, with real layout, so a step written for the Node host (a text control that stands in for a native one) does not belong there; write `host` for a step both hosts need.
 
 ## References
 

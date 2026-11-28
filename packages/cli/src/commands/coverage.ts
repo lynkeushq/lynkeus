@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { coverageOf, impactOf, readSeenRuns, SEEN_DIR, withIdCases, withTextCases } from '../cases/coverage.js';
-import { type DraftInput, draftCase, hereCase } from '../cases/draft.js';
+import { type DraftInput, draftCase, hereCase, wayLines } from '../cases/draft.js';
 import { Fixtures } from '../cases/fixtures.js';
 import { FIXTURES } from '../cases/templates.js';
 import { readCases } from '../cases/format.js';
@@ -259,7 +259,7 @@ export const coverageCommands = [
     group: 'runs',
     summary: 'Draft a case from the screen the app shows now, with checks that pass as it is',
     details:
-      'Reads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
+      'Reads the attached app’s screen and writes a case that goes there the way `case new` drafts it (the steps of a case that reaches it, sign-in included, else the route map’s presses from cases.start, else `app.nav` to its route, which works only where the route is mounted) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.',
     positionals: [{ name: 'id', help: 'the case id, which is also its file name', required: true }],
     flags: {
       title: { type: 'string', help: 'what the case shows, as the report will title it', value: 'text' },
@@ -287,11 +287,34 @@ export const coverageCommands = [
           await scoped?.stop();
         }
       })();
-      const text = hereCase(id, screen, ctx.flags.title as string | undefined, { locale, language: ctx.config.language });
+      const text = hereCase(id, screen, ctx.flags.title as string | undefined, { locale, language: ctx.config.language }, wayHere(ctx, screen.route));
       return ctx.flags.write ? writeCase(ctx, id, text) : { text, json: { id, text } };
     },
   }),
 ];
+
+/**
+ * The way to the screen `case here` read, as `case new` drafts it: an existing case's way there, else the route map's
+ * presses from cases.start (or the first declared screen). A jump (`app.nav`) only works where the route is mounted
+ * (trial run 10: `app.nav: Welcome` from a signed-out app). Undefined without a route or a route map.
+ */
+const wayHere = (ctx: Base, route: string | undefined): string[] | undefined => {
+  if (!route) return undefined;
+  let graph: ScreenGraph;
+  try {
+    graph = ctx.graph();
+  } catch {
+    return undefined;
+  }
+  const config = ctx.config.cases ?? {};
+  const read = coverageFor({ ...ctx, graph: () => graph }, undefined);
+  const way = typeof read === 'string' ? undefined : wayTo(read.cases, read.seen, route, { macros: Object.keys(config.macros ?? {}) });
+  const from = config.start ?? Object.keys(graph.screens)[0];
+  if (way) return wayLines({ from: from ?? route, to: route, way, path: undefined }, { setupToo: true });
+  if (!from || from === route) return undefined;
+  const path = plan(graph, from, route, edges.load(edgesFile(ctx.root))) ?? undefined;
+  return wayLines({ from, to: route, path });
+};
 
 /** Saves a drafted case in the cases folder, never over a file that is there. */
 const writeCase = (ctx: Base, id: string, text: string) => {

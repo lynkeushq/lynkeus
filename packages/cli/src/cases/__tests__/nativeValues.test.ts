@@ -160,3 +160,24 @@ test('a member no spec covers is told as a constant or a reference, and its snip
   assert.match(text, /for a constant only: a method given a value stops being callable/);
   assert.match(text, /"RNFoo\.hasNotch": \{\s+"value": null/);
 });
+
+test('the constants FastSim guesses are named beside what the app config says, with the nativeMocks that give them', async () => {
+  const { appFacts, describeGuessed } = await import('../nativeValues.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lk-guessed-'));
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { 'expo-application': '~7.0.0' } }));
+  fs.writeFileSync(
+    path.join(root, 'app.json'),
+    JSON.stringify({
+      expo: { name: 'ShopTrial', version: '0.0.1', ios: { bundleIdentifier: 'com.shoptrial' }, android: { package: 'com.shoptrial', versionCode: 3 } },
+    }),
+  );
+  const lines = describeGuessed(appFacts(root));
+  assert.equal(lines[0], 'native values Lynkeus FastSim guessed (4): the app reads expo-application, which FastSim answers with placeholders');
+  assert.equal(lines[1], `  • ExpoApplication.applicationId reads "com.example.app"; the app's config says "com.shoptrial"`);
+  assert.equal(lines[2], `  • ExpoApplication.applicationName reads "App"; the app's config says "ShopTrial"`);
+  assert.match(lines.join('\n'), /"ExpoApplication\.nativeApplicationVersion": \{\n\s+"value": "0\.0\.1"/);
+  assert.match(lines.join('\n'), /"ExpoApplication\.nativeBuildVersion": \{\n\s+"value": "3"/);
+  // A key the project already mocks is not told again; an app without expo-application gets nothing.
+  assert.equal(describeGuessed(appFacts(root), { 'ExpoApplication.applicationId': { value: 'com.shoptrial' } })[0]?.includes('(3)'), true);
+  assert.deepEqual(describeGuessed({ dependencies: [], ids: {} }), []);
+});

@@ -169,7 +169,7 @@ The defaults for contrast are the figures of WCAG 2 level AA.
 | `crawl.never` | string[] | none | Controls the crawl must never press. |
 | `crawl.close` | string[] | none | Controls that close an overlay the app raises. Without them, the crawl closes an overlay by tapping its backdrop, then by swiping down. |
 | `crawl.back` | string[] | none | Controls that go back. Without them, the crawl takes a small control in the top-left corner for one. |
-| `crawl.login` | string or step[] | none | How to sign in: the name of a macro in `cases.macros` (`"app.signIn"`) or a list of steps. The crawl runs it when a press signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for (their first `app.wait` or `app.see` of a route). |
+| `crawl.login` | string or step[] | none | How to sign in: the name of a macro in `cases.macros` (`"app.signIn"`) or a list of steps. The crawl runs it when a press signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for (their first `app.wait` or `app.see` of a route). When that first wait is for a control (`#login-button`), the crawl signs in only while the control is on screen, so a crawl that is already signed in never runs it; a route it cannot reach then is reported as a problem like any other. |
 
 The three `crawl` lists are regular expressions matched, without regard to case, against a control's `testID` and its label.
 
@@ -289,6 +289,8 @@ Native mocks need a host whose app answers the `nativeMocks` command. Where it d
 A key can also name a constant instead of a method: `Module.name`, read as `NativeModules.Module.name`. Lynkeus FastSim and the headless host do not know every value a device gives its apps. A property nothing answers reads as `true` on Lynkeus FastSim (it answers with a function, which is truthy) and as `undefined` on headless, and either can send the app down the wrong path: a tablet layout, a skipped animation.
 
 After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed. One the app read and never called is either a constant that read as `true` or a method the app only took a reference to (`setFocusTo: Native.setFocusTo`), which is fine. Lynkeus tells them apart by the module's TurboModule spec, found where codegen finds it (`codegenConfig.jsSrcsDir` in the library's `package.json`): a method there is not listed, and a constant there is listed as one. A property no spec covers is listed as possibly either, and its snippet is meant for a constant only, since a method given a value can no longer be called.
+
+FastSim also answers some constants with a placeholder instead of nothing: expo-application's `applicationId` (`com.example.app`), `applicationName` (`App`), `nativeApplicationVersion` (`1.0.0`) and `nativeBuildVersion` (`1`). No host reports what it guessed, so after a FastSim run of an app that depends on `expo-application`, the summary lists them beside what the app's config says (`app.json`'s name, version and build numbers, the bundle id and package) with a `nativeMocks` snippet filled from it. A key the project already mocks is not listed.
 
 | Key | Type | Meaning |
 |---|---|---|

@@ -270,8 +270,11 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     const r = await execute(argvFor(c, input), ctx).finally(() => clearInterval(heartbeat));
     // Several apps can be attached at once (a Simulator's, an emulator's, a FastSim host's): an answer about the app says whose.
     const lane = r.lane ?? (c.needs === 'app' ? ctx.lane?.() : undefined);
-    if (r.error) return { ...text(`✗ ${fromLane(lane, r.error)}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
-    const body = text(fromLane(lane, r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok')));
+    // The app it drives changed since the last answer, or another app on the port is turned away: said once.
+    const note = c.needs === 'app' && !r.lane ? ctx.appNote?.() : undefined;
+    const noted = (said: string) => (note ? `(${note})\n${said}` : said);
+    if (r.error) return { ...text(`✗ ${fromLane(lane, noted(r.error))}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
+    const body = text(fromLane(lane, noted(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'))));
     // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is
     // reported as such, with everything it said, so a model does not read it as success.
     return r.code === 0 ? body : { ...body, isError: true };

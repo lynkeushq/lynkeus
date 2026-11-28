@@ -148,6 +148,8 @@ const STEP_CHARS = 100;
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
+const UNMATCHED_MOCK = /^mock (rule|hold) .* never matched/;
+
 /** One case on one target, on one line: the result, and for a case that did not pass the step and the first line of its error. */
 export const caseLine = (report: SuiteReport, label: string): string => {
   const head = `${MARK[report.result]} ${label}  ${report.id}`;
@@ -285,9 +287,12 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     for (const { lane, result } of results) {
       const report = result.reports?.find((r) => r.id === c.id);
       if (!report) continue;
-      if (o.brief && report.result === 'passed' && !report.retried) continue;
+      // A mock no request matched leaves the case standing on an answer it never got: said under its line, passed or not.
+      const mocks = (report.warnings ?? []).filter((w) => UNMATCHED_MOCK.test(w));
+      if (o.brief && report.result === 'passed' && !report.retried && mocks.length === 0) continue;
       lines.push(caseLine(report, lane.label.padEnd(width)));
       if (o.verbose && report.result !== 'passed') lines.push(indent(o.detail(report), '    '));
+      else lines.push(...mocks.map((w) => `    ⚠ ${w}`));
     }
   for (const { lane, result } of results)
     if (!result.reports) {

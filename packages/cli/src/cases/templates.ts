@@ -110,7 +110,7 @@ One case runs on a host and on a device. What only one of them needs — closing
 native screen the host never shows — is kept to it:
 
 \`\`\`yaml
-  - on: device        # or headless, ios, android
+  - on: device        # or headless, fastsim, host, ios, android
     do:
       - app.press: "364,84"
 \`\`\`

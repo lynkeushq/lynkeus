@@ -453,3 +453,28 @@ test('status lists every app on the port with its device, says which one the ses
     '2 apps dial port 8123: ShopTrial on iOS Simulator (iPhone 17 Pro): driven by this session; ShopTrial on Android emulator (lynkeus-trial): turned away while the other is attached. To drive another: case run and why take --on android (on, over MCP); screen, press and the other tools drive the ios app until it closes: close it (xcrun simctl terminate booted <app id>, adb shell am force-stop <app id>) and the other attaches within 2 s',
   );
 });
+
+test('an answer about the app says once when the app it drives changed, and when another app on the port is turned away', async () => {
+  const { drivenNote } = await import('../runtime.js');
+  const ios = { key: 'ios|native||ShopTrial', lane: 'iOS Simulator' };
+  const android = { key: 'android|native||ShopTrial', lane: 'Android emulator', name: 'ShopTrial' };
+  let told = {};
+  const say = (now: Parameters<typeof drivenNote>[0]) => {
+    const r = drivenNote(now, told);
+    told = r.told;
+    return r.note;
+  };
+  assert.equal(say({ ...ios, away: [], port: 8123 }), undefined);
+  assert.equal(
+    say({ ...ios, away: [android], port: 8123 }),
+    'ShopTrial on Android emulator also dials port 8123 and is turned away while the iOS Simulator app is attached: case run and why take --on to reach it; close the iOS Simulator app to drive it here (status lists both)',
+  );
+  // Said once, until it changes.
+  assert.equal(say({ ...ios, away: [android], port: 8123 }), undefined);
+  // The iOS app left; the Android one took the port.
+  assert.equal(
+    say({ key: android.key, lane: android.lane, away: [], port: 8123 }),
+    'now driving the Android emulator app; the iOS Simulator app the answers came from before left (closed, relaunched or sent away)',
+  );
+  assert.equal(say({ key: android.key, lane: android.lane, away: [], port: 8123 }), undefined);
+});

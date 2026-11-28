@@ -404,7 +404,51 @@ const released = (version: string): string => `^${version.replace(/^[\^~=v]+/, '
  * lynkeus-headless, which are released together with it), else the CLI's own release. A dev build or a local
  * path (`file:`, `link:`, `workspace:`) is never written: CI cannot fetch it, so the release it leads to is.
  */
-export const ciVersion = (root: string, cli = CLI_VERSION): { range: string; note?: string } => {
+export const ciVersion = (root: string, cli = CLI_VERSION, published: Published = registry.published): { range: string; note?: string } => {
+  const wanted = wantedVersion(root, cli);
+  // A range nothing published satisfies yet (a release still in development) would fail every CI run: the last
+  // release is run instead, and the note says to move it on once that release is out (trial run 10: ^0.7.7).
+  const answer = published(wanted.range);
+  if (answer === undefined)
+    return {
+      ...wanted,
+      note: [wanted.note, `npm could not be asked whether lynkeus@${wanted.range} is published: check it before the workflow runs`].filter(Boolean).join('; '),
+    };
+  if (answer.matches) return wanted;
+  if (!answer.latest) return wanted;
+  const range = `^${answer.latest}`;
+  return {
+    range,
+    note: `no published lynkeus matches ${wanted.range} yet${wanted.note ? ` (${wanted.note.split(':')[0]})` : ''}: the workflow runs lynkeus@${range}, the last release; move it on once ${wanted.range.replace(/^\^/, '')} is out`,
+  };
+};
+
+/** Whether npm has a lynkeus in `range`, and its latest release; undefined when npm cannot be asked. */
+export type Published = (range: string) => { matches: boolean; latest?: string } | undefined;
+
+const npmPublished: Published = (range) => {
+  const ask = (spec: string): string | undefined => {
+    try {
+      return execFileSync('npm', ['view', spec, 'version', '--json'], { encoding: 'utf8', timeout: 15_000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch (error) {
+      // npm exits non-zero with E404 when nothing matches: an answer, not an outage.
+      const out = String((error as { stdout?: unknown }).stdout ?? '');
+      return /E404|"code":\s*"E404"/.test(out) ? '' : undefined;
+    }
+  };
+  const matching = ask(`lynkeus@${range}`);
+  if (matching === undefined) return undefined;
+  if (matching !== '' && matching !== '[]') return { matches: true };
+  const latest = ask('lynkeus');
+  const version = latest ? (JSON.parse(latest) as string) : undefined;
+  return { matches: false, ...(typeof version === 'string' ? { latest: version } : {}) };
+};
+
+/** Where `map ci` asks what is published; a test answers in npm's place. */
+export const registry: { published: Published } = { published: npmPublished };
+
+/** The range the app asks for (see ciVersion), before npm is asked whether it is out. */
+const wantedVersion = (root: string, cli: string): { range: string; note?: string } => {
   let pkg: Partial<Record<(typeof DEPENDENCIES)[number], Record<string, string>>> = {};
   try {
     pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -482,9 +526,11 @@ const casesJob = (version: string, o: CasesJobPlan & { manager: string }): strin
 `,
     )
     .join('');
+  // FastSim draws iOS as the Simulator does only on a Mac (Apple Silicon); Android and headless run anywhere.
+  const runner = o.targets.includes('fastsim:ios') ? 'macos-latest' : 'ubuntu-latest';
   return `
   cases:
-    runs-on: ubuntu-latest
+    runs-on: ${runner}
     env:
 ${o.secrets.map((s) => `      ${s}: \${{ secrets.${s} }}`).join('\n')}
     steps:

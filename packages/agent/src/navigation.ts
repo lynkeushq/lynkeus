@@ -11,6 +11,8 @@ export type NavigationAdapter = {
   declares?(name: string): boolean | undefined;
   canGoBack(): boolean;
   goBack(): void;
+  /** Closes the innermost open drawer of a drawer navigator; false when none is open. `back` tries it first. */
+  closeDrawer?(): boolean;
   /** Back to the initial route; called on `reset`, so a host that does not relaunch the app starts each flow clean. */
   resetToRoot?(): void;
   /** Replace the whole stack with one route, as an app does after login. */
@@ -19,7 +21,25 @@ export type NavigationAdapter = {
   subscribe(listener: () => void): () => void;
 };
 
-type NavState = { index: number; routes: { name: string; state?: unknown }[]; routeNames?: string[] };
+type NavState = {
+  index: number;
+  routes: { name: string; state?: unknown }[];
+  routeNames?: string[];
+  key?: string;
+  type?: string;
+  /** A drawer navigator keeps `{ type: 'drawer', status: 'open' }` here while its drawer is open (`status` since v6). */
+  history?: { type?: string; status?: string }[];
+};
+
+/** The key of the innermost drawer navigator on the focused path whose drawer is open. */
+export const openDrawerKey = (state: NavState | undefined): string | undefined => {
+  let open: string | undefined;
+  for (let current = state; current; current = current.routes[current.index]?.state as NavState | undefined) {
+    const drawer = current.type === 'drawer' && current.history?.some((h) => h.type === 'drawer' && h.status !== 'closed');
+    if (drawer && current.key) open = current.key;
+  }
+  return open;
+};
 
 export type ContainerRef = {
   isReady(): boolean;
@@ -28,6 +48,7 @@ export type ContainerRef = {
   navigate: (...args: never[]) => void;
   canGoBack(): boolean;
   goBack(): void;
+  dispatch?: (action: never) => void;
   // `never` here, not `unknown`: parameters are contravariant, and the real
   // ref types its argument, so `unknown` would reject every actual ref.
   resetRoot?: (state?: never) => void;
@@ -92,6 +113,12 @@ export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => 
     },
     canGoBack: () => ref.isReady() && ref.canGoBack(),
     goBack: () => ref.goBack(),
+    closeDrawer: () => {
+      const key = ref.isReady() ? openDrawerKey(ref.getRootState()) : undefined;
+      if (!key || !ref.dispatch) return false;
+      (ref.dispatch as unknown as (action: { type: string; target: string }) => void)({ type: 'CLOSE_DRAWER', target: key });
+      return true;
+    },
     resetToRoot: () => {
       if (!ref.isReady() || !ref.resetRoot) return;
       rememberInitial();

@@ -14,12 +14,13 @@ import type { HelloEvent } from 'lynkeus-protocol';
 
 import { declaredTargets } from '../cases/onTargets.js';
 import { DEFAULT_PORT, portFromEnv, runsDir } from '../config.js';
-import { appIdsOf } from '../device/devMenu.js';
+import { appIdsOf, type DevMenuOutcome, finishDevMenuOnboarding, usesDevClient } from '../device/devMenu.js';
 import { type DeviceInfo, parseAdbDevices } from '../device/devices.js';
 import { iosLaunchArgv } from '../device/launchArgs.js';
 import { type Ctx, define } from '../registry.js';
 import { execute, onPhone } from '../runtime.js';
 import { type BuildDevice, runtimeAt } from '../runtimes/index.js';
+import { proposeCasesTargets } from './headless.js';
 import { appPlatforms, type Platform } from './runTargets.js';
 
 export type Ran = { code: number; stdout: string };
@@ -38,6 +39,11 @@ export type SetupDeps = {
   attach: (platform: Platform, timeoutMs: number) => Promise<HelloEvent | undefined>;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
+  /**
+   * Marks Expo's dev-menu onboarding seen for the app on a Simulator or emulator (expo-dev-client apps): `done` when it
+   * was just marked, so the sheet may be up over the app this launch. None: nothing to do.
+   */
+  devMenu?: (device: BuildDevice) => Promise<DevMenuOutcome | undefined>;
 };
 
 export type StepLine = { step: string; ok: boolean; text: string; tail?: string[]; log?: string };
@@ -241,12 +247,23 @@ const seconds = (ms: number) =>
   ms >= 90_000 ? `${Math.floor(ms / 60_000)}m${String(Math.round((ms % 60_000) / 1000)).padStart(2, '0')}s` : `${Math.round(ms / 1000)} s`;
 const rel = (root: string, file: string) => path.relative(root, file) || file;
 
+const readConfigTargets = (root: string): string[] | undefined => {
+  try {
+    const targets = (JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8')) as { cases?: { targets?: unknown } }).cases?.targets;
+    return Array.isArray(targets) ? targets.filter((t): t is string => typeof t === 'string') : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export type SetupOptions = {
   platforms?: string[];
   device?: string;
   rebuild?: boolean;
   /** How long a fresh build's app may take to dial in (its first bundle). */
   attachMs?: number;
+  /** cases.targets to write, once the person said: `proposed` or a list; without it they are only proposed. */
+  targets?: string;
 };
 
 /** The whole job: the lines it answers with, and whether every step went through. */
@@ -273,7 +290,7 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
   if (before.every((c) => c.ok)) done('init', 'already set up');
   else {
     say('init: installing lynkeus-agent and mounting it');
-    const r = await execute(['init'], ctx);
+    const r = await execute(['init', ...(o.targets ? ['--targets', o.targets] : [])], ctx);
     const said = r.error ?? r.text ?? '';
     const file = path.join(dir, 'init.txt');
     fs.writeFileSync(file, said);
@@ -290,7 +307,13 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
     );
   }
 
-  const declared = declaredTargets({}, ctx.config.cases?.targets);
+  // Already set up: the targets the person named are written all the same.
+  if (o.targets && !changed) {
+    const said = proposeCasesTargets(ctx.root, ctx.config, undefined, o.targets);
+    if (said) done('cases.targets', said);
+  }
+  const written = o.targets ? (readConfigTargets(ctx.root) ?? ctx.config.cases?.targets) : ctx.config.cases?.targets;
+  const declared = declaredTargets({}, written);
   const platforms = platformsFor({
     asked: o.platforms,
     declared: Array.isArray(declared) ? declared : undefined,
@@ -391,6 +414,7 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
     })();
     if (!o.rebuild && !changed && stamp === key && appId && (await installed(deps, device, appId))) {
       say(`${platform}: the build setup made is installed; launching it`);
+      if (device.type !== 'physical') await deps.devMenu?.(device).catch(() => undefined);
       await launch(deps, device, appId, metroPort);
       const hello = await attached(60_000);
       if (hello) {
@@ -434,6 +458,14 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
         `no ${platform} app attached on port ${driverPort} after the build${appId ? ' and a relaunch' : ''}: Metro's log says whether the bundle loaded`,
         path.join(dir, 'metro.log'),
       );
+    // A new development build opens Expo's dev-menu onboarding sheet over the app on its first launch, a native view
+    // the agent cannot read or press (trial run 10). Marked seen now, the app is launched once more without it.
+    if (appId && device.type !== 'physical' && deps.devMenu && (await deps.devMenu(device).catch(() => undefined)) === 'done') {
+      await launch(deps, device, appId, metroPort);
+      hello = (await attached(60_000)) ?? hello;
+      done(`${platform} app`, `attached: ${said(hello)}; Expo's dev-menu onboarding sheet marked seen and the app launched again without it`);
+      continue;
+    }
     done(`${platform} app`, `attached: ${said(hello)}`);
   }
   return { lines, ok: true, booted };
@@ -551,6 +583,11 @@ export const setupCommands = [
       platform: { type: 'list', help: "ios, android or both (default: those in cases.targets, else the app's)", value: 'name' },
       device: { type: 'string', help: 'with one platform: Simulator name or udid, AVD name, or adb serial; one not up is booted', value: 'name' },
       rebuild: { type: 'boolean', help: 'build even when the last build is installed' },
+      targets: {
+        type: 'string',
+        help: 'write cases.targets, once the person said where cases must pass: proposed, or a list (headless,ios); without it they are only proposed',
+        value: 'proposed|list',
+      },
     },
     needs: 'nothing',
     session: false,
@@ -572,10 +609,18 @@ export const setupCommands = [
         attach: attachOn(ctx),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         now: Date.now,
+        ...(usesDevClient(ctx.root)
+          ? { devMenu: (device: BuildDevice) => finishDevMenuOnboarding({ ...device, connected: true }, appIdsOf(ctx.root, ctx.config.app)) }
+          : {}),
       };
       const result = await runSetup(
         ctx,
-        { platforms, device: typeof ctx.flags.device === 'string' ? ctx.flags.device : undefined, rebuild: !!ctx.flags.rebuild },
+        {
+          platforms,
+          device: typeof ctx.flags.device === 'string' ? ctx.flags.device : undefined,
+          rebuild: !!ctx.flags.rebuild,
+          ...(typeof ctx.flags.targets === 'string' ? { targets: ctx.flags.targets } : {}),
+        },
         deps,
       );
       const dir = setupDir(ctx.root);

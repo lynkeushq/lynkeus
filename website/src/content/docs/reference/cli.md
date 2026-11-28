@@ -173,7 +173,7 @@ lynkeus swipe --from 40,400 --to 340,400
 lynkeus back
 ```
 
-Pops the current route.
+Goes back as a person does. An open drawer closes first: a React Navigation drawer navigator's, or a drawer whose overlay is labelled "Close drawer" (`react-native-drawer-layout`), or a control labelled "Close menu". The route stays and the answer says what closed. With nothing open, it pops the current route.
 
 ### `lynkeus nav`
 
@@ -422,7 +422,7 @@ Reports what React spent rendering, per route, as measured by the Profiler that 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install] [--no-skill]
+lynkeus init [--no-install] [--no-skill] [--targets <proposed|list>]
 ```
 
 Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynkeus-agent`, mounts the agent from the app's entry file and makes the project's token. Run it from the app's folder. It does not need the app to be running.
@@ -431,6 +431,7 @@ Sets Lynkeus up in the app, in a React Native or an Expo app: it installs `lynke
 |---|---|
 | `--no-install` | Do not add `lynkeus-agent` to the app. Mount it only. |
 | `--no-skill` | Do not install the Lynkeus skill or its subagents. `LYNKEUS_NO_SKILL=1` does the same. |
+| `--targets <proposed\|list>` | Write `cases.targets`: the proposed ones, or a list such as `headless,ios`. Without it, `init` only proposes them when none are declared, since where a case must pass is the person's call. |
 
 What it does, in order:
 
@@ -477,7 +478,7 @@ Then, under **Where cases can run on this machine**: the booted iOS Simulators, 
 ### `lynkeus setup`
 
 ```bash
-lynkeus setup [--platform <name>] [--device <name>] [--rebuild]
+lynkeus setup [--platform <name>] [--device <name>] [--rebuild] [--targets <proposed|list>]
 ```
 
 Takes an app from nothing to attached in one command, and is what an AI agent calls instead of running builds, Metro and `simctl` or `adb` through its shell. In order:
@@ -496,6 +497,7 @@ An app of the platform that is already attached skips the device's build and lau
 | `--platform <name>` | `ios`, `android`, or both (repeat the flag or separate with commas). |
 | `--device <name>` | With one platform: the Simulator (name or udid), emulator (AVD name or `adb` serial) or phone (serial) to use. One that is not up is booted, a Simulator or an AVD. |
 | `--rebuild` | Build again even when the build `setup` made last is installed. |
+| `--targets <proposed\|list>` | Write `cases.targets`, once the person has said where cases must pass. Without it, `setup` only proposes them, as `status` does. |
 
 ### `lynkeus guide`
 
@@ -1216,7 +1218,7 @@ Runs cases with everything a person reviews (a frame after every step, a film of
 
 - the path of each `report.html`, one per target with `--on`;
 - one line per case with its result on each target, and for a failure, the target, the step and the first line of its error;
-- the frames that look wrong: an action (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) whose frame is identical to the step before's, which means it changed nothing on screen; and a frame taken while the app was inactive or in the background on a Simulator or emulator, which shows a system view or another app instead of the app.
+- the frames that look wrong: an action (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) whose frame is identical to the step before's, which means it changed nothing on screen; and a frame taken while the app was inactive or in the background on a Simulator or emulator, which shows a system view or another app instead of the app; and a frame a host took while its screen still moved. Before each frame, a host that keeps its own clock (Lynkeus FastSim) is asked to wait until its screen stands still, at most 1.5 s on its clock, which costs no real time: the tree can be settled while a keyboard inset or a layout animation is still being drawn. A frame whose screen never stood still is named here.
 
 It is `case run --out <dir> --screenshots --video` underneath, on the targets `--on` names (as in [`case run`](#lynkeus-case-run)), on the attached app, or headless with `--host`. The run goes to `.lynkeus/runs/evidence/<time>` unless `--out` says otherwise, and the run's whole answer is kept as `answer.txt` there.
 
@@ -1356,7 +1358,7 @@ Drafts a case for a screen, for you to finish. It prints:
 lynkeus case here <id> [--title <text>] [--write] [--host]
 ```
 
-Drafts a case from the screen the app shows now, with checks that pass as it is. It reads the attached app's screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three things on it, `testID`s first and then texts. Use it for a project's first case that runs green at once, or as the start of one for a screen.
+Drafts a case from the screen the app shows now, with checks that pass as it is. It reads the attached app's screen and writes a case that goes there the way `case new` drafts it: the steps of a case that reaches that screen, sign-in included, else the route map's presses from `cases.start`, else `app.nav` to its route with a note that a jump works only where the route is mounted (a signed-in screen cannot be jumped to from a signed-out app). Then it sees up to three things on it, `testID`s first and then texts. Use it for a project's first case that runs green at once, or as the start of one for a screen.
 
 | Argument | Meaning |
 |---|---|
@@ -1710,7 +1712,7 @@ The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the
 lynkeus mcp [--full]
 ```
 
-Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `crawl`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
+Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `swipe`, `back`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `crawl`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
 
 | Flag | Meaning |
 |---|---|

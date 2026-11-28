@@ -21,7 +21,7 @@ import { appStamp, caseVersion, Flakes, whereOf } from '../cases/flakes.js';
 import { headlessEntryOf } from './appEntry.js';
 import { SEEN_DIR } from '../cases/coverage.js';
 import { readNativeSpecs } from '../cases/nativeSpecs.js';
-import { describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
+import { appFacts, describeGuessed, describeNativeValues, mergeNativeValues, nativeValuesEnv } from '../cases/nativeValues.js';
 import { RunFile } from '../cases/runfile.js';
 import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
@@ -1287,11 +1287,17 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       : []),
     ...onceUnlessVerbose(
       `native values the ${as.target ? `${as.target} ` : ''}host did not answer`,
-      describeNativeValues(nativeReads, {
-        entry: headlessEntryOf(ctx.root, ctx.config),
-        nativeMocks: ctx.config.cases?.nativeMocks,
-        specs: readNativeSpecs(ctx.root, new Set(nativeReads.filter((r) => r.readAs === 'function' && !r.called).map((r) => r.module))),
-      }),
+      [
+        ...describeNativeValues(nativeReads, {
+          entry: headlessEntryOf(ctx.root, ctx.config),
+          nativeMocks: ctx.config.cases?.nativeMocks,
+          specs: readNativeSpecs(ctx.root, new Set(nativeReads.filter((r) => r.readAs === 'function' && !r.called).map((r) => r.module))),
+        }),
+        // What FastSim guessed is no unanswered read, so no host reports it (trial run 10: App Id com.example.app).
+        ...(as.target?.startsWith('fastsim') || startsFastsim(ctx.flags['host-command'] as string | undefined) || nativeReads.some((r) => r.host === 'fastsim')
+          ? describeGuessed(appFacts(ctx.root, ctx.config.app), ctx.config.cases?.nativeMocks)
+          : []),
+      ],
       verbose,
     ),
     ...(ledger ? ledger.flaky(reports.map((r) => r.id)) : []),
