@@ -26,6 +26,8 @@ import {
   type StepReport,
   stepRoutes,
 } from '../runner.js';
+import { filmSeconds as filmSecondsOf } from '../film.js';
+import { mp4Of } from './mp4.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -1381,7 +1383,7 @@ test('on a simulator or emulator a case asked to film is filmed by the OS, and e
       startedAt: Date.now() - 1500,
       stop: async () => {
         stopped = true;
-        fs.writeFileSync(file, 'film');
+        fs.writeFileSync(file, mp4Of(1.5));
         return true;
       },
     };
@@ -1397,6 +1399,107 @@ test('on a simulator or emulator a case asked to film is filmed by the OS, and e
   filmed.length = 0;
   await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
   assert.deepEqual(filmed, []);
+});
+
+/** A host that films: `record { path }` starts a film, `{ stop }` ends it with `write` into the file it was given. */
+const filmingHost = (write: (file: string) => void) => {
+  const { base } = fakeApp();
+  const asked: unknown[] = [];
+  let file: string | undefined;
+  let frames = 0;
+  return {
+    base,
+    asked,
+    install: async () => {
+      const device = (await base.device()) as unknown as { server: { hello?: unknown }; command: (name: string, params?: unknown) => Promise<unknown> };
+      device.server.hello = { native: true, commands: ['record', 'clock'] };
+      device.command = async (name: string, params?: unknown) => {
+        if (name !== 'record') return {};
+        const p = (params ?? {}) as { path?: string; stop?: boolean; frames?: boolean };
+        asked.push(p);
+        if (p.path) {
+          file = p.path;
+          frames = 0;
+          return { path: p.path };
+        }
+        if (p.frames) {
+          frames += 30;
+          return { frames };
+        }
+        if (p.stop && file) write(file);
+        return { frames };
+      };
+    },
+  };
+};
+
+test('a film the host never finished is no film: the case says why, and the empty file and the recorder’s leftovers are gone', async () => {
+  const host = filmingHost((file) => {
+    fs.writeFileSync(file, '');
+    fs.writeFileSync(`${file}.sb-7b31a107-UQhtrh`, 'half a film');
+  });
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base: host.base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
+  assert.equal(report.video, undefined);
+  assert.ok(report.warnings?.includes('no film: the file is empty: the recorder never finished it'), JSON.stringify(report.warnings));
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((f) => f.includes('video')),
+    [],
+  );
+});
+
+test('a host started again for a relaunch finishes the film so far first, then films again; steps keep the second of the film they are in', async () => {
+  let n = 0;
+  const host = filmingHost((file) => fs.writeFileSync(file, mp4Of(++n)));
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  let relaunched = 0;
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n  - app.relaunch\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, {
+    base: host.base,
+    config,
+    fixtures,
+    evidence: { dir, video: { fps: 30 } },
+    ownHost: true,
+    relaunch: async () => {
+      relaunched++;
+    },
+  });
+  assert.equal(relaunched, 1);
+  assert.deepEqual(
+    host.asked.filter((p) => (p as { path?: string }).path || (p as { stop?: boolean }).stop).map((p) => ((p as { path?: string }).path ? 'start' : 'stop')),
+    ['start', 'stop', 'start', 'stop'],
+  );
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.equal(filmSecondsOf(path.join(dir, 'video.1.mp4')), 1, 'the film before the relaunch is kept, finished');
+  assert.equal(filmSecondsOf(path.join(dir, 'video.mp4')), 2);
+  assert.equal(report.steps[0]!.videoS, undefined, 'a step before the relaunch is not in video.mp4');
+  assert.equal(report.steps[1]!.videoS, 0, 'the step that relaunched goes on at the start of video.mp4');
+  assert.equal(typeof report.steps[2]!.videoS, 'number');
+  assert.ok(
+    report.warnings?.some((w) =>
+      /^the film in video\.mp4 starts during step 2: the host was started again there \(a relaunch\), and what it filmed before is in video\.1\.mp4$/.test(w),
+    ),
+    JSON.stringify(report.warnings),
+  );
+});
+
+test('a relaunch in the first step keeps no film of the screen the case began on, and says nothing of it', async () => {
+  let n = 0;
+  const host = filmingHost((file) => fs.writeFileSync(file, n++ === 0 ? '' : mp4Of(2)));
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.relaunch\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base: host.base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true, relaunch: async () => undefined });
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((f) => f.includes('video')),
+    ['video.mp4'],
+  );
+  assert.equal(report.warnings, undefined);
+  assert.equal(report.steps[0]!.videoS, 0);
 });
 
 test('nav waits for the nested screen it names, and finds the parent of a nested screen itself', async () => {

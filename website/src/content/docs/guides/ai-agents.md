@@ -76,7 +76,7 @@ Run every case headless, three at a time, and tell me how it goes.
 
 A case is done when it passes on your project's targets, the list in `cases.targets` in `lynkeus.config.json` (a case can declare its own with `targets:` in its frontmatter). The agent checks with one `case_run` with `on: targets`: it runs each case on its targets at the same time, and only there, and answers one line per case per target. A declared target the machine is missing is named with the reason and the check is reported incomplete. If your project has no targets yet, the agent asks you which ones matter; `status` proposes a value from what the machine has. `on: all` still runs every target the machine has, when you ask for it.
 
-While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` also gets MCP progress notifications, with the same line as the message.
+While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` also gets MCP progress notifications, with the same line as the message, at least every 20 seconds even while one step waits a long time, so the client doesn't give up on a call that is still working. Over MCP, a run stops after `budget` seconds (1500 unless the agent passes another value, or `0` for none): the answer lists what ran and names the cases it didn't reach, for the agent to run in another call. Cancelling the call stops the run the same way `case_stop` does: no step starts after it, the hosts it started are stopped and a running `exec` command is killed. A step that runs past its own `timeoutMs` plus 30 seconds (180 seconds when it names none, or `cases.stepCeilingMs`) fails as stuck instead of holding the run.
 
 ## Step 4: Choose the tool set
 
@@ -250,7 +250,7 @@ The first time, the client opens Lynkeus to ask for your approval and which orga
 
 The MCP server and the command line share one runtime. A tool call is turned back into the arguments of its command and executed the same way, so a tool behaves exactly as the command does in a terminal.
 
-The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time.
+The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time. An iOS and an Android development build can both be attached to it, and `fastsim_start` adds a FastSim host on a port of its own, so every answer about the app starts with the app it came from: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` or `[headless]`.
 
 Some commands are never served over MCP, in either size: `record` and the `report` commands, among others. They need a person or talk to the hosted service.
 

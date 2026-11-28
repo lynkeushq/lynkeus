@@ -31,7 +31,7 @@ import { Device } from './device/driver.js';
 import * as edges from './knowledge/edges.js';
 import { walk } from './knowledge/walk.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
-import { execute } from './runtime.js';
+import { execute, fromLane, laneLabel } from './runtime.js';
 
 register([
   ...driveCommands,
@@ -95,6 +95,11 @@ const contextFor = (
   // Read again when the file changes: a long session outlives a graph rebuilt because the source changed.
   let graph: { read: ReturnType<typeof loadGraph>; mtimeMs: number } | undefined;
   let device: Promise<Device> | undefined;
+  // The app this connection drives once it attached, for naming its lane without waiting for one.
+  let current: Device | undefined;
+  // Another connection that drives the app instead, while `fastsim start`'s host runs on a port of its own: the apps
+  // on this port (a Simulator's, an emulator's) stay attached and are not driven, so nothing of theirs reaches an answer.
+  let driving: Base | undefined;
   // Every press this connection makes and sees land somewhere new is one more edge for map plan and case new.
   const learning = (d: Device) => {
     d.learn(walk((edge) => edges.append(edgesFile(root), edge)));
@@ -162,6 +167,7 @@ const contextFor = (
       onDevice(said) ? appDevice(said.platform === 'android' ? 'android' : 'ios', appId ?? said.appId, wantedDevice) : standIn(said);
     const d = learning(new Device(standIn(hello), { appId: appId ?? null, server, locate }));
     driven = d;
+    current = d;
     attachedIn(d);
     if (onDevice(hello))
       void d
@@ -187,6 +193,7 @@ const contextFor = (
       return graph.read;
     },
     device: () => {
+      if (driving) return driving.device();
       // A connection that failed (no app yet) is tried again on the next command: a session outlives an app that was late.
       device ??= connect().catch((error: unknown) => {
         device = undefined;
@@ -201,6 +208,13 @@ const contextFor = (
     forApp: (which, share) => {
       const scoped = contextFor(argv, attached, port, ownHost, which, share);
       return { base: scoped.ctx, stop: scoped.stop };
+    },
+    takeOver: (other) => {
+      driving = other;
+    },
+    lane: () => {
+      if (driving) return driving.lane?.();
+      return current?.server.connected ? laneLabel(current.server.hello, current.info.type) : undefined;
     },
   };
   return {
@@ -234,11 +248,12 @@ const session = async (argv: string[]) => {
       continue;
     }
     const r = await execute(av, ctx);
+    const lane = found?.needs === 'app' ? ctx.lane?.() : undefined;
     console.log(
       JSON.stringify(
         r.error
-          ? { ok: false, error: r.error, ...(r.why ? { why: r.why } : {}) }
-          : { ok: r.code === 0, out: r.text ?? '', ...(r.json !== undefined ? { json: r.json } : {}) },
+          ? { ok: false, error: fromLane(lane, r.error), ...(r.why ? { why: r.why } : {}) }
+          : { ok: r.code === 0, out: fromLane(lane, r.text ?? ''), ...(r.json !== undefined ? { json: r.json } : {}), ...(lane ? { lane } : {}) },
       ),
     );
   }

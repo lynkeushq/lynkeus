@@ -78,7 +78,7 @@ Con `host`, si el host headless se cae a mitad de un caso, o si su memoria pasa 
 
 Un caso está listo cuando pasa en los destinos de tu proyecto: la lista `cases.targets` de `lynkeus.config.json`, o la que el caso trae en su encabezado con `targets:`. El agente lo comprueba con un solo `case_run` con `on: targets`, que corre cada caso a la vez en sus destinos, solo en esos, y contesta con una línea por caso y por destino. Si a la máquina le falta un destino declarado, lo nombra con el motivo y la comprobación queda incompleta. Si el proyecto no tiene destinos declarados, el agente te pregunta cuáles importan; `status` sugiere una lista a partir de lo que hay en la máquina. `on: all` sigue disponible para correr en todo lo que tenga la máquina, si se lo pides.
 
-Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run`, además recibe notificaciones de progreso de MCP con esa misma línea.
+Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run`, además recibe notificaciones de progreso de MCP con esa misma línea. Llegan por lo menos cada 20 segundos, aunque un paso tarde mucho, así el cliente no abandona una llamada que sigue trabajando. Por MCP, una corrida se detiene a los `budget` segundos (1500 si el agente no pasa otro valor; `0` la deja sin límite): la respuesta incluye lo que llegó a correr y nombra los casos que quedaron afuera, para correrlos en otra llamada. Si el cliente cancela la llamada, la corrida para como con `case_stop`: no empieza ningún paso más, se detienen los hosts que levantó y se corta el comando de un `exec` en curso. Un paso que se pasa de su propio `timeoutMs` por más de 30 segundos (o de 180 segundos si no lo declara, valor que cambia `cases.stepCeilingMs`) falla por trabado y no deja la corrida colgada.
 
 ## 4. Elige cuántas herramientas servir
 
@@ -228,6 +228,8 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 ```
 
 Cada paso cuesta unos 50 ms, contra cerca de 1,5 s de un comando suelto. Cuando un paso falla, la respuesta trae `why` junto al error.
+
+Tanto la sesión como el servidor MCP pueden tener conectadas varias apps a la vez: un build de iOS, uno de Android y, después de `fastsim start`, un host de FastSim en un puerto aparte. Por eso cada respuesta sobre la app empieza indicando cuál contestó: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` o `[headless]`. En la sesión, además, la respuesta JSON trae ese valor en `lane`.
 
 ## Leer los reportes desde un agente
 

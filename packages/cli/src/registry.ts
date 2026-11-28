@@ -49,6 +49,13 @@ export type Base = {
   notify?: (message: string) => void;
   /** Aborted when the caller gives up on the command (an MCP client cancelling its request): a long one stops. */
   signal?: AbortSignal;
+  /**
+   * In a session or an MCP server: every command after it drives the app of `other` (a FastSim host on a port of its
+   * own) instead of the apps on the session's port, until it is called with none.
+   */
+  takeOver?: (other: Base | undefined) => void;
+  /** Which app the commands drive now, as an answer names it (`FastSim iOS`, `iOS Simulator`); undefined before one attached. */
+  lane?: () => string | undefined;
 };
 
 export type Ctx = Base & { args: string[]; flags: FlagValues; passthrough: string[] };

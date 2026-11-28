@@ -31,6 +31,22 @@ export const unreachable = (server: Partial<Pick<AgentServer, 'gone' | 'appState
   return undefined;
 };
 
+/**
+ * The lane an app runs in, from its hello, for an answer to name: a FastSim host, the headless host, or a phone's OS
+ * (`type` tells an iPhone from a Simulator once the device is known).
+ */
+export const laneLabel = (hello: { platform?: string; native?: boolean; commands?: string[] } | null | undefined, type?: string): string | undefined => {
+  if (!hello?.platform) return undefined;
+  const ios = hello.platform === 'ios';
+  if (!hello.native) return 'headless';
+  if (hello.commands?.includes('clock')) return `FastSim ${ios ? 'iOS' : 'Android'}`;
+  if (type === 'physical') return ios ? 'iPhone' : 'Android phone';
+  return ios ? 'iOS Simulator' : 'Android emulator';
+};
+
+/** An answer to a command that drove the app, headed by the lane it came from. */
+export const fromLane = (lane: string | undefined, text: string): string => (lane ? `[${lane}] ${text}` : text);
+
 /** A simulator, an emulator or a phone, where the OS puts other apps in front; a host stands in for the OS and never does. */
 export const onPhone = (server: Partial<Pick<AgentServer, 'hello'>> | undefined): boolean =>
   server?.hello?.native === true && !server.hello.commands?.includes('clock');

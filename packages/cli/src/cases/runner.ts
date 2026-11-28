@@ -7,6 +7,7 @@
 import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { clearTimeout as clearWallTimer, setTimeout as wallTimer } from 'node:timers';
 import { promisify } from 'node:util';
 
 import type {
@@ -25,6 +26,7 @@ import type {
 import { lynkeusDir } from '../config.js';
 import { type Device, describeScreen, NATIVE_COVER, NOT_DRAWN, nativeCover } from '../device/driver.js';
 import type { Recording } from '../device/platform.js';
+import { checkFilm, clearFilmLeftovers, settledFilm } from './film.js';
 import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
@@ -93,6 +95,8 @@ export type CasesConfig = {
   serverEvents?: { fixture: string; provider?: string };
   /** The service the app's own event list feeds (its `events` command), so a report names it instead of "App". */
   appEvents?: { provider: string };
+  /** How long a step that names no `timeoutMs` may run before it fails as stuck (default 180000); one that names one gets it plus 30 s. */
+  stepCeilingMs?: number;
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
@@ -258,6 +262,8 @@ const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'p
 
 /** How a case's warnings start for a frame that shows something other than the app; `evidence` lists them. */
 export const FRAME_NOT_APP = 'frame not of the app';
+/** How a case's warnings start when it was asked for a film and kept none that plays. */
+export const NO_FILM = 'no film';
 
 // Below this a step's time needs no explaining in the console; the run's files keep its phases either way.
 const SLOW_STEP_MS = 500;
@@ -309,6 +315,18 @@ export const fetchFilm = async (d: Pick<Device, 'command'>, film: string, bytes:
   }
 };
 const run = promisify(exec);
+
+// A step that outlives its own timeout by this much is stuck, not slow: the app or its host stopped answering mid-step.
+export const STEP_MARGIN_MS = 30_000;
+// A step that names no timeout: the longest wait Lynkeus itself makes in one (a host started again for a relaunch, an
+// exec) is 120 s. In trial 7 a stuck `app.fresh` ran 31 minutes and an `app.openDemo` 862 s.
+export const STEP_CEILING_MS = 180_000;
+
+/** How long one step may run before it is given up: its own `timeoutMs` and a margin, else the project's ceiling or 180 s. */
+export const stepCeilingMs = (value: unknown, ceiling: number = STEP_CEILING_MS): number => {
+  const own = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).timeoutMs : undefined;
+  return typeof own === 'number' && Number.isFinite(own) ? Math.max(own + STEP_MARGIN_MS, 0) : ceiling;
+};
 
 export const label = (step: Step): string => {
   const value = step.value;
@@ -697,6 +715,9 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     warnings.push(line);
     log(`  ⚠ ${line}`);
   };
+  // A host's film: a host started again for a relaunch is a new process, so the film so far is finished first (kept as
+  // video.<n>.mp4) and a new one begins in video.mp4. `from` is the first step the film in video.mp4 holds.
+  const hostFilm: { file?: string; on: boolean; from?: number; parts: string[]; start?: () => Promise<boolean> } = { on: false, parts: [] };
   let mark: number | undefined;
   // Where the trace stood as the last action began: a screen it led to that closes itself (a success screen) can
   // come and go while that step's frame settles or a wait for a request runs, and a wait for it still counts it.
@@ -1321,7 +1342,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
 
   const shell = async (value: StepValue): Promise<void> => {
     const params = typeof value === 'string' ? { run: value } : ((value ?? {}) as Record<string, unknown>);
-    const { stdout } = await run(String(params.run), { cwd: config.base ?? base.root, env: process.env, timeout: 120_000 });
+    // A stopped run takes its command down with it.
+    const { stdout } = await run(String(params.run), { cwd: config.base ?? base.root, env: process.env, timeout: 120_000, signal: options.signal });
     if (typeof params.as !== 'string') return;
     const json = /\{[\s\S]*\}/.exec(stdout)?.[0];
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
@@ -1335,6 +1357,22 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const relaunch = async (): Promise<string> => {
     let how: string;
     if (options.relaunch) {
+      if (hostFilm.on && hostFilm.file) {
+        const file = hostFilm.file;
+        const d = await device();
+        const stopped = (await d.command('record', { stop: true }).catch(() => undefined)) as { bytes?: unknown } | undefined;
+        if (!fs.existsSync(file) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, file, stopped.bytes);
+        const checked = checkFilm(file);
+        clearFilmLeftovers(file);
+        // Filmed before the case's first step started the host again, it is only the screen the case began on.
+        if ('seconds' in checked && steps.length > 0) {
+          const part = file.replace(/\.mp4$/, `.${hostFilm.parts.length + 1}.mp4`);
+          fs.renameSync(file, part);
+          hostFilm.parts.push(part);
+        } else fs.rmSync(file, { force: true });
+        hostFilm.on = false;
+        hostFilm.from = steps.length;
+      }
       await options.relaunch();
       how = 'started the host again';
     } else {
@@ -1358,7 +1396,21 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const d = await device();
     await d.idle({ quietMs: 300, timeoutMs: 8000 }).catch(() => undefined);
     if (config.nativeMocks) await d.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
+    if (hostFilm.start && !hostFilm.on) hostFilm.on = await hostFilm.start();
     return how;
+  };
+
+  /** A host's film once stopped: fetched when the host is on another machine, then whether it plays (a warning when not). */
+  const finishHostFilm = async (d: Device, file: string, stopped: { bytes?: unknown } | undefined): Promise<boolean> => {
+    if (!fs.existsSync(file) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, file, stopped.bytes);
+    return keepFilm(file, checkFilm(file));
+  };
+  const keepFilm = (file: string, checked: ReturnType<typeof checkFilm>): boolean => {
+    clearFilmLeftovers(file);
+    if ('seconds' in checked) return true;
+    fs.rmSync(file, { force: true });
+    warn(`${NO_FILM}: ${checked.missing}`);
+    return false;
   };
 
   // A macro is one step of the case: the requests it waits for are the ones it set off, from its first
@@ -1439,10 +1491,42 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       await macro(custom, value);
       return undefined;
     }
-    if (step.verb.startsWith('app.')) return app(step.verb.slice(4), value);
-    if (step.verb === 'assert') return void (await assert(value));
-    if (step.verb === 'exec') return void (await shell(value));
-    return void (await fixture(step.verb, value));
+    return bounded(step, value, async () => {
+      if (step.verb.startsWith('app.')) return app(step.verb.slice(4), value);
+      if (step.verb === 'assert') return void (await assert(value));
+      if (step.verb === 'exec') return void (await shell(value));
+      return void (await fixture(step.verb, value));
+    });
+  };
+
+  // A step ends by its ceiling or by the run being stopped, whatever it waits on: a run that is cancelled or stuck
+  // would otherwise sit in one step for as long as that wait lasts. A macro's own steps are each held to theirs.
+  const bounded = <T>(step: Step, value: unknown, work: () => Promise<T>): Promise<T> => {
+    const signal = options.signal;
+    if (signal?.aborted) return Promise.reject(new Error(`stopped (${String(signal.reason ?? 'the run was stopped')}) before this step`));
+    const ms = stepCeilingMs(value, typeof config.stepCeilingMs === 'number' ? config.stepCeilingMs : undefined);
+    return new Promise<T>((resolve, reject) => {
+      const own = typeof (value as { timeoutMs?: unknown } | null | undefined)?.timeoutMs === 'number';
+      const seconds = ms < 10_000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000));
+      // On the wall clock, whatever clock the app's waits run on (a test's virtual one).
+      const timer = wallTimer(
+        () =>
+          reject(
+            new Error(
+              `${label(step)}: still running after ${seconds} s (${own ? `its timeoutMs and ${STEP_MARGIN_MS / 1000} s` : 'the step ceiling, cases.stepCeilingMs'}), so it was given up: the app or its host stopped answering`,
+            ),
+          ),
+        ms,
+      );
+      const stop = () => reject(new Error(`stopped (${String(signal?.reason ?? 'the run was stopped')}) during this step`));
+      signal?.addEventListener('abort', stop, { once: true });
+      work()
+        .then(resolve, reject)
+        .finally(() => {
+          clearWallTimer(timer);
+          signal?.removeEventListener('abort', stop);
+        });
+    });
   };
 
   // A case before this one may have left the app behind another app (a link it opened): every step of this one would
@@ -1501,20 +1585,29 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   const capturing = !options.dry && (!!options.events || !!options.evidence) && (await offers('analytics'));
   if (evidence) fs.mkdirSync(evidence.dir, { recursive: true });
   const keeping = !options.dry && (!!evidence || !!options.keep);
-  let filming = false;
   // A simulator or emulator the app runs on, as against a host that films itself: its OS films it (simctl, screenrecord).
   let osFilm: Recording | undefined;
   if (evidence?.video && !film && !options.ownHost) {
     const d = await device().catch(() => undefined);
-    if (d && onPhone(d.server)) osFilm = await d.recordVideo(path.join(evidence.dir, 'video.mp4')).catch(() => undefined);
+    if (d && onPhone(d.server))
+      osFilm = await d.recordVideo(path.join(evidence.dir, 'video.mp4')).catch((error: unknown) => {
+        warn(`${NO_FILM}: the device's recorder did not start (${error instanceof Error ? error.message : String(error)})`);
+        return undefined;
+      });
   }
   if (film && evidence?.video) {
-    const d = await device();
+    const video = evidence.video;
+    hostFilm.file = film;
     // A host that films at one size only ignores the scale.
-    filming = await d.command('record', { path: film, fps: evidence.video.fps, ...(evidence.video.scale ? { scale: evidence.video.scale } : {}) }).then(
-      () => true,
-      () => false,
-    );
+    hostFilm.start = async () =>
+      (await device()).command('record', { path: film, fps: video.fps, ...(video.scale ? { scale: video.scale } : {}) }).then(
+        () => true,
+        (error: unknown) => {
+          warn(`${NO_FILM}: the host would not start one (${error instanceof Error ? error.message : String(error)})`);
+          return false;
+        },
+      );
+    hostFilm.on = await hostFilm.start();
   }
   // What the app sent before the case began is not the case's.
   if (capturing) await (await device()).command('analytics', { take: true }).catch(() => undefined);
@@ -1555,7 +1648,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   }
   const frameAt = async (): Promise<number | undefined> => {
     if (osFilm) return Math.max(0, Math.round((Date.now() - osFilm.startedAt) / 10) / 100);
-    if (!filming || !evidence?.video) return undefined;
+    if (!hostFilm.on || !evidence?.video) return undefined;
     const answer = (await (await device()).command('record', { frames: true }).catch(() => undefined)) as { frames?: number } | undefined;
     return typeof answer?.frames === 'number' ? Math.round((answer.frames / evidence.video.fps) * 100) / 100 : undefined;
   };
@@ -2078,13 +2171,27 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     const reads = readsOf(await (await device().catch(() => undefined))?.command('nativeValues').catch(() => undefined));
     if (reads.length > 0) report.nativeValues = reads;
   }
-  if (filming) {
+  if (hostFilm.on && film) {
     const d = await device();
     const stopped = (await d.command('record', { stop: true }).catch(() => undefined)) as { bytes?: unknown } | undefined;
-    if (film && !fs.existsSync(film) && typeof stopped?.bytes === 'number' && stopped.bytes > 0) await fetchFilm(d, film, stopped.bytes);
-    if (film && fs.existsSync(film)) report.video = film;
+    if (await finishHostFilm(d, film, stopped)) report.video = film;
   }
-  if (osFilm && (await osFilm.stop().catch(() => false))) report.video = osFilm.file;
+  if (hostFilm.from !== undefined) {
+    // A step's second counts in video.mp4: those before the relaunch are not in it, and the step that relaunched goes on at its start.
+    const from = hostFilm.from;
+    for (const step of steps.slice(0, from)) delete step.videoS;
+    if (steps[from]?.videoS !== undefined) steps[from]!.videoS = 0;
+    if (from > 0)
+      warn(
+        `the film ${report.video ? `in ${path.basename(film!)} starts during step ${from + 1}` : 'after the relaunch is missing'}: the host was started again there (a relaunch), and what it filmed before ${hostFilm.parts.length ? `is in ${hostFilm.parts.map((f) => path.basename(f)).join(', ')}` : 'did not play and was not kept'}`,
+      );
+  }
+  if (osFilm) {
+    await osFilm.stop().catch(() => false);
+    if (keepFilm(osFilm.file, await settledFilm(osFilm.file))) report.video = osFilm.file;
+  }
+  // What the film said came after the report was made.
+  if (warnings.length) report.warnings = warnings;
   if (failed && !options.dry && !options.setupOnly && !options.signal?.aborted) {
     const d = await device().catch(() => undefined);
     const away = unreachable(d?.server);

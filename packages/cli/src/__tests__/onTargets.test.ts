@@ -119,6 +119,7 @@ const onTargets = async (
     brief?: boolean;
     signal?: AbortSignal;
     hold?: Promise<void>;
+    budget?: { ms: number; stop: string };
   },
   root = tmp('lynkeus-on-'),
 ) => {
@@ -142,6 +143,7 @@ const onTargets = async (
     verbose: !!o.verbose,
     brief: !!o.brief,
     progressFile: path.join(root, '.lynkeus', 'last-run.progress.ndjson'),
+    ...(o.budget ? { budget: o.budget } : {}),
   });
   return { outcome, ctx, started, seen, root };
 };
@@ -264,6 +266,32 @@ test('a caller cancelling the run stops every target', async () => {
   assert.ok(seen.every((s) => s.signal?.aborted && s.signal.reason === 'the caller cancelled case run'));
   assert.equal(outcome.code, 130);
   assert.match(outcome.text ?? '', /⏹ stopped \(the caller cancelled case run\)/);
+});
+
+test('a run past its budget stops every target with that reason, and names once the cases no target reached', async () => {
+  let release: () => void = () => undefined;
+  const hold = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const stop = "the run's budget of 1 s ran out";
+  const run = onTargets({
+    plans: { simulator: { flags: {}, jobs: 1 }, headless: host() },
+    results: { simulator: { code: 130, reports: [] }, headless: { code: 130, reports: [] } },
+    cases: ['login', 'logout'],
+    hold,
+    budget: { ms: 50, stop },
+  });
+  await new Promise((r) => setTimeout(r, 120));
+  release();
+  const { outcome, seen } = await run;
+  assert.ok(seen.every((s) => s.signal?.aborted && s.signal.reason === stop));
+  assert.ok(
+    seen.every((s) => s.flags.budget === undefined),
+    'a target does not keep a budget of its own',
+  );
+  assert.equal(outcome.code, 130);
+  assert.match(outcome.text ?? '', /⏹ stopped \(the run's budget of 1 s ran out\)/);
+  assert.match(outcome.text ?? '', /not run: login \(simulator\), logout \(simulator\), login \(headless\), logout \(headless\); run them in another call/);
 });
 
 /** A FastSim kit as fastsim install leaves it: `<kits>/<version>/<variant>` with its platform and fastsim-run. */
