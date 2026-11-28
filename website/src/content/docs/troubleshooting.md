@@ -561,6 +561,7 @@ The errors it recognizes:
 | `… is on the screen but covered` | A sheet or an overlay is over it. | Close it, or press what covers it. |
 | `… is on the screen but disabled` | A form is not valid yet, or a request it depends on is in flight. | Wait for what it depends on. |
 | `"…" is not on screen; "…" is (the text may have changed)` | A wording, accent or case difference, or the copy changed. A second line names the uncommitted change that took the text out, when there is one. | Correct the text, or use a `testID`. |
+| `"…" is not on screen, but others of its kind are (…)` | Items like the one sought are on screen (episode cards, list rows): the data came and is shown, and the case points at another item than the one there. Said before anything the app logged, and instead of blaming the body. | Check which item the case picks: `nth`, `within`, a filter, the order. |
 | `"…" is not on screen; file:line changed it in the working tree` | An uncommitted change took the text out, and nothing close to it is on screen. | Check the change, then update the case or the app. |
 | `the list shows N near matches and yours is not among them` | The data has accumulated look-alikes and the list is capped. | Search by something unique, or reset the data. |
 | `the app was on X and moved to Y` | Something navigated after the step: a redirect, a gate, a modal. | Read the order in `lynkeus trace`. |

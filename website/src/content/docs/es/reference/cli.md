@@ -1196,6 +1196,7 @@ Qué hace cada host con ellos:
 |---|---|---|---|---|
 | Sin pantalla (`--host`) | `Math.random` repite desde el mismo punto al arrancar y tras cada caso | lo responde `react-native-localize` | el proceso del host corre en esa zona (`TZ`) | `Date` empieza ahí y sigue corriendo; `lynkeus clock --reset` vuelve a ese instante |
 | `--host-command` | va en el entorno y en `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
+| Lynkeus FastSim (`--on fastsim:*`, o un comando de host con `fastsim-run`) | igual que `--host-command` | solo lo aplica un kit cuyo `share/capabilities` incluye `launch-locale`; con un kit anterior la app sigue en el idioma del host, la ejecución lo avisa una vez y anota `locale` en `launch.unsupported` | igual que `--host-command` | igual que `--host-command` |
 | Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos: el `Math.random` de la app no cambia, por eso `seed` figura en `launch.unsupported` | no se aplica | no se aplica | no se aplica |
 
 Un host que arranca `--host-command` recibe `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (y `TZ`) y `LYNKEUS_EPOCH` en su entorno, además de los marcadores del comando. [Lynkeus FastSim](/es/guides/fastsim/) los usa como valores por defecto. Un simulador o emulador que solo está conectado conserva la zona horaria y el reloj del Mac; en ese caso la ejecución avisa por stderr qué datos no pudo pasar y los anota en `launch.unsupported` de `run.json`. Sin opciones y sin `launch`, `run.json` no lleva nada de esto.

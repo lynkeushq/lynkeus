@@ -186,3 +186,26 @@ test('lastLogLine reads the last line of a log and nothing of one that is not th
   assert.equal(lastLogLine(path.join(dir, 'missing')), undefined);
   assert.equal(lastLogLine(undefined), undefined);
 });
+
+test('a run with a locale on a FastSim kit that does not apply it says so once and lists it under launch.unsupported', async () => {
+  const [port] = await freePorts(1, 20_900 + (process.pid % 200));
+  const p = project('exit 3', 400);
+  const said: string[] = [];
+  const out = path.join(p.root, 'run');
+  await execute(['case', 'run', '--once', '--ports', String(port), '--host-command', p.command, '--locale', 'es-AR', '--out', out], {
+    ...p.base,
+    err: (line) => said.push(line),
+  });
+  assert.equal(said.filter((l) => l.startsWith('launch: locale not applied: this Lynkeus FastSim does not set the app')).length, 1);
+  const run = JSON.parse(fs.readFileSync(path.join(out, 'run.json'), 'utf8')) as { launch?: { locale?: string; unsupported?: string[] } };
+  assert.deepEqual(run.launch, { locale: 'es-AR', unsupported: ['locale'] });
+  // A kit that says it applies the locale: nothing to say.
+  fs.mkdirSync(path.join(p.root, 'kit', 'share'), { recursive: true });
+  fs.writeFileSync(path.join(p.root, 'kit', 'share', 'capabilities'), 'launch-locale\n');
+  const quiet: string[] = [];
+  await execute(['case', 'run', '--once', '--ports', String(port), '--host-command', p.command, '--locale', 'es-AR'], {
+    ...p.base,
+    err: (line) => quiet.push(line),
+  });
+  assert.ok(!quiet.some((l) => l.startsWith('launch:')), quiet.join('\n'));
+});

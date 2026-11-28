@@ -236,3 +236,24 @@ test("React's act() warnings on the headless host are never given as why", () =>
     ['app-logged'],
   );
 });
+
+test('a missing item whose kind is on screen says the case points at another item, before blaming the body', () => {
+  const s = screen(
+    [
+      el({ kind: 'text', text: 'RNR 902 - Mocked Second Episode' }, 0),
+      el({ kind: 'text', text: 'RNR 903 - Mocked Third Episode' }, 1),
+      el({ kind: 'button', text: 'Log In' }, 2),
+    ],
+    'DemoPodcastList',
+  );
+  const feed = { ...req(200, 'https://api.rss2json.com/v1/api.json'), mocked: true };
+  const logs = [{ level: 'error', text: 'Error fetching episodes: {"kind":"server"}' }];
+  const found = explain({ screen: s, requests: [feed], inFlight: 0, target: { text: 'RNR 901 - Mocked First Episode' }, logs });
+  assert.deepEqual(rules(found), ['same-kind']);
+  assert.match(
+    found[0]!.message,
+    /^"RNR 901 - Mocked First Episode" is not on screen, but others of its kind are \("RNR 902 - Mocked Second Episode", "RNR 903 - Mocked Third Episode"\): the data came/,
+  );
+  // Two words are not a kind: a missing "Log Out" is not put down to "Log In".
+  assert.ok(!rules(explain({ screen: s, requests: [feed], inFlight: 0, target: { text: 'Log Out' } })).includes('same-kind'));
+});

@@ -97,6 +97,27 @@ const closeness = (a: string, b: string): number => {
   return Math.max(byEdits, inside, byWords);
 };
 
+/** A text's shape: its words folded, numbers as one kind ("rnr # mocked first episode"). */
+const shapeOf = (t: string): string[] => [...words(fold(t))].map((w) => (/\d/.test(w) ? '#' : w));
+
+/**
+ * Texts on screen of the same kind as the one sought, when it is not there: an item of the same list (an episode
+ * card, a row) that is another one. Its shape shares most of the sought one's words, or a leading word and its count.
+ * The data came, and the case is pointing at another item than the screen shows (a wrong nth, a filter).
+ */
+const sameKind = (sought: string, texts: string[]): string[] => {
+  const want = shapeOf(sought);
+  // Two words say too little: "Log Out" is not of a kind with "Log In".
+  if (want.length < 3) return [];
+  return [...new Set(texts)].filter((t) => {
+    if (t === sought) return false;
+    const have = shapeOf(t);
+    const shared = want.filter((w) => have.includes(w)).length;
+    const leading = want[0] === have[0] && Math.abs(want.length - have.length) <= 1;
+    return shared >= 2 && (shared / Math.max(want.length, have.length) >= 0.5 || leading);
+  });
+};
+
 /** The text on screen closest to the one sought, when one is close enough. */
 const closestText = (sought: string, texts: string[]): string | undefined => {
   const want = fold(sought);
@@ -296,12 +317,30 @@ export const explain = (e: Evidence): Finding[] => {
       );
       const change = e.sourceDiff ? textChangeIn(e.sourceDiff, text) : undefined;
       const where = change && `${change.file}:${change.line} changed it in the working tree: ${change.before}${change.after ? ` → ${change.after}` : ''}`;
-      if (near)
+      // Several of its kind on screen is a list showing other items: no text changed, the case picked another one.
+      const kin = where
+        ? []
+        : sameKind(
+            text,
+            els.map((el) => el.text ?? el.accessibilityLabel).filter((t): t is string => !!t),
+          );
+      const alike = kin.length >= 2 || !near ? kin : [];
+      if (near && !alike.length)
         out.push({
           rule: 'near-match',
           message: `${JSON.stringify(text)} is not on screen; ${JSON.stringify(near)} is (the text may have changed)${where ? `\n    ${where}` : ''}`,
         });
       else if (where) out.push({ rule: 'text-changed', message: `${JSON.stringify(text)} is not on screen; ${where}` });
+      else if (alike.length)
+        out.push({
+          rule: 'same-kind',
+          message: `${JSON.stringify(text)} is not on screen, but ${alike.length === 1 ? 'another' : 'others'} of its kind ${alike.length === 1 ? 'is' : 'are'} (${alike
+            .slice(0, 2)
+            .map((t) => JSON.stringify(t))
+            .join(
+              ', ',
+            )}${alike.length > 2 ? `, ${alike.length - 2} more` : ''}): the data came and the screen shows it; the case points at another item than the one there (which one it picks: nth, within, a filter, the order)`,
+        });
       else if (e.lastSeen) {
         const now = replacements(text, els, e.lastSeen);
         if (now.length) out.push({ rule: 'renamed', message: `${JSON.stringify(text)} is not on screen; ${now.join('; ')}` });
@@ -381,7 +420,8 @@ export const explain = (e: Evidence): Finding[] => {
     missing &&
     complaints.length &&
     answered.length &&
-    !out.some((f) => f.rule === 'request-failed' || f.rule === 'backend-error' || f.rule === 'host-offline')
+    // Others of the sought item's kind on screen: the body was read, whatever the app logged.
+    !out.some((f) => ['request-failed', 'backend-error', 'host-offline', 'same-kind', 'near-match'].includes(f.rule))
   ) {
     const mocked = answered.some((r) => r.mocked);
     out.push({
