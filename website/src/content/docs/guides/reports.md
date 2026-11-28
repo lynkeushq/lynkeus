@@ -270,6 +270,8 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no video.** A case is filmed by a host that offers a `record` command (run `npx lynkeus hello` and look for `record` among its `commands`), as Lynkeus FastSim does. On a Simulator it is filmed with `xcrun simctl io recordVideo`. On an emulator or Android phone it is filmed with `adb shell screenrecord`, which stops after 3 minutes. The built-in headless host draws nothing, so a run there keeps no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
 
+**`no film: the file is empty: the recorder never finished it`** (or **`has no index (moov)`**). A recorder ran but left nothing a player can open. Lynkeus checks every film before it keeps it: the file must have its index and a length. A film that fails the check is deleted, along with what the recorder left beside it (`video.mp4.sb-…`). The case's warnings say why, the run ends with `⚠ --video: N of M case(s) have no film that plays`, and `evidence` answers `⚠ film missing for …` and fails. A FastSim host started again for an `app.relaunch` finishes the film so far before it stops, and the new host starts filming again. When that happens after the first step, the film before the relaunch is kept as `video.1.mp4`, and the case says at which step `video.mp4` begins.
+
 ## Next steps
 
 - [Running on CI](/guides/ci/): push a report from every pull request.

@@ -9,7 +9,7 @@ import path from 'node:path';
 
 import { REPORT_FILE } from './localReport.js';
 import { runsDir } from '../config.js';
-import { type CaseReport, FRAME_NOT_APP } from '../cases/runner.js';
+import { type CaseReport, FRAME_NOT_APP, NO_FILM } from '../cases/runner.js';
 import { targetSlug, type TargetName } from '../cases/onTargets.js';
 import { define } from '../registry.js';
 import { execute } from '../runtime.js';
@@ -49,6 +49,20 @@ export const suspectFrames = (runs: TargetRun[], hash: (file: string) => string 
       for (const w of report.warnings ?? []) if (w.startsWith(FRAME_NOT_APP)) out.push(`${run.label} ${report.id}: ${w}`);
     }
   return out;
+};
+
+/**
+ * Whether each case kept a film that plays: one line, naming the cases without one and why the first has none. A film
+ * the recorder never finished (0 bytes, no index) is not a film.
+ */
+export const filmLine = (runs: TargetRun[]): string | undefined => {
+  const all = runs.flatMap((run) => run.reports.map((c) => ({ label: run.label, c })));
+  if (all.length === 0) return undefined;
+  const without = all.filter(({ c }) => !c.video);
+  if (without.length === 0) return `film: every case has one (${all.length})`;
+  const why = without.flatMap(({ c }) => c.warnings ?? []).find((w) => w.startsWith(NO_FILM));
+  const names = without.slice(0, 5).map(({ label, c }) => (runs.length > 1 ? `${c.id} (${label})` : c.id));
+  return `⚠ film missing for ${without.length} of ${all.length} case(s): ${names.join(', ')}${without.length > 5 ? ', …' : ''}${why ? ` — ${why.slice(NO_FILM.length + 2)}` : ' — the host or device does not film'}`;
 };
 
 /** A line per case: its result on each target, and for one that failed, where. */
@@ -135,6 +149,7 @@ export const evidenceCommands = [
         ...pushed,
         ...caseResults(runs.filter((run) => !run.unavailable)),
         ...runs.filter((run) => run.unavailable).map((run) => `○ ${run.label} not available: ${run.unavailable}`),
+        ...(ctx.flags['no-video'] ? [] : [filmLine(runs.filter((run) => !run.unavailable))].filter((line): line is string => !!line)),
         ...(suspects.length
           ? [
               `frames that look wrong (${suspects.length}):`,
@@ -144,7 +159,9 @@ export const evidenceCommands = [
           : ['frames: none looks wrong (no action left the screen unchanged, none shows a system view)']),
         `whole answer: ${answer}`,
       ];
-      return { text: lines.join('\n'), json: { out, reports, suspects }, code: r.code };
+      // A recorder that ran and left nothing that plays makes the evidence incomplete, however the cases did.
+      const filmFailed = runs.some((run) => run.reports.some((c) => !c.video && c.warnings?.some((w) => w.startsWith(NO_FILM))));
+      return { text: lines.join('\n'), json: { out, reports, suspects }, code: r.code || (filmFailed ? 1 : 0) };
     },
   }),
 ];

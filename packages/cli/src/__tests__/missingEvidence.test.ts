@@ -64,3 +64,21 @@ test('frames asked for and none taken on a host the run started blames the bundl
     [],
   );
 });
+
+test('a run asked to film names the cases whose recorder left nothing that plays, and why', async () => {
+  const { filmGaps } = await import('../commands/cases.js');
+  const { filmLine } = await import('../commands/evidence.js');
+  const broken = run({ id: 'b', warnings: ['no film: the file is empty: the recorder never finished it'] });
+  const filmed = run({ id: 'a', video: '/run/a/video.mp4' });
+  assert.deepEqual(filmGaps([filmed, broken], true), [
+    '⚠ --video: 1 of 2 case(s) have no film that plays (b): the file is empty: the recorder never finished it',
+  ]);
+  assert.deepEqual(filmGaps([filmed, broken], false), []);
+  const lines = missingEvidence([filmed, broken], { video: true, sdks: [], ownHost: true });
+  assert.equal(lines.length, 1, 'the general "does not film" line is not said beside the reason');
+  assert.equal(filmLine([{ label: 'fastsim:ios', reports: [filmed], dir: '/run' }]), 'film: every case has one (1)');
+  assert.equal(
+    filmLine([{ label: 'fastsim:ios', reports: [filmed, broken], dir: '/run' }]),
+    '⚠ film missing for 1 of 2 case(s): b — the file is empty: the recorder never finished it',
+  );
+});

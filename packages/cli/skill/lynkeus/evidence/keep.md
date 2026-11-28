@@ -11,4 +11,4 @@ A run keeps evidence only with `--out <dir>`: `run.json` (the run, launch facts,
 | What the backend did for each step | `--traces`: point the backend's `OTEL_EXPORTER_OTLP_ENDPOINT` at `http://localhost:4318` |
 | A link to share | `--push`, with `LYNKEUS_REPORTS_KEY` in the environment |
 
-In one call with a short answer: `evidence` (frames, film and report.html; the report path, each case per target and the frames that look wrong). By hand: `case run --out <dir> --screenshots --video --traces` (and `--push` with a key). At the end the run warns about evidence it could not keep (no film on this host, no analytics seen): pass that on to the person.
+In one call with a short answer: `evidence` (frames, film and report.html; the report path, each case per target and the frames that look wrong). By hand: `case run --out <dir> --screenshots --video --traces` (and `--push` with a key). The run warns about evidence it could not keep (a film that does not play, none on this host, no analytics), and `evidence` fails when a film is missing: tell the person.

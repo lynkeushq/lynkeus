@@ -9,7 +9,7 @@ import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '
 import type { RunLaunch } from 'lynkeus-protocol';
 import { caseArtifactId, readCases } from '../cases/format.js';
 import type { Case } from '../cases/format.js';
-import { type CasesConfig, type CaseReport, expandSteps, missingFixtures, type Prepared, preparable, runCase } from '../cases/runner.js';
+import { type CasesConfig, type CaseReport, expandSteps, missingFixtures, NO_FILM, type Prepared, preparable, runCase } from '../cases/runner.js';
 import { CONFIG, EXAMPLE_CASE, FIXTURES, FORMAT } from '../cases/templates.js';
 import { claimPorts, freePorts, listenedPorts } from '../cases/portClaim.js';
 import { HostPids, hostsFileOf } from '../cases/hostPids.js';
@@ -468,6 +468,21 @@ export const analyticsSdksOf = (root: string): string[] => {
   }
 };
 
+/**
+ * The cases a run was asked to film and that have no film that plays, with why the first of them has none (from its
+ * warnings): a recorder that failed must not read as a run with films.
+ */
+export const filmGaps = (reports: CaseReport[], asked: boolean): string[] => {
+  if (!asked) return [];
+  const without = reports.filter((r) => !r.video && r.warnings?.some((w) => w.startsWith(NO_FILM)));
+  if (without.length === 0) return [];
+  const why = without[0]!.warnings!.find((w) => w.startsWith(NO_FILM))!.slice(NO_FILM.length + 2);
+  const ids = without.map((r) => r.id);
+  return [
+    `⚠ --video: ${without.length} of ${reports.length} case(s) have no film that plays (${ids.slice(0, 5).join(', ')}${ids.length > 5 ? ', …' : ''}): ${why}`,
+  ];
+};
+
 /** `sdks`: the analytics SDKs the app depends on; an app with none sends no event, and that is nothing to warn about. */
 export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; sdks: string[]; screenshots?: boolean; ownHost?: boolean }): string[] => {
   if (reports.length === 0) return [];
@@ -486,7 +501,8 @@ export const missingEvidence = (reports: CaseReport[], asked: { video: boolean; 
             : '⚠ --screenshots kept no frame: neither the app nor the simulator or emulator gave one.',
         ]
       : []),
-    ...(asked.video && !reports.some((r) => r.video)
+    ...filmGaps(reports, asked.video),
+    ...(asked.video && !reports.some((r) => r.video) && !filmGaps(reports, true).length
       ? [
           asked.ownHost
             ? '⚠ --video kept no film: the host this run started does not film. Lynkeus FastSim films when its bundle has the host’s controls (lynkeus-agent 0.7.6 or newer, bundled again with a current fastsim-bundle); headless keeps nothing.'
