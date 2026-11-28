@@ -15,7 +15,7 @@ import { describePerf, summarize, visitsFrom } from '../knowledge/perf.js';
 import * as screens from '../knowledge/screens.js';
 import { screenTree } from '../knowledge/tree.js';
 import { type Base, define } from '../registry.js';
-import { awayNote, onPhone, platformOf, whyFor, whyScope } from '../runtime.js';
+import { awayNote, describeKept, keptFailure, onPhone, platformOf, whyFor, whyScope } from '../runtime.js';
 import { bareWordNote, expectedOf, isRoute, parseTarget, partMatchNote, routeOf, scopedTarget, TARGET_HELP } from '../targets.js';
 import { type LintBaseline, newFindings } from './check.js';
 
@@ -134,6 +134,9 @@ const bareWordOnScreen = async (ctx: Base, device: Device, raw: string): Promise
   const texts = screen.elements.filter((e) => !e.hidden || e.hidden === 'inert').flatMap((e) => [e.text, e.accessibilityLabel].filter((t): t is string => !!t));
   return bareWordNote(raw, texts, known);
 };
+
+const DEVICE_LANES = ['ios', 'android'];
+const WHY_LANES = [...DEVICE_LANES, 'fastsim:ios', 'fastsim:android', 'headless'];
 
 export const driveCommands = [
   define({
@@ -489,21 +492,40 @@ export const driveCommands = [
     name: 'why',
     mcp: 'core',
     mcpOmit: ['route'],
-    mcpDetails: 'Runs by itself after a failed step.',
+    mcpDetails:
+      'Runs by itself after a failed step. With nothing given it explains the last failed case of the last case_run, on whichever lane it ran (FastSim, headless or a device), and names the lane; give what you looked for to read the app now.',
     group: 'drive',
     summary: 'Why the last thing failed: screen, requests and trace read as rules',
-    details: 'Runs by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.',
+    details:
+      'Runs by itself after a failed press, wait, type, swipe or nav. With no target it explains the last failed case of the last `case run`, on whichever lane it ran (a FastSim host, the headless host, a Simulator, emulator or phone), named in the answer, as the run read it at the failure; after a command of yours, that command. Give it what you were looking for to read the app now and sharpen the answer.',
     positionals: [{ name: 'target', help: `what was expected: Route | ${TARGET_HELP}` }],
     flags: {
       route: { type: 'string', help: 'the route that was expected', value: 'Route' },
-      on: { type: 'string', help: 'the lane to explain when two apps share the port: ios or android (default: the attached app’s)', value: 'platform' },
+      on: {
+        type: 'string',
+        help: `the lane to explain: ${WHY_LANES.join(', ')} (default: the last run's last failed case, else the attached app)`,
+        value: 'lane',
+      },
     },
     needs: 'app',
     run: async (ctx) => {
+      const on = ctx.flags.on as string | undefined;
+      if (on !== undefined && !WHY_LANES.includes(on)) return { text: `--on takes ${WHY_LANES.join(', ')}, not ${on}`, code: 2 };
+      const asked = ctx.args[0] !== undefined || ctx.flags.route !== undefined;
+      // A FastSim or headless host a run started is gone: what the run read at its last failure is the answer.
+      const kept = asked ? undefined : keptFailure(on);
+      if (kept && 'case' in kept) return { text: describeKept(kept), ...(kept.lane ? { lane: kept.lane } : {}) };
+      if (kept) {
+        const { cases, lanes } = kept.passed;
+        const ran = `${cases} case(s)${lanes.length ? ` on ${lanes.join(', ')}` : ''}`;
+        return `the last run failed nothing${on ? ` on ${on}` : ''} (${ran}): there is no failure to explain. Give what you looked for to read the app now.`;
+      }
+      if (on && !DEVICE_LANES.includes(on))
+        return `no failed case on ${on} is kept from a run here; a host's own state can be read only while it runs (fastsim start, headless start).`;
       const expected = { ...expectedOf(ctx.args[0]), ...(ctx.flags.route ? { route: ctx.flags.route as string } : {}) };
       const device = await ctx.device();
       // About the last case or command run on this app, not whatever failed before it.
-      const lane = (ctx.flags.on as string | undefined) ?? platformOf(device);
+      const lane = on ?? platformOf(device);
       const scope = whyScope(device.server.port, lane);
       const read = await whyFor(ctx, Object.keys(expected).length ? expected : undefined, scope?.at, scope?.since);
       const attachedOn = platformOf(device);

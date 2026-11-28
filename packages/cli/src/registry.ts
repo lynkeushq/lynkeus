@@ -66,6 +66,8 @@ export type Result = {
   /** What a program reads; printed instead of the text under --json. */
   json?: unknown;
   code?: number;
+  /** The lane the answer is about, when not the attached app's: it heads the answer instead. */
+  lane?: string;
 };
 
 export type Command = {

@@ -383,3 +383,51 @@ test('why reads the case of the attached app’s platform, not the other app on 
   assert.match(picked, /case is ios's/);
   assert.match(picked, /the last case \(login\) failed/);
 });
+
+test('why with no target explains the last failed case of the last run on its own lane, a FastSim host gone since', async () => {
+  const { runCase } = await import('../cases/runner.js');
+  const { parseCase } = await import('../cases/format.js');
+  const { noteRunStart } = await import('../runtime.js');
+  const fastsim = {
+    server: { connected: true, hello: { platform: 'ios', native: true, commands: ['clock'] }, port: nextPort++, call: async () => null },
+    info: { type: 'host' },
+    screen: async () => SCREEN,
+    trace: async () => ({ last: 0, events: [] }),
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    waitFor: async () => undefined,
+    idle: async () => ({ idle: true }),
+    command: async () => ({}),
+  } as unknown as Device;
+  const onHost: Base = { root: os.tmpdir(), config: {}, attached: true, err: () => undefined, graph: () => ({}) as never, device: async () => fastsim };
+  const ended = noteRunStart();
+  const report = await runCase(parseCase('---\nid: podcast\n---\nsteps:\n  - app.see: { target: "#episodes", timeoutMs: 50 }\n', 'podcast.md'), {
+    base: onHost,
+    config: {},
+  });
+  ended();
+  assert.equal(report.result, 'failed');
+  let read = 0;
+  const simulator = {
+    server: { connected: true, hello: { platform: 'ios', native: true, commands: [] }, port: nextPort++ },
+    screen: async () => {
+      read += 1;
+      return SCREEN;
+    },
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    trace: async () => ({ last: 0, events: [] }),
+  } as unknown as Device;
+  const attached: Base = { ...onHost, device: async () => simulator };
+  const why = await execute(['why'], attached);
+  assert.equal(why.lane, 'FastSim iOS');
+  assert.match(why.text ?? '', /^the last failed case of the last run \(podcast, on FastSim iOS\) failed at app\.see/);
+  assert.match(why.text ?? '', /as the run read it at the failure/);
+  assert.equal(read, 0);
+  assert.match((await execute(['why', '--on', 'fastsim:ios'], attached)).text ?? '', /\(podcast, on FastSim iOS\)/);
+  assert.match((await execute(['why', '--on', 'headless'], attached)).text ?? '', /^the last run failed nothing on headless \(1 case\(s\) on FastSim iOS\)/);
+  assert.equal((await execute(['why', '--on', 'watch'], attached)).code, 2);
+  // A command given after the run is what why explains then, on the attached app.
+  await execute(['see', '#nothing'], attached);
+  const after = await execute(['why'], attached);
+  assert.equal(after.lane, undefined);
+  assert.doesNotMatch(after.text ?? '', /podcast/);
+});

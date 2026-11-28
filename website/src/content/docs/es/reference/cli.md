@@ -299,12 +299,14 @@ Vuelve a abrir la app y espera a que el agente se conecte.
 ### `lynkeus why`
 
 ```bash
-lynkeus why [target] [--route <Route>]
+lynkeus why [target] [--route <Route>] [--on <lane>]
 ```
 
 Explica por qué falló lo último que intentaste. Lee la pantalla, las últimas peticiones y la traza, y les aplica una serie de reglas: el objetivo está tapado, la sesión venció, el backend respondió 500. Las reglas sobre el backend (5xx, 401, 403, 429) leen solo lo que el servidor respondió: una respuesta que dio un mock tuyo no se le atribuye al backend.
 
 Se ejecuta solo después de un `press`, `wait`, `type`, `swipe` o `nav` que falla. Si le dices qué buscabas, la respuesta es más precisa.
+
+Sin argumentos, `why` se ocupa del último caso que falló en el `case run` más reciente, sin importar dónde corrió: en un host de FastSim, en el host headless o en un simulador, emulador o teléfono. La respuesta empieza por ese carril (`[FastSim iOS]`) y muestra lo que la corrida leyó en el momento del fallo; el host que levantó la corrida ya no existe cuando preguntas. Si después de la corrida diste un comando tú (`press`, `wait`), `why` vuelve a hablar de ese comando y de la app conectada. Si la última corrida no tuvo fallos, lo dice, en vez de rescatar un fallo anterior.
 
 Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó a `"Sign Out"`), `why` ofrece los controles del mismo tipo que son nuevos en la pantalla, primero el más cercano a donde estaba el anterior si Lynkeus guardó su marco (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
@@ -315,6 +317,7 @@ Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó 
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | La ruta que esperabas. |
+| `--on <lane>` | Qué carril explicar: `ios`, `android`, `fastsim:ios`, `fastsim:android` o `headless`. Sirve cuando la corrida pasó por varios, o cuando dos apps comparten el puerto. |
 
 Las reglas que aplica están en [Solución de problemas](/es/troubleshooting/).
 

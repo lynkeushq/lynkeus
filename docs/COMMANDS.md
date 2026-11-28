@@ -182,11 +182,11 @@ Relaunch the app and wait for the agent
 |---|---|
 | `--clean` | run the app's reset command first, if it is attached |
 
-### `lynkeus why [target] [--route <Route>] [--on <platform>]`
+### `lynkeus why [target] [--route <Route>] [--on <lane>]`
 
 Why the last thing failed: screen, requests and trace read as rules
 
-Runs by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.
+Runs by itself after a failed press, wait, type, swipe or nav. With no target it explains the last failed case of the last `case run`, on whichever lane it ran (a FastSim host, the headless host, a Simulator, emulator or phone), named in the answer, as the run read it at the failure; after a command of yours, that command. Give it what you were looking for to read the app now and sharpen the answer.
 
 | Argument | |
 |---|---|
@@ -195,7 +195,7 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 | Flag | |
 |---|---|
 | `--route <Route>` | the route that was expected |
-| `--on <platform>` | the lane to explain when two apps share the port: ios or android (default: the attached app’s) |
+| `--on <lane>` | the lane to explain: ios, android, fastsim:ios, fastsim:android, headless (default: the last run's last failed case, else the attached app) |
 
 ### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 

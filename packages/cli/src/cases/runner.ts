@@ -31,7 +31,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, notePrinted, onPhone, platformOf, scopeWhy, unreachable, whyFor } from '../runtime.js';
+import { execute, laneLabel, noteCaseEnd, notePrinted, onPhone, platformOf, scopeWhy, targetOf, unreachable, whyFor } from '../runtime.js';
 import * as screens from '../knowledge/screens.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
@@ -2231,6 +2231,18 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   if (!options.dry && !options.setupOnly) {
     const broke = steps.find((s) => s.status === 'failed');
     const ran = await device().catch(() => undefined);
+    const hello = ran?.server?.hello;
+    noteCaseEnd(
+      { case: c.id, target: targetOf(hello), lane: laneLabel(hello, ran?.info?.type) },
+      broke && report.result === 'failed'
+        ? {
+            at: Date.now(),
+            failed: `${broke.step}: ${(broke.error ?? '').split('\n')[0]}`,
+            ...(report.evidence?.why ? { why: report.evidence.why } : {}),
+            ...(report.evidence?.requests?.length ? { requests: report.evidence.requests } : {}),
+          }
+        : undefined,
+    );
     scopeWhy(
       ran?.server?.port,
       {

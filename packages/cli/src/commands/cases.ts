@@ -27,7 +27,7 @@ import { Turns } from '../cases/turns.js';
 import { eventsFile } from '../knowledge/events.js';
 import { type Base, type Ctx, define, type Result } from '../registry.js';
 import { androidDevices, bootedSimulators } from '../device/devices.js';
-import { onPhone } from '../runtime.js';
+import { noteRunStart, onPhone } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import type { FlagValues } from '../args.js';
 import {
@@ -1710,9 +1710,15 @@ export const caseCommands = [
     mcpDetails:
       "Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason; a step stuck past its timeoutMs plus 30 s (else 180 s) fails. Progress reaches the caller at least every 20 s. `on: targets` runs each case on the project's declared targets (cases.targets, or the case's own `targets:`) at once and answers one line per case per target (`brief`: only the cases that did not pass, and each target's count); a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: \"png\"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first and for each `app.relaunch` (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. On FastSim (`on: fastsim:ios`, `fastsim:android`, or a fastsim-run `host_command`) every case gets a host of its own, started in well under a second, `keep_hosts` or not: nothing carries over from the case before (storage, MMKV, navigation, module scope). `seed`, `locale`, `time_zone` and `epoch` pin the launch facts on a host the run starts (`host` or `host_command`); an attached simulator or emulator keeps its own, listed under `launch.unsupported` in run.json (guide determinism launch-facts). On FastSim and headless the answer lists the native values the app read that the host does not know, each with a `nativeMocks` snippet to fill from the library's native code (guide troubleshooting native-values).",
     run: async (ctx) => {
-      if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
-      const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);
-      return result;
+      // What `why` explains next is this run's last failed case, on whichever lane.
+      const ended = ctx.flags['dry-run'] ? () => undefined : noteRunStart();
+      try {
+        if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return await casesOnTargets(ctx);
+        const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);
+        return result;
+      } finally {
+        ended();
+      }
     },
   }),
   define({

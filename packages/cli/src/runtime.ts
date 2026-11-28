@@ -19,7 +19,8 @@ import { type Base, helpFor, parseFor, resolve } from './registry.js';
 import { runtimeAt } from './runtimes/index.js';
 import { type Expected, expectedOf } from './targets.js';
 
-export type Outcome = { text?: string; json?: unknown; code: number; error?: string; why?: string };
+/** `lane`: the lane the answer is about when it is not the attached app's (`why` explaining a FastSim case). */
+export type Outcome = { text?: string; json?: unknown; code: number; error?: string; why?: string; lane?: string };
 
 /**
  * Why the app cannot answer now, worded to stand alone: gone, or a phone's app behind another one (suspended, its
@@ -76,11 +77,79 @@ export type WhyScope = { at: number; since?: number; case?: string; failed?: str
 // port and the platform of the app that ran it: a `why` on one lane never reads the other's case.
 const lane = (port: number | undefined, platform: string | undefined) => `${port ?? ''}:${platform ?? ''}`;
 const scopes = new Map<string, WhyScope>();
+let runsGoing = 0;
+// When a command or case last ran outside a `case run` (a press, a wait): after it, `why` is about that, not the run.
+let commandAt = 0;
 export const scopeWhy = (port: number | undefined, scope: WhyScope, platform?: string): void => {
   scopes.set(lane(port, platform), scope);
+  if (runsGoing === 0) commandAt = Math.max(commandAt, scope.at);
 };
 export const whyScope = (port: number | undefined, platform?: string): WhyScope | undefined => scopes.get(lane(port, platform));
 export const platformOf = (device: { server?: { hello?: { platform?: string } | null } } | undefined): string | undefined => device?.server?.hello?.platform;
+
+/** The `--on` name of the lane an app runs in, from its hello: `fastsim:ios`, `headless`, `android`… */
+export const targetOf = (hello: { platform?: string; native?: boolean; commands?: string[] } | null | undefined): string | undefined => {
+  if (!hello?.platform) return undefined;
+  if (!hello.native) return 'headless';
+  return hello.commands?.includes('clock') ? `fastsim:${hello.platform}` : hello.platform;
+};
+
+/**
+ * A case that failed, as its run read it at the failure: a FastSim or headless host the run started is gone by the
+ * time `why` is asked, so the reasons, screen and requests are kept instead of read again.
+ */
+export type KeptFailure = {
+  at: number;
+  case: string;
+  failed: string;
+  /** How an answer names the lane (`FastSim iOS`), and its `--on` name (`fastsim:ios`). */
+  lane?: string;
+  target?: string;
+  why?: string;
+  requests?: string[];
+};
+type KeptRun = { at: number; cases: number; lanes: Set<string>; failed: KeptFailure[] };
+let lastRun: KeptRun | undefined;
+
+/** A `case run` begins: what `why` keeps of the run before it is dropped. Call the function it returns when the run ends. */
+export const noteRunStart = (at = Date.now()): (() => void) => {
+  lastRun = { at, cases: 0, lanes: new Set(), failed: [] };
+  runsGoing += 1;
+  let ended = false;
+  return () => {
+    if (!ended) runsGoing -= 1;
+    ended = true;
+  };
+};
+
+/** A case of the current run ended: a failure is kept; a pass of the same case on the same lane (a retry) drops its failure. */
+export const noteCaseEnd = (c: { case: string; target?: string; lane?: string }, failure?: Omit<KeptFailure, 'case' | 'target' | 'lane'>): void => {
+  if (!lastRun) return;
+  lastRun.cases += 1;
+  if (c.lane) lastRun.lanes.add(c.lane);
+  lastRun.failed = lastRun.failed.filter((f) => f.case !== c.case || f.target !== c.target);
+  if (failure) lastRun.failed.push({ ...failure, ...c });
+};
+
+/**
+ * What `why` with no target explains: the case that failed last in the most recent run, on `on` when given, unless a
+ * command was given after it. `passed` when that run failed nothing (on that lane), so an older failure is not given.
+ */
+export const keptFailure = (on?: string): KeptFailure | { passed: { cases: number; lanes: string[] } } | undefined => {
+  // A run refused before any case (a stale bundle, no target here) leaves what came before it.
+  if (!lastRun || lastRun.cases === 0 || commandAt > lastRun.at) return undefined;
+  const failed = lastRun.failed.filter((f) => !on || f.target === on);
+  const last = failed.reduce<KeptFailure | undefined>((a, f) => (!a || f.at >= a.at ? f : a), undefined);
+  if (last) return last;
+  return { passed: { cases: lastRun.cases, lanes: [...lastRun.lanes] } };
+};
+
+export const describeKept = (kept: KeptFailure): string => {
+  const head = `the last failed case of the last run (${kept.case}${kept.lane ? `, on ${kept.lane}` : ''}) failed at ${kept.failed}`;
+  const why = kept.why?.trim() ? kept.why : describeWhy([]);
+  const requests = kept.requests?.length ? `  requests: ${kept.requests.join(', ')}` : undefined;
+  return [head, why, requests, '  (as the run read it at the failure)'].filter(Boolean).join('\n');
+};
 
 type Printed = { at: number; level: string; text: string };
 // A run that keeps the console takes it from the app after each step: the lines it took are kept here a while, so
@@ -238,7 +307,12 @@ export const execute = async (argv: string[], base: Base): Promise<Outcome> => {
     }
     if (result === undefined) return { code: 0 };
     if (typeof result === 'string') return { code: 0, text: result };
-    return { code: result.code ?? 0, text: result.text ?? (result.json === undefined ? undefined : JSON.stringify(result.json)), json: result.json };
+    return {
+      code: result.code ?? 0,
+      text: result.text ?? (result.json === undefined ? undefined : JSON.stringify(result.json)),
+      json: result.json,
+      ...(result.lane ? { lane: result.lane } : {}),
+    };
   } catch (error) {
     const out: Outcome = { code: 1, error: error instanceof Error ? error.message : String(error) };
     const at = TARGET_ARG[command.name];

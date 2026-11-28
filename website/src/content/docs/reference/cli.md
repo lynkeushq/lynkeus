@@ -344,10 +344,12 @@ Relaunches the app and waits for the agent.
 ### `lynkeus why`
 
 ```bash
-lynkeus why [target] [--route <Route>]
+lynkeus why [target] [--route <Route>] [--on <lane>]
 ```
 
 Explains why the last thing failed, by reading the screen, the requests and the trace as rules. It runs by itself after a failed `press`, `wait`, `type`, `swipe` or `nav`. Give it what you were looking for to sharpen the answer.
+
+With no target, `why` explains the last failed case of the most recent `case run`, whichever lane it ran on: a FastSim host, the headless host, a Simulator, an emulator or a phone. The answer names the lane (`[FastSim iOS] the last failed case of the last run (podcast-list, on FastSim iOS) failed at …`) and gives what the run read at the failure, because a host the run started is gone by then. After a command of your own (`press`, `wait`), `why` is about that command and the attached app again. When the last run failed nothing, it says so instead of explaining an older failure.
 
 When a text is gone and nothing on screen is close to it (`"Log Out"` became `"Sign Out"`), `why` offers the controls of the same kind that are new on the screen, nearest first to where the old one was when Lynkeus kept its frame (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
@@ -358,9 +360,11 @@ When a text is gone and nothing on screen is close to it (`"Log Out"` became `"S
 | Flag | Meaning |
 |---|---|
 | `--route <Route>` | The route that was expected. |
+| `--on <lane>` | The lane to explain: `ios`, `android`, `fastsim:ios`, `fastsim:android` or `headless`. Useful when a run covered several lanes, or two apps share the port. |
 
 ```bash
 lynkeus why 'Log in'
+lynkeus why --on fastsim:android
 lynkeus why --route Settings.Main
 ```
 
