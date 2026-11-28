@@ -56,6 +56,11 @@ export type Base = {
   takeOver?: (other: Base | undefined) => void;
   /** Which app the commands drive now, as an answer names it (`FastSim iOS`, `iOS Simulator`); undefined before one attached. */
   lane?: () => string | undefined;
+  /**
+   * What an answer about the app adds when the app it drives is another than the last answer's, or another app on the
+   * port is turned away (said once, until that changes); undefined when there is nothing new.
+   */
+  appNote?: () => string | undefined;
 };
 
 export type Ctx = Base & { args: string[]; flags: FlagValues; passthrough: string[] };

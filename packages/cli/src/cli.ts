@@ -31,7 +31,7 @@ import { Device } from './device/driver.js';
 import * as edges from './knowledge/edges.js';
 import { walk } from './knowledge/walk.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
-import { execute, fromLane, laneLabel } from './runtime.js';
+import { drivenNote, execute, fromLane, laneLabel } from './runtime.js';
 
 register([
   ...driveCommands,
@@ -100,6 +100,8 @@ const contextFor = (
   // Another connection that drives the app instead, while `fastsim start`'s host runs on a port of its own: the apps
   // on this port (a Simulator's, an emulator's) stay attached and are not driven, so nothing of theirs reaches an answer.
   let driving: Base | undefined;
+  // What answers last said of the apps on the port: the app driven, those turned away.
+  let toldApps: { key?: string; lane?: string; away?: string } = {};
   // Every press this connection makes and sees land somewhere new is one more edge for map plan and case new.
   const learning = (d: Device) => {
     d.learn(walk((edge) => edges.append(edgesFile(root), edge)));
@@ -216,6 +218,24 @@ const contextFor = (
       if (driving) return driving.lane?.();
       return current?.server.connected ? laneLabel(current.server.hello, current.info.type) : undefined;
     },
+    appNote: () => {
+      if (driving) return driving.appNote?.();
+      const hello = current?.server.connected ? current.server.hello : null;
+      if (!current || !hello) return undefined;
+      const away = (current.server.apps?.() ?? [])
+        .filter((a) => a.driven === 'none')
+        .map((a) => ({
+          key: helloIdentity(a.hello),
+          lane: laneLabel(a.hello) ?? a.hello.platform,
+          name: String(a.hello.app?.name ?? a.hello.appId ?? 'an app'),
+        }));
+      const said = drivenNote(
+        { key: helloIdentity(hello), lane: laneLabel(hello, current.info.type) ?? hello.platform, away, port: current.server.port },
+        toldApps,
+      );
+      toldApps = said.told;
+      return said.note;
+    },
   };
   return {
     ctx,
@@ -249,11 +269,18 @@ const session = async (argv: string[]) => {
     }
     const r = await execute(av, ctx);
     const lane = r.lane ?? (found?.needs === 'app' ? ctx.lane?.() : undefined);
+    const note = found?.needs === 'app' && !r.lane ? ctx.appNote?.() : undefined;
     console.log(
       JSON.stringify(
         r.error
-          ? { ok: false, error: fromLane(lane, r.error), ...(r.why ? { why: r.why } : {}) }
-          : { ok: r.code === 0, out: fromLane(lane, r.text ?? ''), ...(r.json !== undefined ? { json: r.json } : {}), ...(lane ? { lane } : {}) },
+          ? { ok: false, error: fromLane(lane, r.error), ...(r.why ? { why: r.why } : {}), ...(note ? { note } : {}) }
+          : {
+              ok: r.code === 0,
+              out: fromLane(lane, r.text ?? ''),
+              ...(r.json !== undefined ? { json: r.json } : {}),
+              ...(lane ? { lane } : {}),
+              ...(note ? { note } : {}),
+            },
       ),
     );
   }
