@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 
 import { createHmac, randomBytes } from 'node:crypto';
+import net from 'node:net';
 
 import { WebSocket } from 'ws';
 
@@ -384,4 +385,122 @@ test('an app no server on the port takes is let go, and a server with another to
   assert.equal(ios.connected, false);
   const other = new AgentServer({ port: ios.port, token: 'other', accepts: () => true });
   await assert.rejects(other.listen(), (error: unknown) => error instanceof AgentError && error.code === 'port-in-use');
+});
+
+/**
+ * An app whose WebSocket reads the driver's close frame and never answers it, nor ends the connection: FastSim's
+ * Android host did that, as React Native's own module keeps a client the server closed until JavaScript closes it.
+ */
+const deafApp = async (server: AgentServer, token = 'secret', platform = 'android') => {
+  const socket = net.connect(server.port, '127.0.0.1');
+  await new Promise((resolve) => socket.once('connect', resolve));
+  socket.write(
+    `GET / HTTP/1.1\r\nHost: 127.0.0.1:${server.port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${randomBytes(16).toString('base64')}\r\n\r\n`,
+  );
+  const frame = (text: string) => {
+    const payload = Buffer.from(text);
+    const mask = randomBytes(4);
+    const head =
+      payload.length < 126 ? Buffer.from([0x81, 0x80 | payload.length]) : Buffer.from([0x81, 0x80 | 126, payload.length >> 8, payload.length & 0xff]);
+    return Buffer.concat([head, mask, Buffer.from(payload.map((b, i) => b ^ mask[i % 4]!))]);
+  };
+  let buffered = Buffer.alloc(0);
+  let upgraded = false;
+  socket.on('data', (chunk) => {
+    buffered = Buffer.concat([buffered, chunk]);
+    if (!upgraded) {
+      const end = buffered.indexOf('\r\n\r\n');
+      if (end < 0) return;
+      upgraded = true;
+      buffered = buffered.subarray(end + 4);
+    }
+    // Server frames are unmasked, short and whole here; a close frame (0x88) is read and left unanswered.
+    while (buffered.length >= 2) {
+      const length = buffered[1]! & 0x7f;
+      if (buffered.length < 2 + length) return;
+      const opcode = buffered[0]! & 0x0f;
+      const text = buffered.subarray(2, 2 + length).toString();
+      buffered = buffered.subarray(2 + length);
+      if (opcode !== 0x1) continue;
+      const m = JSON.parse(text) as Message;
+      if (m.event === 'auth') {
+        const nonce = randomBytes(16).toString('hex');
+        const proof = hmac(token, `lynkeus/app/${m.session}/${m.nonce}/${nonce}`);
+        socket.write(frame(JSON.stringify({ event: 'hello', protocolVersion: 2, platform, native: false, commands: [], nonce, proof })));
+      }
+    }
+  });
+  return socket;
+};
+
+const within = <T>(ms: number, promise: Promise<T>, what: string) =>
+  Promise.race([promise, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} took longer than ${ms} ms`)), ms).unref())]);
+
+test('closing the server does not wait out an app that never answers the close frame', async () => {
+  const server = new AgentServer({ port: port++, token: 'secret' });
+  await server.listen();
+  const app = await deafApp(server);
+  await server.waitForApp(2000);
+  const started = Date.now();
+  // ws alone waits 30 s for the answer before it cuts the connection; every case on such a host paid it twice.
+  await within(2000, server.close(), 'close');
+  assert.ok(Date.now() - started < 1000, `closed in ${Date.now() - started} ms`);
+  app.destroy();
+});
+
+test('a server leaving a shared port cuts its own app when the app never answers the close frame', async () => {
+  const ios = await serve({ token: 'secret', accepts: (hello) => hello.platform === 'ios' });
+  const android = new AgentServer({ port: ios.port, token: 'secret', accepts: (hello) => hello.platform === 'android' });
+  await android.listen();
+  const app = await deafApp(android);
+  await android.waitForApp(2000);
+  const ended = new Promise((resolve) => app.once('close', resolve));
+  await android.close();
+  await within(2000, ended, 'cutting the app');
+  assert.equal(ios.connected, false);
+});
+
+test('closing the server does not wait on a connection that never sent a request', async () => {
+  const server = new AgentServer({ port: port++, token: 'secret' });
+  await server.listen();
+  const silent = net.connect(server.port, '127.0.0.1');
+  await new Promise((resolve) => silent.once('connect', resolve));
+  silent.on('error', () => undefined);
+  await within(2000, server.close(), 'close');
+  silent.destroy();
+});
+
+test('a plain HTTP request to the driver port is told to upgrade', async () => {
+  const server = await serve({ token: 'secret' });
+  const response = await fetch(`http://127.0.0.1:${server.port}/`);
+  assert.equal(response.status, 426);
+});
+
+test('a wait for an app whose host has ended fails at once with why, not at its timeout', async () => {
+  let ended: string | undefined;
+  const server = await serve({ token: 'secret', ended: () => ended });
+  const started = Date.now();
+  const waiting = server.waitForApp(60_000);
+  setTimeout(() => {
+    ended = 'the FastSim host exited (1): Lynkeus FastSim has no valid license grant (expired)';
+  }, 50).unref();
+  await assert.rejects(waiting, (error: unknown) => error instanceof AgentError && error.code === 'gone' && /license grant \(expired\)/.test(error.message));
+  assert.ok(Date.now() - started < 1000, `failed after ${Date.now() - started} ms`);
+  // Every later call and wait fails at once too.
+  await assert.rejects(server.call('screen', undefined, 60_000), /license grant/);
+  await assert.rejects(server.waitForApp(60_000), /license grant/);
+});
+
+test('a call to an app that left, from a host that then ended, fails with the host’s reason within moments', async () => {
+  let ended: string | undefined;
+  const server = await serve({ token: 'secret', goneMs: 60_000, ended: () => ended });
+  const app = await fakeApp(server);
+  await server.waitForApp(2000);
+  app.socket.close();
+  await new Promise((resolve) => server.once('disconnected', resolve));
+  const started = Date.now();
+  const calling = server.call('screen', undefined, 60_000);
+  ended = 'the host exited (139)';
+  await assert.rejects(calling, /the host exited \(139\)/);
+  assert.ok(Date.now() - started < 1000, `failed after ${Date.now() - started} ms`);
 });
