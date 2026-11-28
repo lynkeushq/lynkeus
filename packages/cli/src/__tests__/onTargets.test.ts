@@ -223,6 +223,20 @@ test('a failure on any target fails the run, with its step and error on its line
   assert.doesNotMatch(verbose.outcome.text ?? '', /run that target again/);
 });
 
+test('a mock no request matched is said under the case on each target, passed or not, brief or not', async () => {
+  const plans = { simulator: { flags: {}, jobs: 1 }, headless: host() };
+  const warning = 'mock rule GET /v1/feed.json never matched; GET /api/v1/api.json went to the network';
+  const results = {
+    simulator: { code: 0, reports: [passed('podcast-error', { warnings: [warning, 'no film: the recorder wrote no file'] })] },
+    headless: { code: 0, reports: [passed('podcast-error')] },
+  };
+  for (const brief of [false, true]) {
+    const { outcome } = await onTargets({ plans, results, cases: ['podcast-error'], brief });
+    assert.match(outcome.text ?? '', new RegExp(`✅ simulator {2}podcast-error\n {4}⚠ ${warning.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\n`));
+    assert.doesNotMatch(outcome.text ?? '', /no film/);
+  }
+});
+
 test('a target whose run could not start fails the run and says why', async () => {
   const { outcome } = await onTargets({
     plans: { simulator: { flags: {}, jobs: 1 }, fastsim: host() },
