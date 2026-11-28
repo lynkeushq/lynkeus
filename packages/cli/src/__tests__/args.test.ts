@@ -91,6 +91,7 @@ test('MCP serves a small core by default and everything else on request', () => 
     'press',
     'screen',
     'status',
+    'swipe',
     'type',
     'wait',
     'why',

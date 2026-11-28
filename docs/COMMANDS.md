@@ -73,7 +73,7 @@ On a target the drag starts at its centre, which a wide control cannot always af
 
 ### `lynkeus back`
 
-Pop the current route
+Back, as a person goes back: an open drawer or menu closes first, else the current route pops
 
 ### `lynkeus nav <route> [params]`
 

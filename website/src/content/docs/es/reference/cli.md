@@ -130,7 +130,7 @@ Sobre un objetivo, el arrastre empieza en su centro, y un control ancho no siemp
 
 ### `lynkeus back`
 
-Vuelve a la pantalla anterior, sacando la ruta actual de la pila. No tiene argumentos ni opciones.
+Vuelve atrás como lo haría una persona. Si hay un cajón abierto, primero lo cierra: el de un navegador de cajón de React Navigation, uno cuya capa se llama "Close drawer" (`react-native-drawer-layout`), o un control llamado "Close menu". En ese caso la ruta no cambia y la respuesta dice qué cerró. Si no hay nada abierto, saca la ruta actual de la pila y vuelve a la anterior. No tiene argumentos ni opciones.
 
 ### `lynkeus nav`
 
@@ -1719,7 +1719,7 @@ No todos los comandos están disponibles dentro de una sesión. Quedan fuera los
 
 ### `lynkeus mcp`
 
-Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
+Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `swipe`, `back`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
 
 | Opción | Qué hace |
 |---|---|

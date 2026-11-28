@@ -122,3 +122,30 @@ describe('navigating while a conditional navigator swaps its screens', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+describe('the open drawer back closes', () => {
+  it('is the innermost drawer navigator on the focused path whose history says it is open', async () => {
+    const { openDrawerKey } = await import('../navigation');
+    const state = {
+      index: 0,
+      key: 'root',
+      routes: [
+        {
+          name: 'Demo',
+          state: {
+            index: 0,
+            key: 'drawer-1',
+            type: 'drawer',
+            history: [{ type: 'route' }, { type: 'drawer', status: 'open' }],
+            routes: [{ name: 'Showroom' }],
+          },
+        },
+      ],
+    };
+    expect(openDrawerKey(state)).toBe('drawer-1');
+    expect(
+      openDrawerKey({ ...state, routes: [{ name: 'Demo', state: { ...state.routes[0]!.state, history: [{ type: 'drawer', status: 'closed' }] } }] }),
+    ).toBeUndefined();
+    expect(openDrawerKey({ index: 0, routes: [{ name: 'Welcome' }] })).toBeUndefined();
+  });
+});

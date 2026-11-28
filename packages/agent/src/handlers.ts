@@ -535,7 +535,17 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },
-    back: () => {
+    // As a person's back does: an open drawer or menu closes first, and only then the route pops (trial run 10:
+    // back on the showroom with its drawer open popped to Welcome).
+    back: async () => {
+      if (navigation.closeDrawer?.()) return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      const closer = elements().find((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim()));
+      if (closer) {
+        await press(closer.testId ? { testId: closer.testId } : { text: (closer.accessibilityLabel ?? closer.text)! }).catch(() => undefined);
+        await sleep(50);
+        if (!elements().some((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim())))
+          return { route: navigation.currentRoute()?.name, closed: (closer.accessibilityLabel ?? closer.text)! };
+      }
       if (!navigation.canGoBack()) throw new Error('Nothing to go back to');
       navigation.goBack();
       return { route: navigation.currentRoute()?.name };
@@ -564,6 +574,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
 // `__DEV__` is false in a release bundle, the kind Lynkeus FastSim runs: an app that registered its commands inside
 // `if (__DEV__)` has none there, and only this side can tell the driver why.
+// What an open drawer's or menu's own dismiss control is called: react-native-drawer-layout labels its overlay
+// "Close drawer"; a person's back closes it before it leaves the screen.
+const CLOSES = /^(close|dismiss) (drawer|menu|navigation menu|sidebar)$/i;
+
 const releaseBundle = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__ === false;
 
 /** What a command the app did not register is missing, said so that a release bundle's reason is in the error. */

@@ -237,6 +237,7 @@ export const driveCommands = [
   }),
   define({
     name: 'swipe',
+    mcp: 'core',
     group: 'drive',
     summary: 'A drag; on a target, drives its gesture (a slider, a sheet)',
     details:
@@ -277,10 +278,18 @@ export const driveCommands = [
   define({
     name: 'back',
     group: 'drive',
-    summary: 'Pop the current route',
+    summary: 'Back, as a person goes back: an open drawer or menu closes first, else the current route pops',
     needs: 'app',
     mcp: 'core',
-    run: async (ctx) => ({ json: await (await ctx.device()).back() }),
+    run: async (ctx) => {
+      const result = await (await ctx.device()).back();
+      return {
+        text: result?.closed
+          ? `closed the ${result.closed.replace(/^(close|dismiss) /i, '')}; still on ${result.route ?? '?'}`
+          : `back on ${result?.route ?? '?'}`,
+        json: result,
+      };
+    },
   }),
   define({
     name: 'nav',

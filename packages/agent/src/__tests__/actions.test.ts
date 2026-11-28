@@ -423,3 +423,36 @@ describe('a scroll wait for a target under a bar', () => {
     expect(answer.waitedMs).toBeGreaterThan(0);
   });
 });
+
+describe('back, as a person goes back', () => {
+  const navigation = (drawerOpen: boolean) => {
+    const goBack = jest.fn();
+    const closeDrawer = jest.fn(() => drawerOpen);
+    return { adapter: { ...noNavigation, canGoBack: () => true, goBack, closeDrawer, currentRoute: () => ({ name: 'DemoShowroom' }) }, goBack, closeDrawer };
+  };
+
+  it('closes an open drawer navigator first and leaves the route alone', async () => {
+    const { backend } = fakeBackend([]);
+    const nav = navigation(true);
+    expect(await dispatch(createHandlers(nav.adapter, backend), 'back', undefined)).toEqual({ route: 'DemoShowroom', closed: 'drawer' });
+    expect(nav.goBack).not.toHaveBeenCalled();
+  });
+
+  it('presses a drawer’s own close overlay when no navigator holds the drawer, then pops only once it is gone', async () => {
+    let open = true;
+    const overlay = () => (open ? [element({ i: 3, kind: 'button', accessibilityLabel: 'Close drawer' })] : []);
+    const { backend } = fakeBackend([]);
+    const nav = navigation(false);
+    const handlers = createHandlers(nav.adapter, {
+      ...backend,
+      snapshot: () => ({ elements: overlay() }),
+      press: async () => {
+        open = false;
+      },
+    });
+    expect(await dispatch(handlers, 'back', undefined)).toEqual({ route: 'DemoShowroom', closed: 'Close drawer' });
+    expect(nav.goBack).not.toHaveBeenCalled();
+    expect(await dispatch(handlers, 'back', undefined)).toEqual({ route: 'DemoShowroom' });
+    expect(nav.goBack).toHaveBeenCalledTimes(1);
+  });
+});

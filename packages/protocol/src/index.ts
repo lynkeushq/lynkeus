@@ -175,7 +175,8 @@ export type CoreMethods = {
     params: { name: string; params?: object };
     result: { route: string };
   };
-  back: { params: undefined; result: { route?: string } };
+  /** `closed`: what it closed (an open drawer or menu) instead of popping the route. */
+  back: { params: undefined; result: { route?: string; closed?: string } };
   waitFor: {
     params: WaitForParams;
     result: { route?: string; matched?: Target; waitedMs: number /** The route was reached after `since` and left again. */; passed?: boolean };

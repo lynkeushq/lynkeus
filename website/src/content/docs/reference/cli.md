@@ -173,7 +173,7 @@ lynkeus swipe --from 40,400 --to 340,400
 lynkeus back
 ```
 
-Pops the current route.
+Goes back as a person does. An open drawer closes first: a React Navigation drawer navigator's, or a drawer whose overlay is labelled "Close drawer" (`react-native-drawer-layout`), or a control labelled "Close menu". The route stays and the answer says what closed. With nothing open, it pops the current route.
 
 ### `lynkeus nav`
 
@@ -1712,7 +1712,7 @@ The first line it prints is `{"ok": true, "out": "attached (<name>)"}`, once the
 lynkeus mcp [--full]
 ```
 
-Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `crawl`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
+Serves commands as MCP tools over stdio, for an AI agent. Without flags it serves the core: `status`, `init`, `screen`, `press`, `type`, `swipe`, `back`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan`, `crawl`, `case run`, `case status`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `fixtures describe`, `fixtures check`, `headless init` and `headless doctor`. See [AI agents](/guides/ai-agents/).
 
 | Flag | Meaning |
 |---|---|
