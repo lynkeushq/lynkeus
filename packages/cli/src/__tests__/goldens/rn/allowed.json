@@ -228,12 +228,12 @@
     "now": "578255ae89a274f1"
   },
   "surface/help/crawl": {
-    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front.",
-    "now": "014d8e7dbcf2936a"
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front. The help says a press that signs out leaves the way back behind the sign-in, and that crawl.login (a macro that signs in) lets the crawl sign in there and first, else it stops there and says so: in trial run 8 crawl failed every way back after a press signed out.",
+    "now": "8bf898e20f7475ac"
   },
   "surface/mcp/tool/crawl": {
-    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front.",
-    "now": "b704fa7a8763dbc4"
+    "why": "crawl is served over MCP by default, bounded to one level and 12 presses per call unless the call asks for more, and answers with a short summary (screens, new edges, problems): an agent learns the app's ways in one call instead of pressing by hand. A press that sends the app to the background (a link opened in the browser) is a transition outside the app: reported with what it opened, never repeated, and the app is brought back to the front. The description says crawl.login (a macro such as app.signIn) lets crawl sign in first and after a press signs out, and that without it crawl stops at the sign-in and says so (trial run 8).",
+    "now": "692ef6c408f97007"
   },
   "surface/help/case coverage": {
     "why": "case coverage reads the screens case run now keeps by default, and hints at a macro for steps three or more cases open with. A screen counts as covered when a macro the case calls goes to it, waits for it or checks it, so a CI checkout without .lynkeus/seen still covers screens reached only inside macros (a trial missed showroom-demos).",

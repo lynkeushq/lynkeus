@@ -987,6 +987,8 @@ Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl`
 
 Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas, toques que escribieron y por eso no siguió, y toques que sacaron a la app con lo que abrieron), no una línea por toque.
 
+Un toque que cierra la sesión (un botón Log Out) deja el camino de vuelta detrás del inicio de sesión: la raíz de la app pasa a tener solo las pantallas de entrada, y la pantalla de la que venía el recorrido ya no está montada. Si en `lynkeus.config.json` declaras `crawl.login`, una macro de `cases.macros` que inicia sesión (por ejemplo `app.signIn`), el recorrido la ejecuta en ese punto, vuelve y sigue. También la ejecuta al empezar si arranca en la pantalla que esa macro espera. Una pantalla que solo existe sin sesión (el propio Login) se recorre una vez y después se deja, porque `crawl` nunca cierra la sesión para volver a ella. Sin `crawl.login`, el recorrido se detiene en el inicio de sesión y el resumen lo dice, con la clave que hay que declarar.
+
 Hay toques que mandan la app al fondo: un enlace que se abre en el navegador, un botón que abre otra app. Para `crawl` eso es una salida de la app. Anota qué se abrió, no vuelve a tocar ese control y trae la app de nuevo al frente como Lynkeus la lanza (`simctl launch` en el simulador, el intent del launcher en Android), así que la app conserva su estado. Solo si no vuelve, la relanza. Para eso necesita el bundle id o el application id de la app: `app` en `lynkeus.config.json` o `--app`.
 
 :::caution

@@ -232,3 +232,98 @@ test('a case that starts with the app in front asks the OS for nothing', async (
   assert.equal(report.result, 'passed');
   assert.deepEqual(launches, []);
 });
+
+/** An app behind a sign-in: Welcome (sign out, or go on to Demo) while signed in, Login while not; the root holds only one side. */
+const gatedApp = (start: 'Welcome' | 'Login') => {
+  let signedIn = start === 'Welcome';
+  let route: string = start;
+  const pressed: string[] = [];
+  const screens: Record<string, Element[]> = {
+    Welcome: [button(0, 'logout-button', 200), button(1, 'next-screen-button', 300)],
+    Demo: [{ i: 0, kind: 'text', text: 'Demo', frame: { x: 0, y: 0, w: 100, h: 20 }, enabled: true, depth: 1 }],
+    Login: [button(0, 'login-button', 200)],
+  };
+  const root = () => (signedIn ? ['Welcome', 'Demo'] : ['Login']);
+  const server = Object.assign(new EventEmitter(), {
+    connected: true,
+    hello: { event: 'hello', protocolVersion: 1, platform: 'ios', native: true, commands: [] },
+    port: 8123,
+    listen: async () => undefined,
+    waitForApp: async () => server.hello,
+    call: async (method: string, params?: Record<string, unknown>): Promise<unknown> => {
+      if (method === 'screen') return { route, path: [route], elements: screens[route], commit: 1, busy: false, window: { w: 400, h: 800 }, costMs: 1 };
+      if (method === 'find') return screens[route]!.find((e) => e.testId === params?.testId) ?? null;
+      if (method === 'waitFor') return { passed: screens[route]!.some((e) => e.testId === (params?.target as { testId?: string })?.testId) };
+      if (method === 'trace') return { last: 0, events: [] };
+      if (method === 'requests') return { inFlight: 0, requests: [] };
+      if (method === 'idle') return {};
+      if (method === 'back') {
+        if (route !== 'Demo') throw new Error('nothing to go back to');
+        route = 'Welcome';
+        return { route };
+      }
+      if (method === 'navigate') {
+        const name = String(params?.name);
+        if (!root().includes(name))
+          throw new Error(`No mounted navigator has a screen named ${name} (the root's: ${root().join(', ')}). A screen in a navigator that is not open yet…`);
+        route = name;
+        return {};
+      }
+      if (method === 'press') {
+        pressed.push(String(params?.testId));
+        if (params?.testId === 'logout-button') [signedIn, route] = [false, 'Login'];
+        else if (params?.testId === 'login-button') [signedIn, route] = [true, 'Welcome'];
+        else if (params?.testId === 'next-screen-button') route = 'Demo';
+        return { x: 0, y: 0, mode: 'native' };
+      }
+      return null;
+    },
+  });
+  const device = new Device({ id: 'sim-1', name: 'iPhone', platform: 'ios', type: 'simulator', connected: true } as never, {
+    server: server as unknown as AgentServer,
+    appId: 'com.example.ignite',
+  });
+  let signIns = 0;
+  const signIn = async () => {
+    signIns += 1;
+    [signedIn, route] = [true, 'Welcome'];
+    return undefined;
+  };
+  return { device, pressed, signIn, signIns: () => signIns };
+};
+
+test('a crawl whose press signed out stops at the sign-in and says how to get past it, instead of failing every way back', async () => {
+  const app = gatedApp('Welcome');
+  const { transitions, gate } = await crawl({ device: app.device, outDir: outDir(), depth: 1, maxActions: 20 });
+  assert.deepEqual(gate, { route: 'Welcome', root: ['Login'] });
+  assert.deepEqual(
+    transitions.map((t) => [t.button.testId, t.toRoute, t.problems.length]),
+    [['logout-button', 'Login', 0]],
+  );
+  const { describeGate } = await import('../commands/crawl.js');
+  assert.match(
+    describeGate(gate!, false),
+    /^stopped at a sign-in: a press signed out and Welcome is not mounted \(the app's root holds Login\); set crawl\.login/,
+  );
+});
+
+test('with crawl.login the crawl signs in again where a press signed out and goes on, and signs in first when it starts on the sign-in', async () => {
+  const app = gatedApp('Welcome');
+  const { transitions, gate, signedOutOnly } = await crawl({
+    device: app.device,
+    outDir: outDir(),
+    depth: 1,
+    maxActions: 20,
+    signIn: app.signIn,
+    signInFrom: 'Login',
+  });
+  assert.equal(gate, undefined);
+  assert.deepEqual(app.pressed.slice(0, 2), ['logout-button', 'next-screen-button']);
+  assert.ok(transitions.every((t) => t.problems.length === 0));
+  // Login is only there signed out: pressed through once, then left.
+  assert.deepEqual(signedOutOnly, ['Login']);
+  const signedOut = gatedApp('Login');
+  await crawl({ device: signedOut.device, outDir: outDir(), depth: 1, maxActions: 20, signIn: signedOut.signIn, signInFrom: 'Login' });
+  assert.ok(signedOut.signIns() >= 1);
+  assert.deepEqual(signedOut.pressed.slice(0, 2), ['logout-button', 'next-screen-button']);
+});

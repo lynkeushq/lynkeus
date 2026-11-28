@@ -1042,6 +1042,8 @@ It is read-only by default. Every press happens, but the moment one makes the ap
 
 A press that sends the app to the background, such as a link that opens in the browser or a control that opens another app, leads outside the app. The crawl records what it opened, never presses that control again, and brings the app back to the front the way Lynkeus launches it (`simctl launch` on a simulator, the launcher intent on Android), so the app keeps its state. Only when the app does not come back is it relaunched. It needs the app's bundle id or application id: `app` in `lynkeus.config.json` or `--app`.
 
+A press that signs out (a Log Out button) leaves the way back behind the sign-in: the app's root then holds only the sign-in screens, and the screen the crawl came from is not mounted. With `crawl.login` in `lynkeus.config.json`, a macro from `cases.macros` that signs in (such as `app.signIn`), the crawl runs that macro there, goes back and carries on; it also signs in first when it starts on the screen the macro waits for. A screen that only a signed-out app shows (Login itself) is pressed through once and then left, since the crawl never signs out to return to it. Without `crawl.login`, the crawl stops at the sign-in and its summary says so, naming the key to set.
+
 Over MCP, `crawl` is one of the default tools. A call there stops after one level and 12 presses unless it passes `depth` or `max`. It answers with a summary: the screens it stood on, the new edges, the problems, the presses it did not explore past because they wrote, and the presses that left the app and what they opened. It never sends one line per press.
 
 | Argument | Meaning |
