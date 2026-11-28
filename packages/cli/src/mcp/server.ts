@@ -33,32 +33,84 @@ const identifier = (name: string) => name.replace(/[^a-z0-9]+/gi, '_');
 
 type Progress = { progress: number; total?: number; message?: string };
 
+const MARK: Record<string, string> = { passed: '✅', failed: '❌', skipped: '⏭️', unsupported: '🚫' };
+const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+const clipStep = (step: string) => {
+  const text = step.trim();
+  return text.length > 120 ? `${text.slice(0, 119)}…` : text;
+};
+
 /**
- * A run's events as MCP progress notifications, for a client that asked with a progress token: the cases done,
- * plus how far the running ones are through their steps, out of the cases in the run, with the live line as the
- * message. The value only ever grows, as MCP asks; a step that would not move it sends nothing. `beat` says the line
- * again with the value a hair higher, so a step that runs long still shows the run is alive (false before the run
- * started).
+ * What one event of a run says in the client's progress line, headed by its lane on a run on several targets: a case
+ * starting (its attempt, the lane's count), each step starting and ending (`step N/M`, its text, the time), a case
+ * ending (result, duration, the lane's count). It shows in the client and never in the model's context.
+ */
+export const progressLine = () => {
+  const totals = new Map<string, number>();
+  const done = new Map<string, number>();
+  const cases = new Map<string, { attempt: number; startedAt: number }>();
+  const laneOf = (lane: string | undefined) => lane ?? '';
+  const head = (lane: string | undefined) => (lane ? `[${lane}] ` : '');
+  // Beside its lane the id carries it too (`login (fastsim:ios)`); the head already says it.
+  const bare = (id: string, lane: string | undefined) => (lane && id.endsWith(` (${lane})`) ? id.slice(0, -lane.length - 3) : id);
+  const count = (lane: string | undefined) => `${done.get(laneOf(lane)) ?? 0}/${totals.get(laneOf(lane)) ?? '?'} done`;
+  return (e: ProgressEvent): string | undefined => {
+    switch (e.type) {
+      case 'run-start': {
+        for (const c of e.cases) totals.set(laneOf(c.lane), (totals.get(laneOf(c.lane)) ?? 0) + 1);
+        const lanes = [...totals.keys()].filter(Boolean);
+        return `▶ ${e.total} case(s)${lanes.length ? ` on ${lanes.join(', ')}` : ''}, ${e.jobs} at a time`;
+      }
+      case 'report':
+        return `report: ${e.url}`;
+      case 'case-start': {
+        cases.set(`${e.lane}\0${e.id}`, { attempt: e.attempt, startedAt: Date.parse(e.at) });
+        return `${head(e.lane)}▶ ${bare(e.id, e.lane)}${e.attempt > 1 ? ` (attempt ${e.attempt})` : ''} · ${count(e.lane)}`;
+      }
+      case 'step': {
+        const c = cases.get(`${e.lane}\0${e.id}`);
+        const where = `${head(e.lane)}${bare(e.id, e.lane)}${c && c.attempt > 1 ? ` (attempt ${c.attempt})` : ''} · step ${e.index + 1}/${e.steps}`;
+        if (e.status === undefined) return `${where} ${clipStep(e.step)}${c ? ` · +${seconds(Date.parse(e.at) - c.startedAt)}` : ''}`;
+        return `${where} ${MARK[e.status] ?? e.status} ${clipStep(e.step)} · ${seconds(e.ms ?? 0)}`;
+      }
+      case 'case-end': {
+        if (!e.retrying) done.set(laneOf(e.lane), (done.get(laneOf(e.lane)) ?? 0) + 1);
+        return `${head(e.lane)}${MARK[e.result] ?? ''} ${bare(e.id, e.lane)} ${e.result} in ${seconds(e.ms)}${e.retrying ? ', retrying once' : ''} · ${count(e.lane)}`;
+      }
+      case 'run-end':
+        return `■ ${e.passed} passed, ${e.failed} failed${e.unsupported ? `, ${e.unsupported} unsupported` : ''} in ${seconds(e.ms)}${e.stopped ? ` (stopped: ${e.stopped})` : ''}`;
+    }
+  };
+};
+
+/**
+ * A run's events as MCP progress notifications, for a client that asked with a progress token: one for every event
+ * (each case's start and end, each step's start and end), with `progressLine`'s text as the message. The value is the
+ * cases done plus how far the running ones are through their steps, out of the cases in the run; it only ever grows,
+ * as MCP asks, a hair at a time when an event does not move it. `beat` says the run's live line again, so a step that
+ * runs long still shows the run is alive (false before the run started).
  */
 export const progressNotifier = (send: (params: Progress) => void) => {
   const state = new RunState();
+  const line = progressLine();
   let last = -1;
   let started = false;
+  const post = (message: string) => {
+    const s = state.status();
+    const partial = s.running.reduce((sum, r) => sum + (r.step ? (r.step.index + 1) / Math.max(1, r.steps) : 0), 0);
+    const reached = Math.round((s.done + Math.min(partial, s.running.length * 0.99)) * 100) / 100;
+    last = reached > last ? reached : Math.round((Math.max(last, 0) + 0.001) * 1000) / 1000;
+    send({ progress: last, ...(s.total ? { total: s.total } : {}), message });
+  };
   const notify = (event: ProgressEvent) => {
     state.apply(event);
     if (event.type === 'run-start') started = true;
-    const s = state.status();
-    const partial = s.running.reduce((sum, r) => sum + (r.step ? (r.step.index + 1) / Math.max(1, r.steps) : 0), 0);
-    const progress = Math.round((s.done + Math.min(partial, s.running.length * 0.99)) * 100) / 100;
-    if (progress <= last) return;
-    last = progress;
-    send({ progress, ...(s.total ? { total: s.total } : {}), message: statusLine(s) });
+    const message = line(event);
+    if (message) post(message);
   };
   const beat = (): boolean => {
     if (!started) return false;
-    const s = state.status();
-    last = Math.round((Math.max(last, 0) + 0.001) * 1000) / 1000;
-    send({ progress: last, ...(s.total ? { total: s.total } : {}), message: statusLine(s) });
+    post(statusLine(state.status()));
     return true;
   };
   return Object.assign(notify, { beat });

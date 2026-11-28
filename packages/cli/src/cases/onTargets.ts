@@ -246,7 +246,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     pid: process.pid,
     total: lanes.reduce((n, lane) => n + lane.cases.length, 0),
     jobs: offset,
-    cases: lanes.flatMap((lane) => lane.cases.map((c) => ({ id: named(c.id, lane.label), ...(c.title ? { title: c.title } : {}) }))),
+    cases: lanes.flatMap((lane) => lane.cases.map((c) => ({ id: named(c.id, lane.label), ...(c.title ? { title: c.title } : {}), lane: lane.label }))),
   });
 
   let results: { lane: (typeof lanes)[number]; result: SuiteResult }[];
@@ -264,7 +264,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
           progress: (e) => {
             if (e.type === 'run-start' || e.type === 'run-end') return;
             if (e.type === 'report') return emit(e);
-            emit({ ...e, id: named(e.id, lane.label), job: lane.offset + e.job });
+            emit({ ...e, id: named(e.id, lane.label), job: lane.offset + e.job, lane: lane.label });
           },
           signal: halt.signal,
         };
