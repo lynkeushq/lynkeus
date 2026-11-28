@@ -76,8 +76,17 @@ let switchTold = false;
 let lastApp: string | undefined;
 
 // `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device. `accepts`: the
-// apps this context drives, sharing the port with others of this process that drive the rest.
-const contextFor = (argv: string[], attached = false, port?: number, ownHost = false, accepts?: (hello: HelloEvent) => boolean, shares?: string): Session => {
+// apps this context drives, sharing the port with others of this process that drive the rest. `ended`: why the port's
+// host can no longer bring its app (it exited), which ends a wait for the app at once.
+const contextFor = (
+  argv: string[],
+  attached = false,
+  port?: number,
+  ownHost = false,
+  accepts?: (hello: HelloEvent) => boolean,
+  shares?: string,
+  ended?: () => string | undefined,
+): Session => {
   const g = globals(argv);
   const root = path.resolve((g.root as string | undefined) ?? process.cwd());
   const currentConfig = configReader(root);
@@ -102,6 +111,7 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       token: readToken(root),
       port: port ?? portFromEnv(currentConfig()),
       accepts,
+      ended,
       stillRunning: async () => (driven ? driven.processRunning() : false),
     });
     server.on('hello', (hello: HelloEvent) => {
@@ -184,8 +194,8 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       });
       return device;
     },
-    forPort: (other) => {
-      const scoped = contextFor(argv, attached, other, true);
+    forPort: (other, o) => {
+      const scoped = contextFor(argv, attached, other, true, undefined, undefined, o?.ended);
       return { base: scoped.ctx, stop: scoped.stop };
     },
     forApp: (which, share) => {

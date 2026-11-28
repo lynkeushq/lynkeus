@@ -4,6 +4,7 @@
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EventEmitter } from 'node:events';
+import { createServer, type Server } from 'node:http';
 import { debuglog } from 'node:util';
 
 import { WebSocket, WebSocketServer } from 'ws';
@@ -34,6 +35,20 @@ const MAX_CANDIDATES = 8;
 const CANDIDATE_MAX_FRAME = 64 * 1024;
 const MAX_FRAME = 32 * 1024 * 1024;
 const CANDIDATE_MS = 5000;
+// How long a socket this side closes gets to answer the close frame before it is cut. ws alone waits 30 s, and an app
+// whose WebSocket never answers (FastSim's Android host before it did) held every close, and each case, that long.
+const CLOSE_ANSWER_MS = 250;
+// How often a wait for an app asks `ended` whether it can still come.
+const ENDED_POLL_MS = 100;
+
+/** Closes a socket and cuts it if the peer has not answered the close frame within CLOSE_ANSWER_MS. */
+const closeSocket = (socket: WebSocket, code?: number, reason?: string): void => {
+  if (socket.readyState === WebSocket.CLOSED) return;
+  socket.close(code, reason);
+  const cut = setTimeout(() => socket.terminate(), CLOSE_ANSWER_MS);
+  cut.unref();
+  socket.once('close', () => clearTimeout(cut));
+};
 const BACKGROUND = 'the app went to the background (another app is in front)';
 
 export type AgentServerOptions = {
@@ -62,10 +77,15 @@ export type AgentServerOptions = {
    * any. Every server on a port proves the same token.
    */
   accepts?: (hello: HelloEvent) => boolean;
+  /**
+   * Why the app can no longer dial in (the host a run started for it exited), or undefined while it still may. Waits for
+   * an app that is not attached then fail at once with it, instead of running out their whole time.
+   */
+  ended?: () => string | undefined;
 };
 
 /** Every server of this process listening on one host and port, and the socket server they share. */
-type Hub = { key: string; wss: WebSocketServer; servers: AgentServer[]; token?: string };
+type Hub = { key: string; http: Server; wss: WebSocketServer; servers: AgentServer[]; token?: string };
 const hubs = new Map<string, Hub>();
 
 const portTaken = (port: number) =>
@@ -117,6 +137,7 @@ export class AgentServer extends EventEmitter {
   #session = Math.random().toString(36).slice(2) + Date.now().toString(36);
   #hub: Hub | null = null;
   #accepts?: (hello: HelloEvent) => boolean;
+  #ended?: () => string | undefined;
   #socket: WebSocket | null = null;
   #pending = new Map<number, Pending>();
   #hello: HelloEvent | null = null;
@@ -144,6 +165,7 @@ export class AgentServer extends EventEmitter {
     this.#reloadMs = options.reloadMs ?? 60_000;
     this.#stillRunning = options.stillRunning;
     this.#accepts = options.accepts;
+    this.#ended = options.ended;
   }
 
   get connected(): boolean {
@@ -186,11 +208,17 @@ export class AgentServer extends EventEmitter {
       // An app the server taking any holds and this one wants dials again, and comes here.
       if (this.#accepts)
         for (const other of shared.servers)
-          if (!other.#accepts && other.#hello && this.#accepts(other.#hello)) other.#socket?.close(1012, 'another driver on this port takes this app');
+          if (!other.#accepts && other.#hello && this.#accepts(other.#hello) && other.#socket)
+            closeSocket(other.#socket, 1012, 'another driver on this port takes this app');
       return;
     }
-    const wss = new WebSocketServer({ port: this.port, host: this.host, maxPayload: MAX_FRAME });
-    const hub: Hub = { key, wss, servers: [this], token: this.#token };
+    // The HTTP server is this side's own, so a close can cut connections that never became WebSockets as well.
+    const http = createServer((_request, response) => {
+      response.writeHead(426, { 'Content-Type': 'text/plain' });
+      response.end('Upgrade Required');
+    });
+    const wss = new WebSocketServer({ server: http, maxPayload: MAX_FRAME });
+    const hub: Hub = { key, http, wss, servers: [this], token: this.#token };
     hubs.set(key, hub);
     this.#hub = hub;
     wss.on('connection', (socket) => {
@@ -199,13 +227,14 @@ export class AgentServer extends EventEmitter {
       else socket.terminate();
     });
     await new Promise<void>((resolve, reject) => {
-      wss.once('listening', () => resolve());
-      wss.once('error', (error: NodeJS.ErrnoException) => {
+      http.once('listening', () => resolve());
+      http.once('error', (error: NodeJS.ErrnoException) => {
         if (hubs.get(key) === hub) hubs.delete(key);
         for (const s of hub.servers) s.#hub = null;
         hub.servers = [];
         reject(error.code === 'EADDRINUSE' ? portTaken(this.port) : error);
       });
+      http.listen(this.port, this.host);
     });
   }
 
@@ -218,7 +247,7 @@ export class AgentServer extends EventEmitter {
   async close(): Promise<void> {
     this.#cancelGrace();
     this.#failPending(new AgentError('Agent server closed'));
-    this.#socket?.close();
+    if (this.#socket) closeSocket(this.#socket);
     this.#socket = null;
     this.#hello = null;
     this.#goneSince = null;
@@ -228,13 +257,34 @@ export class AgentServer extends EventEmitter {
     hub.servers = hub.servers.filter((s) => s !== this);
     if (hub.servers.length > 0) return;
     if (hubs.get(hub.key) === hub) hubs.delete(hub.key);
-    await new Promise<void>((resolve) => hub.wss.close(() => resolve()));
+    // The socket server is closed once every connection has ended: candidates and links nobody holds any more included.
+    for (const client of hub.wss.clients) closeSocket(client, 1001);
+    hub.wss.close();
+    const cut = setTimeout(() => hub.http.closeAllConnections(), CLOSE_ANSWER_MS);
+    cut.unref();
+    await new Promise<void>((resolve) => hub.http.close(() => resolve()));
+    clearTimeout(cut);
   }
 
   async waitForApp(timeoutMs = 15_000): Promise<HelloEvent> {
     if (this.connected && this.#hello) return this.#hello;
+    const over = this.#ended?.();
+    if (over) throw new AgentError(over, 'gone');
     return new Promise<HelloEvent>((resolve, reject) => {
+      const ended = this.#ended;
+      const watch = ended
+        ? setInterval(() => {
+            const why = ended();
+            if (!why) return;
+            clearTimeout(timer);
+            clearInterval(watch);
+            this.off('hello', onHello);
+            reject(new AgentError(why, 'gone'));
+          }, ENDED_POLL_MS)
+        : undefined;
+      watch?.unref();
       const timer = setTimeout(() => {
+        clearInterval(watch);
         this.off('hello', onHello);
         // An app that dials in and never says hello is one whose token is not ours: the agent stays silent then.
         const why = this.#refused
@@ -251,6 +301,7 @@ export class AgentServer extends EventEmitter {
       }, timeoutMs);
       const onHello = (hello: HelloEvent) => {
         clearTimeout(timer);
+        clearInterval(watch);
         resolve(hello);
       };
       this.once('hello', onHello);
@@ -266,6 +317,8 @@ export class AgentServer extends EventEmitter {
     const deadline = Date.now() + timeoutMs;
     let socket = this.#socket;
     if (!this.connected || !socket || socket.readyState !== WebSocket.OPEN) {
+      const over = this.#ended?.();
+      if (over) throw new AgentError(over, 'gone');
       // An app that left gets one window to come back, not every call's whole timeout: a crashed one would otherwise
       // cost each step of each case its full wait. What brings an app back on purpose (a relaunch, the OS putting it
       // in front again) waits for its hello itself.
@@ -279,7 +332,8 @@ export class AgentServer extends EventEmitter {
         const wait = Math.min(deadline - Date.now(), until - Date.now());
         if (wait <= 0) throw this.#goneError(goneSince, loading);
         await this.waitForApp(wait).catch(() => {
-          throw this.#goneError(goneSince, loading);
+          const over = this.#ended?.();
+          throw over ? new AgentError(over, 'gone') : this.#goneError(goneSince, loading);
         });
       } else await this.waitForApp(timeoutMs);
       socket = this.#socket;
@@ -417,7 +471,7 @@ export class AgentServer extends EventEmitter {
           // A relaunch reconnects before the old socket notices; the newest proven one wins.
           const previous = owner.#socket;
           owner.#socket = socket;
-          if (previous && previous !== socket) previous.close();
+          if (previous && previous !== socket) closeSocket(previous);
           owner.#cancelGrace();
           owner.#hello = safe as HelloEvent;
           owner.#unanswered = false;

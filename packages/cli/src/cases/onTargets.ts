@@ -296,7 +296,9 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
   lines.push(
     [
       ...results.map(({ lane, result }) =>
-        result.reports ? `${lane.label} ${count(result.reports, 'passed')}/${result.reports.length} passed` : `${lane.label} could not run`,
+        result.reports
+          ? `${lane.label} ${count(result.reports, 'passed')}/${result.reports.length} passed${result.reports.length < lane.cases.length ? `, ${lane.cases.length - result.reports.length} not run` : ''}`
+          : `${lane.label} could not run`,
       ),
       ...planned.flatMap(({ target, plan }) => ('unavailable' in plan ? [`${target} not available`] : [])),
     ].join(' · '),
