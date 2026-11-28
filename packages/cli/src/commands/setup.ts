@@ -14,7 +14,7 @@ import type { HelloEvent } from 'lynkeus-protocol';
 
 import { declaredTargets } from '../cases/onTargets.js';
 import { DEFAULT_PORT, portFromEnv, runsDir } from '../config.js';
-import { appIdsOf } from '../device/devMenu.js';
+import { appIdsOf, type DevMenuOutcome, finishDevMenuOnboarding, usesDevClient } from '../device/devMenu.js';
 import { type DeviceInfo, parseAdbDevices } from '../device/devices.js';
 import { iosLaunchArgv } from '../device/launchArgs.js';
 import { type Ctx, define } from '../registry.js';
@@ -38,6 +38,11 @@ export type SetupDeps = {
   attach: (platform: Platform, timeoutMs: number) => Promise<HelloEvent | undefined>;
   sleep: (ms: number) => Promise<void>;
   now: () => number;
+  /**
+   * Marks Expo's dev-menu onboarding seen for the app on a Simulator or emulator (expo-dev-client apps): `done` when it
+   * was just marked, so the sheet may be up over the app this launch. None: nothing to do.
+   */
+  devMenu?: (device: BuildDevice) => Promise<DevMenuOutcome | undefined>;
 };
 
 export type StepLine = { step: string; ok: boolean; text: string; tail?: string[]; log?: string };
@@ -391,6 +396,7 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
     })();
     if (!o.rebuild && !changed && stamp === key && appId && (await installed(deps, device, appId))) {
       say(`${platform}: the build setup made is installed; launching it`);
+      if (device.type !== 'physical') await deps.devMenu?.(device).catch(() => undefined);
       await launch(deps, device, appId, metroPort);
       const hello = await attached(60_000);
       if (hello) {
@@ -434,6 +440,14 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
         `no ${platform} app attached on port ${driverPort} after the build${appId ? ' and a relaunch' : ''}: Metro's log says whether the bundle loaded`,
         path.join(dir, 'metro.log'),
       );
+    // A new development build opens Expo's dev-menu onboarding sheet over the app on its first launch, a native view
+    // the agent cannot read or press (trial run 10). Marked seen now, the app is launched once more without it.
+    if (appId && device.type !== 'physical' && deps.devMenu && (await deps.devMenu(device).catch(() => undefined)) === 'done') {
+      await launch(deps, device, appId, metroPort);
+      hello = (await attached(60_000)) ?? hello;
+      done(`${platform} app`, `attached: ${said(hello)}; Expo's dev-menu onboarding sheet marked seen and the app launched again without it`);
+      continue;
+    }
     done(`${platform} app`, `attached: ${said(hello)}`);
   }
   return { lines, ok: true, booted };
@@ -572,6 +586,9 @@ export const setupCommands = [
         attach: attachOn(ctx),
         sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         now: Date.now,
+        ...(usesDevClient(ctx.root)
+          ? { devMenu: (device: BuildDevice) => finishDevMenuOnboarding({ ...device, connected: true }, appIdsOf(ctx.root, ctx.config.app)) }
+          : {}),
       };
       const result = await runSetup(
         ctx,

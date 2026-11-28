@@ -416,7 +416,7 @@ export const NOT_DRAWN = 'the app did not draw';
 
 export const SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it (a system alert, a native sheet): its words are listed ~system, and its buttons are pressed by their text`;
 
-export const REMOTE_SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it, drawn by another process (iOS's Save Password prompt after a login form, a permission prompt): Lynkeus can neither read nor tap it, and presses under it fail; relaunch the app, or answer it on the device`;
+export const REMOTE_SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it, drawn by another process (iOS's Save Password prompt after a login form, a permission prompt) or natively outside React (Expo's dev-menu onboarding sheet on a development build's first launch: \`lynkeus status\` marks it seen, then relaunch the app): Lynkeus can neither read nor tap it, and presses under it fail; relaunch the app, or answer it on the device`;
 
 /**
  * Whether something outside the app's React tree is over it. The agent marks a control covered when a touch at its

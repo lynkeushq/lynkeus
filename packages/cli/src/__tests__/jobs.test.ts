@@ -249,6 +249,45 @@ test("setup on a set-up app takes the booted Simulator, starts Metro, builds wit
   assert.match(second.lines.at(-1)!.text, /^already attached/);
 });
 
+test("a new Expo development build's dev-menu onboarding sheet is marked seen after it attaches, and the app launched once more without it", async () => {
+  const root = readyApp();
+  let built = false;
+  const marked: string[] = [];
+  const deps = fakeDeps({
+    answer: (a) => (a.includes('list') ? { code: 0, stdout: simulators(true) } : a.includes('get_app_container') ? { code: 1, stdout: '' } : undefined),
+    metro: () => true,
+    attach: () => (built ? hello : undefined),
+    build: () => {
+      built = true;
+      return 0;
+    },
+  });
+  deps.devMenu = async (device) => {
+    marked.push(device.id);
+    return 'done';
+  };
+  const result = await runSetup(ctxFor(root, []), {}, deps);
+  assert.equal(result.ok, true, JSON.stringify(result.lines));
+  assert.deepEqual(marked, [UDID]);
+  assert.equal(deps.calls.filter((c) => c.startsWith('xcrun simctl launch')).length, 1, deps.calls.join('\n'));
+  assert.match(result.lines.at(-1)!.text, /dev-menu onboarding sheet marked seen and the app launched again without it/);
+  // Already seen: no second launch.
+  built = false;
+  const seen = fakeDeps({
+    answer: (a) => (a.includes('list') ? { code: 0, stdout: simulators(true) } : a.includes('get_app_container') ? { code: 1, stdout: '' } : undefined),
+    metro: () => true,
+    attach: () => (built ? hello : undefined),
+    build: () => {
+      built = true;
+      return 0;
+    },
+  });
+  seen.devMenu = async () => 'already';
+  const again = await runSetup(ctxFor(root, []), { rebuild: true }, seen);
+  assert.equal(again.ok, true);
+  assert.equal(seen.calls.filter((c) => c.startsWith('xcrun simctl launch')).length, 0);
+});
+
 test('a failed build answers with its step, the log lines that say why and the log path', async () => {
   const root = readyApp();
   const deps = fakeDeps({

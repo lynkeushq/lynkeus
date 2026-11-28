@@ -177,6 +177,7 @@ lynkeus screen
 
 - When its words are listed, press its button by its text, as a person would: `lynkeus press "Not Now"`. To get past it in any step of any case, add it to [`cases.interruptions`](/reference/configuration/#casesinterruptions): `see` its text, `do` the press.
 - When the line says another process draws it (iOS draws "Save Password?" that way), nothing from inside the app can read or tap it. Relaunch the app, or answer it on the device. To keep a suite from meeting it, sign in through an app command (`qa.register`) rather than through the form.
+- On a development build with expo-dev-client, the same line on the first launch is usually Expo's dev-menu onboarding sheet ("This is the developer menu… Continue"), drawn natively outside React. `lynkeus setup` marks it seen after a fresh build and launches the app once more without it; otherwise `lynkeus status` marks it seen on every booted Simulator and emulator, and the next launch of the app does not show it.
 
 React Native's own development banner ("Refreshing...", "Loading from Metro..."), which a development build or the Expo dev client shows at the top while Metro sends new code, is not a system view: Lynkeus knows its window by the class that handles its touches and leaves it out, and `idle`, and so each frame of a run, waits until it has gone. An app built with an older `lynkeus-agent` still lists it as `+system` until it is rebuilt.
 
