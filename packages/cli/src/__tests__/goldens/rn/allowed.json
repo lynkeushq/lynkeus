@@ -416,8 +416,8 @@
     "now": "fdc5f1dd087515ec"
   },
   "surface/help/evidence": {
-    "why": "new command: evidence runs cases with frames, film and report.html and answers only the report path, each case per target and the frames that look wrong. case run and evidence take --budget (1500 s by default over MCP, so one call ends before a client gives up on it; in trial 7 a run went silent for 30 minutes and outlived the call by two hours), and a step past its timeoutMs plus 30 s, or 180 s without one, fails as stuck.",
-    "now": "4d8ed3f0748f8ada"
+    "why": "new command: evidence runs cases with frames, film and report.html and answers only the report path, each case per target and the frames that look wrong. case run and evidence take --budget (1500 s by default over MCP, so one call ends before a client gives up on it; in trial 7 a run went silent for 30 minutes and outlived the call by two hours), and a step past its timeoutMs plus 30 s, or 180 s without one, fails as stuck. evidence also names a frame a host took while its screen still moved after the step (trial run 10: frames after app.type showed the login button as a thin bar).",
+    "now": "6317dabad56b27ad"
   },
   "surface/help/setup": {
     "why": "new command: setup connects an app in one call (init, the device, Metro, the project's own development build, launch, attach, status), safe to run again, with logs in .lynkeus/runs/setup.",

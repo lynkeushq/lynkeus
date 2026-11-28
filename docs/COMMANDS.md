@@ -798,7 +798,7 @@ Write an example case, the reference of the format and a fixtures server to star
 
 Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong
 
-The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), and a frame taken while a system view or another app was in front. The run's whole answer is in answer.txt beside the report.
+The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), a frame taken while a system view or another app was in front, and one a host took while its screen still moved. The run's whole answer is in answer.txt beside the report.
 
 | Argument | |
 |---|---|

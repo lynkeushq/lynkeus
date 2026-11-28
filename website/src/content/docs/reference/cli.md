@@ -1216,7 +1216,7 @@ Runs cases with everything a person reviews (a frame after every step, a film of
 
 - the path of each `report.html`, one per target with `--on`;
 - one line per case with its result on each target, and for a failure, the target, the step and the first line of its error;
-- the frames that look wrong: an action (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) whose frame is identical to the step before's, which means it changed nothing on screen; and a frame taken while the app was inactive or in the background on a Simulator or emulator, which shows a system view or another app instead of the app.
+- the frames that look wrong: an action (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) whose frame is identical to the step before's, which means it changed nothing on screen; and a frame taken while the app was inactive or in the background on a Simulator or emulator, which shows a system view or another app instead of the app; and a frame a host took while its screen still moved. Before each frame, a host that keeps its own clock (Lynkeus FastSim) is asked to wait until its screen stands still, at most 1.5 s on its clock, which costs no real time: the tree can be settled while a keyboard inset or a layout animation is still being drawn. A frame whose screen never stood still is named here.
 
 It is `case run --out <dir> --screenshots --video` underneath, on the targets `--on` names (as in [`case run`](#lynkeus-case-run)), on the attached app, or headless with `--host`. The run goes to `.lynkeus/runs/evidence/<time>` unless `--out` says otherwise, and the run's whole answer is kept as `answer.txt` there.
 

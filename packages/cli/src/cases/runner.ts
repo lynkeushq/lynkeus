@@ -267,6 +267,8 @@ const phased = (phases: Partial<Record<StepPhase, number>>): Pick<StepReport, 'p
 
 /** How a case's warnings start for a frame that shows something other than the app; `evidence` lists them. */
 export const FRAME_NOT_APP = 'frame not of the app';
+/** How a case's warnings start for a frame taken while the host's screen still moved after the step; `evidence` lists them. */
+export const FRAME_MOVING = 'frame of a moving screen';
 /** How a case's warnings start when it was asked for a film and kept none that plays. */
 export const NO_FILM = 'no film';
 
@@ -1834,6 +1836,19 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           () => false,
         );
       let still: boolean | undefined;
+      // The tree can be settled while the picture is not: a keyboard inset or a layout animation the host runs on its
+      // own clock (trial run 10: the login button a thin bar after app.type, its frame h: 56). A host that can say
+      // when its screen stands still is waited for, on its clock (no real time passes), before the picture.
+      if (!hostStill && !away && helloOf(d)?.commands?.includes('clock') && (await offers('still'))) {
+        const painted = (await d.command('still', { stepMs: 100, timeoutMs: 1500 }).catch(() => undefined)) as
+          | { still?: unknown; moving?: unknown }
+          | undefined;
+        if (painted?.still === false) {
+          still = false;
+          if (Array.isArray(painted.moving)) moving = painted.moving;
+          warn(`${FRAME_MOVING} at step ${index} (${report.step}): the host's screen still moved 1.5 s after the step, so the frame is of a moment`);
+        }
+      }
       let file = `${stem}.png`;
       let taken: boolean;
       if (await offers('screenshot')) {

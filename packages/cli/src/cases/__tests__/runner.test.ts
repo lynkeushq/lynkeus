@@ -855,6 +855,39 @@ test('a host that waits for a still screen on its own clock is asked to, and the
   }
 });
 
+test('a frame on a host that can say when its screen stands still waits for its paint first, and one still moving is flagged', async () => {
+  const c = parseCase('---\nid: type\n---\nsteps:\n  - app.press: "#refresh"\n', 'type.md');
+  for (const settles of [true, false]) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot', 'still', 'clock'] };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      order.push(name === 'still' ? `still ${String(params.stepMs)}/${String(params.timeoutMs)}` : name);
+      if (name === 'screenshot') {
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      if (name === 'still') return settles ? { still: true, waitedMs: 200 } : { still: false, waitedMs: 1500, moving: [{ x: 0, y: 700, w: 390, h: 56 }] };
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-paint-'));
+    const report = await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, frames: 'png' } });
+    assert.equal(report.result, 'passed');
+    const at = order.indexOf('still 100/1500');
+    assert.ok(at >= 0 && at < order.indexOf('screenshot'), order.join(', '));
+    const frame = JSON.parse(fs.readFileSync(report.steps[0]!.screenshot!.replace(/\.png$/, '.json'), 'utf8'));
+    if (settles) {
+      assert.equal(frame.still, undefined);
+      assert.equal(report.warnings, undefined);
+    } else {
+      assert.equal(frame.still, false);
+      assert.deepEqual(frame.moving, [{ x: 0, y: 700, w: 390, h: 56 }]);
+      assert.match(report.warnings?.[0] ?? '', /^frame of a moving screen at step 1 \(app\.press #refresh\): the host's screen still moved/);
+    }
+  }
+});
+
 test('with frames on change and a still wait, the looks after a step run before its settle and share its frame', async () => {
   const c = parseCase(
     '---\nid: looks\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n  - app.see: { text: "25 points" }\n',

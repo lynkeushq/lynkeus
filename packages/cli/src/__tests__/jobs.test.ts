@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import type { CaseReport } from '../cases/runner.js';
-import { FRAME_NOT_APP } from '../cases/runner.js';
+import { FRAME_MOVING, FRAME_NOT_APP } from '../cases/runner.js';
 import { caseResults, suspectFrames } from '../commands/evidence.js';
 import { emulatorBinary, pickAndroid, pickSimulator, platformsFor, relevantTail, runSetup, type SetupDeps, setupText } from '../commands/setup.js';
 import { jobNotifier } from '../mcp/server.js';
@@ -320,15 +320,21 @@ test("evidence names an action whose frame equals the step before's, and frames 
             { step: 'app.press #menu', status: 'passed', ms: 1, screenshot: '/f/3.avif' },
             { step: 'app.see "Menu"', status: 'passed', ms: 1, screenshot: '/f/4.avif' },
           ],
-          { warnings: [`${FRAME_NOT_APP} at step 3 (app.press #menu): the app was inactive, so a system view or another app is in front`] },
+          {
+            warnings: [
+              `${FRAME_NOT_APP} at step 3 (app.press #menu): the app was inactive, so a system view or another app is in front`,
+              `${FRAME_MOVING} at step 4 (app.see "Menu"): the host's screen still moved 1.5 s after the step, so the frame is of a moment`,
+            ],
+          },
         ),
       ],
     },
   ];
   const suspects = suspectFrames(runs, (f) => frames[f]);
-  assert.equal(suspects.length, 2, suspects.join('\n'));
+  assert.equal(suspects.length, 3, suspects.join('\n'));
   assert.match(suspects[0]!, /^ios drawer step 2 \(app\.press 390,450\): same frame as the step before/);
   assert.match(suspects[1]!, /^ios drawer: frame not of the app at step 3/);
+  assert.match(suspects[2]!, /^ios drawer: frame of a moving screen at step 4/);
 });
 
 test('evidence answers a line per case with its result on each target and where a failure was', () => {
