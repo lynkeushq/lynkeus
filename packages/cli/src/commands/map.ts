@@ -37,25 +37,60 @@ const describeAffected = (affected: Affected[], chain: boolean): string[] => {
   return lines;
 };
 
-/** Source files a branch changed against `base`, committed or not. */
-export const changedSources = (root: string, base: string, err: (line: string) => void, sources: RuntimeAdapter['sources']): string[] => {
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+/** A diff against a base that git could not make: an error, never "nothing changed" (that would pass a branch untested). */
+export class DiffError extends Error {}
+
+const gitError = (error: unknown): string => {
+  const stderr = (error as { stderr?: unknown })?.stderr;
+  const said = (typeof stderr === 'string' ? stderr : Buffer.isBuffer(stderr) ? stderr.toString() : '').trim();
+  const fatal = said.split('\n').find((l) => /^(fatal|error):/.test(l)) ?? said.split('\n')[0];
+  return fatal || (error instanceof Error ? error.message.split('\n')[0]! : String(error));
+};
+
+/** Why a diff against `base` failed, with what to do about it: a ref that is not here, a shallow checkout, no repository. */
+const diffFailure = (root: string, base: string, error: unknown): DiffError => {
+  const quiet = (...args: string[]) => {
+    try {
+      return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch {
+      return undefined;
+    }
+  };
+  const said = gitError(error);
+  if (quiet('rev-parse', '--git-dir') === undefined) return new DiffError(`could not diff against ${base}: ${said} (${root} is not in a git checkout)`);
+  const shallow = quiet('rev-parse', '--is-shallow-repository') === 'true';
+  const known = quiet('rev-parse', '--verify', '--quiet', `${base}^{commit}`) !== undefined;
+  const branch = base.replace(/^origin\//, '');
+  const fix = !known
+    ? `${base} is not a ref in this checkout: pass --base with one that is (\`git branch -a\` lists them), or fetch it first (\`git fetch origin ${branch}\`)${shallow ? '; the checkout is also shallow: `git fetch --unshallow` (actions/checkout: fetch-depth: 0)' : ''}`
+    : shallow
+      ? `the checkout is shallow and does not hold where this branch left ${base}: \`git fetch --unshallow\` (actions/checkout: fetch-depth: 0), or \`git fetch --deepen=200 origin ${branch}\``
+      : `check that ${base} and this branch share history (\`git merge-base ${base} HEAD\`)`;
+  return new DiffError(`could not diff against ${base}: ${said}\n${fix}`);
+};
+
+/**
+ * Source files a branch changed against `base`, committed or not. Throws a DiffError when git cannot make the diff
+ * (an unknown ref, a shallow checkout without the base): no list is not an empty list.
+ */
+export const changedSources = (root: string, base: string, sources: RuntimeAdapter['sources']): string[] => {
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const diff = sources.relative ? ['diff', '--name-only', '--relative'] : ['diff', '--name-only'];
   const source = sources.pattern;
+  let names: string;
   try {
-    const names = `${git(...diff, `${base}...HEAD`)}\n${git(...diff, 'HEAD')}`;
-    return [
-      ...new Set(
-        names
-          .split('\n')
-          .map((l) => l.trim())
-          .filter((l) => source.test(l)),
-      ),
-    ];
+    names = `${git(...diff, `${base}...HEAD`)}\n${git(...diff, 'HEAD')}`;
   } catch (error) {
-    err(`could not diff against ${base}: ${error instanceof Error ? error.message : String(error)}`);
-    return [];
+    throw diffFailure(root, base, error);
   }
+  return [
+    ...new Set(
+      names
+        .split('\n')
+        .map((l) => l.trim())
+        .filter((l) => source.test(l)),
+    ),
+  ];
 };
 
 /**
@@ -323,7 +358,7 @@ export const mapCommands = [
       const graph = ctx.graph();
       const base = ctx.flags.base as string;
       const runtime = await runtimeAt(ctx.root);
-      const changed = changedSources(ctx.root, base, ctx.err, runtime.sources);
+      const changed = changedSources(ctx.root, base, runtime.sources);
       const { affected, notes } = await reachOfChanges(ctx.root, graph, changed, {
         base,
         depth: ctx.flags.depth as number,

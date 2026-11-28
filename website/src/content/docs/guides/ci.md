@@ -153,7 +153,7 @@ Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `
 npx lynkeus ci --affected --base origin/main
 ```
 
-It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
+It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. When git cannot make that diff (a base that is not in the checkout, or a shallow checkout without the commit where the branch left it), the job fails and says why and how to fix it, instead of passing with nothing run. Check out with `fetch-depth: 0` (or fetch the base), and pass `--on-diff-error all` if you would rather run every case when the diff fails. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
 
 ### On the targets your project declared
 

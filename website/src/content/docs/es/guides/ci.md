@@ -183,7 +183,7 @@ El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, rep
 
 Dos opciones útiles:
 
-- `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`).
+- `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`). Si git no puede hacer el diff (la base no está en el checkout, o el checkout es superficial y no llega al punto donde la rama se separó), el job falla y explica cómo arreglarlo; nunca pasa en verde sin haber ejecutado nada. Con `--on-diff-error all`, en ese caso ejecuta todos los casos.
 - `--dry-run` imprime lo que haría (qué casos, qué backend, cuántos hosts) sin ejecutar nada. `--keep-up` deja el backend levantado al terminar, para investigar un fallo; los hosts terminan con la ejecución.
 
 Cuando existe `$GITHUB_STEP_SUMMARY`, `lynkeus ci` escribe ahí el resumen del job: cuántos casos pasaron, una tabla con los que fallaron y el enlace al reporte.

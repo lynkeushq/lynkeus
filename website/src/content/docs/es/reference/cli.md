@@ -1326,6 +1326,8 @@ Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que e
 
 Si lo que cambió es una tabla de textos (un archivo de objetos literales de textos, como las traducciones), solo cuentan los archivos que usan las claves cambiadas y los casos cuyos pasos nombran un texto cambiado. Cuando ninguna fuente escribe entera una clave cambiada, cuentan todos los que importan el archivo y una línea explica por qué. Si en un archivo solo cambiaron testIDs, etiquetas de accesibilidad, comentarios o formato, no alcanza ninguna pantalla: alcanza los casos cuyos pasos (o macros) nombran un testID cambiado, viejo o nuevo, o el texto de una etiqueta cambiada. `map check`, `map impact` y `ci --affected` hacen lo mismo.
 
+Si git no puede hacer el diff (porque `--base` no es una referencia de ese checkout, o porque el checkout es superficial y no tiene el punto donde la rama se separó de la base), `case impact`, `map check` y `ci --affected` fallan con código de salida 1. El error trae el mensaje de git y cómo resolverlo: `git fetch origin <rama>`, `git fetch --unshallow`, o `fetch-depth: 0` en `actions/checkout`. Por MCP, `case_impact` responde con ese error. Nunca informan que no cambió nada, porque eso daría por buena una rama que nadie probó.
+
 | Opción | Qué hace |
 |---|---|
 | `--base <ref>` | La referencia de git contra la que se compara. Por defecto `main`. |
@@ -1383,7 +1385,7 @@ Lee la pantalla de la app conectada y escribe un caso que va a su ruta (`app.nav
 ### `lynkeus ci`
 
 ```bash
-lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
+lynkeus ci [--affected] [--base <ref>] [--on-diff-error <fail|all>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
 ```
 
 Ejecuta la suite como lo hace un job de CI: levanta el backend y N hosts, reparte los casos entre ellos, genera el reporte y lo desmonta todo. El código de salida es el de la suite.
@@ -1394,6 +1396,7 @@ Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/confi
 |---|---|
 | `--affected` | Ejecuta solo los casos que alcanzan los cambios contra `--base` (los que encuentra `case impact`). Si no hay ninguno, no ejecuta nada y lo dice. |
 | `--base <ref>` | La referencia de git contra la que compara `--affected`. Por defecto `origin/main`. |
+| `--on-diff-error <fail\|all>` | Qué hace `--affected` cuando git no puede comparar contra `--base` (una referencia que no existe, un checkout superficial sin la base): `fail`, el valor por defecto, hace fallar el job con el mensaje de git y la solución; `all` ejecuta todos los casos. |
 | `--jobs <n>` | Cuántos hosts y jobs. Por defecto `ci.hosts.count` y, si no está, `2`. |
 | `--out <dir>` | Dónde queda la ejecución. Por defecto `lynkeus-run`. |
 | `--keep-up` | Deja el backend levantado al terminar. Los hosts terminan con la ejecución. |

@@ -19,7 +19,7 @@ import { freePorts } from '../cases/portClaim.js';
 import { PROGRESS_FILE } from '../cases/progress.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { REPORT_FILE } from './localReport.js';
-import { changedSources, reachOfChanges } from './map.js';
+import { changedSources, DiffError, reachOfChanges } from './map.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -211,6 +211,12 @@ export const ciCommands = [
     flags: {
       affected: { type: 'boolean', help: 'only the cases the changes against --base reach' },
       base: { type: 'string', help: 'git ref --affected diffs against', default: 'origin/main', value: 'ref' },
+      'on-diff-error': {
+        type: 'string',
+        help: 'when git cannot diff against --base (an unknown ref, a shallow checkout): fail the job, or run all the cases',
+        default: 'fail',
+        value: 'fail|all',
+      },
       jobs: { type: 'number', help: 'how many hosts and jobs (default ci.hosts.count, else 2)', value: 'n' },
       out: { type: 'string', help: 'where the run goes', default: 'lynkeus-run', value: 'dir' },
       'keep-up': { type: 'boolean', help: 'leave the backend up afterwards (the hosts end with the run)' },
@@ -239,7 +245,25 @@ export const ciCommands = [
       // With no route map no change traces to a screen: picking cases from it would pass every PR untested.
       const blind = ctx.flags.affected && screens() === 0;
       if (blind) picked = `All ${all.length} case files: the route map has no screen, so the changes cannot be traced to cases.`;
+      const onDiffError = String(ctx.flags['on-diff-error']);
+      if (onDiffError !== 'fail' && onDiffError !== 'all') return { text: `--on-diff-error takes fail or all, not ${onDiffError}`, code: 2 };
+      // A diff git could not make is no change: picking no case from it would pass the branch untested.
+      let changed: string[] | undefined;
       if (ctx.flags.affected && !blind) {
+        try {
+          changed = changedSources(ctx.root, String(ctx.flags.base), (await runtimeAt(ctx.root)).sources);
+        } catch (error) {
+          if (!(error instanceof DiffError)) throw error;
+          if (onDiffError === 'fail') {
+            const text = `${error.message}\n--affected ran no case: fix the base, or pass --on-diff-error all to run every case when the diff fails`;
+            if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### lynkeus: the diff failed\n\n${text}\n`);
+            return { text, code: 1 };
+          }
+          say(`${error.message.split('\n')[0]}; --on-diff-error all: running every case`);
+          picked = `All ${all.length} case files: the diff against ${ctx.flags.base} failed, and --on-diff-error all runs them all.`;
+        }
+      }
+      if (changed !== undefined) {
         const cases = all.flatMap(readCases);
         const graph = ctx.graph();
         const coverage = coverageOf(cases, Object.keys(graph.screens).sort(), readSeen(path.join(ctx.root, '.lynkeus', 'seen')), {
@@ -247,7 +271,6 @@ export const ciCommands = [
           navigators: navigatorRoutes(graph),
         });
         const runtime = await runtimeAt(ctx.root);
-        const changed = changedSources(ctx.root, String(ctx.flags.base), ctx.err, runtime.sources);
         const reach = await reachOfChanges(ctx.root, graph, changed, { base: String(ctx.flags.base), runtime, relative: runtime.sources.relative });
         const impact = withIdCases(
           withTextCases(impactOf(reach.affected, coverage, entryReason(changedAppEntry(ctx.root, changed))), cases, reach.texts),

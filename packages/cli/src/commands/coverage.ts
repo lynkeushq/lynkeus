@@ -153,7 +153,7 @@ export const coverageCommands = [
       if (typeof read === 'string') return { text: read, code: 1 };
       const base = ctx.flags.base as string;
       const runtime = await runtimeAt(ctx.root);
-      const changed = changedSources(ctx.root, base, ctx.err, runtime.sources);
+      const changed = changedSources(ctx.root, base, runtime.sources);
       const { affected, texts, ids, notes } = await reachOfChanges(ctx.root, ctx.graph(), changed, {
         base,
         depth: ctx.flags.depth as number,
