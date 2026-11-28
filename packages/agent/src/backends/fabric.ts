@@ -2,7 +2,7 @@ import { Dimensions } from 'react-native';
 
 import { type Backend, centre } from '../backend';
 import { touch } from '../native';
-import { commitCount, debugTree, pressHandlerFor, snapshotElements, trackCommits } from '../tree';
+import { commitCount, debugTree, openDrawerOnClose, pressHandlerFor, snapshotElements, trackCommits } from '../tree';
 
 /** The app on a device or simulator: fiber tree + Fabric measurement + native touches. */
 export const fabricBackend = (): Backend => {
@@ -47,6 +47,11 @@ export const fabricBackend = (): Backend => {
     },
     swipe: async (from, to, durationMs) => {
       await touch.swipe(from.x, from.y, to.x, to.y, durationMs);
+    },
+    closeDrawer: () => {
+      const close = openDrawerOnClose();
+      close?.();
+      return close !== undefined;
     },
     debug: debugTree,
   };

@@ -55,7 +55,7 @@ Empaqueta la app una vez:
 <carpeta instalada>/bin/fastsim-bundle <carpeta de la app> <carpeta del bundle> ios
 ```
 
-Para un bundle de Android, escribe `android` en lugar de `ios`. Ejecútalo en una terminal que tenga el entorno de tu build de desarrollo, como las variables `EXPO_PUBLIC_` y la dirección del backend: quedan escritas dentro del bundle.
+Para un bundle de Android, escribe `android` en lugar de `ios`. Ejecútalo en una terminal que tenga el entorno de tu build de desarrollo, como las variables `EXPO_PUBLIC_` y la dirección del backend: quedan escritas dentro del bundle. Eso incluye el token del proyecto (`EXPO_PUBLIC_LYNKEUS_TOKEN`, que `lynkeus init` guarda en `.env.local`; o `LYNKEUS_TOKEN` junto con `lynkeus-agent/babel` en una app de React Native sin Expo). Un bundle sin token deja apagado al agente y su host nunca se conecta. Antes de levantar cualquier host, `case run` y `fastsim start` revisan si el bundle tiene el token, y si no lo tiene lo vuelven a armar con el token en el entorno. Una versión de FastSim cuyo host le pasa al agente el token con el que arrancó (su `share/capabilities` incluye `host-token`) no necesita el token dentro del bundle: Lynkeus arranca cada host con `LYNKEUS_TOKEN`.
 
 Ese bundle es de release, así que en él `__DEV__` vale `false`. El agente se enciende igual, pero el código de la app que esté dentro de `if (__DEV__)` no se ejecuta. Por eso los comandos de la app (`reset`, un atajo para iniciar sesión) se registran con `qa.register` fuera de esa condición; en producción registrarlos no tiene efecto (más detalles en la [API del agente](/es/reference/agent-api/#qa)). Y si le pasas `enabled` al agente, una condición que exija `__DEV__` también lo apaga en FastSim.
 
@@ -96,6 +96,8 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 ## Problemas frecuentes
 
 **`Lynkeus FastSim for android not installed in <carpeta>`, o `declared but not startable here: fastsim:android`, aunque lo instalaste.** FastSim vive en `~/.cache/lynkeus/fastsim`, salvo que `XDG_CACHE_HOME` o `LYNKEUS_FASTSIM_DIR` digan otra cosa. Una terminal y un servidor MCP arrancados con valores distintos de esas variables miran instalaciones distintas. `lynkeus status`, `fastsim start` y el propio mensaje dicen qué carpeta leyeron y qué variable la cambió: arranca la terminal y el servidor con los mismos valores, o vuelve a instalar donde indica el mensaje.
+
+**`the host on port … did not bring its app within … s: its app's agent stayed off, as the bundle carries no Lynkeus token`.** El bundle se armó sin el token del proyecto en el entorno. Vuelve a armarlo con `EXPO_PUBLIC_LYNKEUS_TOKEN="$(cat .lynkeus/token)"` delante de `fastsim-bundle`, o deja que lo haga `case run`, que pone el token por su cuenta. En CI, el flujo que escribe `map ci --cases` lo define en el paso del bundle a partir del secreto `LYNKEUS_TOKEN`.
 
 **`the FastSim bundle at ... is older than ...`, seguido de un comando `fastsim-bundle`.** El código de la app cambió después de crear el bundle y Lynkeus no pudo volver a empaquetarlo: el comando del host no arranca `fastsim-run` desde una carpeta de FastSim instalada, o `fastsim-bundle` falló (debajo aparecen sus últimas líneas). Ejecuta el comando que muestra, corrige lo que indique y vuelve a correr los casos.
 

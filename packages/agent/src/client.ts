@@ -83,7 +83,20 @@ const deviceLocale = (): string | undefined => {
   }
 };
 
-export const start = (options: ClientOptions): (() => void) => {
+/**
+ * The token a Lynkeus FastSim host hands the agent, when it was started with one (LYNKEUS_TOKEN, as Lynkeus starts
+ * it): a bundle made without the token in its environment then attaches all the same (trial run 11). Only a FastSim
+ * host sets `__fastsimDevice`, before the app's code runs; a store build or a device never has it. The host is started
+ * by whoever holds the token, so the app learns nothing its driver does not already prove, and the token still never
+ * crosses the socket: both sides prove it, as with a token in the bundle.
+ */
+const hostToken = (): string | undefined => {
+  const device = (globalThis as { __fastsimDevice?: { lynkeusToken?: unknown } }).__fastsimDevice;
+  return typeof device?.lynkeusToken === 'string' && device.lynkeusToken.length > 0 ? device.lynkeusToken : undefined;
+};
+
+export const start = (given: ClientOptions): (() => void) => {
+  const options = given.token ? given : { ...given, token: hostToken() };
   // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
   if (!options.token && options.allowUnauthenticated !== true) {
     console.warn(NO_TOKEN);

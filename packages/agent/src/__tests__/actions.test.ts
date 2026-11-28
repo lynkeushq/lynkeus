@@ -456,3 +456,36 @@ describe('back, as a person goes back', () => {
     expect(nav.goBack).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('back with a drawer no navigator holds', () => {
+  it('closes it through the backend before it pops the route', async () => {
+    const { backend } = fakeBackend([]);
+    const goBack = jest.fn();
+    let open = true;
+    const handlers = createHandlers(
+      { ...noNavigation, canGoBack: () => true, goBack, currentRoute: () => ({ name: 'DemoShowroom' }) },
+      {
+        ...backend,
+        closeDrawer: () => {
+          const was = open;
+          open = false;
+          return was;
+        },
+      },
+    );
+    expect(await dispatch(handlers, 'back', undefined)).toEqual({ route: 'DemoShowroom', closed: 'drawer' });
+    expect(goBack).not.toHaveBeenCalled();
+    await dispatch(handlers, 'back', undefined);
+    expect(goBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells an open react-native-drawer-layout Drawer by its own props', async () => {
+    const { isOpenDrawer } = await import('../presentation');
+    const drawer = { open: true, onClose: () => undefined, renderDrawerContent: () => null };
+    expect(isOpenDrawer(drawer)).toBe(true);
+    expect(isOpenDrawer({ ...drawer, open: false })).toBe(false);
+    expect(isOpenDrawer({ ...drawer, drawerType: 'permanent' })).toBe(false);
+    // A modal or snackbar with open and onClose is not a drawer.
+    expect(isOpenDrawer({ open: true, onClose: () => undefined })).toBe(false);
+  });
+});

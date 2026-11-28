@@ -57,7 +57,7 @@ Bundle the app once:
 <install folder>/bin/fastsim-bundle <app folder> <bundle folder> ios
 ```
 
-Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle.
+Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle. That includes the project's token (`EXPO_PUBLIC_LYNKEUS_TOKEN`, which `lynkeus init` puts in `.env.local`; `LYNKEUS_TOKEN` with `lynkeus-agent/babel` in a React Native app without Expo): a bundle without it keeps its agent off, and its host never attaches. `case run` and `fastsim start` check the bundle for the token before any host starts, and bundle it again with the token set when it carries none. A FastSim release whose host hands the agent the token it is started with (its `share/capabilities` lists `host-token`) needs no token in the bundle: Lynkeus starts each host with `LYNKEUS_TOKEN`.
 
 The bundle is a release bundle: `__DEV__` is false in it. The agent turns itself on there anyway, but app code behind `if (__DEV__)` does not run. Register the app's commands (`reset`, a sign-in shortcut) with `qa.register` outside that check, as the [Agent API](/reference/agent-api/#qa) says; it is inert in a production build. If you pass `enabled` yourself, an expression that requires `__DEV__` turns the agent off on FastSim too.
 
@@ -98,6 +98,8 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 ## Troubleshooting
 
 **`Lynkeus FastSim for android not installed in <folder>`, or `declared but not startable here: fastsim:android`, though you installed it.** The FastSim folder is `~/.cache/lynkeus/fastsim`, moved by `XDG_CACHE_HOME` or `LYNKEUS_FASTSIM_DIR`. A shell and an MCP server started with different values of those variables read different installs. `lynkeus status`, `fastsim start` and the message itself name the folder they read, and which variable moved it: start the shell and the server with the same values, or install again where the message points.
+
+**`the host on port … did not bring its app within … s: its app's agent stayed off, as the bundle carries no Lynkeus token`.** The bundle was made without the project's token in its environment. Bundle it again with `EXPO_PUBLIC_LYNKEUS_TOKEN="$(cat .lynkeus/token)"` in front of `fastsim-bundle`, or let `case run` bundle it (it sets the token itself). In CI, the workflow `map ci --cases` writes sets it for the bundle step from the `LYNKEUS_TOKEN` secret.
 
 **`the FastSim bundle at ... is older than ...`, followed by a `fastsim-bundle` command.** The app's code changed after the bundle was made and Lynkeus could not bundle it again: the host command does not start `fastsim-run` from an installed FastSim folder, or `fastsim-bundle` failed (its last lines follow). Run the command it prints, fix what it reports, and run the cases again.
 

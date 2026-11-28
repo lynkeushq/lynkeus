@@ -539,6 +539,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // back on the showroom with its drawer open popped to Welcome).
     back: async () => {
       if (navigation.closeDrawer?.()) return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      // A react-native-drawer-layout drawer no navigator holds (trial run 11: the showroom's): closed by its own onClose.
+      if (await backend.closeDrawer?.()) {
+        await sleep(50);
+        return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      }
       const closer = elements().find((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim()));
       if (closer) {
         await press(closer.testId ? { testId: closer.testId } : { text: (closer.accessibilityLabel ?? closer.text)! }).catch(() => undefined);

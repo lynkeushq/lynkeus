@@ -123,7 +123,11 @@ export const reactNavigationAdapter = (ref: ContainerRef): NavigationAdapter => 
       if (!ref.isReady() || !ref.resetRoot) return;
       rememberInitial();
       // Nested navigators re-initialize to their initial screens. resetRoot() without a state throws.
-      const first = initialRoute ?? ref.getRootState()?.routes?.[0]?.name;
+      // A root that swaps its screens on a state change (signed in, signed out) declares other ones than it began with:
+      // a RESET to one it does not declare now is handled by no navigator (trial run 11: Login, while signed in).
+      const root = ref.getRootState();
+      const declared = root?.routeNames;
+      const first = initialRoute && (!declared || declared.includes(initialRoute)) ? initialRoute : (declared?.[0] ?? root?.routes?.[0]?.name);
       if (first) (ref.resetRoot as unknown as (state: { index: number; routes: { name: string }[] }) => void)({ index: 0, routes: [{ name: first }] });
     },
     resetTo: (name, params) => {

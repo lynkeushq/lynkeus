@@ -6,6 +6,7 @@ import { touch } from './native';
 import {
   blocksTouches,
   isA11yHidden,
+  isOpenDrawer,
   isUnrendered,
   layerKindOf,
   opaqueContainer,
@@ -496,6 +497,20 @@ export const pressHandlerFor = (testId: string): ((event: unknown) => void) | un
     if (typeof p.onClick === 'function') return p.onClick;
   }
   return undefined;
+};
+
+/** The `onClose` of the innermost open drawer in the tree (`isOpenDrawer`), composite components included. */
+export const openDrawerOnClose = (): (() => void) | undefined => {
+  let found: (() => void) | undefined;
+  const visit = (fiber: Fiber | null) => {
+    for (let node = fiber; node; node = node.sibling) {
+      const p = props(node);
+      if (isOpenDrawer(p)) found = p.onClose as () => void;
+      visit(node.child);
+    }
+  };
+  for (const root of rootFibers()) visit(root.child);
+  return found;
 };
 
 let commits = 0;

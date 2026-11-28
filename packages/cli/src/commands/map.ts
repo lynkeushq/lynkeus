@@ -520,6 +520,9 @@ const casesJob = (version: string, o: CasesJobPlan & { manager: string }): strin
     .filter((p) => o.targets.includes(`fastsim:${p}`))
     .map(
       (p) => `      - name: Install Lynkeus FastSim for ${p} and bundle the app
+        # The bundle carries the token its agent proves to the run: .env.local is not in the checkout.
+        env:
+          EXPO_PUBLIC_LYNKEUS_TOKEN: \${{ secrets.LYNKEUS_TOKEN }}
         run: |
           kit=$(${npx} fastsim install --platform ${p} --json | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync(0, 'utf8')).dir)")
           "$kit/bin/fastsim-bundle" . .lynkeus/fastsim-${p} ${p}
