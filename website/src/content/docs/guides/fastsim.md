@@ -97,6 +97,8 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
 
+**`Lynkeus FastSim for android not installed in <folder>`, or `declared but not startable here: fastsim:android`, though you installed it.** The FastSim folder is `~/.cache/lynkeus/fastsim`, moved by `XDG_CACHE_HOME` or `LYNKEUS_FASTSIM_DIR`. A shell and an MCP server started with different values of those variables read different installs. `lynkeus status`, `fastsim start` and the message itself name the folder they read, and which variable moved it: start the shell and the server with the same values, or install again where the message points.
+
 **`the FastSim bundle at ... is older than ...`, followed by a `fastsim-bundle` command.** The app's code changed after the bundle was made and Lynkeus could not bundle it again: the host command does not start `fastsim-run` from an installed FastSim folder, or `fastsim-bundle` failed (its last lines follow). Run the command it prints, fix what it reports, and run the cases again.
 
 **`Unknown method <name> (this is a release bundle, __DEV__ is false, ...)`** or **`no command reset registered; ... (this is a release bundle ...)`**. The app registers that command inside `if (__DEV__)`, which never runs in a FastSim bundle. Move the `qa.register` call out of the check; the next run bundles the app again.

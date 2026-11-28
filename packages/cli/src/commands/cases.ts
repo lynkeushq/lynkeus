@@ -44,7 +44,7 @@ import {
   targetSlug,
 } from '../cases/onTargets.js';
 import { fastsimBundleDir, freshBundle, staleDeviceJs, staleJsWarning, startsFastsim } from '../cases/staleBundle.js';
-import { hostGrantEnv, installedFastsim, installedKit, runGrants } from './fastsim.js';
+import { fastsimCacheNote, hostGrantEnv, installedFastsim, installedKit, runGrants } from './fastsim.js';
 import { writeRunReport } from './localReport.js';
 import { describeChanges, type LiveRun, pushRun, service, startLiveRun } from './report.js';
 import { TraceSink } from '../cases/traces.js';
@@ -1387,7 +1387,7 @@ export const fastsimHostCommand = (
   if (!o.bundle && o.configured && configuredBundle && (!o.platform || bundlePlatform(configuredBundle) === o.platform)) return { command: o.configured };
   const anyKit = o.platform ? installedKit(o.platform, o.kits) : (installedKit('ios', o.kits) ?? installedKit('android', o.kits));
   if (installedFastsim(o.kits).length === 0 || !anyKit)
-    return { unavailable: `not installed: \`lynkeus fastsim install --platform ${o.platform ?? 'ios|android'}\` (Team plan)` };
+    return { unavailable: `not installed in ${fastsimCacheNote(o.kits)}: \`lynkeus fastsim install --platform ${o.platform ?? 'ios|android'}\` (Team plan)` };
   // A bundle given for the other platform is that target's: this one takes its own platform's last bundle.
   const given = o.bundle ? path.resolve(root, o.bundle) : undefined;
   const bundle =
@@ -1402,7 +1402,9 @@ export const fastsimHostCommand = (
   if (!platform) return { unavailable: `${bundle} has no host.args: is it a folder fastsim-bundle made?` };
   const kit = installedKit(platform, o.kits);
   if (!kit)
-    return { unavailable: `the bundle draws ${platform}, and no Lynkeus FastSim for it is installed: \`lynkeus fastsim install --platform ${platform}\`` };
+    return {
+      unavailable: `the bundle draws ${platform}, and no Lynkeus FastSim for it is installed in ${fastsimCacheNote(o.kits)}: \`lynkeus fastsim install --platform ${platform}\``,
+    };
   return { command: `${JSON.stringify(path.join(kit, 'bin', 'fastsim-run'))} ${JSON.stringify(bundle)} {port}` };
 };
 

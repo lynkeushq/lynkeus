@@ -95,6 +95,8 @@ Instala y compara por plataforma: un build de iOS no dice nada sobre Android.
 
 ## Problemas frecuentes
 
+**`Lynkeus FastSim for android not installed in <carpeta>`, o `declared but not startable here: fastsim:android`, aunque lo instalaste.** FastSim vive en `~/.cache/lynkeus/fastsim`, salvo que `XDG_CACHE_HOME` o `LYNKEUS_FASTSIM_DIR` digan otra cosa. Una terminal y un servidor MCP arrancados con valores distintos de esas variables miran instalaciones distintas. `lynkeus status`, `fastsim start` y el propio mensaje dicen qué carpeta leyeron y qué variable la cambió: arranca la terminal y el servidor con los mismos valores, o vuelve a instalar donde indica el mensaje.
+
 **`the FastSim bundle at ... is older than ...`, seguido de un comando `fastsim-bundle`.** El código de la app cambió después de crear el bundle y Lynkeus no pudo volver a empaquetarlo: el comando del host no arranca `fastsim-run` desde una carpeta de FastSim instalada, o `fastsim-bundle` falló (debajo aparecen sus últimas líneas). Ejecuta el comando que muestra, corrige lo que indique y vuelve a correr los casos.
 
 **`Unknown method <nombre> (this is a release bundle, __DEV__ is false, ...)`** o **`no command reset registered; ... (this is a release bundle ...)`**. La app registra ese comando dentro de `if (__DEV__)`, y en un bundle de FastSim ese bloque no corre. Saca la llamada a `qa.register` de la condición; la próxima ejecución vuelve a empaquetar la app.

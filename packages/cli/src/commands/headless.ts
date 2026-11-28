@@ -17,7 +17,7 @@ import { type Ctx, define } from '../registry.js';
 import { laneLabel } from '../runtime.js';
 import { doctor } from './doctor.js';
 import { runtimeAt } from '../runtimes/index.js';
-import { installedFastsim, installedKit } from './fastsim.js';
+import { fastsimCacheNote, installedFastsim, installedKit } from './fastsim.js';
 import { runHost } from './hostProcess.js';
 import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
 import { appPlatforms, isAppFolder, machineTargets, type Platform, proposeTargets, runTargets } from './runTargets.js';
@@ -371,6 +371,7 @@ export const headlessCommands = [
         android: found?.android.map((d) => ({ ...d, reversed: reversed.includes(d.id) })),
         headless: runtime.headlessCheck(ctx.root, entryOf(ctx)),
         fastsim: installedFastsim(),
+        fastsimCache: fastsimCacheNote(),
         ...(isAppFolder(ctx.root)
           ? {
               targets: {

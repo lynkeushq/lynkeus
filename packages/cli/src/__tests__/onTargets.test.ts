@@ -317,7 +317,7 @@ const bundle = (root: string, name: string, platform: string, at: number): strin
 test('the FastSim target runs the installed kit on the last bundle under .lynkeus, or says what is missing', () => {
   const root = tmp('lynkeus-on-fastsim-');
   const kits = tmp('lynkeus-on-kits-');
-  assert.match(JSON.stringify(fastsimHostCommand(root, { kits })), /not installed: `lynkeus fastsim install --platform ios\|android`/);
+  assert.match(JSON.stringify(fastsimHostCommand(root, { kits })), /not installed in [^:]+: `lynkeus fastsim install --platform ios\|android`/);
   const ios = kit(kits, 'ios');
   const none = fastsimHostCommand(root, { kits });
   assert.ok('unavailable' in none);
@@ -340,7 +340,7 @@ test('the FastSim target runs the installed kit on the last bundle under .lynkeu
   assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'ios', bundle: newer }), {
     command: `${JSON.stringify(path.join(ios, 'bin', 'fastsim-run'))} ${JSON.stringify(older)} {port}`,
   });
-  assert.match(JSON.stringify(fastsimHostCommand(root, { kits, platform: 'android' })), /not installed: `lynkeus fastsim install --platform android`/);
+  assert.match(JSON.stringify(fastsimHostCommand(root, { kits, platform: 'android' })), /not installed in [^:]+: `lynkeus fastsim install --platform android`/);
   const android = kit(kits, 'android');
   assert.deepEqual(fastsimHostCommand(root, { kits, platform: 'android', configured }), {
     command: `${JSON.stringify(path.join(android, 'bin', 'fastsim-run'))} ${JSON.stringify(newer)} {port}`,
@@ -491,11 +491,12 @@ test('case run --on targets takes cases.targets, a case may override them, and n
     fs.writeFileSync(path.join(p.root, 'cases', 'two.md'), '---\nid: two\ntargets: [simulator]\n---\nsteps:\n  - app.wait: "#go"\n');
     const outcome = await withDevices(1, 0, () => execute(['case', 'run', '--on', 'targets', '--once'], p.base));
     const lines = (outcome.text ?? '').split('\n');
-    assert.deepEqual(lines.slice(0, 3), [
-      '✅ simulator  one',
-      '✅ simulator  two',
-      '✖ fastsim:ios not available: not installed: `lynkeus fastsim install --platform ios` (Team plan)',
-    ]);
+    assert.deepEqual(lines.slice(0, 2), ['✅ simulator  one', '✅ simulator  two']);
+    // The FastSim folder it looked in, and the variable that moved it, are named: a shell and an MCP server may read different ones.
+    assert.match(
+      lines[2] ?? '',
+      /^✖ fastsim:ios not available: not installed in \S+ \(from LYNKEUS_FASTSIM_DIR\): `lynkeus fastsim install --platform ios` \(Team plan\)$/,
+    );
     assert.equal(lines[3], 'simulator 2/2 passed · fastsim:ios not available');
     assert.match(lines.at(-1) ?? '', /^⚠ check incomplete: fastsim:ios \(1 case\(s\)\) declared but not available here/);
     assert.equal(outcome.code, 1);

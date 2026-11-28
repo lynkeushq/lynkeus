@@ -41,6 +41,8 @@ export type RunFacts = {
   android?: (DeviceInfo & { reversed?: boolean })[];
   headless: SetupCheck;
   fastsim: { version: string; variant: string }[];
+  /** The FastSim folder those were read from, with the variable that moved it. */
+  fastsimCache?: string;
   /** What `cases.targets` says and what to propose without it; left out, status says nothing of the project's targets. */
   targets?: {
     /** The project's targets, a sentence when they name something that is not one, undefined when none are declared. */
@@ -58,7 +60,7 @@ export const targetGap = (t: TargetName, facts: RunFacts): string | undefined =>
   const kits = facts.targets?.kits ?? [];
   const fastsim = (p: Platform) =>
     !kits.includes(p)
-      ? `Lynkeus FastSim for ${p} not installed (\`lynkeus fastsim install --platform ${p}\`)`
+      ? `Lynkeus FastSim for ${p} not installed${facts.fastsimCache ? ` in ${facts.fastsimCache}` : ''} (\`lynkeus fastsim install --platform ${p}\`)`
       : facts.targets?.bundles.includes(p)
         ? undefined
         : `no ${p} bundle under .lynkeus yet (\`case run --on targets\` says the fastsim-bundle command)`;
@@ -71,7 +73,7 @@ export const targetGap = (t: TargetName, facts: RunFacts): string | undefined =>
     case 'fastsim:android':
       return fastsim('android');
     case 'fastsim':
-      return kits.length ? undefined : 'Lynkeus FastSim not installed';
+      return kits.length ? undefined : `Lynkeus FastSim not installed${facts.fastsimCache ? ` in ${facts.fastsimCache}` : ''}`;
     case 'ios':
       return devices(facts.simulators, 'no iOS Simulator booted with the app');
     case 'android':
@@ -142,9 +144,13 @@ export const runTargets = (facts: RunFacts): { checks: SetupCheck[]; declared: S
   });
   checks.push(
     facts.fastsim.length
-      ? { what: `Lynkeus FastSim: ${facts.fastsim.map((h) => `${h.version}, ${h.variant}`).join('; ')}`, ok: true, group }
+      ? {
+          what: `Lynkeus FastSim: ${facts.fastsim.map((h) => `${h.version}, ${h.variant}`).join('; ')}${facts.fastsimCache ? `, in ${facts.fastsimCache}` : ''}`,
+          ok: true,
+          group,
+        }
       : {
-          what: 'Lynkeus FastSim: not installed',
+          what: `Lynkeus FastSim: not installed${facts.fastsimCache ? ` in ${facts.fastsimCache}` : ''}`,
           ok: false,
           optional: true,
           group,
