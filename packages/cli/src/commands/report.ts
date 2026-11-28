@@ -435,7 +435,9 @@ export const reportCommands = [
       const embedded = !!ctx.flags.embed || !!ctx.flags['embed-film'];
       const film = embedded && !ctx.flags['embed-film'];
       const warn =
-        embedded && size > 10_000_000 ? `\nwarning: ${megabytes(size)} is large for one file; drop --embed-film or --embed and share the folder instead.` : '';
+        embedded && size > 10_000_000
+          ? `\nwarning: ${megabytes(size)} is large for one file; drop ${ctx.flags['embed-film'] ? '--embed-film (the film)' : '--embed (the frames)'} and share the folder instead.`
+          : '';
       return {
         text: `${written.file} (${megabytes(size)}; open it in a browser, no network needed${film ? '; the film stays a file beside the page, so send the folder or pass --embed-film' : ''})${warn}`,
         json: { ...written, bytes: size },
