@@ -2233,6 +2233,7 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
   if (osFilm) {
     await osFilm.stop().catch(() => false);
     if (keepFilm(osFilm.file, await settledFilm(osFilm.file))) report.video = osFilm.file;
+    for (const note of osFilm.notes ?? []) warn(note);
   }
   // What the film said came after the report was made.
   if (warnings.length) report.warnings = warnings;

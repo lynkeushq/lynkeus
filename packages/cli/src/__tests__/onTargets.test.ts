@@ -119,6 +119,8 @@ const onTargets = async (
     brief?: boolean;
     signal?: AbortSignal;
     hold?: Promise<void>;
+    /** Each target's run waits for its own stop instead of `hold`: a run that is never stopped then never ends. */
+    holdUntilStopped?: boolean;
     budget?: { ms: number; stop: string };
   },
   root = tmp('lynkeus-on-'),
@@ -136,6 +138,11 @@ const onTargets = async (
       sub.err(`▶ login`);
       sub.progress?.({ type: 'case-start', at: new Date().toISOString(), id: 'login', job: 0, attempt: 1, steps: 1 });
       await o.hold;
+      if (o.holdUntilStopped)
+        await new Promise<void>((resolve) => {
+          if (sub.signal?.aborted) resolve();
+          else sub.signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
       sub.progress?.({ type: 'case-end', at: new Date().toISOString(), id: 'login', job: 0, attempt: 1, result: 'passed', ms: 10 });
       return o.results[t] ?? { text: 'never planned', code: 1 };
     },
@@ -268,22 +275,20 @@ test('a caller cancelling the run stops every target', async () => {
   assert.match(outcome.text ?? '', /⏹ stopped \(the caller cancelled case run\)/);
 });
 
-test('a run past its budget stops every target with that reason, and names once the cases no target reached', async () => {
-  let release: () => void = () => undefined;
-  const hold = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+// The targets' runs end only when something stops them, so the budget is the only way this run can end: on a loaded
+// machine its timer may fire late, never wrongly. A run the budget never stopped fails at the test's timeout.
+test('a run past its budget stops every target with that reason, and names once the cases no target reached', { timeout: 20_000 }, async () => {
   const stop = "the run's budget of 1 s ran out";
-  const run = onTargets({
+  const t0 = Date.now();
+  const { outcome, seen } = await onTargets({
     plans: { simulator: { flags: {}, jobs: 1 }, headless: host() },
     results: { simulator: { code: 130, reports: [] }, headless: { code: 130, reports: [] } },
     cases: ['login', 'logout'],
-    hold,
+    holdUntilStopped: true,
     budget: { ms: 50, stop },
   });
-  await new Promise((r) => setTimeout(r, 120));
-  release();
-  const { outcome, seen } = await run;
+  assert.ok(Date.now() - t0 >= 45, 'not stopped before its budget');
+  assert.equal(seen.length, 2);
   assert.ok(seen.every((s) => s.signal?.aborted && s.signal.reason === stop));
   assert.ok(
     seen.every((s) => s.flags.budget === undefined),
