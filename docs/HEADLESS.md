@@ -51,6 +51,13 @@ app keeps at module scope (a query cache, a store made at import) survives,
 since modules load once per host; an app whose cases see each other through
 it wants `--host-command` without `--keep-hosts`, a host per case.
 
+`app.relaunch` (and a macro such as `app.fresh` built on it) does the same
+reset on a kept host instead of starting the host again: the same isolation
+as between cases, in about 100 ms instead of the 2 to 3 s a new host takes to
+boot jest and the app. A host that cannot reset is started again. With a host
+per case (`--host-command` without `--keep-hosts`) a relaunch still starts a
+new host, so module scope starts empty there too.
+
 The first start of a host transforms the app and every package it imports
 through babel, about 9 s on an Expo app with Reanimated. Jest keeps that work
 in `.lynkeus/jest-cache/`, and every later start reads it back: about 1.5 s on

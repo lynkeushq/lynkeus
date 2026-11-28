@@ -174,6 +174,8 @@ With `--host`, the run also looks after the host. If it dies during a case (out 
 
 **Cases on one host start fresh.** A host that serves several cases (`--host`, or `--keep-hosts` with a host command that runs `headless start`, which `lynkeus ci` uses) is reset before each case after its first, in about 200 ms: its mocked storage (MMKV, keychain, AsyncStorage), network rules, clock, offline state and native mocks are emptied, the app's own `reset` command runs when it registered one, and the app is mounted again, so navigation starts over. The case's log says so with a `↺` line. One thing survives: what the app keeps at module scope, such as a query cache or a store created when a file is imported, because the app's modules are loaded once per host. When cases see each other's data that way, give each case a host of its own with `--host-command` and no `--keep-hosts`, at the cost of a host start per case.
 
+`app.relaunch` on such a host, and a macro built on it such as an `app.fresh` that resets and relaunches, does the same reset instead of starting the host again. It takes about 100 ms where a new host took 2 to 3 s to boot Jest and the app, and it isolates exactly as the reset between cases does. A host that cannot reset is started again. With a host per case, a relaunch still starts a new host.
+
 ## How it works
 
 `headless start` writes a Jest test file under `.lynkeus/host/` that imports your entry and renders its `App` with React Native Testing Library, then runs Jest on that one file. The test never ends: it hosts the app until you stop it.

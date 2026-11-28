@@ -217,6 +217,11 @@ export type RunOptions = {
    * per case, a kept host): `app.relaunch` and the relaunch before a covered first step use it instead of their own.
    */
   relaunch?: () => Promise<void>;
+  /**
+   * Mounts the app again in the process the run keeps for the job (a kept headless host), as the reset between cases
+   * does: `app.relaunch` tries it before `relaunch` and starts the host again only when it answers false.
+   */
+  remount?: () => Promise<boolean>;
 };
 
 /**
@@ -1356,7 +1361,10 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
    */
   const relaunch = async (): Promise<string> => {
     let how: string;
-    if (options.relaunch) {
+    // The same process goes on, and so does its film.
+    const remounted = !!options.remount && (await options.remount());
+    if (remounted) how = 'mounted the app again (the host is kept for the run)';
+    else if (options.relaunch) {
       if (hostFilm.on && hostFilm.file) {
         const file = hostFilm.file;
         const d = await device();
@@ -1394,7 +1402,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     away = false;
     requestsAfter = 0;
     const d = await device();
-    await d.idle({ quietMs: 300, timeoutMs: 8000 }).catch(() => undefined);
+    // A remount in a kept host is the reset between cases, and takes its quiet: modules, fonts and i18n are loaded already.
+    await d.idle({ quietMs: remounted ? 100 : 300, timeoutMs: 8000 }).catch(() => undefined);
     if (config.nativeMocks) await d.command('nativeMocks', { replace: config.nativeMocks }).catch(() => undefined);
     if (hostFilm.start && !hostFilm.on) hostFilm.on = await hostFilm.start();
     return how;

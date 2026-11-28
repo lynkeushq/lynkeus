@@ -330,7 +330,8 @@ Vuelve a abrir la app como la encuentra un caso nuevo. No lleva valor.
 | Dónde corre | Qué hace |
 |---|---|
 | Simulator o emulador | Cierra la app y la abre de nuevo (`simctl launch --terminate-running-process`, o `am force-stop` y el launcher) y espera a que se conecte. Necesita `app` en `lynkeus.config.json`. |
-| Un host que arrancó la corrida (`--host-command`, `host_command`) | Detiene el host y lo arranca otra vez, igual que arrancó el del caso. |
+| Un host que la corrida arrancó para el caso (`--host-command`, `host_command`) | Detiene el host y lo arranca otra vez, igual que arrancó el del caso. |
+| Un host headless que la corrida mantiene entre casos (`--host`, `--on headless`, `--keep-hosts`) | Vuelve a montar la app en el mismo proceso, como hace entre un caso y otro: borra el estado nativo simulado, pero lo que la app guarda a nivel de módulo sigue ahí. Tarda unos 100 ms, contra los 2 o 3 s de levantar un host nuevo. Si el host no puede hacer el reset, lo arranca de nuevo. |
 | Otro host (headless) | Monta la app desde cero (el `reset` del agente) y borra el estado nativo simulado del host. Un host que no puede hacerlo responde `unsupported`. |
 
 En un dispositivo, los mocks del caso se van con la app: si hacen falta, hay que volver a ponerlos después. Los `nativeMocks` de la configuración se mandan de nuevo.
