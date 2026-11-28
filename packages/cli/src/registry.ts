@@ -34,8 +34,11 @@ export type Base = {
   attached: boolean;
   /** A case step that has already waited for its control to be there and uncovered: the command need not wait again. */
   waited?: boolean;
-  /** The same, but waiting for its app on another port: one per host when several run side by side. */
-  forPort?: (port: number) => { base: Base; stop: () => Promise<void> };
+  /**
+   * The same, but waiting for its app on another port: one per host when several run side by side. `ended` says why
+   * that port's app can no longer come (its host exited), so a wait for it fails at once instead of at its timeout.
+   */
+  forPort?: (port: number, o?: { ended?: () => string | undefined }) => { base: Base; stop: () => Promise<void> };
   /** The same, on this port, for the apps `accepts` takes: an iOS Simulator's and an emulator's app attach side by side. */
   forApp?: (accepts: (hello: HelloEvent) => boolean, share: string) => { base: Base; stop: () => Promise<void> };
   /** Made by `forApp`: which apps of the port it drives (`ios`), so runs of this process on its other apps go on beside it. */

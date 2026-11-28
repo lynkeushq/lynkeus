@@ -291,29 +291,58 @@ export const licensedFastsimVariant = (command: string, cwd: string): string | u
   }
 };
 
-export type HostGrantOptions = { deps?: SignInDeps; fetchImpl?: typeof fetch; env?: NodeJS.ProcessEnv };
+export type HostGrantOptions = { deps?: SignInDeps; fetchImpl?: typeof fetch; env?: NodeJS.ProcessEnv; now?: () => number };
 
 /**
  * The environment a host started by `command` needs: a licensed Lynkeus FastSim host gets FASTSIM_GRANT from the same
  * credentials, cache and variant as `lynkeus fastsim grant`, so it does not depend on `npx --no-install lynkeus` finding
  * lynkeus. Any other host command, or a FASTSIM_GRANT already set, adds nothing. A grant that cannot be had is a failed run.
  */
-export const hostGrantEnv = async (ctx: Ctx, command: string, o: HostGrantOptions = {}): Promise<{ env: NodeJS.ProcessEnv } | { failed: Result }> => {
+export const hostGrantEnv = async (
+  ctx: Ctx,
+  command: string,
+  o: HostGrantOptions = {},
+): Promise<{ env: NodeJS.ProcessEnv; expiresAt?: string } | { failed: Result }> => {
   const base = o.env ?? process.env;
   const variant = licensedFastsimVariant(command, ctx.root);
   if (!variant || base.FASTSIM_GRANT) return { env: base };
   try {
     const cloud = cloudUrl(undefined);
     const got = await withCredentials(ctx, o.deps ?? {}, cloud, async (key, signedIn) => {
-      const grant = await fetchGrant({ cloud, key, variant, signedIn, fetchImpl: o.fetchImpl });
+      const grant = await fetchGrant({ cloud, key, variant, signedIn, fetchImpl: o.fetchImpl, ...(o.now ? { now: o.now() } : {}) });
       if (grant.warning) ctx.err(`warning: ${grant.warning}`);
       return grant;
     });
     if (!got) return { failed: { text: NO_CREDENTIALS(cloud), code: 2 } };
-    return { env: { ...base, FASTSIM_GRANT: got.grant } };
+    return { env: { ...base, FASTSIM_GRANT: got.grant }, expiresAt: got.expiresAt };
   } catch (error) {
     return { failed: { text: (error as Error).message, code: failedCode(error) } };
   }
+};
+
+/**
+ * The hosts' environment for a whole run. A grant lasts an hour and a run may last longer, or start on a cached one
+ * with minutes left: a host started after it ends refuses to start. So each host started asks again, and gets a new
+ * grant once the one held has less than 5 minutes left; until then the same environment, with no request.
+ */
+export const runGrants = async (
+  ctx: Ctx,
+  command: string,
+  o: HostGrantOptions = {},
+): Promise<{ env: () => Promise<{ env: NodeJS.ProcessEnv } | { failed: Result }> } | { failed: Result }> => {
+  const now = o.now ?? Date.now;
+  const first = await hostGrantEnv(ctx, command, o);
+  if ('failed' in first) return first;
+  let held = first;
+  return {
+    env: async () => {
+      if (held.expiresAt === undefined || Date.parse(held.expiresAt) - now() > GRANT_MIN_LEFT_MS) return { env: held.env };
+      const again = await hostGrantEnv(ctx, command, o);
+      if ('failed' in again) return again;
+      held = again;
+      return { env: held.env };
+    },
+  };
 };
 
 // Scripts, CI and MCP servers never wait on a browser: only a person at a terminal is sent to sign in.
