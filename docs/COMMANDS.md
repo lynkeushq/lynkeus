@@ -870,7 +870,7 @@ Reads the attached app’s screen and writes a case that goes to its route (`app
 | `--write` | save it in the cases folder instead of printing it |
 | `--host` | start `headless start` for the read, on a free driver port of its own, and stop it after |
 
-### `lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
+### `lynkeus ci [--affected] [--base <ref>] [--on-diff-error <fail|all>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
 
 Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down
 
@@ -880,6 +880,7 @@ Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’
 |---|---|
 | `--affected` | only the cases the changes against --base reach |
 | `--base <ref>` | git ref --affected diffs against (default `origin/main`) |
+| `--on-diff-error <fail|all>` | when git cannot diff against --base (an unknown ref, a shallow checkout): fail the job, or run all the cases (default `fail`) |
 | `--jobs <n>` | how many hosts and jobs (default ci.hosts.count, else 2) |
 | `--out <dir>` | where the run goes (default `lynkeus-run`) |
 | `--keep-up` | leave the backend up afterwards (the hosts end with the run) |

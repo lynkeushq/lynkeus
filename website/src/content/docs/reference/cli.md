@@ -1313,6 +1313,8 @@ It takes the screens that the diff against `--base` touches or imports, as [`map
 
 A changed string table (a file of object literals of strings, such as the app's translations) reaches only the files that name its changed keys and the cases whose steps name a changed text. When a changed key is not named anywhere by its whole key, every importer counts and a line says why. A file whose change is only testIDs, accessibility labels, comments or formatting reaches no screen; it reaches the cases whose steps (or macros) name a changed testID, old or new, or a changed label's text. `map check`, `map impact` and `ci --affected` narrow string tables and testIDs the same way.
 
+When git cannot make the diff (a `--base` that is not a ref in the checkout, or a shallow checkout that does not hold where the branch left its base), `case impact`, `map check` and `ci --affected` fail with exit code 1 and say why: git's own message, then the fix (`git fetch origin <branch>`, `git fetch --unshallow`, or `fetch-depth: 0` in `actions/checkout`). Over MCP, `case_impact` answers with that error. They never report that nothing changed, which would pass a branch nobody tested.
+
 | Flag | Default | Meaning |
 |---|---|---|
 | `--base <ref>` | `main` | The git ref to diff against. |
@@ -1374,7 +1376,7 @@ lynkeus case run --host
 ### `lynkeus ci`
 
 ```bash
-lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
+lynkeus ci [--affected] [--base <ref>] [--on-diff-error <fail|all>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
 ```
 
 Runs the suite the way a CI job does: it brings the backend up, runs the cases across N headless hosts, reports, and tears everything down. It runs `case run` with `--host-command` and `--keep-hosts`, so a host that dies takes one case with it, not every case after it. The exit code is the suite's.
@@ -1385,6 +1387,7 @@ It reads the `ci` section of `lynkeus.config.json` (see [CI configuration](/refe
 |---|---|---|
 | `--affected` | | Run only the cases that the changes against `--base` reach, as `case impact` finds them. It builds the route graph first if there is none. With no case to run, it says so and exits with 0. |
 | `--base <ref>` | `origin/main` | The git ref `--affected` diffs against. |
+| `--on-diff-error <fail\|all>` | `fail` | What `--affected` does when git cannot diff against `--base` (an unknown ref, a shallow checkout without the base): fail the job with git's message and the fix, or run every case. |
 | `--jobs <n>` | `ci.hosts.count`, else `2` | How many hosts, and so how many cases at once. |
 | `--out <dir>` | `lynkeus-run` | Where the run goes. |
 | `--keep-up` | | Leave the backend up afterwards. The hosts end with the run. |
