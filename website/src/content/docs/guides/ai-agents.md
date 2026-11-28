@@ -250,7 +250,7 @@ The first time, the client opens Lynkeus to ask for your approval and which orga
 
 The MCP server and the command line share one runtime. A tool call is turned back into the arguments of its command and executed the same way, so a tool behaves exactly as the command does in a terminal.
 
-The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time.
+The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time. An iOS and an Android development build can both be attached to it, and `fastsim_start` adds a FastSim host on a port of its own, so every answer about the app starts with the app it came from: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` or `[headless]`.
 
 Some commands are never served over MCP, in either size: `record` and the `report` commands, among others. They need a person or talk to the hosted service.
 

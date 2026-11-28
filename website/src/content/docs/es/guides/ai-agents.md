@@ -229,6 +229,8 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 
 Cada paso cuesta unos 50 ms, contra cerca de 1,5 s de un comando suelto. Cuando un paso falla, la respuesta trae `why` junto al error.
 
+Tanto la sesión como el servidor MCP pueden tener conectadas varias apps a la vez: un build de iOS, uno de Android y, después de `fastsim start`, un host de FastSim en un puerto aparte. Por eso cada respuesta sobre la app empieza indicando cuál contestó: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` o `[headless]`. En la sesión, además, la respuesta JSON trae ese valor en `lane`.
+
 ## Leer los reportes desde un agente
 
 Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Sus herramientas son `list_runs`, `get_run`, `get_case`, `get_step`, `get_frame`, `case_history` y `flaky_cases`. `get_case` dice qué prueba el caso y qué espera, y por cada paso los eventos de analítica que disparó, con el servicio al que fue cada uno (distinguiendo los de la app de los del backend), y las peticiones que mandó la app. `get_step` trae un paso completo: cada evento con sus propiedades, y cada petición con sus encabezados y cuerpos y lo que volvió, con los secretos ya ocultos. `get_frame` devuelve como imagen la pantalla que dejó un paso, por defecto el que falló, para que el cliente vea qué mostraba la app. Una ejecución guarda capturas cuando se hizo con `--screenshots`. Está descrito en [reportes](/es/guides/reports/).

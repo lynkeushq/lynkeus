@@ -8,7 +8,7 @@ import type { FlagSpec } from '../args.js';
 import { type ProgressEvent, RunState, statusLine } from '../cases/progress.js';
 import type { Session } from '../cli.js';
 import { type Command, commands, overMcp } from '../registry.js';
-import { execute } from '../runtime.js';
+import { execute, fromLane } from '../runtime.js';
 import { TARGET_HELP } from '../targets.js';
 
 const text = (body: string) => ({ content: [{ type: 'text' as const, text: body }] });
@@ -216,8 +216,10 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     const heartbeat = progress && notify ? setInterval(() => progress.beat() || notify.beat(c.name), HEARTBEAT_MS) : undefined;
     heartbeat?.unref();
     const r = await execute(argvFor(c, input), ctx).finally(() => clearInterval(heartbeat));
-    if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
-    const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    // Several apps can be attached at once (a Simulator's, an emulator's, a FastSim host's): an answer about the app says whose.
+    const lane = c.needs === 'app' ? ctx.lane?.() : undefined;
+    if (r.error) return { ...text(`✗ ${fromLane(lane, r.error)}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
+    const body = text(fromLane(lane, r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok')));
     // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is
     // reported as such, with everything it said, so a model does not read it as success.
     return r.code === 0 ? body : { ...body, isError: true };

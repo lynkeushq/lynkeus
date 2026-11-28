@@ -32,8 +32,8 @@
     "now": "68b9f34ba3498db4"
   },
   "surface/help/fastsim start": {
-    "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
-    "now": "f68b8d77d4eb9191"
+    "why": "new command: starts a FastSim host on the session's driver port. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning. fastsim start runs its host on a free port of its own and the session drives only it until fastsim stop: on the session's port the device apps still attached took turns with it, and in trial 7 a FastSim press answered with the Simulator's system prompt.",
+    "now": "2576fffec269d756"
   },
   "surface/help/fastsim stop": {
     "why": "new command: stops the host fastsim start started",
@@ -44,8 +44,8 @@
     "now": "158f4d5581d47e99"
   },
   "surface/mcp/tool/fastsim_start": {
-    "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning.",
-    "now": "7b46be325b84d7d7"
+    "why": "new tool: explore the app on a FastSim host. A bundle older than the app's code is bundled again first (or the start is refused with the command), instead of only a warning. fastsim start runs its host on a free port of its own and the session drives only it until fastsim stop: on the session's port the device apps still attached took turns with it, and in trial 7 a FastSim press answered with the Simulator's system prompt.",
+    "now": "d849c3fd817d3f35"
   },
   "surface/mcp/tool/fastsim_stop": {
     "why": "new tool: stops the host fastsim_start started",
