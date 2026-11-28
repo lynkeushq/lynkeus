@@ -660,3 +660,33 @@ describe('headlessBackend presentation', () => {
     expect(byTestId(elements, 'confirm').hidden).toBeUndefined();
   });
 });
+
+describe('back with a react-native-drawer-layout drawer open', () => {
+  // The library's controlled Drawer as an app writes it: open, onClose, renderDrawerContent; no navigator holds it.
+  const Drawer = ({ open, children }: { open: boolean; onClose: () => void; renderDrawerContent: () => ReactElement; children: ReactElement }) => (
+    <View>
+      {children}
+      {open ? <Text>Drawer content</Text> : null}
+    </View>
+  );
+  const Showroom = () => {
+    const [open, setOpen] = useState(true);
+    return (
+      <Drawer open={open} onClose={() => setOpen(false)} renderDrawerContent={() => <Text>Demos</Text>}>
+        <Text>{open ? 'drawer open' : 'drawer closed'}</Text>
+      </Drawer>
+    );
+  };
+
+  it('closes the drawer through its own onClose and keeps the route', async () => {
+    const { backend, rendered } = await mount(<Showroom />);
+    const goBack = jest.fn();
+    const handlers = createHandlers({ ...noNavigation, canGoBack: () => true, goBack, currentRoute: () => ({ name: 'DemoShowroom' }) }, backend);
+    expect(await dispatch(handlers, 'back', undefined)).toEqual({ route: 'DemoShowroom', closed: 'drawer' });
+    expect(goBack).not.toHaveBeenCalled();
+    expect(rendered.getByText('drawer closed')).toBeTruthy();
+    // Closed: back pops as before.
+    await dispatch(handlers, 'back', undefined);
+    expect(goBack).toHaveBeenCalledTimes(1);
+  });
+});

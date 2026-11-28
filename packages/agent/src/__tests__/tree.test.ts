@@ -438,3 +438,32 @@ describe('moveToViews', () => {
     expect(elements[2]?.frame.y).toBe(300);
   });
 });
+
+describe('the open drawer back closes', () => {
+  afterEach(() => {
+    delete g.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+  });
+
+  it('is the innermost react-native-drawer-layout Drawer whose props say it is open, composite as it is', async () => {
+    const { openDrawerOnClose } = await import('../tree');
+    const outer = jest.fn();
+    const inner = jest.fn();
+    const drawer = (open: boolean, onClose: () => void, children: FakeFiber[]) => {
+      const fiber = composite(children);
+      fiber.memoizedProps = { open, onClose, renderDrawerContent: () => null };
+      return fiber;
+    };
+    const tree = drawer(true, outer, [host('RCTView', {}, [0, 0, 400, 800], [drawer(true, inner, [host('RCTView', {}, [0, 0, 400, 800])])])]);
+    g.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      renderers: new Map([[1, {}]]),
+      getFiberRoots: () => new Set([{ current: { tag: 3, child: tree, sibling: null } }]),
+      onCommitFiberRoot: () => undefined,
+    };
+    openDrawerOnClose()?.();
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(outer).not.toHaveBeenCalled();
+    (tree.child!.child as FakeFiber).memoizedProps = { open: false, onClose: inner, renderDrawerContent: () => null };
+    openDrawerOnClose()?.();
+    expect(outer).toHaveBeenCalledTimes(1);
+  });
+});

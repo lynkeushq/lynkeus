@@ -173,7 +173,7 @@ lynkeus swipe --from 40,400 --to 340,400
 lynkeus back
 ```
 
-Goes back as a person does. An open drawer closes first: a React Navigation drawer navigator's, or a drawer whose overlay is labelled "Close drawer" (`react-native-drawer-layout`), or a control labelled "Close menu". The route stays and the answer says what closed. With nothing open, it pops the current route.
+Goes back as a person does. An open drawer closes first: a React Navigation drawer navigator's; a `react-native-drawer-layout` `Drawer` an app renders itself, told open by its own props (`open`, `onClose`, `renderDrawerContent`) and closed through its `onClose`, since its overlay changes on the UI thread where the tree does not see it; or a control labelled "Close drawer" or "Close menu". The route stays and the answer says what closed. With nothing open, it pops the current route.
 
 ### `lynkeus nav`
 

@@ -6,6 +6,7 @@ import {
   blocksTouches,
   flatStyle,
   isA11yHidden,
+  isOpenDrawer,
   isUnrendered,
   layerKindOf,
   opaqueContainer,
@@ -651,6 +652,27 @@ export const headlessBackend = (root: () => ReactTestInstance, options: BackendO
       throw new Error('Headless has no coordinates; press by testId or text');
     },
     pressJs: press,
+    // The drawer is a component, not a host: found up the fibers of the hosts it renders, the innermost one.
+    closeDrawer: async () => {
+      let open: { close: () => void; depth: number } | undefined;
+      const seen = new Set<unknown>();
+      const visit = (node: ReactTestInstance) => {
+        let depth = 0;
+        for (let fiber = node.unstable_fiber?.return ?? null; fiber; fiber = fiber.return) depth++;
+        for (let fiber = node.unstable_fiber ?? null, up = depth; fiber; fiber = fiber.return, up--) {
+          const p = fiber.memoizedProps;
+          if (!p || seen.has(fiber) || !isOpenDrawer(p)) continue;
+          seen.add(fiber);
+          if (!open || up > open.depth) open = { close: p.onClose as () => void, depth: up };
+        }
+        for (const child of node.children) if (typeof child !== 'string') visit(child);
+      };
+      visit(root());
+      if (!open) return false;
+      const { close } = open;
+      await act(async () => close());
+      return true;
+    },
     typeText: (chunk, target) => edit(target, (value) => value + chunk),
     deleteBackward: (count, target) => edit(target, (value) => value.slice(0, -count)),
     dismissKeyboard: async () => {

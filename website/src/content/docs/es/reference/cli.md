@@ -130,7 +130,7 @@ Sobre un objetivo, el arrastre empieza en su centro, y un control ancho no siemp
 
 ### `lynkeus back`
 
-Vuelve atrás como lo haría una persona. Si hay un cajón abierto, primero lo cierra: el de un navegador de cajón de React Navigation, uno cuya capa se llama "Close drawer" (`react-native-drawer-layout`), o un control llamado "Close menu". En ese caso la ruta no cambia y la respuesta dice qué cerró. Si no hay nada abierto, saca la ruta actual de la pila y vuelve a la anterior. No tiene argumentos ni opciones.
+Vuelve atrás como lo haría una persona. Si hay un cajón abierto, primero lo cierra: el de un navegador de cajón de React Navigation; un `Drawer` de `react-native-drawer-layout` que la app dibuja por su cuenta, que se reconoce abierto por sus propias props (`open`, `onClose`, `renderDrawerContent`) y se cierra con su `onClose`, porque su capa cambia en el hilo de la interfaz, donde el árbol no la ve; o un control llamado "Close drawer" o "Close menu". En ese caso la ruta no cambia y la respuesta dice qué cerró. Si no hay nada abierto, saca la ruta actual de la pila y vuelve a la anterior. No tiene argumentos ni opciones.
 
 ### `lynkeus nav`
 
