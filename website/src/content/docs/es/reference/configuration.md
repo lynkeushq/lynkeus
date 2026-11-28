@@ -203,7 +203,7 @@ Estas claves las leen `lynkeus crawl` y `lynkeus smoke`.
 | `crawl.never` | lista de textos | ninguno | Controles que el recorrido nunca pulsa. |
 | `crawl.close` | lista de textos | ninguno | Controles que cierran una capa que la app abre por encima de la pantalla. |
 | `crawl.back` | lista de textos | ninguno | Controles que vuelven atrás. Si no declaras ninguno, el recorrido toma como tal un control pequeño en la esquina superior izquierda. |
-| `crawl.login` | texto o lista de pasos | ninguno | Cómo iniciar sesión: el nombre de una macro de `cases.macros` (`"app.signIn"`) o una lista de pasos. El recorrido la ejecuta cuando un toque cerró la sesión y el camino de vuelta queda detrás del inicio de sesión, y también al empezar, si arranca en la pantalla que esos pasos esperan (el primer `app.wait` o `app.see` de una ruta). |
+| `crawl.login` | texto o lista de pasos | ninguno | Cómo iniciar sesión: el nombre de una macro de `cases.macros` (`"app.signIn"`) o una lista de pasos. El recorrido la ejecuta cuando un toque cerró la sesión y el camino de vuelta queda detrás del inicio de sesión, y también al empezar, si arranca en la pantalla que esos pasos esperan (el primer `app.wait` o `app.see` de una ruta). Si lo primero que esperan es un control (`#login-button`), el recorrido inicia sesión solo mientras ese control está en pantalla: con la sesión ya iniciada no la ejecuta nunca, y una ruta a la que no llega se informa como cualquier otro problema. |
 
 Las expresiones de `crawl.never`, `crawl.close` y `crawl.back` se comparan contra el `testID` y contra la etiqueta de cada control. Tanto estas como las de `errorCopy` no distinguen mayúsculas de minúsculas.
 

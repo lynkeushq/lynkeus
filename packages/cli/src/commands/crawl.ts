@@ -65,6 +65,13 @@ export type CrawlOptions = {
   signIn?: () => Promise<string | undefined>;
   /** The screen the sign-in begins on (its first wait for a route): a crawl that starts there signs in first. */
   signInFrom?: string;
+  /**
+   * What the sign-in waits for first when it is not a route (`#login-button`): the sign-in runs only while that is on
+   * screen, so a crawl already signed in never runs it.
+   */
+  signInShows?: Record<string, unknown>;
+  /** Goes to a route the way `nav` does, through the navigators that hold it; default the app's own navigate. */
+  nav?: (route: string) => Promise<void>;
   /** Where to start, reached through a sign-in when it is behind one; default the screen the app is on. */
   from?: string;
   /** Press what the directions say leads here first, and stop on arrival. */
@@ -109,6 +116,8 @@ export const crawl = async (
   let start: string | undefined;
   let gate: Gate | undefined;
   const signedOutOnly = new Set<string>();
+  // The routes a signed-out app's root holds, as its gates said.
+  const signedOutRoots = new Set<string>();
   let signIns = 0;
   const signIn = async (): Promise<string | undefined> => {
     signIns += 1;
@@ -117,20 +126,41 @@ export const crawl = async (
     await device.idle({ quietMs: 200, timeoutMs: 2000 }).catch(() => undefined);
     return failed;
   };
+  const go = (route: string) => (options.nav ? options.nav(route) : device.navigate(route));
+  /**
+   * Whether the sign-in is what stands in the way: its first screen in the app's root, or what it waits for first on
+   * screen. A route the root does not hold for another reason (a nested navigator not open yet) is no sign-in.
+   */
+  const signInShown = async (root: string[]): Promise<boolean> => {
+    if (options.signInFrom) return root.includes(options.signInFrom) || (await device.screen()).route === options.signInFrom;
+    if (options.signInShows) return !!(await device.server.call('find', options.signInShows).catch(() => null));
+    return true;
+  };
   /** Goes to a route; one the root does not hold is behind a sign-in: signed in through crawl.login, else the crawl stops there. */
   const navigate = async (route: string): Promise<void> => {
     try {
-      await device.navigate(route);
+      await go(route);
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const hit = GATE.exec(message);
       if (!hit) throw error;
+      const root = hit[2]!.split(', ').filter(Boolean);
+      if (options.signIn && !(await signInShown(root))) {
+        // Signed in, the route is a screen only a signed-out app shows: left, not the crawl's end.
+        if (route === options.signInFrom || signedOutRoots.has(route)) {
+          signedOutOnly.add(route);
+          throw new GateError(message);
+        }
+        // Signed in already (trial run 10: crawl.login ran on Welcome and failed): a plain way that did not work.
+        throw error;
+      }
+      for (const r of root) signedOutRoots.add(r);
       let failed: string | undefined;
       if (options.signIn && signIns < MAX_SIGN_INS) {
         failed = await signIn();
         if (!failed) {
-          const again = await device.navigate(route).then(
+          const again = await go(route).then(
             () => undefined,
             (e: unknown) => (e instanceof Error ? e.message : String(e)),
           );
@@ -141,7 +171,7 @@ export const crawl = async (
           throw new GateError(again);
         }
       }
-      gate = { route, root: hit[2]!.split(', ').filter(Boolean), ...(failed ? { error: failed } : {}) };
+      gate = { route, root, ...(failed ? { error: failed } : {}) };
       throw new GateError(message);
     }
   };
@@ -353,9 +383,13 @@ export const crawl = async (
   if (device.inBackground) await back();
   await clearOverlayIfShown(device, options.overlay);
   // Started on the screen the sign-in begins on: signed in first, so the crawl walks the app behind it.
-  if (options.signIn && options.signInFrom && (await device.screen()).route === options.signInFrom) {
+  const startsSignedOut = options.signInFrom
+    ? (await device.screen()).route === options.signInFrom
+    : !!options.signInShows && !!(await device.server.call('find', options.signInShows).catch(() => null));
+  if (options.signIn && startsSignedOut) {
     const failed = await signIn();
-    if (failed) gate = { route: options.from ?? options.signInFrom, root: [options.signInFrom], error: failed };
+    const here = (await device.screen()).route ?? '?';
+    if (failed) gate = { route: options.from ?? here, root: options.signInFrom ? [options.signInFrom] : [], error: failed };
   }
   if (options.from && !gate) {
     await navigate(options.from).catch((error: unknown) => {

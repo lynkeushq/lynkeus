@@ -169,7 +169,7 @@ The defaults for contrast are the figures of WCAG 2 level AA.
 | `crawl.never` | string[] | none | Controls the crawl must never press. |
 | `crawl.close` | string[] | none | Controls that close an overlay the app raises. Without them, the crawl closes an overlay by tapping its backdrop, then by swiping down. |
 | `crawl.back` | string[] | none | Controls that go back. Without them, the crawl takes a small control in the top-left corner for one. |
-| `crawl.login` | string or step[] | none | How to sign in: the name of a macro in `cases.macros` (`"app.signIn"`) or a list of steps. The crawl runs it when a press signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for (their first `app.wait` or `app.see` of a route). |
+| `crawl.login` | string or step[] | none | How to sign in: the name of a macro in `cases.macros` (`"app.signIn"`) or a list of steps. The crawl runs it when a press signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for (their first `app.wait` or `app.see` of a route). When that first wait is for a control (`#login-button`), the crawl signs in only while the control is on screen, so a crawl that is already signed in never runs it; a route it cannot reach then is reported as a problem like any other. |
 
 The three `crawl` lists are regular expressions matched, without regard to case, against a control's `testID` and its label.
 

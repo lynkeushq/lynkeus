@@ -327,3 +327,26 @@ test('with crawl.login the crawl signs in again where a press signed out and goe
   assert.ok(signedOut.signIns() >= 1);
   assert.deepEqual(signedOut.pressed.slice(0, 2), ['logout-button', 'next-screen-button']);
 });
+
+test('crawl.login runs only while the sign-in is on screen: a route a signed-in app cannot reach is no sign-in', async () => {
+  const app = gatedApp('Welcome');
+  await assert.rejects(
+    crawl({
+      device: app.device,
+      outDir: outDir(),
+      depth: 1,
+      maxActions: 20,
+      signIn: app.signIn,
+      signInShows: { testId: 'login-button' },
+      from: 'DemoCommunity',
+    }),
+    /No mounted navigator has a screen named DemoCommunity \(the root's: Welcome, Demo\)/,
+  );
+  assert.equal(app.signIns(), 0);
+  // Signed out, what the sign-in waits for is on screen: it signs in first, and after a press signs out.
+  const out = gatedApp('Login');
+  const { gate } = await crawl({ device: out.device, outDir: outDir(), depth: 1, maxActions: 20, signIn: out.signIn, signInShows: { testId: 'login-button' } });
+  assert.equal(gate, undefined);
+  assert.ok(out.signIns() >= 2, `${out.signIns()} sign-ins`);
+  assert.deepEqual(out.pressed.slice(0, 2), ['logout-button', 'next-screen-button']);
+});
