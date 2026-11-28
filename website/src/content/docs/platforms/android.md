@@ -108,7 +108,7 @@ The CLI does two kinds of things. Most go through the agent and are identical on
 
 Driving the app needs no device lookup: whichever app dials in is the app being driven. The CLI only needs to know which device to address when it acts from outside the app.
 
-When the app attaches, it says which platform it runs on. For an app on Android, the CLI then asks `adb devices` which devices are ready and picks one:
+When the app attaches, it says which platform it runs on and its application id. For an app on Android, the CLI asks `adb devices` which devices are ready and, with more than one, uses the one where the app has a process (`adb shell pidof`). A case's screenshots and film come from that device, never from an iOS Simulator booted beside it. When the attached app changes, the device is looked up again. Between several that run the app, or when the CLI cannot tell:
 
 | Source | Example |
 |---|---|
@@ -141,13 +141,13 @@ The `lynkeus os` commands available for Android are fewer:
 | `lynkeus os location <lat>,<lon>` | Yes. There is no `clear`. |
 | `lynkeus os appstate <background\|active>` | Yes. `background` presses Home; `active` brings the same task back through the app's launcher intent, and needs the application ID. |
 | `lynkeus os push` | No. |
-| `lynkeus os language` | No. |
+| `lynkeus os language [tag]` | Yes, on Android 13 (API 33) and later: it sets the app's own locale with `cmd locale set-app-locales` and the app restarts in it. Below that it fails saying so. Needs the application ID. |
 | `lynkeus os biometrics` | No. It works on the headless host, and `--available` on an iOS simulator. |
 
 Asking for one that is not available fails with:
 
 ```text
-"push" is not available on Android through lynkeus; permissions, appearance, location and appstate are
+"push" is not available on Android through lynkeus; permissions, appearance, location, language and appstate are
 ```
 
 `lynkeus mock` and a case's `app.mock` work on Android too: the agent answers a matching request inside the app. With `--lost` the request is sent and only its answer is lost. See [Driving the app](/guides/driving-the-app/#change-what-the-app-sees-mock-and-os).

@@ -15,7 +15,7 @@ The **agent** is the code mounted inside your app, from the `lynkeus-agent` pack
 
 The agent is what makes Lynkeus different from tools that drive an app through the operating system. It reads the tree React rendered, measures each element, and asks the platform which element a touch would reach. It synthesizes touches and keystrokes inside the app's process.
 
-Nothing listens inside the app. The app dials out; if nobody answers, it stays quiet and tries again. The agent runs only when it is enabled, which by default means in development (`__DEV__`).
+Nothing listens inside the app. The app dials out; if nobody answers, it stays quiet and tries again. The agent runs only when it is enabled, which by default means in development and on Lynkeus FastSim, never in a store build.
 
 ### Driver
 
@@ -165,7 +165,7 @@ Each case ends with one of three results: passed, failed, or unsupported on this
 
 As it goes, a run writes where it stands to `progress.ndjson`: in the `--out` directory, else as `.lynkeus/last-run.progress.ndjson`. `lynkeus case status` reads it from another terminal, during the run or after it.
 
-With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case where the host offers a `record` command; the headless host and a simulator or emulator session offer none.
+With `--out <dir>`, the run is written as a directory that any program can read: `run.json` (when it started and ended, what the app ran on, the totals) and `cases.jsonl` (one line per attempt, with every step, its duration, its error and its evidence). `--screenshots` adds a screenshot after every app step to that directory. `--video` adds a video of each case: a host that films (Lynkeus FastSim) films it, a Simulator is filmed with `simctl io recordVideo` and an emulator with `adb shell screenrecord`; the headless host draws nothing to film. Every `--out` run also writes `report.html`, a page of the run to open offline.
 
 ### Report
 
@@ -177,7 +177,7 @@ A **report** is a run presented for people: each case step by step, the video in
 
 **Flow.** A JSON file of steps that `lynkeus run` replays and `lynkeus record` writes from what a person does in the app. Flows came before cases; a case can run one with `app.run`.
 
-**`.lynkeus/`.** The folder in your app where Lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits. `.lynkeus/.gitignore` keeps everything else out of git: the token, runs, FastSim bundles (which contain the token), jest caches, the flake ledger, recorded screens and the map. Only `snapshots/`, `funnels/`, `lint/` and `lint.json` are left for git.
+**`.lynkeus/`.** The folder in your app where Lynkeus keeps what it produces and what you keep for it: the project's token, runs, recorded screens, snapshot baselines, the map of your app's routes, the ledger of how each case did. Runs, recorded screens and the map can be deleted and made again. Baselines and the funnels under `.lynkeus/funnels/` are what a team commits. `.lynkeus/.gitignore` keeps everything else out of git: the token, runs, FastSim bundles (which contain the token), jest caches, the flake ledger, recorded screens and the map. Only `snapshots/`, `funnels/`, `lint/` and `lint.json` are left for git, with that `.gitignore` itself: commit it, so `git status` listing `.lynkeus/` as new right after `lynkeus init` is expected, and the folder must not go into the root `.gitignore`. What else to commit: `lynkeus.config.json`, the cases folder and the skill in `.claude/skills/lynkeus`.
 
 ## Next steps
 

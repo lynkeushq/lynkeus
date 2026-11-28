@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -7,9 +7,10 @@ import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { makeFastsimCommands } from '../commands/fastsim.js';
-import { credentialsPath, login, loginCommands, savedLogin, saveLogin, signedInToken } from '../commands/login.js';
+import { credentialsPath, login, loginCommands, savedLogin, saveLogin, signedInToken, withCredentialsLock } from '../commands/login.js';
 import type { Ctx } from '../registry.js';
 
 const pair = crypto.generateKeyPairSync('ed25519');
@@ -24,9 +25,13 @@ const body = (req: IncomingMessage) =>
   });
 
 // A fake lynkeus.io: OAuth endpoints, and fastsim routes that need the bearer it issued.
-const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string; who?: object; rejectCode?: boolean } = {}) => {
+// With rotate, every refresh issues a new refresh token and a used one is refused, as lynkeus.io does.
+const fakeCloud = async (
+  opts: { expiresIn?: number; redirectReleasesTo?: string; who?: object; rejectCode?: boolean; rotate?: boolean; refreshDelayMs?: number } = {},
+) => {
   const seen: Seen[] = [];
-  const issued = { code: 'code-1', access: 'lka_one', refresh: 'lkr_one', challenge: '', clientId: 'client-1', redirectUri: '', refreshes: 0 };
+  const issued = { code: 'code-1', access: 'lka_one', refresh: 'lkr_one', challenge: '', clientId: 'client-1', redirectUri: '', refreshes: 0, reused: 0 };
+  const used = new Set<string>();
   const archive = (() => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-login-src-'));
     fs.writeFileSync(path.join(dir, 'README.md'), 'hi');
@@ -61,10 +66,19 @@ const fakeCloud = async (opts: { expiresIn?: number; redirectReleasesTo?: string
         if (form.get('code') !== issued.code || !verifierOk || form.get('redirect_uri') !== issued.redirectUri) return json({ error: 'invalid_grant' }, 400);
         return json({ access_token: issued.access, refresh_token: issued.refresh, expires_in: opts.expiresIn ?? 3600, scope: 'fastsim:download', ...opts.who });
       }
+      if (form.get('grant_type') === 'refresh_token' && opts.refreshDelayMs) await new Promise((r) => setTimeout(r, opts.refreshDelayMs));
       if (form.get('grant_type') === 'refresh_token' && form.get('refresh_token') === issued.refresh) {
         issued.refreshes++;
         issued.access = `lka_refreshed${issued.refreshes}`;
+        if (opts.rotate) {
+          used.add(issued.refresh);
+          issued.refresh = `lkr_rotated${issued.refreshes}`;
+        }
         return json({ access_token: issued.access, refresh_token: issued.refresh, expires_in: 3600, scope: 'fastsim:download' });
+      }
+      if (used.has(form.get('refresh_token') ?? '')) {
+        issued.reused++;
+        return json({ error: 'invalid_grant', error_description: 'the refresh token is unknown, used or expired' }, 400);
       }
       return json({ error: 'invalid_grant' }, 400);
     }
@@ -194,6 +208,133 @@ test('a sign-in that expires within a minute is refreshed first, and the new tok
   cloud.close();
 });
 
+const expireSaved = (cloudUrl: string) => {
+  const file = credentialsPath();
+  const all = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, Record<string, unknown>>;
+  all[cloudUrl] = { ...all[cloudUrl], expiresAt: 0 };
+  fs.writeFileSync(file, JSON.stringify(all), { mode: 0o600 });
+};
+
+const cliDir = fileURLToPath(new URL('../..', import.meta.url));
+const loginModule = new URL('../commands/login.ts', import.meta.url).href;
+
+// A separate lynkeus process that renews once a go file appears, so two of them ask at the same moment.
+const renewInChild = (cloudUrl: string, go: string) => {
+  const script = `
+    import fs from 'node:fs';
+    const { signedInToken } = await import(${JSON.stringify(loginModule)});
+    process.stdout.write('ready\\n');
+    while (!fs.existsSync(${JSON.stringify(go)})) await new Promise((r) => setTimeout(r, 5));
+    try {
+      process.stdout.write(JSON.stringify({ token: await signedInToken(${JSON.stringify(cloudUrl)}) }));
+    } catch (error) {
+      process.stdout.write(JSON.stringify({ error: error.message }));
+    }`;
+  const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], { cwd: cliDir, env: process.env });
+  let out = '';
+  let err = '';
+  const ready = new Promise<void>((resolve) =>
+    child.stdout.on('data', (chunk: Buffer) => {
+      out += chunk.toString();
+      if (out.startsWith('ready\n')) resolve();
+    }),
+  );
+  child.stderr.on('data', (chunk: Buffer) => (err += chunk.toString()));
+  const done = new Promise<{ token?: string; error?: string }>((resolve, reject) =>
+    child.on('exit', () => {
+      try {
+        resolve(JSON.parse(out.replace(/^ready\n/, '')) as { token?: string; error?: string });
+      } catch {
+        reject(new Error(`child printed ${JSON.stringify(out)}; stderr ${err}`));
+      }
+    }),
+  );
+  return { ready, done };
+};
+
+test('two processes renewing at the same moment make one renewal and both get the new token', async (t) => {
+  const home = isolate();
+  const cloud = await fakeCloud({ rotate: true, refreshDelayMs: 300 });
+  t.after(cloud.close);
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  expireSaved(cloud.url);
+  const go = path.join(home, 'go');
+  const children = [renewInChild(cloud.url, go), renewInChild(cloud.url, go)];
+  await Promise.all(children.map((c) => c.ready));
+  fs.writeFileSync(go, '');
+  const results = await Promise.all(children.map((c) => c.done));
+  assert.deepEqual(results, [{ token: 'lka_refreshed1' }, { token: 'lka_refreshed1' }]);
+  assert.equal(cloud.issued.refreshes, 1);
+  assert.equal(cloud.issued.reused, 0);
+  assert.equal(savedLogin(cloud.url)?.refreshToken, 'lkr_rotated1');
+  assert.ok(!fs.existsSync(`${credentialsPath()}.lock`));
+});
+
+test('a lock left by a process that died, or one past its age, is taken over', async (t) => {
+  isolate();
+  const cloud = await fakeCloud({ rotate: true });
+  t.after(cloud.close);
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  const lock = `${credentialsPath()}.lock`;
+  const dead = spawnSync(process.execPath, ['-e', '']).pid;
+  fs.writeFileSync(lock, JSON.stringify({ pid: dead, host: os.hostname(), nonce: 'dead' }));
+  expireSaved(cloud.url);
+  const started = Date.now();
+  assert.equal(await signedInToken(cloud.url), 'lka_refreshed1');
+  assert.ok(Date.now() - started < 5_000);
+  assert.ok(!fs.existsSync(lock));
+
+  fs.writeFileSync(lock, JSON.stringify({ pid: process.pid, host: os.hostname(), nonce: 'old' }));
+  const old = new Date(Date.now() - 120_000);
+  fs.utimesSync(lock, old, old);
+  expireSaved(cloud.url);
+  assert.equal(await signedInToken(cloud.url), 'lka_refreshed2');
+  assert.ok(!fs.existsSync(lock));
+});
+
+test('a renewal waits for a live lock and then uses what its holder saved', async (t) => {
+  isolate();
+  const cloud = await fakeCloud({ rotate: true });
+  t.after(cloud.close);
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  expireSaved(cloud.url);
+  let release = () => {};
+  const held = withCredentialsLock(
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+  );
+  const waiting = signedInToken(cloud.url);
+  await new Promise((r) => setTimeout(r, 200));
+  assert.equal(cloud.issued.refreshes, 0);
+  saveLogin({ ...savedLogin(cloud.url)!, accessToken: 'lka_from_holder', refreshToken: 'lkr_from_holder', expiresAt: Date.now() + 3_600_000 });
+  release();
+  await held;
+  assert.equal(await waiting, 'lka_from_holder');
+  assert.equal(cloud.issued.refreshes, 0);
+});
+
+test('invalid_grant after a process that skips the lock renewed first uses the tokens it saved', async (t) => {
+  isolate();
+  const cloud = await fakeCloud({ rotate: true });
+  t.after(cloud.close);
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  expireSaved(cloud.url);
+  let raced = false;
+  const racing: typeof fetch = async (input, init) => {
+    if (String(input).endsWith('/token') && !raced) {
+      raced = true;
+      const won = (await (await fetch(input, init)).json()) as { access_token: string; refresh_token: string };
+      saveLogin({ ...savedLogin(cloud.url)!, accessToken: won.access_token, refreshToken: won.refresh_token, expiresAt: Date.now() + 3_600_000 });
+    }
+    return fetch(input, init);
+  };
+  assert.equal(await signedInToken(cloud.url, racing), 'lka_refreshed1');
+  assert.equal(cloud.issued.reused, 1);
+  assert.equal(savedLogin(cloud.url)?.refreshToken, 'lkr_rotated1');
+});
+
 test('fastsim install with no key and no sign-in exits 2 naming both ways', async () => {
   isolate();
   const result = (await install.run(ctx({ cloud: 'https://lynkeus.io', version: 'latest', platform: 'ios', variant: 'linux-x64-ios' }))) as {
@@ -201,7 +342,8 @@ test('fastsim install with no key and no sign-in exits 2 naming both ways', asyn
     code: number;
   };
   assert.equal(result.code, 2);
-  assert.match(result.text, /^no way to sign in to \S+: run lynkeus login in a terminal/);
+  assert.match(result.text, /^A step only the person can do: run `lynkeus login`/);
+  assert.match(result.text, /no way to sign in to \S+/);
   assert.match(result.text, /in CI, set LYNKEUS_CLOUD_KEY.*May download Lynkeus FastSim/);
 });
 
@@ -211,7 +353,7 @@ test('a 401 with a sign-in says to sign in again', async () => {
   await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
   cloud.issued.access = 'lka_revoked';
   const result = (await install.run(ctx({ cloud: cloud.url, version: 'latest', platform: 'ios', variant: 'linux-x64-ios' }))) as { text: string; code: number };
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.text, /sign in again with lynkeus login/);
   cloud.close();
 });
@@ -349,7 +491,7 @@ test('a refused saved sign-in at a terminal signs in once and retries once', asy
   cloud.close();
 });
 
-test('a refused saved sign-in without a terminal keeps the old message and opens nothing', async () => {
+test('a refused saved sign-in without a terminal says first that only the person can sign in, and opens nothing', async () => {
   isolate();
   delete process.env.CI;
   const cloud = await fakeCloud();
@@ -357,8 +499,27 @@ test('a refused saved sign-in without a terminal keeps the old message and opens
   cloud.issued.access = 'lka_revoked';
   const { opened, install: cmd } = withTty(cloud, { tty: false });
   const result = (await cmd.run(ctx(flagsFor(cloud.url)))) as Out;
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
+  assert.match(result.text.split('\n')[0] ?? '', /^A step only the person can do: run `lynkeus login` in a terminal/);
   assert.match(result.text, /sign in again with lynkeus login/);
+  assert.equal(opened.length, 0);
+  cloud.close();
+});
+
+test('a sign-in whose refresh the service no longer takes, without a terminal, says first that only the person can sign in', async () => {
+  isolate();
+  delete process.env.CI;
+  const cloud = await fakeCloud();
+  await login({ cloud: cloud.url, open: browser(cloud, goodAnswer) });
+  const file = credentialsPath();
+  const all = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, Record<string, unknown>>;
+  all[cloud.url] = { ...all[cloud.url], expiresAt: 0, refreshToken: 'lkr_used' };
+  fs.writeFileSync(file, JSON.stringify(all), { mode: 0o600 });
+  const { opened, install: cmd } = withTty(cloud, { tty: false });
+  const result = (await cmd.run(ctx(flagsFor(cloud.url)))) as Out;
+  assert.equal(result.code, 2);
+  assert.match(result.text.split('\n')[0] ?? '', /^A step only the person can do/);
+  assert.match(result.text, /could not be renewed.*invalid_grant/);
   assert.equal(opened.length, 0);
   cloud.close();
 });

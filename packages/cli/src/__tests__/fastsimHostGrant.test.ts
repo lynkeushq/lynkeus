@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { hostGrantEnv, licensedFastsimVariant } from '../commands/fastsim.js';
+import { hostGrantEnv, licensedFastsimVariant, runGrants } from '../commands/fastsim.js';
 import type { Ctx } from '../registry.js';
 
 const isolate = () => {
@@ -54,7 +54,9 @@ test('a licensed FastSim host command gets FASTSIM_GRANT from the in-process gra
   const { ctx } = ctxFor(home);
   const { calls, fetchImpl } = grantFetch();
   const first = await hostGrantEnv(ctx, command, { fetchImpl, env: { PATH: '/bin' } });
-  assert.deepEqual(first, { env: { PATH: '/bin', FASTSIM_GRANT: 'v1.payload.sig' } });
+  assert.ok('env' in first);
+  assert.deepEqual(first.env, { PATH: '/bin', FASTSIM_GRANT: 'v1.payload.sig' });
+  assert.ok(first.expiresAt && Date.parse(first.expiresAt) > Date.now());
   assert.equal(calls.length, 1);
   assert.equal(calls[0]!.auth, 'Bearer lk_abc');
   assert.deepEqual(JSON.parse(calls[0]!.body), { variant: 'darwin-arm64-ios' });
@@ -106,4 +108,48 @@ test('a refused grant fails the run with exit code 1, the plans hint and without
   assert.equal(result.failed.code, 1);
   assert.match(String(result.failed.text), /no Lynkeus FastSim entitlement\nPlans: https:\/\/lynkeus\.io\/pricing/);
   assert.doesNotMatch(String(result.failed.text), /lk_abc|v1\./);
+});
+
+test('a run longer than its grant starts its later hosts with a new one, asked for only near the end of the old', async () => {
+  const home = isolate();
+  process.env.LYNKEUS_CLOUD_KEY = 'lk_abc';
+  let clock = Date.parse('2026-11-27T22:00:00Z');
+  let issued = 0;
+  const fetchImpl = (async () => {
+    issued++;
+    return new Response(JSON.stringify({ grant: `v1.grant${issued}.sig`, expiresAt: new Date(clock + 3_600_000).toISOString() }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as unknown as typeof fetch;
+  const kept = await runGrants(ctxFor(home).ctx, kit(home, 'darwin-arm64-android'), { fetchImpl, env: {}, now: () => clock });
+  assert.ok('env' in kept);
+  const at = async (minutes: number) => {
+    clock = Date.parse('2026-11-27T22:00:00Z') + minutes * 60_000;
+    const got = await kept.env();
+    assert.ok('env' in got);
+    return got.env.FASTSIM_GRANT;
+  };
+  assert.equal(await at(0), 'v1.grant1.sig');
+  // Fifty minutes in, the first still has ten left: no request.
+  assert.equal(await at(50), 'v1.grant1.sig');
+  assert.equal(issued, 1);
+  // Seventy minutes in (run 7's restart of its Android host), the first has ended: a host gets the next one.
+  assert.equal(await at(70), 'v1.grant2.sig');
+  assert.equal(issued, 2);
+});
+
+test('a grant the person set is used for the whole run and never renewed', async () => {
+  const home = isolate();
+  const { calls, fetchImpl } = grantFetch();
+  const kept = await runGrants(ctxFor(home).ctx, kit(home, 'darwin-arm64-ios'), {
+    fetchImpl,
+    env: { FASTSIM_GRANT: 'v1.mine.sig' },
+    now: () => Date.now() + 10 * 3_600_000,
+  });
+  assert.ok('env' in kept);
+  const got = await kept.env();
+  assert.ok('env' in got);
+  assert.equal(got.env.FASTSIM_GRANT, 'v1.mine.sig');
+  assert.equal(calls.length, 0);
 });

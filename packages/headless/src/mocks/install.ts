@@ -1,4 +1,4 @@
-import { installRuntime, log, resolvable } from '../runtime.js';
+import { installRuntime, log, onMounted, resolvable } from '../runtime.js';
 import { installAnalytics } from './analytics.js';
 import { installNativeMocks } from './native.js';
 import { installNativeValues } from './nativeValues.js';
@@ -17,6 +17,7 @@ import {
   type LocaleDefault,
   type MockFactory,
 } from './factories.js';
+import { defaultIntlLocale, expoLocalization, localeFacts } from './locale.js';
 import { shippedMocks } from './shipped.js';
 
 // jest injects `jest` as a module-scoped local, not onto globalThis.
@@ -396,13 +397,18 @@ const installNetInfo = () => {
   log('netinfo: follows `network on|off`');
 };
 
-const deferAnimationCompletions = () => {
-  const mock = registeredMock('react-native-reanimated');
-  if (!mock) return;
-  const patched = ['withTiming', 'withSpring', 'withDecay', 'withDelay', 'withSequence', 'withRepeat'].filter((name) => {
-    const original = mock[name];
-    if (typeof original !== 'function') return false;
-    mock[name] = (...args: unknown[]) => {
+const ANIMATIONS = ['withTiming', 'withSpring', 'withDecay', 'withDelay', 'withSequence', 'withRepeat'];
+
+/** Patches reanimated's animation functions in place where it can: a mock's plain properties, never the real module's getters. */
+export const deferCompletions = (module: Record<string, unknown>): void => {
+  const writable = (name: string) => {
+    const descriptor = Object.getOwnPropertyDescriptor(module, name);
+    return typeof descriptor?.value === 'function' && descriptor.writable === true;
+  };
+  const patched = ANIMATIONS.filter(writable);
+  for (const name of patched) {
+    const original = module[name] as (...args: unknown[]) => unknown;
+    module[name] = (...args: unknown[]) => {
       const at = args.findIndex((a) => typeof a === 'function');
       if (at === -1) return original(...args);
       const callback = args[at] as (...a: unknown[]) => void;
@@ -410,17 +416,34 @@ const deferAnimationCompletions = () => {
       deferred[at] = (...callbackArgs: unknown[]) => setTimeout(() => callback(...callbackArgs), 0);
       return original(...deferred);
     };
-    return true;
-  });
+  }
   if (patched.length) log(`animations: completions deferred to the next tick (${patched.join(', ')})`);
   // Reanimated's mock returns withRepeat's animation and never calls its callback, and withSequence answers 0:
   // a screen that moves on when a repeat ends (a receipt printed six times, then the next screen) never moved on.
-  if (typeof mock.withRepeat === 'function')
-    mock.withRepeat = (animation: unknown, _times?: unknown, _reverse?: unknown, callback?: unknown) => {
+  if (writable('withRepeat'))
+    module.withRepeat = (animation: unknown, _times?: unknown, _reverse?: unknown, callback?: unknown) => {
       if (typeof callback === 'function') setTimeout(() => (callback as (finished: boolean) => void)(true), 0);
       return animation;
     };
-  if (typeof mock.withSequence === 'function') mock.withSequence = (...animations: unknown[]) => animations.at(-1) ?? 0;
+  if (writable('withSequence')) module.withSequence = (...animations: unknown[]) => animations.at(-1) ?? 0;
+};
+
+/**
+ * Only a mocked reanimated needs this; the host keeps the real one. A mock from \`overrides\` is patched as the app
+ * first requires it. Any other (the entry's own \`jest.mock\`, a setup that keeps its mock under LYNKEUS_HEADLESS) is
+ * patched once the app is up, on the object the app got. Asking jest for the mock up front instead built an automock
+ * of the real module, loading reanimated and React Native a second time (a quarter of a second each start), and
+ * patched an object the app never saw.
+ */
+const deferAnimationCompletions = (factory: MockFactory | undefined): MockFactory | undefined => {
+  if (factory)
+    return () => {
+      const module = factory() as Record<string, unknown>;
+      deferCompletions(module);
+      return module;
+    };
+  onMounted(() => deferCompletions(require('react-native-reanimated') as Record<string, unknown>));
+  return undefined;
 };
 
 // jest-expo answers expo-constants' manifest with an empty object where a device build embeds the app config: an app
@@ -445,6 +468,19 @@ const installExpoConfig = () => {
   }
 };
 
+// The time zone Date runs in is the process's (TZ), which only the host's environment sets: `case run --time-zone`
+// and LYNKEUS_TIME_ZONE do; an entry's `locale.timeZone` reaches the localization libraries alone.
+const installLocale = (locale: LocaleDefault) => {
+  const facts = localeFacts(locale);
+  defaultIntlLocale(facts.languageTag);
+  const running = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (locale.timeZone && running !== locale.timeZone)
+    log(
+      `locale: the app is told the time zone is ${locale.timeZone} but Date runs in ${running}; start the host with LYNKEUS_TIME_ZONE (case run --time-zone) to move both`,
+    );
+  log(`locale: ${facts.languageTag}, ${facts.timeZone}`);
+};
+
 // Call at the top of the headless entry, before the app is required. Returns the modules it mocked.
 export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   if (typeof jest === 'undefined') throw new Error('installDefaultMocks must run under jest (lynkeus headless).');
@@ -452,6 +488,7 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   const skip = new Set(options.skip ?? []);
   const overrides = options.overrides ?? {};
   const hosts = options.networkHosts ?? LOCAL_HOSTS;
+  const locale = launchLocale(options.locale);
 
   // Applied only when the module resolves in the project, and only for libraries most apps have whose generic answer
   // breaks them: storage that must keep what was written, a client version above any server gate, insets that
@@ -463,17 +500,20 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
     'react-native-keychain': keychain,
     'react-native-device-info': deviceInfo(options.deviceVersion),
     'react-native-safe-area-context': safeAreaContext,
-    'react-native-localize': localize(launchLocale(options.locale)),
+    'react-native-localize': localize(locale),
+    'expo-localization': expoLocalization(locale),
     '@react-native-async-storage/async-storage': asyncStorage,
     'react-native-worklets': worklets,
     'react-native-pager-view': pagerView,
     'react-native-webview': webView,
   };
 
+  const deferred = (options.animations ?? 'deferred') === 'deferred' && resolvable('react-native-reanimated');
+  const animated = deferred ? deferAnimationCompletions(overrides['react-native-reanimated']) : undefined;
   const installed: string[] = [];
   for (const name of new Set([...Object.keys(defaults), ...Object.keys(overrides)])) {
     if (skip.has(name)) continue;
-    const factory = overrides[name] ?? (resolvable(name) ? defaults[name] : undefined);
+    const factory = (name === 'react-native-reanimated' ? animated : undefined) ?? overrides[name] ?? (resolvable(name) ? defaults[name] : undefined);
     if (!factory) continue;
     jest.doMock(name, factory);
     installed.push(name);
@@ -487,10 +527,10 @@ export const installDefaultMocks = (options: InstallOptions = {}): string[] => {
   const recorders = installAnalytics();
   installNativeMocks();
   installNativeValues();
-  if ((options.animations ?? 'deferred') === 'deferred') deferAnimationCompletions();
   installNetInfo();
   installExpoConfig();
   installWebSocket(options.websocket ?? 'stub', hosts);
+  installLocale(locale);
 
   log(`mocked: ${installed.sort().join(', ') || '(none detected)'}`);
   if (Object.keys(shipped).length) log(`their own jest mocks: ${Object.keys(shipped).sort().join(', ')}`);

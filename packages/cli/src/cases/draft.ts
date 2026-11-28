@@ -1,6 +1,8 @@
 import type { FixtureCommand, Screen } from 'lynkeus-protocol';
 
 import type { PlanStep } from '../knowledge/plan.js';
+import { routeOf } from './coverage.js';
+import { stepLine, type Way } from './reuse.js';
 
 export type DraftInput = {
   id: string;
@@ -9,20 +11,26 @@ export type DraftInput = {
   to: string;
   /** The way from `from` to `to`, as `map plan` finds it; undefined when no path is known. */
   path: PlanStep[] | undefined;
+  /** The way an existing case takes there, offered before the route map's plan. */
+  way?: Way;
   /** What the project's fixtures server says it can do, offered as the setup to pick from. */
   fixtures?: FixtureCommand[];
   /** The project's macros (`app.login`…), offered too. */
   macros?: string[];
   /** The project declares a fixtures server that did not describe itself. */
   fixturesSilent?: boolean;
+  /** Where `from` came from when neither the author nor `cases.start` named it (the screen the app shows now…). */
+  fromNote?: string;
+  /**
+   * What is known to be on `to` when no case goes there: testIDs in its source (`from` the file), what runs saw on it,
+   * and the presses that lead on from it. Offered as checks to keep, commented out.
+   */
+  known?: { ids: { id: string; from?: string }[]; texts: string[]; leadsTo: { press: string; to: string }[] };
 };
+
+const MAX_KNOWN = 6;
 
 const quote = (s: string) => JSON.stringify(s);
-
-const paramsHint = (c: FixtureCommand) => {
-  const params = Object.entries(c.params ?? {}).map(([k, p]) => `${k}${p.values ? ` (${p.values.join('|')})` : ''}`);
-  return params.length ? ` — ${params.join(', ')}` : '';
-};
 
 /**
  * A case to finish: its frontmatter with the questions a reader needs answered, the backend's setup offered (never
@@ -42,29 +50,31 @@ export const draftCase = (d: DraftInput): string => {
     '---',
     'setup:',
   ];
-  if (d.fixtures?.length) {
-    lines.push('  # Pick what the case needs; the backend answers these (lynkeus fixtures describe):');
-    for (const c of d.fixtures) {
-      const example = c.example ? ` ${JSON.stringify(c.example).replace(/"(\w+)":/g, '$1: ')}` : ' {}';
-      lines.push(`  # - ${c.name}:${example}${c.summary ? `    # ${c.summary}` : ''}${paramsHint(c)}`);
-    }
-  } else if (d.fixturesSilent)
+  // Names only: what each takes is one `lynkeus fixtures describe` away, and a list of every fixture's example is noise
+  // in a case that needs one or none of them.
+  if (d.fixtures?.length)
+    lines.push(`  # The state the case needs, from the backend's fixtures (lynkeus fixtures describe): ${d.fixtures.map((c) => c.name).join(', ')}`);
+  else if (d.fixturesSilent)
     lines.push('  # The fixtures server did not answer lynkeus.describe (lynkeus fixtures check says why): the setup options are not listed.');
   else lines.push('  # The state the case needs, through the project’s fixtures (cases.fixtures).');
+  const way = d.way;
+  if (way?.setup.length) lines.push(`  # What ${way.source} sets up on its way to ${d.to}:`, ...way.setup.map((s) => `  ${stepLine(s)}`));
   lines.push('', 'steps:');
+  if (d.fromNote) lines.push(`  # Begins on ${d.from}: ${d.fromNote}; cases.start in lynkeus.config.json sets where drafts begin.`);
   if (d.macros?.length) lines.push(`  # The project's own steps: ${d.macros.join(', ')}`);
-  if (!d.path) {
-    lines.push(`  # No known way from ${d.from} to ${d.to}: \`lynkeus crawl --to ${d.to}\` learns one.`);
-    lines.push(`  - app.nav: ${d.to}`);
-  } else {
-    for (const s of d.path) {
-      if (s.press) lines.push(`  - app.press: ${quote(`#${s.press}`)}${s.source === 'static' ? '    # from the source: confirm it on screen' : ''}`);
-      else lines.push(`  # ${s.from} → ${s.to}: ${s.hint ?? 'find the control that leads here'}`);
-      lines.push(`  - app.wait: { what: ${s.opens ? quote(s.opens) : s.to}, timeoutMs: 10000 }`);
-    }
+  const last = way ? [...way.setup, ...way.steps].at(-1) : undefined;
+  lines.push(...wayLines(d));
+  if (!last || last.verb === 'app.nav' || routeOf(last) !== d.to) lines.push(`  - app.see: { route: ${d.to} }`);
+  const k = d.known;
+  if (!way && k && (k.ids.length || k.texts.length || k.leadsTo.length)) {
+    const sources = [...new Set(k.ids.flatMap((i) => (i.from ? [i.from] : [])))];
+    const said = [sources.length ? `its source (${sources.join(', ')})` : undefined, k.texts.length ? 'runs that saw it' : undefined].filter(Boolean);
+    lines.push(`  # What is on ${d.to}, from ${said.length ? said.join(' and ') : 'the route map'}: uncomment what the case is about.`);
+    for (const i of k.ids.slice(0, MAX_KNOWN)) lines.push(`  # - app.see: ${quote(`#${i.id}`)}`);
+    for (const t of k.texts.slice(0, MAX_KNOWN)) lines.push(`  # - app.see: ${quote(t)}`);
+    for (const l of k.leadsTo.slice(0, MAX_KNOWN)) lines.push(`  # - app.press: ${quote(`#${l.press}`)}    # leads to ${l.to}`);
   }
   lines.push(
-    `  - app.see: { route: ${d.to} }`,
     '  # [What the person does here, and what must be on screen after.]',
     '',
     'expected: |',
@@ -74,12 +84,39 @@ export const draftCase = (d: DraftInput): string => {
   return lines.join('\n');
 };
 
+/**
+ * The steps to a screen, indented as a case's: an existing case's way there (its steps after its setup), else the
+ * route map's presses from `from`, else `app.nav` with how to learn a way (a jump works only where the route is mounted).
+ */
+export const wayLines = (d: Pick<DraftInput, 'from' | 'to' | 'way' | 'path'>, o: { setupToo?: boolean } = {}): string[] => {
+  const way = d.way;
+  if (way) {
+    const known = way.how === 'ran' ? `its last passing run was on ${d.to} after these steps` : `its steps reach ${d.to} here`;
+    const macros = way.macros.length ? `; it calls ${way.macros.join(', ')}` : '';
+    return [
+      `  # The way to ${d.to} from case ${way.source} (${known}${macros}):`,
+      ...(o.setupToo ? [...way.setup, ...way.steps] : way.steps).map((s) => `  ${stepLine(s)}`),
+    ];
+  }
+  if (!d.path)
+    return [
+      `  # No known way from ${d.from} to ${d.to}: \`lynkeus crawl --to ${d.to}\` learns one; app.nav works only where ${d.to} is mounted (signed in, say).`,
+      `  - app.nav: ${d.to}`,
+    ];
+  return d.path.flatMap((s) => [
+    s.press
+      ? `  - app.press: ${quote(`#${s.press}`)}${s.source === 'static' ? '    # from the source: confirm it on screen' : ''}`
+      : `  # ${s.from} → ${s.to}: ${s.hint ?? 'find the control that leads here'}`,
+    `  - app.wait: { what: ${s.opens ? quote(s.opens) : s.to}, timeoutMs: 10000 }`,
+  ]);
+};
+
 // A label or a heading; a paragraph is copy that is rewritten, translated and wrapped, and breaks a check on any change.
 const MAX_SIGHT_TEXT = 60;
 
 /** What a case can check on a screen at once: up to three of what is on it, testIDs first, then short texts. */
 const sightsOf = (screen: Screen): string[] => {
-  const shown = screen.elements.filter((e) => !e.hidden && !e.covered);
+  const shown = screen.elements.filter((e) => !e.hidden && !e.covered && !e.system);
   const byId = shown.flatMap((e) => (e.testId ? [`#${e.testId}`] : []));
   const byText = shown.flatMap((e) => {
     const text = e.text?.trim();
@@ -96,7 +133,14 @@ const languageOf = (tag: string | undefined) => tag?.split(/[-_]/)[0]?.toLowerCa
  * the device's, `language` the app's own (lynkeus.config.json): texts read in another language than the app's fail
  * wherever the app runs in its own.
  */
-export const hereCase = (id: string, screen: Screen, title?: string, languages: { locale?: string; language?: string } = {}): string => {
+export const hereCase = (
+  id: string,
+  screen: Screen,
+  title?: string,
+  languages: { locale?: string; language?: string } = {},
+  /** The steps to the screen (`wayLines`), as `case new` drafts them; without them, `app.nav` to its route. */
+  way?: string[],
+): string => {
   const sights = sightsOf(screen);
   const device = languageOf(languages.locale);
   const app = languageOf(languages.language);
@@ -106,7 +150,7 @@ export const hereCase = (id: string, screen: Screen, title?: string, languages: 
     `id: ${id}`,
     `title: ${quote(title ?? (screen.route ? `${screen.route} shows what it should` : 'The app opens on its first screen'))}`,
     '---',
-    ...(screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
+    ...(way?.length ? ['setup:', ...way, ''] : screen.route ? ['setup:', `  - app.nav: ${screen.route}`, ''] : []),
     'steps:',
     ...(foreign
       ? [`  # The device reads ${languages.locale}, the app's language is ${languages.language}: these texts are as ${device} shows them. Prefer testIDs.`]

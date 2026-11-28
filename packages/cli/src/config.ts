@@ -3,7 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { CasesConfig } from './cases/runner.js';
-import { readJson } from './files.js';
+import { readJson, writeJson } from './files.js';
+import * as edges from './knowledge/edges.js';
+import * as frontier from './knowledge/frontier.js';
 import type { ScreenGraph } from './knowledge/types.js';
 
 export const lynkeusDir = (root = process.cwd()) => path.join(root, '.lynkeus');
@@ -71,6 +73,13 @@ export const loadGraph = (root?: string): ScreenGraph | null => {
   return fs.existsSync(file) ? readJson<ScreenGraph>(file) : null;
 };
 
+/** Writes a graph just built and collects the walked edges and frontier rows of routes it no longer has; how many went. */
+export const saveGraph = (root: string, graph: ScreenGraph): number => {
+  writeJson(graphFile(root), graph);
+  const routes = new Set(Object.keys(graph.screens));
+  return edges.prune(edgesFile(root), routes) + frontier.prune(frontierFile(root), routes);
+};
+
 /**
  * `lynkeus.config.json` in the app's folder: what would otherwise be repeated
  * as flags or environment on every invocation. Flags win over the
@@ -93,6 +102,8 @@ export type LynkeusConfig = {
   port?: number;
   /** Simulator udid or name. */
   device?: string;
+  /** The Android emulator (its AVD name) `setup` starts when no emulator or phone is up; it starts none the project does not name. */
+  avd?: string;
   /** Bundle id or application id. */
   app?: string;
   /** What a pushed run's local folder becomes: kept (the default), or deleted once the service has every file. */
@@ -138,6 +149,11 @@ export type LynkeusConfig = {
     close?: string[];
     /** Go back. Without them the crawl takes a small control in the top-left corner for one. */
     back?: string[];
+    /**
+     * How to sign in: a macro's name in cases.macros (`app.signIn`) or a list of steps. The crawl runs it when a press
+     * signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for.
+     */
+    login?: string | unknown[];
   };
 };
 
@@ -160,6 +176,34 @@ export const loadConfig = (root?: string): LynkeusConfig => {
   const own = readConfig(configFile(root));
   const extra = process.env.LYNKEUS_CONFIG ? readConfig(path.resolve(process.env.LYNKEUS_CONFIG)) : {};
   return { ...own, ...extra };
+};
+
+/**
+ * A reader of the configuration that stays current: it parses again only when a config file's modification time
+ * changes, so a long-lived process (the MCP server) sees what the agent wrote after it started, at the cost of a stat.
+ */
+export const configReader = (root?: string): (() => LynkeusConfig) => {
+  const stamp = () =>
+    [configFile(root), process.env.LYNKEUS_CONFIG ? path.resolve(process.env.LYNKEUS_CONFIG) : undefined]
+      .map((file) => {
+        if (!file) return '-';
+        try {
+          return String(fs.statSync(file).mtimeMs);
+        } catch {
+          return 'missing';
+        }
+      })
+      .join('|');
+  let seen: string | undefined;
+  let config: LynkeusConfig = {};
+  return () => {
+    const now = stamp();
+    if (now !== seen) {
+      config = loadConfig(root);
+      seen = now;
+    }
+    return config;
+  };
 };
 
 export type CiConfig = {

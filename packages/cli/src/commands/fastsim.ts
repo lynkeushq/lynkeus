@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { staleBundleWarning } from '../cases/staleBundle.js';
-import { portFromEnv } from '../config.js';
-import type { Device } from '../device/driver.js';
+import { freePorts } from '../cases/portClaim.js';
+import { freshBundle } from '../cases/staleBundle.js';
+import { portFromEnv, readToken } from '../config.js';
 import { define, type Ctx, type Result } from '../registry.js';
 import { runtimeAt } from '../runtimes/index.js';
 import { cloudUrl, credentialsPath, login, openInBrowser, signedInToken, type Credential, type LoginOptions } from './login.js';
@@ -38,6 +38,16 @@ const RELEASE_PART = /^[a-z0-9.-]{1,32}$/;
 
 export const fastsimCacheDir = (): string =>
   process.env.LYNKEUS_FASTSIM_DIR ?? path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'lynkeus', 'fastsim');
+
+/**
+ * The FastSim folder in use, said with the variable that moved it: a shell and an MCP server started with another
+ * XDG_CACHE_HOME see other installs, and the answer has to show which one it read.
+ */
+export const fastsimCacheNote = (dir: string = fastsimCacheDir()): string => {
+  const moved =
+    dir === process.env.LYNKEUS_FASTSIM_DIR ? 'LYNKEUS_FASTSIM_DIR' : process.env.XDG_CACHE_HOME && dir === fastsimCacheDir() ? 'XDG_CACHE_HOME' : undefined;
+  return `${dir}${moved ? ` (from ${moved})` : ''}`;
+};
 
 /**
  * A random id for this install, kept next to the sign-in (not in the cache, which CI restores onto many runners and
@@ -252,8 +262,22 @@ export const fetchGrant = async (o: GrantOptions): Promise<Grant & { cached: boo
   return { ...grant, cached: false, ...(typeof body.warning === 'string' ? { warning: body.warning } : {}) };
 };
 
-const NO_CREDENTIALS = (cloud: string) =>
-  `no way to sign in to ${cloud}: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download Lynkeus FastSim" on lynkeus.io (in your CI secrets or mise.local.toml)`;
+// An agent reads the first line and decides from it whether to retry: it must say this step is the person's.
+const PERSON_ONLY = 'A step only the person can do: run `lynkeus login` in a terminal and sign in in the browser it opens (an agent cannot), then try again.';
+const CI_KEY =
+  'in CI, set LYNKEUS_CLOUD_KEY to an API key an owner of your organization made with "May download Lynkeus FastSim" on lynkeus.io (in your CI secrets or mise.local.toml).';
+
+const NO_CREDENTIALS = (cloud: string) => `${PERSON_ONLY}\nno way to sign in to ${cloud}: no saved sign-in and no key; ${CI_KEY}`;
+
+/** A sign-in that has ended, with nobody here to sign in again: only the person can, so the message leads with that. */
+class PersonOnly extends Error {
+  constructor(cloud: string, reason: string) {
+    super(`${PERSON_ONLY}\nthe saved sign-in for ${cloud} has ended (${reason}); ${CI_KEY}`);
+  }
+}
+
+/** Exit 2 for what needs the person (as with no sign-in at all), 1 for any other failure. */
+const failedCode = (error: unknown) => (error instanceof PersonOnly ? 2 : 1);
 
 export type SignInDeps = {
   /** Whether stdin and stderr are terminals; only tests pass another. */
@@ -277,29 +301,58 @@ export const licensedFastsimVariant = (command: string, cwd: string): string | u
   }
 };
 
-export type HostGrantOptions = { deps?: SignInDeps; fetchImpl?: typeof fetch; env?: NodeJS.ProcessEnv };
+export type HostGrantOptions = { deps?: SignInDeps; fetchImpl?: typeof fetch; env?: NodeJS.ProcessEnv; now?: () => number };
 
 /**
  * The environment a host started by `command` needs: a licensed Lynkeus FastSim host gets FASTSIM_GRANT from the same
  * credentials, cache and variant as `lynkeus fastsim grant`, so it does not depend on `npx --no-install lynkeus` finding
  * lynkeus. Any other host command, or a FASTSIM_GRANT already set, adds nothing. A grant that cannot be had is a failed run.
  */
-export const hostGrantEnv = async (ctx: Ctx, command: string, o: HostGrantOptions = {}): Promise<{ env: NodeJS.ProcessEnv } | { failed: Result }> => {
+export const hostGrantEnv = async (
+  ctx: Ctx,
+  command: string,
+  o: HostGrantOptions = {},
+): Promise<{ env: NodeJS.ProcessEnv; expiresAt?: string } | { failed: Result }> => {
   const base = o.env ?? process.env;
   const variant = licensedFastsimVariant(command, ctx.root);
   if (!variant || base.FASTSIM_GRANT) return { env: base };
   try {
     const cloud = cloudUrl(undefined);
     const got = await withCredentials(ctx, o.deps ?? {}, cloud, async (key, signedIn) => {
-      const grant = await fetchGrant({ cloud, key, variant, signedIn, fetchImpl: o.fetchImpl });
+      const grant = await fetchGrant({ cloud, key, variant, signedIn, fetchImpl: o.fetchImpl, ...(o.now ? { now: o.now() } : {}) });
       if (grant.warning) ctx.err(`warning: ${grant.warning}`);
       return grant;
     });
     if (!got) return { failed: { text: NO_CREDENTIALS(cloud), code: 2 } };
-    return { env: { ...base, FASTSIM_GRANT: got.grant } };
+    return { env: { ...base, FASTSIM_GRANT: got.grant }, expiresAt: got.expiresAt };
   } catch (error) {
-    return { failed: { text: (error as Error).message, code: 1 } };
+    return { failed: { text: (error as Error).message, code: failedCode(error) } };
   }
+};
+
+/**
+ * The hosts' environment for a whole run. A grant lasts an hour and a run may last longer, or start on a cached one
+ * with minutes left: a host started after it ends refuses to start. So each host started asks again, and gets a new
+ * grant once the one held has less than 5 minutes left; until then the same environment, with no request.
+ */
+export const runGrants = async (
+  ctx: Ctx,
+  command: string,
+  o: HostGrantOptions = {},
+): Promise<{ env: () => Promise<{ env: NodeJS.ProcessEnv } | { failed: Result }> } | { failed: Result }> => {
+  const now = o.now ?? Date.now;
+  const first = await hostGrantEnv(ctx, command, o);
+  if ('failed' in first) return first;
+  let held = first;
+  return {
+    env: async () => {
+      if (held.expiresAt === undefined || Date.parse(held.expiresAt) - now() > GRANT_MIN_LEFT_MS) return { env: held.env };
+      const again = await hostGrantEnv(ctx, command, o);
+      if ('failed' in again) return again;
+      held = again;
+      return { env: held.env };
+    },
+  };
 };
 
 // Scripts, CI and MCP servers never wait on a browser: only a person at a terminal is sent to sign in.
@@ -329,7 +382,7 @@ const withCredentials = async <T>(
   if (envKey) return attempt(envKey, false);
   // A sign-in past its 30 days, or whose refresh the service no longer takes, is signed in again the same way.
   const saved = await signedInToken(cloud).catch((error: unknown) => {
-    if (!mayAsk) throw error;
+    if (!mayAsk) throw new PersonOnly(cloud, (error as Error).message);
     ctx.err(`The saved sign-in for ${cloud} has ended (${(error as Error).message}): signing in again (lynkeus login)…`);
     return null;
   });
@@ -342,7 +395,8 @@ const withCredentials = async <T>(
   try {
     return await attempt(saved, true);
   } catch (error) {
-    if (!(error instanceof Refused) || !mayAsk) throw error;
+    if (!(error instanceof Refused)) throw error;
+    if (!mayAsk) throw new PersonOnly(cloud, error.message);
     ctx.err(`The saved sign-in for ${cloud} was refused (ended or revoked): signing in again (lynkeus login)…`);
     return attempt(await signIn(), true);
   }
@@ -376,32 +430,20 @@ export const installedKit = (platform: string, dir: string = fastsimCacheDir()):
   return kits.sort((a, b) => b.version.localeCompare(a.version, undefined, { numeric: true }))[0]?.kit;
 };
 
-// The host `fastsim start` keeps for a session or an MCP server. It reads its standard input from this process, so it
-// stops when this process does.
-let exploring: { child: ChildProcess; bundle: string; port: number } | undefined;
+// The host `fastsim start` keeps for a session or an MCP server, on a driver port of its own. It reads its standard
+// input from this process, so it stops when this process does.
+let exploring: { child: ChildProcess; bundle: string; port: number; release: () => Promise<void> } | undefined;
 
 const stopExploring = async (): Promise<string | undefined> => {
   const was = exploring;
   exploring = undefined;
   if (!was) return undefined;
+  await was.release();
   await stopHost(was.child);
   return was.bundle;
 };
 
-const nextHello = (d: Device, child: ChildProcess, timeoutMs: number): Promise<boolean> =>
-  new Promise((resolve) => {
-    const done = (attached: boolean) => {
-      clearTimeout(timer);
-      d.server.off('hello', onHello);
-      child.off('exit', onExit);
-      resolve(attached);
-    };
-    const onHello = () => done(true);
-    const onExit = () => done(false);
-    const timer = setTimeout(() => done(false), timeoutMs);
-    d.server.once('hello', onHello);
-    child.once('exit', onExit);
-  });
+const hostExited = (child: ChildProcess) => child.exitCode !== null || child.signalCode !== null;
 
 export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, deps: SignInDeps = {}) => [
   define({
@@ -409,7 +451,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     group: 'runs',
     summary: "Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key",
     details:
-      "Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.",
+      "Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2, the first line saying that signing in is a step only the person can do (`lynkeus login`), or need LYNKEUS_CLOUD_KEY; so does a saved sign-in that expired and could not be renewed. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.",
     mcpDetails:
       "Downloads Lynkeus FastSim (the fast simulator; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing) for this machine and the platform asked for, and answers where it went. Needs the sign-in the person saved by running lynkeus login in a terminal (a browser step an agent cannot do: when there is none, tell the person to run it), or else, for CI, LYNKEUS_CLOUD_KEY in this server's environment (an API key an owner of the organization made with “May download Lynkeus FastSim”; other keys are refused with that message). Then read the README.md in that folder: it says how to bundle the app and run case_run with host_command on it. Call it when the person asks for Lynkeus FastSim or their organization has it; otherwise the headless host and the Simulator or emulator are free and cover the same cases. When the service refuses (no FastSim in the plan, no seat, a key without that permission), tell the person what it says and where to get it (an owner subscribes at https://lynkeus.io/pricing or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.",
     flags: {
@@ -448,7 +490,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         });
         return result ?? { text: NO_CREDENTIALS(cloud), code: 2 };
       } catch (error) {
-        return { text: (error as Error).message, code: 1 };
+        return { text: (error as Error).message, code: failedCode(error) };
       }
     },
   }),
@@ -483,7 +525,7 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
         });
         return result ?? { text: NO_CREDENTIALS(cloud), code: 2 };
       } catch (error) {
-        return { text: (error as Error).message, code: 1 };
+        return { text: (error as Error).message, code: failedCode(error) };
       }
     },
   }),
@@ -492,9 +534,9 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     group: 'runs',
     summary: 'Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type',
     details:
-      "Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.",
+      "Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on a free driver port of its own, and waits for its app to attach. From then on every command of the session drives only that app, as case run drives the host it starts, and each answer about the app starts with its lane (`[FastSim iOS]`); `fastsim stop` ends it, and so does the session ending. Apps attached on the session's port (a Simulator's, an emulator's) stay attached and are not driven until then: nothing of theirs reaches an answer. The host's log is in <bundle>/hosts/<port>.err. A bundle older than the app's code is bundled again first with the kit's bin/fastsim-bundle (in this process's environment); when that fails, the host is not started and the answer gives the command to run.",
     mcpDetails:
-      "Starts a Lynkeus FastSim host on a bundle made with the kit's bin/fastsim-bundle (pass that folder as bundle) and attaches this server to it: screen, press, type, wait, screenshot and the rest then drive the app on FastSim, to explore it before writing a case. kit is the FastSim folder fastsim_install answered (default: the newest installed for the bundle's platform). fastsim_stop ends the host. Rebuild the bundle with fastsim-bundle after changing the app's code; the answer warns when it is older than the code.",
+      "Starts a Lynkeus FastSim host on a bundle made with the kit's bin/fastsim-bundle (pass that folder as bundle), on a port of its own, and attaches this server to it: screen, press, type, wait, screenshot and the rest then drive only the app on FastSim (each answer starts with [FastSim iOS] or [FastSim Android]), to explore it before writing a case; device apps stay attached and untouched. kit is the FastSim folder fastsim_install answered (default: the newest installed for the bundle's platform). fastsim_stop ends the host. A bundle older than the app's code is bundled again before the host starts (the answer says so); when that fails, nothing starts and the answer gives the fastsim-bundle command to run.",
     positionals: [{ name: 'bundle', help: 'the folder fastsim-bundle made', required: true }],
     flags: {
       kit: { type: 'string', help: "the Lynkeus FastSim folder (default: the newest installed for the bundle's platform)", value: 'dir' },
@@ -518,52 +560,73 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
       }
       const platform = /--platform (\w+)/.exec(args)?.[1] ?? 'ios';
       const kit = typeof ctx.flags.kit === 'string' ? path.resolve(ctx.root, ctx.flags.kit) : installedKit(platform);
-      if (!kit) return { text: `no Lynkeus FastSim for ${platform} is installed: run fastsim install --platform ${platform}`, code: 2 };
+      if (!kit)
+        return { text: `no Lynkeus FastSim for ${platform} is installed in ${fastsimCacheNote()}: run fastsim install --platform ${platform}`, code: 2 };
       const run = path.join(kit, 'bin', 'fastsim-run');
       if (!fs.existsSync(run)) return { text: `${kit} has no bin/fastsim-run: is it a Lynkeus FastSim folder?`, code: 2 };
-      const port = portFromEnv(ctx.config) ?? 8123;
+      if (!ctx.forPort || !ctx.takeOver) return { text: 'fastsim start needs a session or an MCP server that can drive a second port', code: 2 };
+      // Its own port: on the session's, the apps of a Simulator or an emulator still attached there would dial back in
+      // and take turns with it, and answers would mix FastSim's screen with their system prompts.
+      const [port] = await freePorts(1, (portFromEnv(ctx.config) ?? 8123) + 1);
+      if (port === undefined) return { text: 'no free driver port for the FastSim host', code: 1 };
       const command = `${JSON.stringify(run)} ${JSON.stringify(bundle)} ${port}`;
+      const cases = ctx.config.cases ?? {};
+      const fresh = await freshBundle(command, ctx.root, {
+        skip: [path.resolve(cases.base ?? ctx.root, cases.dir ?? 'cases')],
+        log: ctx.err,
+        token: readToken(ctx.root),
+      });
+      if (!fresh.ok) return { text: fresh.text, code: 1 };
       const granted = await hostGrantEnv(ctx, command);
       if ('failed' in granted) return granted.failed;
       await stopExploring();
-      // A device already attached answers at once: then the host's app is the next one to say hello.
-      const current = ctx.device();
-      current.catch(() => undefined);
-      const before = await Promise.race([
-        current.then(
-          (d) => d,
-          () => undefined,
-        ),
-        new Promise<undefined>((resolve) => setImmediate(() => resolve(undefined))),
-      ]);
-      const child = spawn(run, [bundle, String(port)], { cwd: ctx.root, env: granted.env, stdio: ['pipe', 'ignore', 'ignore'], detached: true });
-      exploring = { child, bundle, port };
-      const timeoutMs = Number(ctx.flags.timeout ?? 60000);
-      const attached = before
-        ? await nextHello(before, child, timeoutMs)
-        : await current.then(
-            () => true,
-            () => false,
-          );
+      // The host hands the agent the project's token when the bundle carries none (a kit with `host-token`).
+      const token = readToken(ctx.root);
+      const env = token && !granted.env.LYNKEUS_TOKEN ? { ...granted.env, LYNKEUS_TOKEN: token } : granted.env;
+      const child = spawn(run, [bundle, String(port)], { cwd: ctx.root, env, stdio: ['pipe', 'ignore', 'ignore'], detached: true });
+      const scoped = ctx.forPort(port, { ended: () => (hostExited(child) ? `the FastSim host exited (${child.exitCode ?? child.signalCode})` : undefined) });
+      const takeOver = ctx.takeOver;
+      exploring = {
+        child,
+        bundle,
+        port,
+        release: async () => {
+          takeOver(undefined);
+          await scoped.stop();
+        },
+      };
+      const until = Date.now() + Number(ctx.flags.timeout ?? 60000);
+      let d: Awaited<ReturnType<Ctx['device']>> | undefined;
+      // Each try waits as long as an attach does; a host still loading its bundle gets the next one.
+      while (!d && !hostExited(child) && Date.now() < until) {
+        const tried = Date.now();
+        d = await scoped.base.device().catch(() => undefined);
+        if (!d) await new Promise((r) => setTimeout(r, Math.max(0, 250 - (Date.now() - tried))));
+      }
       const log = path.join(bundle, 'hosts', `${port}.err`);
-      if (!attached) {
+      if (!d) {
         await stopExploring();
         return {
           text: `the FastSim host on port ${port} ${child.exitCode !== null ? `exited (${child.exitCode})` : 'started, and its app did not attach'}; its log: ${log}`,
           code: 1,
         };
       }
-      const d = before ?? (await current);
+      takeOver(scoped.base);
+      const lane = scoped.base.lane?.() ?? `FastSim ${platform === 'android' ? 'Android' : 'iOS'}`;
       const offered = d.server.hello?.commands ?? [];
       const notes = [
-        staleBundleWarning(command, ctx.root),
+        fresh.note,
         offered.includes('screenshot')
           ? undefined
           : "⚠ this bundle's app offers no screenshot, film or clock: bundle it again with a current fastsim-bundle and lynkeus-agent 0.7.6 or newer",
       ].filter((note): note is string => !!note);
       return {
-        text: [`FastSim host on port ${port} runs ${bundle} (${platform}); this session drives it now. Its log: ${log}`, ...notes].join('\n'),
-        json: { bundle, kit, port, platform, commands: offered },
+        text: [
+          `${lane}: a host on port ${port} of its own runs ${bundle}; this session drives only it now, until fastsim stop (apps on port ${portFromEnv(ctx.config) ?? 8123} stay attached, not driven). Its log: ${log}`,
+          `FastSim: ${kit} (the FastSim folder in use: ${fastsimCacheNote()})`,
+          ...notes,
+        ].join('\n'),
+        json: { bundle, kit, port, platform, lane, commands: offered },
       };
     },
   }),
@@ -576,7 +639,9 @@ export const makeFastsimCommands = (releaseKey: crypto.KeyObject = RELEASE_KEY, 
     mcp: 'core',
     run: async () => {
       const bundle = await stopExploring();
-      return bundle ? { text: `stopped the FastSim host on ${bundle}` } : { text: 'no FastSim host started by fastsim start is running' };
+      return bundle
+        ? { text: `stopped the FastSim host on ${bundle}; this session drives the apps on its own port again` }
+        : { text: 'no FastSim host started by fastsim start is running' };
     },
   }),
 ];

@@ -2,7 +2,10 @@ import { Linking } from 'react-native';
 
 import { type Backend, centre } from './backend';
 import type { NavigationAdapter } from './navigation';
+import { openedSince } from './opened';
 import type { CoreMethods, Element, PressOptions, Scope, Screen, Target } from './protocol';
+import { devLoadingShowing } from './devLoading';
+import { jsAge } from './jsAge';
 import { host } from './registry';
 import { recentRequests, requestsHeld, requestsInFlight } from './requests';
 import { lastSeq, traceSince } from './trace';
@@ -10,6 +13,8 @@ import { lastSeq, traceSince } from './trace';
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 // 30 looks 40 ms apart: 1.2 s on a real clock, inside settle's 3 s deadline.
 const MIN_SETTLE_LOOKS = 30;
+// Longer than a conditional navigator takes to render its other branch, short enough that a wrong name fails fast.
+const NAVIGATOR_SWAP_MS = 1500;
 
 // How well an element answers a target: 0 = no, higher = better. Exact text
 // on a control beats the same text in a paragraph, and a substring of a
@@ -26,8 +31,20 @@ export const score = (element: Element, target: Target): number => {
     .map((v) => v.toLowerCase().trim());
   const control = element.kind === 'button' || element.kind === 'input';
   if (haystacks.some((h) => h === needle)) return control ? 4 : 3;
-  if (control && haystacks.some((h) => h.includes(needle))) return 2;
+  // Part of a control's label: as whole words ("Favorite" in "Add to Favorite") before inside a word ("Favorites").
+  if (control && haystacks.some((h) => hasWords(h, needle))) return 2;
+  if (control && haystacks.some((h) => h.includes(needle))) return 1;
   return 0;
+};
+
+// A letter in any script, or a digit: what a word is made of.
+const wordy = (c: string | undefined) => !!c && (c.toLowerCase() !== c.toUpperCase() || (c >= '0' && c <= '9'));
+
+const hasWords = (haystack: string, needle: string): boolean => {
+  if (!needle) return false;
+  for (let at = haystack.indexOf(needle); at !== -1; at = haystack.indexOf(needle, at + 1))
+    if (!(wordy(needle[0]) && wordy(haystack[at - 1])) && !(wordy(needle[needle.length - 1]) && wordy(haystack[at + needle.length]))) return true;
+  return false;
 };
 
 // Hidden belongs to another screen or to no one. An inert label inside a
@@ -52,7 +69,12 @@ const pickWithin = (elements: Element[], { within, ...target }: Target & { withi
     const here = level ? matches.filter((e) => e.i === level.i || insideOf(elements, e, level.i)) : matches;
     if (here.length > 0) {
       if (nth !== undefined) return here[nth];
-      return here.reduce((best, e) => {
+      // A card made accessible reads its children's words run together, so it contains the text of every button in
+      // it: an exact label beats one that only contains the text, and of matches nested in one another the innermost wins.
+      const top = Math.max(...here.map((e) => score(e, target as Target)));
+      const strongest = here.filter((e) => score(e, target as Target) === top);
+      const innermost = strongest.filter((e) => !strongest.some((other) => other !== e && insideOf(elements, other, e.i)));
+      return innermost.reduce((best, e) => {
         const d = Math.abs(e.i - scope.i);
         const b = Math.abs(best.i - scope.i);
         return d < b || (d === b && e.i > best.i) ? e : best;
@@ -90,6 +112,13 @@ export const pick = (elements: Element[], target: Target): Element | undefined =
 
 const describeTarget = (target: Target): string => JSON.stringify(target);
 
+/**
+ * A target that was there while a press waited for it to hold still, and then was not: the list it is in kept
+ * coasting after a scroll, or a view animated away. Said as such, so a wait that found it and a press that did not
+ * do not read as two different ways of matching.
+ */
+class LeftScreen extends Error {}
+
 type Point = { x: number; y: number; element?: Element };
 
 // Within a point is the same place: a breathing CTA is not a transition.
@@ -118,7 +147,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const screen = async (): Promise<Screen> => {
     const started = Date.now();
-    const { elements, presenting } = backend.snapshot();
+    const { elements, presenting, system } = backend.snapshot();
     const route = navigation.currentRoute();
     return {
       route: route?.name,
@@ -129,6 +158,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       busy: await busy(),
       window: backend.window(),
       presenting,
+      ...(system ? { system } : {}),
       costMs: Date.now() - started,
     };
   };
@@ -137,7 +167,11 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
 
   const presented = (target: Target): Element => {
     const element = find(target);
-    if (!element) throw new Error(`No element matches ${describeTarget(target)}`);
+    if (!element) {
+      // The same matching as find and waitFor: what they skip as not presented is named, not reported as absent.
+      const unseen = 'x' in target ? undefined : elements().find((e) => e.hidden && score(e, target) > 0)?.hidden;
+      throw new Error(`No element matches ${describeTarget(target)}${unseen ? `: one is in the tree but not presented (${unseen})` : ''}`);
+    }
     if (element.hidden) throw new Error(`${describeTarget(target)} is not presented (${element.hidden})`);
     return element;
   };
@@ -154,6 +188,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return !e.offscreen && x >= 0 && y >= 0 && x <= w && y <= h;
   };
 
+  // A host that is not a device moves a view per frame, which it runs on a timer of its own (the headless host's
+  // requestAnimationFrame): two looks one frame apart see the move, and a landed target costs a frame, not 40 ms.
+  const stillLookMs = backend.native ? 40 : 16;
+
   // An element still sliding in would be tapped where it was. Two identical
   // measurements 40 ms apart mean it has landed. An Android fling coasts for
   // seconds, and a finger that lands on it stops the scroll where it is: wait
@@ -169,24 +207,31 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // moment, and may flicker while it lands, more so on a loaded machine: wait it out within the same deadline
     // before calling it not presented.
     const inert = () => !('x' in target) && find(target)?.hidden === 'inert';
+    let seenAt: number | undefined;
     // On a native host the element list is read from the view tree while it changes, so two reads in a row can
     // disagree: an inert read right after a presented one is the same flicker, not an answer.
     const look = (): Point | undefined => {
       try {
-        return pointOf(target);
+        const point = pointOf(target);
+        if (point.element) seenAt = Date.now();
+        return point;
       } catch (error) {
         if (waiting() && error instanceof Error && error.message.endsWith('is not presented (inert)')) return undefined;
+        if (seenAt !== undefined && error instanceof Error && error.message.startsWith('No element matches'))
+          throw new LeftScreen(
+            `${error.message}: it was on screen ${Date.now() - seenAt} ms before, and left while the press waited for it to hold still (a list still coasting after a scroll, a view animating away)`,
+          );
         throw error;
       }
     };
     while (inert() && waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
     }
     let previous = look();
     while (waiting()) {
       looks++;
-      await sleep(40);
+      await sleep(stillLookMs);
       if (inert()) continue;
       const current = look();
       if (!current) continue;
@@ -196,18 +241,41 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     return previous ?? pointOf(target);
   };
 
+  // A finger would land on what another window shows there (a system alert, a prompt), and the app would never
+  // hear it: said, rather than a tap that answers as if it had worked.
+  const underSystemView = (target: Target, element: Element) => {
+    if (!element.covered || element.system) return;
+    const { system, elements: now } = backend.snapshot();
+    if (!system) return;
+    const { x, y } = centre(element);
+    const { frame } = system;
+    if (x < frame.x || y < frame.y || x > frame.x + frame.w || y > frame.y + frame.h) return;
+    const words = now.filter((e) => e.system && e.kind === 'button').map((e) => JSON.stringify(e.text));
+    throw new Error(
+      `${describeTarget(target)} is under a view the app did not draw (a system alert or prompt): ${
+        words.length > 0
+          ? `press one of its buttons first (${words.join(', ')})`
+          : 'another process draws it, so no touch from Lynkeus reaches it; relaunch the app, or answer it on the device'
+      }`,
+    );
+  };
+
   const pressNative = async (target: Target, holdMs: number) => {
     let point = await settled(target);
     // With the keyboard up, a tap outside the field only dismisses it (the
     // scroll view swallows it): close it first and measure again once the layout moves back.
     if (point.element?.kind !== 'input' && elements().some((e) => e.focused)) {
       await backend.dismissKeyboard();
-      await sleep(300);
+      // Only a device has a keyboard that slides away and a layout that follows it; a host has neither to wait for.
+      if (backend.native) await sleep(300);
       point = await settled(target);
     }
+    if (point.element) underSystemView(target, point.element);
+    const pressedAt = Date.now();
     if (point.element) await backend.press(point.element, holdMs);
     else await backend.pressPoint(point.x, point.y, holdMs);
-    return { ...point, mode: 'native' as const };
+    const opened = openedSince(pressedAt);
+    return { ...point, mode: 'native' as const, ...(opened ? { opened } : {}) };
   };
 
   // No touch, no gesture recognizer, no settle wait; but a disabled or covered
@@ -216,8 +284,10 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const element = presented(target);
     if (!element.enabled) throw new Error(`${describeTarget(target)} is disabled`);
     if (element.covered) throw new Error(`${describeTarget(target)} is covered`);
+    const pressedAt = Date.now();
     await backend.pressJs(element);
-    return { ...centre(element), element, mode: 'js' as const };
+    const opened = openedSince(pressedAt);
+    return { ...centre(element), element, mode: 'js' as const, ...(opened ? { opened } : {}) };
   };
 
   const press = async ({ mode, holdMs, ...rest }: Target & PressOptions) => {
@@ -227,7 +297,18 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     // geometry is only an estimate, so there the case has to ask for it (`wait --scroll`).
     const known = 'x' in target || !backend.native ? undefined : find(target);
     if (known && !known.hidden && !inWindow(known)) await waitFor({ target, scroll: true, timeoutMs: 5000 });
-    return pressNative(target, holdMs ?? 50);
+    try {
+      return await pressNative(target, holdMs ?? 50);
+    } catch (error) {
+      if (!(error instanceof LeftScreen) || !backend.native) throw error;
+      // Brought back once, as a person scrolls back to what slid away under their finger.
+      const back = await waitFor({ target, scroll: true, timeoutMs: 5000 }).then(
+        () => true,
+        () => false,
+      );
+      if (!back) throw error;
+      return pressNative(target, holdMs ?? 50);
+    }
   };
 
   const type = async (params: CoreMethods['type']['params']) => {
@@ -238,11 +319,13 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
         element = found;
       } else {
         element = (await pressNative(params.target, 50)).element;
-        // The keyboard needs a frame to attach to the field before it accepts input.
-        await sleep(80);
-        // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
-        // field out where it was then, so wait it out like a person would.
-        await settled(params.target);
+        if (backend.native) {
+          // The keyboard needs a frame to attach to the field before it accepts input.
+          await sleep(80);
+          // A screen that makes room for the keyboard moves the field meanwhile; text typed before it lands lays the
+          // field out where it was then, so wait it out like a person would.
+          await settled(params.target);
+        }
       }
     }
     if (params.clear) {
@@ -252,10 +335,12 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     if (params.paste) {
       await backend.typeText(params.text, element);
     } else {
-      // A controlled input formats on every change, and keys faster than a commit race the formatter.
+      // A controlled input formats on every change, and keys faster than a commit race the formatter. A host commits
+      // each key before it answers (the headless host types inside act()); a turn of the event loop lets a formatter
+      // that defers to a timer run, as a frame would.
       for (const char of params.text) {
         await backend.typeText(char, element);
-        await sleep(25);
+        await sleep(backend.native ? 25 : 0);
       }
     }
     if (params.submit) await backend.submit(element);
@@ -327,9 +412,19 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await backend.swipe({ x: cx + (forward ? dx : -dx), y: at.y }, { x: cx + (forward ? -dx : dx), y: at.y }, 250);
       return;
     }
-    const up = at === undefined ? back : at.y < 0;
+    // In the window but covered (a tab bar or a header over it): a short move takes it out from under, where a
+    // long one would carry it out of the window the other side (trial runs 8 and 10, Android FastSim).
+    const under = at !== undefined && at.y >= 0 && at.y <= win.h;
+    const up = at === undefined ? back : under ? at.y < cy : at.y < 0;
+    const step = under ? Math.min(dy, Math.max(target!.frame.h * 1.5, (bottom - top) * 0.1)) : dy;
     const x = at === undefined ? cx : Math.min(Math.max(at.x, left + 1), right - 1);
-    await backend.swipe({ x, y: cy + (up ? -dy : dy) }, { x, y: cy + (up ? dy : -dy) }, 250);
+    await backend.swipe({ x, y: cy + (up ? -step : step) }, { x, y: cy + (up ? step : -step) }, 250);
+  };
+
+  // The focused screen, and the navigators it sits in when it is nested: `Demo > DemoPodcastList`.
+  const onRoute = (route: string | undefined) => {
+    const path = navigation.path();
+    return path.length > 1 ? path.join(' > ') : route;
   };
 
   const waitFor = async (params: CoreMethods['waitFor']['params']) => {
@@ -347,35 +442,41 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
     const deadline = started + (params.timeoutMs ?? 5000);
     while (true) {
       const route = navigation.currentRoute()?.name;
-      const routeOk = params.route === undefined || route === params.route;
+      // A navigator's own name (a tab or stack nested in the root) is reached once the focused screen is inside it.
+      const routeOk = params.route === undefined || route === params.route || navigation.path().includes(params.route);
       const all = params.target || params.anyOf ? elements() : [];
       const found = params.target ? pick(all, params.target) : undefined;
       // Enabled means it takes a touch now: a control under a view that blocks touches (a pager whose last page has
       // not landed) reads as enabled but inert, and a swipe or press on it would be refused.
       const stateOk = (element: Element | undefined) =>
         element !== undefined && (params.enabled === undefined || (element.enabled === params.enabled && (!params.enabled || element.hidden !== 'inert')));
-      const present = params.target ? stateOk(found) && !(params.scroll && !inWindow(found!)) : true;
+      // A scroll wait is for a press: the target must be in the window and not under a bar or a sheet.
+      const present = params.target ? stateOk(found) && !(params.scroll && (!inWindow(found!) || found!.covered)) : true;
       const targetOk = params.gone ? !present : present;
       const matched = params.anyOf?.find((t) => stateOk(pick(all, t)));
       const anyOk = !params.anyOf || matched !== undefined;
-      if (routeOk && targetOk && anyOk) return { route, matched, waitedMs: Date.now() - started };
-      if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
-        const reached = traceSince(params.since).some((e) => e.kind === 'route' && e.route === params.route);
-        if (reached) return { route, waitedMs: Date.now() - started, passed: true };
-      }
-      if (Date.now() > deadline) {
-        throw new Error(
-          `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${route})`,
-        );
-      }
-      // A device scroller keeps moving after the finger lifts; a host's stops at once. The next swipe waits
-      // for it to stop, so that whether one more is needed is decided where the scroll ends, not on its way.
+      // A device scroller keeps moving after the finger lifts; a host's stops at once.
       const now = shape(all);
       if (now !== moving) {
         moving = now;
         movedAt = Date.now();
       }
       const still = !backend.native || Date.now() - movedAt >= 120 || Date.now() - lastSwipe > 3000;
+      // Found while the list still coasts from this wait's own swipe is not found where a press will look: the
+      // scroll may carry it out of the window (a list virtualizes it away, or recycles its row for another).
+      const landed = swipes === 0 || still;
+      if (routeOk && targetOk && anyOk && landed) return { route, matched, waitedMs: Date.now() - started };
+      if (params.route !== undefined && params.since !== undefined && !params.target && !params.anyOf && !params.gone) {
+        const reached = traceSince(params.since).some((e) => e.kind === 'route' && (e.route === params.route || e.path.includes(params.route!)));
+        if (reached) return { route, waitedMs: Date.now() - started, passed: true };
+      }
+      if (Date.now() > deadline) {
+        throw new Error(
+          `Timed out waiting for ${params.route ?? ''} ${params.target ? describeTarget(params.target) : ''}${params.gone ? ' to disappear' : ''} (on ${onRoute(route)})`,
+        );
+      }
+      // The next swipe waits for the scroll to stop, so that whether one more is needed is decided where it
+      // ends, not on its way.
       if (params.scroll && params.target && !params.gone && swipes < 30 && still && Date.now() - lastSwipe > (backend.native ? 400 : 50)) {
         if (!found && swipes > 0 && shape(all) === before) {
           if (back) swipes = 30;
@@ -403,7 +504,8 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       await sleep(30);
       const commit = backend.commitCount();
       if (after !== undefined && commit > after) arrived = true;
-      if (commit !== lastCommit || (await busy())) {
+      // React Native's "Refreshing..." banner over the app is not the app at rest: a frame taken now would show it.
+      if (commit !== lastCommit || devLoadingShowing() || (await busy())) {
         lastCommit = commit;
         quietSince = Date.now();
       } else if (arrived && Date.now() - quietSince >= quietMs) {
@@ -414,7 +516,7 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   };
 
   const handlers: Handlers = {
-    ping: () => ({ pong: true, native: backend.native, commands: host.commands() }),
+    ping: () => ({ pong: true, native: backend.native, commands: host.commands(), js: jsAge() }),
     screen,
     find,
     press,
@@ -425,10 +527,30 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
       // hundred milliseconds more than a host).
       const deadline = Date.now() + 10_000;
       while (!navigation.isReady() && Date.now() < deadline) await sleep(50);
+      // A navigator that swaps its screens on a state change (signed in, signed out) declares the new ones a render
+      // or a remount later: a navigate sent right after the change would be dropped. Looks are counted too, for a
+      // host whose clock jumps ahead while JavaScript sleeps.
+      const listedBy = Date.now() + NAVIGATOR_SWAP_MS;
+      for (let looks = 0; navigation.declares?.(params.name) === false && (Date.now() < listedBy || looks < NAVIGATOR_SWAP_MS / 50); looks++) await sleep(50);
       navigation.navigate(params.name, params.params);
       return { route: params.name };
     },
-    back: () => {
+    // As a person's back does: an open drawer or menu closes first, and only then the route pops (trial run 10:
+    // back on the showroom with its drawer open popped to Welcome).
+    back: async () => {
+      if (navigation.closeDrawer?.()) return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      // A react-native-drawer-layout drawer no navigator holds (trial run 11: the showroom's): closed by its own onClose.
+      if (await backend.closeDrawer?.()) {
+        await sleep(50);
+        return { route: navigation.currentRoute()?.name, closed: 'drawer' };
+      }
+      const closer = elements().find((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim()));
+      if (closer) {
+        await press(closer.testId ? { testId: closer.testId } : { text: (closer.accessibilityLabel ?? closer.text)! }).catch(() => undefined);
+        await sleep(50);
+        if (!elements().some((e) => e.enabled && e.hidden !== 'a11y' && CLOSES.test((e.accessibilityLabel ?? e.text ?? '').trim())))
+          return { route: navigation.currentRoute()?.name, closed: (closer.accessibilityLabel ?? closer.text)! };
+      }
       if (!navigation.canGoBack()) throw new Error('Nothing to go back to');
       navigation.goBack();
       return { route: navigation.currentRoute()?.name };
@@ -455,6 +577,20 @@ export const createHandlers = (navigation: NavigationAdapter, backend: Backend):
   return handlers;
 };
 
+// `__DEV__` is false in a release bundle, the kind Lynkeus FastSim runs: an app that registered its commands inside
+// `if (__DEV__)` has none there, and only this side can tell the driver why.
+// What an open drawer's or menu's own dismiss control is called: react-native-drawer-layout labels its overlay
+// "Close drawer"; a person's back closes it before it leaves the screen.
+const CLOSES = /^(close|dismiss) (drawer|menu|navigation menu|sidebar)$/i;
+
+const releaseBundle = (): boolean => typeof __DEV__ !== 'undefined' && __DEV__ === false;
+
+/** What a command the app did not register is missing, said so that a release bundle's reason is in the error. */
+const unregistered = (head: string, method: string): string =>
+  releaseBundle()
+    ? `${head} (this is a release bundle, __DEV__ is false, as on Lynkeus FastSim: if the app registers ${method} inside if (__DEV__), that never ran here; call qa.register without the guard, it does nothing until Lynkeus connects)`
+    : head;
+
 /** Core methods first, then whatever the app registered. Unknown names fail loudly. */
 export const dispatch = async (handlers: Handlers, method: string, params: unknown, navigation?: NavigationAdapter): Promise<unknown> => {
   const core = (handlers as Record<string, (p: unknown) => unknown>)[method];
@@ -464,12 +600,13 @@ export const dispatch = async (handlers: Handlers, method: string, params: unkno
   // host's mocked native state and the navigation stack.
   if (method === 'reset') {
     // With nothing to reset the app's own state, an answer of null would read as a reset that happened.
-    if (!custom && !host.resetsItself()) throw new Error(`no command reset registered; registered: ${host.commands().join(', ') || 'none'}`);
+    if (!custom && !host.resetsItself())
+      throw new Error(unregistered(`no command reset registered; registered: ${host.commands().join(', ') || 'none'}`, 'reset'));
     const result = custom ? ((await custom(params)) ?? null) : null;
     await host.runReset();
     navigation?.resetToRoot?.();
     return result;
   }
   if (custom) return (await custom(params)) ?? null;
-  throw new Error(`Unknown method ${method}`);
+  throw new Error(unregistered(`Unknown method ${method}`, method));
 };

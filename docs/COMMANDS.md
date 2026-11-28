@@ -73,11 +73,13 @@ On a target the drag starts at its centre, which a wide control cannot always af
 
 ### `lynkeus back`
 
-Pop the current route
+Back, as a person goes back: an open drawer or menu closes first, else the current route pops
 
 ### `lynkeus nav <route> [params]`
 
 Jump straight to a route (a teleport, not a user action)
+
+A screen inside a nested navigator is reached through its parents, which nav finds itself: from the path the screen had when a run last saw it, else from the route graph (`lynkeus map build`). `{ "screen": "Inner" }` in the params names the nested screen of a navigator route, as React Navigation takes it. The answer names the screen it lands on, and `via` the parents it went through.
 
 | Argument | |
 |---|---|
@@ -98,7 +100,7 @@ Until a route or element appears (or leaves), any of several targets appears, or
 | `--nth <n>` | the nth match, from 0 |
 | `--anyOf <target>` | accept any of these targets (repeatable) |
 | `--gone` | until it leaves the screen |
-| `--scroll` | scroll until it is in the window |
+| `--scroll` | scroll until it is in the window and not covered (by a tab bar, a header) |
 | `--enabled` | until it is present, enabled and taking touches (a form button that waits on its fields, a pager whose last page has not landed) |
 | `--timeout <ms>` | give up after (default `10000`) |
 | `--since <seq>` | a trace mark: a route reached after it counts, even if already left |
@@ -180,11 +182,11 @@ Relaunch the app and wait for the agent
 |---|---|
 | `--clean` | run the app's reset command first, if it is attached |
 
-### `lynkeus why [target] [--route <Route>]`
+### `lynkeus why [target] [--route <Route>] [--on <lane>]`
 
 Why the last thing failed: screen, requests and trace read as rules
 
-Runs by itself after a failed press, wait, type, swipe or nav. Give it what you were looking for to sharpen the answer.
+Runs by itself after a failed press, wait, type, swipe or nav. With no target it explains the last failed case of the last `case run`, on whichever lane it ran (a FastSim host, the headless host, a Simulator, emulator or phone), named in the answer, as the run read it at the failure; after a command of yours, that command. Give it what you were looking for to read the app now and sharpen the answer.
 
 | Argument | |
 |---|---|
@@ -193,6 +195,7 @@ Runs by itself after a failed press, wait, type, swipe or nav. Give it what you 
 | Flag | |
 |---|---|
 | `--route <Route>` | the route that was expected |
+| `--on <lane>` | the lane to explain: ios, android, fastsim:ios, fastsim:android, headless (default: the last run's last failed case, else the attached app) |
 
 ### `lynkeus lint [--strict] [--no-contrast] [--save <file>] [--baseline <file>]`
 
@@ -224,15 +227,17 @@ What React spent rendering, per route, measured by the Profiler auto() mounts
 |---|---|
 | `action` | start | stop (omit to report) (optional) |
 
-### `lynkeus init [--no-install]`
+### `lynkeus init [--no-install] [--no-skill] [--targets <proposed|list>]`
 
 Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token
 
-React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.
+React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.
 
 | Flag | |
 |---|---|
 | `--no-install` | do not add lynkeus-agent to the app; mount it only |
+| `--no-skill` | leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1) |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: the proposed ones, or a list (headless,ios) |
 
 ### `lynkeus status [--offline]`
 
@@ -243,6 +248,40 @@ The first thing to call in a project you do not know: each line that fails says 
 | Flag | |
 |---|---|
 | `--offline` | check the files only; do not wait for a running app |
+
+### `lynkeus setup [--platform <name>] [--device <name>] [--rebuild] [--targets <proposed|list>]`
+
+From a fresh app to an attached one, in one call: init, the device, Metro, the development build, launch, attach, status
+
+Does what connecting an app takes: `init` when the agent is not set up; for each platform (`--platform`, else the ios and android in cases.targets, else the app's), the device (a booted Simulator, a running emulator or phone; one the project names, `device` for a Simulator or `avd` for an emulator in lynkeus.config.json, is booted when none is up, and said); Metro, started with its own log when it is not running; the project's own build (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), unless the build it made last is installed and attaches; the launch, and the wait for the app to attach; then `status`. Safe to run again: a step already done is said and skipped. The answer is a line per step; logs, init's and status's whole answers are in .lynkeus/runs/setup. A failed step answers with its last log lines and the log's path. It never wipes a device, and boots only one the project or `--device` names.
+
+| Flag | |
+|---|---|
+| `--platform <name>` | ios, android or both (default: those in cases.targets, else the app's) |
+| `--device <name>` | with one platform: Simulator name or udid, AVD name, or adb serial; one not up is booted |
+| `--rebuild` | build even when the last build is installed |
+| `--targets <proposed|list>` | write cases.targets, once the person said where cases must pass: proposed, or a list (headless,ios); without it they are only proposed |
+
+### `lynkeus guide [topic] [section]`
+
+How to work with Lynkeus, one short section per call: the Lynkeus skill's text, for what the MCP instructions leave out
+
+A topic alone lists its sections; a topic and a section answer that section only. Neither gives the index. Topics: cases, targets, evidence, ci, determinism, troubleshooting.
+
+| Argument | |
+|---|---|
+| `topic` | none for the index (optional) |
+| `section` | a section id from the topic's list (optional) |
+
+### `lynkeus skill install [--force]`
+
+Install or update the Lynkeus skill in this project's .claude/skills/lynkeus and its Claude Code subagents in .claude/agents, at this CLI's version
+
+`lynkeus init` does it too. The skill, or the subagents, whose files changed since Lynkeus wrote them, or that Lynkeus did not write, are left as they are unless --force. The same sections are served over MCP by the `guide` tool.
+
+| Flag | |
+|---|---|
+| `--force` | replace the skill and subagents even when their files were changed |
 
 ## os
 
@@ -258,7 +297,7 @@ Open a URL in the app, as the OS would hand it over
 
 Also accepted: `deeplink`.
 
-### `lynkeus os appstate <state> [--app <bundleId>]`
+### `lynkeus os appstate <state> [--app <bundleId>] [--device <udid|name|serial>]`
 
 AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real
 
@@ -269,6 +308,7 @@ AppState listeners see the change (background, then active: what refetches or re
 | Flag | |
 |---|---|
 | `--app <bundleId>` | the app to bring back on a simulator or emulator (default: the config’s app) |
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
 Also accepted: `appstate`.
 
@@ -362,7 +402,7 @@ With a route and no other flag, the matching requests are answered by a rule (`-
 | `--clear` | drop every rule and gate, and let held requests go |
 | `--list` | show the rules, the gates and what is held |
 
-### `lynkeus os permissions <action> <service>`
+### `lynkeus os permissions <action> <service> [--device <udid|name|serial>]`
 
 Simulator: grant, revoke or reset a permission for the app
 
@@ -371,7 +411,11 @@ Simulator: grant, revoke or reset a permission for the app
 | `action` | grant | revoke | reset |
 | `service` | camera, photos, location, microphone, contacts, … |
 
-### `lynkeus os push <payload>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os push <payload> [--device <udid|name|serial>]`
 
 Simulator: deliver a push notification to the app
 
@@ -379,7 +423,11 @@ Simulator: deliver a push notification to the app
 |---|---|
 | `payload` | '{"alert":"…"}' or a .json file |
 
-### `lynkeus os appearance <mode>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os appearance <mode> [--device <udid|name|serial>]`
 
 Simulator: light or dark
 
@@ -387,7 +435,11 @@ Simulator: light or dark
 |---|---|
 | `mode` | light | dark |
 
-### `lynkeus os location <where>`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
+
+### `lynkeus os location <where> [--device <udid|name|serial>]`
 
 Simulator: where the device is
 
@@ -395,13 +447,24 @@ Simulator: where the device is
 |---|---|
 | `where` | <lat>,<lon> | clear |
 
-### `lynkeus os language [tag]`
+| Flag | |
+|---|---|
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
-Simulator: relaunch the app in a locale
+### `lynkeus os language [tag] [--app <bundleId>] [--device <udid|name|serial>]`
+
+Simulator: relaunch the app in a locale; Android (API 33+): set the app’s own locale
+
+Acts on the device the app is attached to: the simulator for an iOS app, the emulator or phone for an Android one. With several devices up, pick one with the global `--device` (or `LYNKEUS_DEVICE`). On Android it sets the app’s own locale with `cmd locale set-app-locales`, which needs API 33+.
 
 | Argument | |
 |---|---|
 | `tag` | de-DE, en-US, … (default: the locale in lynkeus.config.json) (optional) |
+
+| Flag | |
+|---|---|
+| `--app <bundleId>` | the app to relaunch on a simulator or emulator (default: the config’s app) |
+| `--device <udid|name|serial>` | the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to) |
 
 ## map
 
@@ -410,6 +473,8 @@ what Lynkeus knows before touching anything, from the app's source and from walk
 ### `lynkeus map build [--as-base]`
 
 Read the source once: routes, testIDs, navigations → .lynkeus/graph.json
+
+Rarely needed by hand: every command that reads the graph (case coverage, case new, map plan, map show, smoke…) builds it first when it is missing or when a source file it was read from changed since, or a folder of them gained or lost a file. Run it to see what was read and what could not be, or with --as-base to keep a graph for `map check`.
 
 | Flag | |
 |---|---|
@@ -459,16 +524,17 @@ Screens a change can reach, nearest first
 | `--depth <n>` | how many imports away to look (default `4`) |
 | `--direct` | only the screen and its importers |
 
-### `lynkeus map ci [--force] [--depth <n>]`
+### `lynkeus map ci [--force] [--depth <n>] [--cases]`
 
 Write a GitHub workflow that comments on each pull request which screens its diff reaches
 
-Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--force` overwrites an existing file.
+Writes `.github/workflows/lynkeus-map-check.yml` in the app. On every pull request it builds the map from the sources (no app, no device, well under a second of analysis), runs `map check` against the base branch and keeps one comment on the PR up to date. `--cases` adds a job that runs the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (headless and FastSim in cases.targets; for FastSim it installs the kit and bundles the app first); that job needs LYNKEUS_TOKEN, LYNKEUS_CLOUD_KEY for FastSim and LYNKEUS_REPORTS_KEY with ci.push in the repository's secrets, and a backend (ci.backend). Without `--cases`, when cases.targets has such targets, it says what `--cases` would add. `--force` overwrites an existing file.
 
 | Flag | |
 |---|---|
 | `--force` | overwrite the workflow if it exists |
-| `--depth <n>` | how many imports away the check looks (default `2`) |
+| `--depth <n>` | how many imports away the check looks (as `case impact`) (default `4`) |
+| `--cases` | also run the cases the pull request reaches with `lynkeus ci --affected`, on the project's CI targets (cases.targets: headless, fastsim:ios, fastsim:android) |
 
 ### `lynkeus map check [--base <ref>] [--graph-base <file>] [--depth <n>]`
 
@@ -581,7 +647,7 @@ Open every parameter-free route (or the prefixes given) and record what renders
 
 Press every control it finds, learn where each leads (feeds map paths and plan)
 
-Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app.
+Finishes a screen before it goes anywhere, so the controls that matter are not lost to whatever the first one opened, and remembers in .lynkeus/frontier.jsonl what it did not get to — a second run continues instead of repeating. `--to` walks towards a route instead of exploring everything. Read-only by default: every press happens, but the moment one makes the app write (a POST, PUT, PATCH or DELETE) the crawl reports it and stops exploring past it, and never presses that control again. Controls that must not be pressed at all go in lynkeus.config.json under crawl.never — Lynkeus ships no list of its own, because which controls are irreversible depends on the app. A press that sends the app to the background (a link opened in the browser, another app) leads outside the app: the crawl reports what it opened, never presses that control again, brings the app back to the front the way it launches it (relaunching it only if that fails) and goes on. A press that signs out leaves the way back behind the sign-in: with crawl.login in lynkeus.config.json (a macro that signs in, such as app.signIn) the crawl signs in again there and goes on, and signs in first when it starts on the screen that macro waits for; without it, it stops there and says so. Over MCP it stops after 12 presses unless max says otherwise.
 
 | Argument | |
 |---|---|
@@ -630,11 +696,11 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--progress <json|none>]`
+### `lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--brief] [--verbose] [--budget <s>] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
-A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run.
+A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. A step that runs past its own `timeoutMs` plus 30 s (one with none: 180 s, `cases.stepCeilingMs`) fails as stuck. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
 
 | Argument | |
 |---|---|
@@ -642,7 +708,9 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 
 | Flag | |
 |---|---|
-| `--host` | start `headless start` for the run and stop it after |
+| `--on <targets>` | run the cases on several targets at once: targets (each case's declared ones, cases.targets; a missing one makes the check incomplete), all (every one this machine has; a missing one is said, not failed), or names, comma-separated: headless, fastsim:ios, fastsim:android, ios (the app on the iOS Simulator or an iPhone), android (the app on the Android emulator or a phone), fastsim (the last bundle), simulator (whichever device app is attached; emulator and device are the same) |
+| `--bundle <dir>` | with --on and a FastSim target: the folder fastsim-bundle made (default: the last one under .lynkeus of the target's platform) |
+| `--host` | start `headless start` for the run (one per job with --jobs), each on a free driver port of its own, and stop it after |
 | `--host-heap <percent>` | with --host or --keep-hosts: start a host again before a case when its heap is past this percent of its limit (default `60`) |
 | `--seed <text>` | make the random values of the cases repeatable, and tell a host the run starts (default: launch.seed, LYNKEUS_SEED) |
 | `--locale <tag>` | the language tag a host the run starts launches with, as in es-AR (default: launch.locale, LYNKEUS_LOCALE) |
@@ -650,7 +718,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--epoch <iso>` | the instant the app’s clock starts at on a host the run starts, ISO 8601 or milliseconds (default: launch.epoch, LYNKEUS_EPOCH) |
 | `--once` | no second chance for a case that fails |
 | `--continue` | keep running a case's steps after one fails (a failed setup still stops it) |
-| `--seen <dir>` | write <dir>/<case id>.json with the screens each passing case went through, for a coverage map |
+| `--seen <dir>` | where to write <case id>.json with the screens each passing case went through, step by step, for `case coverage` and `case new` (default .lynkeus/seen) |
 | `--report <file>` | append one JSON line per case |
 | `--events <dir>` | keep what the app told its analytics, per case, as <dir>/<case id>/events.jsonl |
 | `--out <dir>` | write the run as a directory a report can read: run.json and cases.jsonl, a line per attempt |
@@ -660,7 +728,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--frames-on-change` | with --screenshots: a step that only looks (app.see, app.wait) on an unchanged screen shares the last frame |
 | `--still <ms>` | with --screenshots, on a simulator or emulator: take each frame again until two in a row match, this many ms apart (a native transition the agent cannot see) |
 | `--frames <avif|png>` | with --screenshots: avif, the default and a few percent of the bytes (a simulator's or emulator's PNG is encoded again), or png, exact, only for frames two runs are compared by pixel for pixel (default `avif`) |
-| `--video` | with --out: film each case, where the host films (the step says at what second it began) |
+| `--video` | with --out: film each case: a host that films, a Simulator (simctl) or an emulator (screenrecord); each step says at what second it began |
 | `--traces` | listen for the backend’s OpenTelemetry traces (OTLP over HTTP) and keep, under each step, what the backend did for it; point the backend’s OTEL_EXPORTER_OTLP_ENDPOINT at http://localhost:<traces-port> |
 | `--traces-port <port>` | where --traces listens (default `4318`) |
 | `--push` | with --out: upload the run to the reports service and print the report’s address; the report is made when the run starts and fills case by case |
@@ -672,12 +740,15 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--jobs <n>` | cases at once, each on its own host (default `1`) |
 | `--ports <list>` | the driver port of each job, comma-separated: where its host dials in (default: free ones) |
 | `--host-command <command>` | starts a fresh host for every case and stops it after; {port} is where the host dials, {job} the job |
-| `--keep-hosts` | with --host-command: start each job’s host once and keep it for the job’s cases, starting it again when it exits, its app stops answering or its heap passes --host-heap percent |
-| `--host-timeout <ms>` | with --keep-hosts: how long a host may take to attach (it builds the app first) (default `600000`) |
+| `--keep-hosts` | with a headless --host-command: start each job’s host once and keep it for the job’s cases, reset between them, starting it again when it exits, its app stops answering or its heap passes --host-heap percent (a FastSim host is started for every case all the same) |
+| `--host-timeout <ms>` | how long a host the run starts may take to attach, kept or for one case (a headless host builds the app first); past it the job ends (default `600000`) |
 | `--in-order` | with --jobs: take the cases in the order given, not the longest first |
 | `--ahead <n>` | make up to this many setups ahead of their cases while others run (0: none) (default `0`) |
 | `--idle <share>` | with --ahead: start a setup only while this share of the CPU is idle (default `0.25`) |
 | `--dry-run` | parse and list the steps without running them |
+| `--brief` | with --on: only the cases that did not pass, each target's count and notes cut to a line (a suite on several targets) |
+| `--verbose` | a failed case with its whole screen, every request and its full error; without it the screen is cut to what a check can name, and a notice the last run gave is not repeated |
+| `--budget <s>` | stop the run after this many seconds, as case stop does: no case starts after it and the answer names the cases not run (over MCP 1500 unless given; 0: none) |
 | `--progress <json|none>` | how the run says where it is, besides <out>/progress.ndjson (`case status` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal |
 
 ### `lynkeus case status [dir]`
@@ -725,35 +796,54 @@ Write an example case, the reference of the format and a fixtures server to star
 |---|---|
 | `--force` | overwrite what is there |
 
+### `lynkeus evidence [files]… [--on <targets>] [--host] [--out <dir>] [--no-video] [--push] [--budget <s>]`
+
+Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong
+
+The evidence a person reviews, in one call: `case run` with `--out`, `--screenshots` and `--video` (unless `--no-video`), on the targets `--on` names (as `case run --on`), the attached app, or headless with `--host`. The answer is short: the report's path per target, a line per case with its result on each target, and the frames that look wrong: an action whose frame is identical to the step before's (it changed nothing on screen), a frame taken while a system view or another app was in front, and one a host took while its screen still moved. The run's whole answer is in answer.txt beside the report.
+
+| Argument | |
+|---|---|
+| `files` | case files (default: every case in cases.dir) (optional) |
+
+| Flag | |
+|---|---|
+| `--on <targets>` | as case run --on (default: the attached app) |
+| `--host` | headless, in Node |
+| `--out <dir>` | the run folder (default .lynkeus/runs/evidence/<time>) |
+| `--no-video` | no film |
+| `--push` | upload to the reports service |
+| `--budget <s>` | as case run --budget: stop the run after this many seconds (over MCP 1500 unless given; 0: none) |
+
 ### `lynkeus case coverage [--route <Route>] [--seen <dir>]`
 
 Which of the app’s screens the cases touch, which none does, and which a case names that the app no longer has
 
-A screen counts as touched when a case goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run --seen <dir>`, read from .lynkeus/seen unless --seen says where). The screens come from the route graph (`lynkeus map build`).
+A screen counts as touched when a case, or a macro it calls, goes to it (`app.nav`), waits for it (`app.wait`), checks it (`app.see: { route }`), or went through it on its last passing run (`case run` keeps that in .lynkeus/seen, or where its --seen says; so does this --seen). The screens come from the route graph (`lynkeus map build`). When three or more case files open with the same app steps, a hint names them and the macro (`cases.macros`) that would say them once.
 
 | Flag | |
 |---|---|
 | `--route <Route>` | only this screen: the cases that touch it |
-| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+| `--seen <dir>` | where `case run` kept the screens of passing cases (default .lynkeus/seen) |
 
 ### `lynkeus case impact [--base <ref>] [--depth <n>] [--seen <dir>] [--files]`
 
 The cases a branch’s changes reach, to run only those, and the reached screens no case covers
 
-The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
+The screens the diff against --base touches or imports (as `map check` finds them), crossed with what each case covers (as `case coverage` finds it). A change to a string table (a file of object literals of strings, such as the app’s translations) counts only for the files that name its changed keys (`t('a.b')`, `tx="a:b"`, `strings.a.b`) and the cases whose steps name a changed string’s old or new text; when a changed key is named nowhere by its whole key, every importer counts and a line says why. A file whose change is only testIDs or accessibility labels (or comments and formatting) reaches no screen, only the cases whose steps or macros name a changed testID (old or new) or a changed label’s text. --files prints one case file per line: `lynkeus case run $(lynkeus case impact --files)`.
 
 | Flag | |
 |---|---|
 | `--base <ref>` | git ref to diff against (default `main`) |
 | `--depth <n>` | how many imports away a change still reaches a screen (default `4`) |
-| `--seen <dir>` | where `case run --seen` kept the screens of passing cases (default .lynkeus/seen) |
+| `--seen <dir>` | where `case run` kept the screens of passing cases (default .lynkeus/seen) |
 | `--files` | print only the case files, one per line |
 
 ### `lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]`
 
 Draft a case for a screen: the way there, the backend setup to pick from, and the checks left to write
 
-Prints a case to finish: the frontmatter with the questions a reader needs answered, the setup the project’s fixtures server offers (from `lynkeus.describe`, commented out: what state the case needs is the author’s call), the presses from --from (default `cases.start`) to the screen as `map plan` knows them, and the checks to write. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Prints a case to finish: the frontmatter with the questions a reader needs answered, the names of the fixtures the project’s server offers (from `lynkeus.describe`, as a comment: what state the case needs is the author’s call; none while it is the example `case init` wrote), the way to the screen, and the checks to write. The way is the one an existing case takes, when one reaches the screen (its last passing run was there, as `case run` keeps in .lynkeus/seen, or a step of it goes to, waits for or checks the screen), with a line naming that case; otherwise the presses from --from (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them; without --from, a start with no known way gives way to `cases.start`, then the first declared screen. With no case through the screen, it lists (commented out) the testIDs its source writes, texts runs saw there and the presses that lead on. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|
@@ -762,7 +852,7 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 | Flag | |
 |---|---|
 | `--to <Route>` | the screen the case is about |
-| `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json) |
+| `--from <Route>` | where it begins (default: cases.start in lynkeus.config.json, else the screen the app shows, else the first screen declared) |
 | `--title <text>` | what a person can do there, as the report will title it |
 | `--write` | save it in the cases folder instead of printing it |
 
@@ -770,7 +860,7 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 
 Draft a case from the screen the app shows now, with checks that pass as it is
 
-Reads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Reads the attached app’s screen and writes a case that goes there the way `case new` drafts it (the steps of a case that reaches it, sign-in included, else the route map’s presses from cases.start, else `app.nav` to its route, which works only where the route is mounted) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|
@@ -780,18 +870,19 @@ Reads the attached app’s screen and writes a case that goes to its route (`app
 |---|---|
 | `--title <text>` | what the case shows, as the report will title it |
 | `--write` | save it in the cases folder instead of printing it |
-| `--host` | start `headless start` for the read and stop it after |
+| `--host` | start `headless start` for the read, on a free driver port of its own, and stop it after |
 
-### `lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
+### `lynkeus ci [--affected] [--base <ref>] [--on-diff-error <fail|all>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]`
 
 Run the suite the way a CI job does: bring the backend and N hosts up, run the cases across them, report, tear down
 
-Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
+Reads `ci` in lynkeus.config.json: `backend.up` / `backend.down` (the project’s commands; Lynkeus knows no backend) and `backend.ready` (a URL to wait for), `hosts.count` and `hosts.command` (default: a headless host; `{port}` is where it dials), `push`, and extra `run` flags. With `cases.targets` declared, each case runs on its declared targets CI can start (headless, fastsim:ios, fastsim:android; a case’s own `targets:` replaces the project’s), one target after another, each in `<out>/<target>` when there are several; `ios` and `android` need a device and are listed, not run; a declared FastSim target with no kit or bundle here fails the job as an incomplete check. --affected runs only the cases a branch’s changes reach (as `case impact` finds them). Writes the job summary to $GITHUB_STEP_SUMMARY when it is set. The exit code is the suite’s.
 
 | Flag | |
 |---|---|
 | `--affected` | only the cases the changes against --base reach |
 | `--base <ref>` | git ref --affected diffs against (default `origin/main`) |
+| `--on-diff-error <fail|all>` | when git cannot diff against --base (an unknown ref, a shallow checkout): fail the job, or run all the cases (default `fail`) |
 | `--jobs <n>` | how many hosts and jobs (default ci.hosts.count, else 2) |
 | `--out <dir>` | where the run goes (default `lynkeus-run`) |
 | `--keep-up` | leave the backend up afterwards (the hosts end with the run) |
@@ -812,6 +903,22 @@ Starts the command `cases.fixtures` names, asks `lynkeus.describe`, and prints e
 Tell whether the project’s fixtures server keeps the fixtures protocol
 
 Starts the server, asks `lynkeus.describe`, and checks the answer against the contract in docs/FIXTURES.md: a list of commands, no name twice, a protocol version this Lynkeus knows, and whether it is up. It changes nothing in the backend.
+
+### `lynkeus report html <dir> [--embed] [--embed-film] [--project <name>]`
+
+Write a run as one HTML page in its folder, to open offline or share: cases, steps, frames, film, requests, failures
+
+Reads what `case run --out <dir>` wrote (run.json and cases.jsonl) and writes `report.html` beside them: every case by its last attempt, its steps under their sections with the frame after each, the film with a button per step that plays it from there, the requests each step sent with their bodies, the events, logs and backend spans, and why a failed case failed. No service and no network: it needs a browser only. The frames and the film stay files in the folder, so share the folder (a CI artifact, a zip), or pass --embed to carry the frames inside the page as stored (the film stays a file beside it; --embed-film carries it too). `case run --out` writes it by itself at the end of every run.
+
+| Argument | |
+|---|---|
+| `dir` | the run directory `case run --out` wrote |
+
+| Flag | |
+|---|---|
+| `--embed` | carry the frames inside the page as stored (the film stays a file beside it unless --embed-film) |
+| `--embed-film` | carry the film inside the page too (much larger) |
+| `--project <name>` | the name the page shows (default: the app’s folder name) |
 
 ### `lynkeus report prune [dir] [--older <age>] [--dry-run]`
 
@@ -906,7 +1013,7 @@ Creates a per-run token with LYNKEUS_REPORTS_KEY (or LYNKEUS_CLOUD_KEY), connect
 
 Download Lynkeus FastSim for this machine and a platform from lynkeus.io with the organization's key
 
-Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2 and need LYNKEUS_CLOUD_KEY. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.
+Asks lynkeus.io which Lynkeus FastSim releases the organization may install (with LYNKEUS_CLOUD_KEY, an API key an owner of the organization made with “May download Lynkeus FastSim”, or else the sign-in `lynkeus login` saved, for a member with a FastSim seat; other keys are refused), downloads the build for this machine and --platform (ios unless told: darwin-arm64-ios on an Apple Silicon Mac, linux-x64-android on Linux, and so on; on Windows run it inside WSL2), checks its SHA-256 and its Ed25519 signature (packages are signed by Lynkeus; a release with no signature or a wrong one is refused, nothing is unpacked) and unpacks it into ~/.cache/lynkeus/fastsim/<version>/<variant> (LYNKEUS_FASTSIM_DIR moves it). Install each platform you test on its own: a Mac's iOS build is about 8 MB, its Android build about 65 MB. iOS matches the simulator only on a Mac; on Linux it is close but drawn with another font. An installed release with the same digest is kept. The package's README says how to bundle the app (bin/fastsim-bundle) and run cases on it (bin/fastsim-run with case run --host-command). With no key and no saved sign-in, a person at a terminal (stdin and stderr are TTYs, CI unset) is signed in first, as lynkeus login does, and the install goes on; so is a saved sign-in the service refuses, once. Scripts, CI and MCP never open a browser: they exit 2, the first line saying that signing in is a step only the person can do (`lynkeus login`), or need LYNKEUS_CLOUD_KEY; so does a saved sign-in that expired and could not be renewed. Exit code 2 without a key or a sign-in and nobody to ask, 1 when the organization has no FastSim entitlement, the machine has no build, or the download fails.
 
 | Flag | |
 |---|---|
@@ -934,7 +1041,7 @@ Asks lynkeus.io for a grant for the build this machine runs (--platform ios unle
 
 Start a Lynkeus FastSim host on a bundle for this session, to explore the app with screen, press and type
 
-Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on this session's driver port, and waits for its app to attach. From then on every command of the session drives that app, as case run drives the host it starts; `fastsim stop` ends it, and so does the session ending. An app attached before (a simulator's) is replaced by it; close that app, or it dials back in. The host's log is in <bundle>/hosts/<port>.err. Warns when the bundle is older than the app's code.
+Over MCP, or in a `lynkeus session` (which attaches to an app first): starts the installed Lynkeus FastSim's bin/fastsim-run on a bundle fastsim-bundle made (--kit names the FastSim folder; by default the newest installed one that draws the bundle's platform), on a free driver port of its own, and waits for its app to attach. From then on every command of the session drives only that app, as case run drives the host it starts, and each answer about the app starts with its lane (`[FastSim iOS]`); `fastsim stop` ends it, and so does the session ending. Apps attached on the session's port (a Simulator's, an emulator's) stay attached and are not driven until then: nothing of theirs reaches an answer. The host's log is in <bundle>/hosts/<port>.err. A bundle older than the app's code is bundled again first with the kit's bin/fastsim-bundle (in this process's environment); when that fails, the host is not started and the answer gives the command to run.
 
 | Argument | |
 |---|---|

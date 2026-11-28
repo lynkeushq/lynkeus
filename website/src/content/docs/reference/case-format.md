@@ -50,6 +50,7 @@ The file must start with `---` on its first line. A file without frontmatter is 
 | `ticket` | string | none | The ticket the case covers. Shown in a report. Since 0.5.0. |
 | `matrix` | object of lists | none | Inputs to run the case over. See [Matrix](#matrix). |
 | `exclusive` | boolean | `false` | `true` runs the case with no other case at the same time under `case run --jobs`: it waits for the cases in flight to end, and no other starts until it has ended. For a case that changes state every case shares, such as a global feature flag. Its setup is never made ahead. |
+| `targets` | list of strings | `cases.targets` | Where this case must pass, replacing the project's list for this case: `[ios, android]` for a case that needs a feature only a device has. Same names as `cases.targets`. `case run --on targets` and `lynkeus ci` read it. |
 
 Other keys are allowed and ignored by the runner.
 
@@ -58,7 +59,7 @@ Other keys are allowed and ignored by the runner.
 | Key | Type | Meaning |
 |---|---|---|
 | `setup` | list of steps | What has to exist before the test. A step that fails here stops the case, even with `--continue`. |
-| `teardown` | list of steps | What puts back what the case changed outside the app, such as a face enrolled on a shared Simulator. It runs after the steps, whether they passed, failed or were skipped. A step that fails there is reported as a warning and does not change the result; it is not counted among the case's steps. A run cut by a timeout never reaches it. |
+| `teardown` | list of steps | What puts back what the case changed outside the app, such as a face enrolled on a shared Simulator. It runs after the steps, whether they passed, failed or were skipped. A step that fails there does not change the result and is not counted among the case's steps; the result names it as a warning (`warnings` in `cases.jsonl`, a ⚠ line in the answer). A run cut by a timeout never reaches it. |
 | `steps` | list of steps | The test itself. |
 | `expected` | string | What a passing run proves, for the reader. The runner does not evaluate it. |
 
@@ -108,7 +109,7 @@ Steps that touch or look for an element take a **target**, written as a string:
 |---|---|
 | `"#next-button"` | The element with that `testID`. |
 | `"Continue"` | A control (button or input) by exact label, then by substring. A paragraph only by its exact text. |
-| `"12"` | The element at that index in the screen listing. |
+| `"12"`, or `12` unquoted | The element at that index in the screen listing. |
 | `"364,84"` | A point, in window points. |
 | `"#row[2]"` | The third match (counted from 0). |
 | `'"Next"'` | The text between the inner quotes, and only ever a text. |
@@ -168,10 +169,12 @@ Presses an element. It waits for the control to be listed, in the window, enable
 | `nth` | number | | Take the nth match, counted from 0. |
 | `optional` | boolean | `false` | Press only if the target is on screen once the app has gone quiet. Otherwise the step is skipped, not failed. |
 | `hold` | number (ms) | | Keep the finger down this long. About 600 is a long press. |
-| `timeoutMs` | number (ms) | `3000` | How long to wait for a control that is still disabled or covered. Applies to a `#testId` target. |
+| `timeoutMs` | number (ms) | `3000` | How long to wait for a control that is still disabled or covered. Applies to a `#testId` target. When the step gives it, it also bounds the wait for the target to be listed and the scrolls toward it. |
 | `js` | boolean | `false` | Call the element's `onPress` directly instead of synthesizing a touch. |
 
 When the target is not listed, the step waits half a second and then scrolls to find it. When it is listed but outside the window, the step scrolls toward it.
+
+A point (`app.press: "390,450"`) is pressed where it is: the step does not look for it, scroll or wait for anything to clear, whatever covers the point (a drawer's overlay, say). A step that spends more than 3 s finding its target, passed or not, is named in the case's warnings with the time, so a slow target shows up before it slows the whole suite.
 
 A step that names nothing to press fails with `app.press needs a target`.
 
@@ -247,7 +250,7 @@ Waits for something. The value decides for what.
 | `gone` | boolean | `false` | Wait until it leaves the screen. |
 | `enabled` | boolean | `false` | Wait until the target is there, enabled and taking touches, such as a form button that waits on its fields. |
 | `anyOf` | list of targets | | Accept the first of these that is present. `target` is not needed then. Each item is a string (`"#welcome"`, `'"Try again"'`) or an object: `{ testId }`, or `{ text, nth? }` with `nth` counted from 0. `gone` cannot be combined with it. |
-| `scroll` | boolean | `false` | Swipe until the target is in the window. |
+| `scroll` | boolean | `false` | Swipe until the target is in the window and nothing covers it (a tab bar, a header). A covered target is moved out from under in a short swipe, so it does not leave the window on the other side. |
 | `request` | string | | Wait for a request the app made, written `METHOD /path`. A bare path matches any method. The path matches when the request's path ends with it. |
 | `status` | number | any 2xx | With `request`: the status the answer must have. |
 | `timeoutMs` | number (ms) | `10000` | Give up after this long. |
@@ -257,7 +260,7 @@ A trailing slash does not matter when a request is matched: `GET /api/items` mee
 A `request` counts only the requests the app started after the previous acting step began, so an earlier screen's request to the same path does not pass for the one you mean. See [`app.requests`](#apprequests) to mark further back.
 
 :::caution
-A one-word label that starts with a capital letter, such as `Continue`, is read as a route by `app.wait`. Wait for such a control by its `testID`, or put the text in quotes of its own so that it is always a text: `app.wait: '"Continue"'`. See [Quoted targets](#quoted-targets).
+A one-word label that starts with a capital letter, such as `Continue`, is read as a route by `app.wait`. Wait for such a control by its `testID`, or put the text in quotes of its own so that it is always a text: `app.wait: '"Continue"'`. See [Quoted targets](#quoted-targets). When such a wait fails and the app has no route of that name that Lynkeus knows of, but the word (or one close to it) is on screen, the error says so and suggests the quotes; `lynkeus why Continue` says the same.
 :::
 
 ### `app.see`
@@ -272,9 +275,12 @@ Asserts what the app shows or did. Everything the step names must hold at once.
 - app.see: { request: "GET /v3/accounts", status: 200 }
 - app.see: { event: signup_completed, props: { method: email } }
 - app.see: { layer: true }
+- app.see: { target: "Renders a boolean input.", contains: true }
 ```
 
 A plain string value is a target, never a route. To assert a route, use `route`.
+
+Letter case never matters, and spaces around a text do not count. A target that is a text matches an element's whole text; a control's label also matches a part of it. `contains: true` finds the text inside a longer one, such as a sentence in a paragraph. `text` on its own already looks inside every text.
 
 | Parameter | Type | Default | Meaning |
 |---|---|---|---|
@@ -282,10 +288,12 @@ A plain string value is a target, never a route. To assert a route, use `route`.
 | `within` | target | | Among several matches, take the one nearest this target. |
 | `nth` | number | | Take the nth match, counted from 0. |
 | `text` | string | | With a target: the element, or an element inside it, must contain this text. Alone: some element on screen must contain it. |
+| `contains` | boolean | `false` | With a target that is a text: an element whose text contains it matches, inside `within` when given; `nth` counts among those. |
 | `route` | string | | The app must be on this route. |
 | `layer` | boolean or string | | `true`: a layer (a sheet, a dialog) is open over the screen. `false`: none is. A string: one is open and its `testID` contains the string. |
-| `request` | string | | The app must have made this request, written `METHOD /path`. |
-| `status` | number | any | With `request`: the status the answer must have. |
+| `request` | string | | The app must have made this request, written `METHOD /path`, and it must have been answered: a request with status 0 (no network on the host, refused, aborted) fails the step and says so. |
+| `status` | number | any answer | With `request`: the status the answer must have. `status: 0` checks for a request that got no answer. |
+| `answered` | boolean | `true` | With `request`: `false` accepts a request that was only sent, answered or not. |
 | `event` | string | | The app must have reported this analytics event. |
 | `props` | object | | With `event`: properties the event must carry. Values are compared as text. |
 | `absent` | boolean | `false` | Turn the assertion around: the step passes when the conditions do not hold. |
@@ -305,7 +313,11 @@ Jumps straight to a route, then waits for the route and for the app to settle. T
 | Parameter | Type | Meaning |
 |---|---|---|
 | `route` | string | The route name. A plain string value is the route. |
-| `params` | object | Optional. The route's params. |
+| `params` | object | Optional. The route's params. `{ screen: Inner }` opens a nested screen of a navigator route, as React Navigation takes it. |
+
+A screen that lives inside a nested navigator (a tab of a tab navigator, say) can be named on its own: `app.nav: DemoPodcastList`. React Navigation cannot reach a screen of a navigator that is not mounted yet, so Lynkeus goes through its parents, `Demo` here. It knows them from the path a run last saw the screen at, and otherwise from the route graph (`lynkeus map build`). When it knows neither, the agent says which navigator is missing instead of timing out.
+
+The step waits for the screen it lands on: the innermost `screen` in the params, or the route itself. A navigator's own name, such as `app.nav: Demo`, counts as reached as soon as the focused screen is inside it.
 
 ### `app.back`
 
@@ -345,6 +357,27 @@ Runs a command the app registered with `qa.register`. See the [Agent API](/refer
 | `expect` | object | | Paths into the answer and the value each must have. Values are compared as text. `null` means the path must be empty. The call is repeated until the answer matches or the time is up. |
 | `as` | string | | Keep the answer under this alias, for [references](#references). |
 | `timeoutMs` | number (ms) | `3000` | How long `expect` has to become true. |
+
+An app registers its commands as it starts. Within 5 seconds of the app attaching (a launch, a relaunch), a command it has not registered yet is asked for again until it is there; after that, or in a release bundle that never registers it, the step is `unsupported` at once.
+
+### `app.relaunch`
+
+Starts the app again, as a fresh case finds it. It takes no value.
+
+```yaml
+- app.relaunch
+```
+
+| Where | What happens |
+|---|---|
+| A simulator or emulator | The app is terminated and launched again (`simctl launch --terminate-running-process`, `am force-stop` and the launcher), and the step waits for it to attach. It needs `app` in `lynkeus.config.json`. |
+| A host the run started for the case (`--host-command`, `host_command`) | The host is stopped and started again, the way the case's own host was started. |
+| A headless host the run keeps for its cases (`--host`, `--on headless`, `--keep-hosts`) | The app is mounted again in the same process, as between cases: the host's mocked native state is wiped, and what the app keeps at module scope stays. It takes about 100 ms instead of the 2 to 3 s of a new host. A host that cannot reset is started again. |
+| Any other host (headless) | The app is mounted again from scratch (the agent's `reset`), with the host's mocked native state wiped. A host that cannot do that answers `unsupported`. |
+
+The case's mocks go with the app on a device: set them again after the relaunch. The config's `nativeMocks` are sent again.
+
+Before the first step, a case on a simulator or emulator also relaunches the app by itself when a view the app did not draw covers it: iOS's Save Password prompt left after the case before signed in, a permission prompt, an alert left open. The case's result carries a warning that says so, and says when the view came back after the relaunch, which means the launch itself shows it.
 
 ### `app.run`
 
@@ -409,13 +442,15 @@ The value becomes the command's arguments:
 
 In an object, the keys `target`, `request`, `route`, `url`, `state` and `text` also stand for the command's first argument, whatever the command calls it. Six flags have a longer spelling you can use instead: `within` for `in`, `timeoutMs` for `timeout`, `delayMs` for `delay`, `durationMs` for `duration`, `holdMs` for `hold` and `advanceMs` for `advance`.
 
-A key that names neither an argument nor a flag of the command fails the step with `<command> has no <key>`. A name that is no Lynkeus command and no macro fails with `app.<name> is not a step`. `lynkeus case run --dry-run` reports both without running anything.
+A key that names neither an argument nor a flag of the command fails the step with `<command> has no <key>`. A name that is no Lynkeus command and no macro fails with `app.<name> is not a step`. `lynkeus case run --dry-run` reports both without running anything, and lists every case's steps as a run counts them, each macro opened into the steps it stands for, with the `{{param.*}}` the case passed filled in.
 
 The arguments and flags of each command are in the [CLI reference](/reference/cli/). Commands marked headless there work only on the headless host; on a device the step is reported as `unsupported`.
 
 ### Mocked answers
 
 `app.mock` answers a request in place of the server, on the headless host and on a device alike. The same keys as the command's flags apply: `route`, `status`, `body`, `delay`, `times`, `sticky`, `lost`, `hold`, `release`.
+
+A rule a case sets lasts until the case ends, on every target: an app reset inside the case, such as a sign-in macro that calls the app's `reset`, keeps it. Each case starts and ends with no rules. (A rule set by hand with `lynkeus mock` is still dropped by an app reset on a host unless it is `--sticky`.)
 
 ```yaml
 - app.mock: { route: "GET /v3/accounts", status: 500 }
@@ -437,6 +472,8 @@ To keep a loading state on screen, hold the request, check the screen, then rele
 With `lost: true` the request is sent and reaches the server, and only its answer is lost: the app sees a failed request, as after a dropped connection, and the server has acted on it. Use it to check what the app does when it cannot know whether a payment went through.
 
 A request that a mock answered, or lost, is marked `mocked`. The app's request log and trace carry the mark, `lynkeus requests` and `lynkeus trace` print `(mocked)`, and the evidence of a failed case says `(mocked)` on that request. The reasons a failed case prints read only what the server answered, so a 500 your own step made is not reported as a backend error. The agent marks the answers of its own mocks; a layer below it, such as the headless host's network, marks its answers with the response header `x-lynkeus-mocked`.
+
+A rule that no request matched by the end of the case is a warning in the case's result, with what the app asked the network for after the case's first mock: `mock rule GET /v1/feed.json never matched; GET /v1/api.json went to the network`. The path is usually a little off; `lynkeus requests` lists what the app really asks for.
 
 ## Steps that prepare and read the backend
 
@@ -541,14 +578,18 @@ steps:
 
 | Condition | Holds when |
 |---|---|
-| `device` | The app runs on a simulator or an emulator. |
-| `headless` | The app runs anywhere else. |
+| `device` | The app runs on a simulator, an emulator or a phone. |
+| `headless` | The app runs on the headless host, in Node. |
+| `fastsim` | The app runs on a Lynkeus FastSim host. |
+| `host` | The app runs on either host, headless or FastSim. |
 | `ios` | The app reports the platform `ios`. |
 | `android` | The app reports the platform `android`. |
 | `has:<command>` | The app registered that command, as `lynkeus hello` lists them. |
 | `!<condition>` | The condition does not hold: `!ios`, `!has:reset`. |
 
 `do` takes one step or a list of steps. An entry with `do` and no `on` is refused.
+
+Before 0.7.7, `headless` also held on FastSim. FastSim draws natively, with real layout, so a step written for the Node host (a text control that stands in for a native one) does not belong there; write `host` for a step both hosts need.
 
 ## References
 
@@ -643,6 +684,12 @@ An entry of a macro is either a plain step, or an object with `do` and one or mo
 | `when` | The condition holds. A list means all of them must hold. |
 | `unless` | The condition does not hold. A list means none of them may hold. |
 | `on` | The host matches, as in [Conditions with `on:`](#conditions-with-on). |
+
+`do` holds one step or a list of them, as in a case:
+
+```json
+"app.closeDrawer": [{ "on": "headless", "do": [{ "app.press": "#drawer-backdrop" }] }, { "on": "device", "do": { "app.swipe": { "direction": "left" } } }]
+```
 
 A `when` or `unless` condition is written one of three ways:
 

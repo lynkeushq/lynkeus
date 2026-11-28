@@ -6,7 +6,9 @@
  *   plugins: ['lynkeus-agent/babel']
  *
  * A production transform is left alone: the secret of a developer's machine
- * has no place in a release bundle.
+ * has no place in a release bundle. The one exception is a bundle made for Lynkeus
+ * FastSim, which is a release bundle by design: `fastsim-bundle` says so with
+ * LYNKEUS_FASTSIM_BUNDLE=1, and a store build never sets it.
  */
 const fs = require('node:fs');
 const nodePath = require('node:path');
@@ -26,7 +28,8 @@ module.exports = ({ types: t, env }) => {
     name: 'lynkeus-token',
     visitor: {
       MemberExpression(path, state) {
-        if (production || !path.matchesPattern('process.env.LYNKEUS_TOKEN')) return;
+        // Read per file, not per plugin: Babel keeps a plugin instance for each env name across bundles.
+        if ((production && process.env.LYNKEUS_FASTSIM_BUNDLE !== '1') || !path.matchesPattern('process.env.LYNKEUS_TOKEN')) return;
         const token = process.env.LYNKEUS_TOKEN || fromFile(state.file.opts.root || process.cwd());
         if (token) path.replaceWith(t.stringLiteral(token));
       },

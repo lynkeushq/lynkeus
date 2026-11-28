@@ -24,6 +24,8 @@ Muchos comandos reciben un **objetivo**: el elemento sobre el que actúan. Se es
 
 Un objetivo con comillas propias es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`: `"12"` no es el elemento de índice 12, y `"Next"` no es la ruta `Next`. Sin comillas, lo que no empieza con `#` ni es un número o un punto también se lee como texto; las comillas hacen falta cuando la forma engaña, sobre todo en `wait` y `see`, donde una palabra con mayúscula inicial es una ruta.
 
+En un paso de un caso, la clave explícita `target:` siempre nombra un elemento: `app.wait: { target: TextField, scroll: true }` espera el texto `TextField`, salvo que la app tenga una ruta con ese nombre. Un valor suelto (`app.wait: TextField`) sigue siendo una ruta.
+
 El shell se queda con las comillas que encuentra, así que hay que protegerlas con otras: `lynkeus wait '"Next"'`. Lo mismo vale para `#`, que algunos shells tratan como comentario: `lynkeus press '#next-button'`.
 
 :::note[Desde 0.3.0]
@@ -128,7 +130,7 @@ Sobre un objetivo, el arrastre empieza en su centro, y un control ancho no siemp
 
 ### `lynkeus back`
 
-Vuelve a la pantalla anterior, sacando la ruta actual de la pila. No tiene argumentos ni opciones.
+Vuelve atrás como lo haría una persona. Si hay un cajón abierto, primero lo cierra: el de un navegador de cajón de React Navigation; un `Drawer` de `react-native-drawer-layout` que la app dibuja por su cuenta, que se reconoce abierto por sus propias props (`open`, `onClose`, `renderDrawerContent`) y se cierra con su `onClose`, porque su capa cambia en el hilo de la interfaz, donde el árbol no la ve; o un control llamado "Close drawer" o "Close menu". En ese caso la ruta no cambia y la respuesta dice qué cerró. Si no hay nada abierto, saca la ruta actual de la pila y vuelve a la anterior. No tiene argumentos ni opciones.
 
 ### `lynkeus nav`
 
@@ -141,7 +143,9 @@ Salta directamente a una ruta. Es un atajo, no una acción de usuario: úsalo pa
 | Argumento | Qué es |
 |---|---|
 | `route` | El nombre de la ruta, por ejemplo `Settings.Main`. |
-| `params` | Opcional. Los parámetros de la ruta, en JSON. |
+| `params` | Opcional. Los parámetros de la ruta, en JSON. Con `{"screen":"Interna"}` abre una pantalla anidada de un navegador. |
+
+Una pantalla de un navegador anidado se puede pedir por su nombre solo: Lynkeus pasa por los navegadores que la contienen, que conoce por el camino en el que una ejecución la vio o por el grafo de rutas. La respuesta trae la pantalla a la que llegó en `route` y los navegadores por los que pasó en `via`.
 
 ```bash
 lynkeus nav Checkout.Confirm '{"id":"abc"}'
@@ -295,12 +299,16 @@ Vuelve a abrir la app y espera a que el agente se conecte.
 ### `lynkeus why`
 
 ```bash
-lynkeus why [target] [--route <Route>]
+lynkeus why [target] [--route <Route>] [--on <lane>]
 ```
 
 Explica por qué falló lo último que intentaste. Lee la pantalla, las últimas peticiones y la traza, y les aplica una serie de reglas: el objetivo está tapado, la sesión venció, el backend respondió 500. Las reglas sobre el backend (5xx, 401, 403, 429) leen solo lo que el servidor respondió: una respuesta que dio un mock tuyo no se le atribuye al backend.
 
 Se ejecuta solo después de un `press`, `wait`, `type`, `swipe` o `nav` que falla. Si le dices qué buscabas, la respuesta es más precisa.
+
+Sin argumentos, `why` se ocupa del último caso que falló en el `case run` más reciente, sin importar dónde corrió: en un host de FastSim, en el host headless o en un simulador, emulador o teléfono. La respuesta empieza por ese carril (`[FastSim iOS]`) y muestra lo que la corrida leyó en el momento del fallo; el host que levantó la corrida ya no existe cuando preguntas. Si después de la corrida diste un comando tú (`press`, `wait`), `why` vuelve a hablar de ese comando y de la app conectada. Si la última corrida no tuvo fallos, lo dice, en vez de rescatar un fallo anterior.
+
+Cuando un texto desapareció y nada en pantalla se le parece (`"Log Out"` pasó a `"Sign Out"`), `why` ofrece los controles del mismo tipo que son nuevos en la pantalla, primero el más cercano a donde estaba el anterior si Lynkeus guardó su marco (`.lynkeus/screens`): `maybe it is now: "Sign Out" (button, same place)`.
 
 | Argumento | Qué es |
 |---|---|
@@ -309,6 +317,7 @@ Se ejecuta solo después de un `press`, `wait`, `type`, `swipe` o `nav` que fall
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | La ruta que esperabas. |
+| `--on <lane>` | Qué carril explicar: `ios`, `android`, `fastsim:ios`, `fastsim:android` o `headless`. Sirve cuando la corrida pasó por varios, o cuando dos apps comparten el puerto. |
 
 Las reglas que aplica están en [Solución de problemas](/es/troubleshooting/).
 
@@ -359,7 +368,7 @@ La grabación está apagada hasta que la inicias, así que una app que nunca la 
 ### `lynkeus init`
 
 ```bash
-lynkeus init [--no-install]
+lynkeus init [--no-install] [--no-skill] [--targets <proposed|lista>]
 ```
 
 Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agente, lo monta desde el punto de entrada de la app y crea el token del proyecto. Se puede ejecutar de nuevo sin riesgo: solo cambia lo que falta.
@@ -367,6 +376,8 @@ Prepara el proyecto para Lynkeus, sea de React Native o de Expo: instala el agen
 | Opción | Qué hace |
 |---|---|
 | `--no-install` | No agrega `lynkeus-agent` a la app; solo lo monta. |
+| `--no-skill` | No instala el skill de Lynkeus ni sus subagentes. `LYNKEUS_NO_SKILL=1` tiene el mismo efecto. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`: los propuestos, o una lista como `headless,ios`. Sin esta opción, si no hay ninguno declarado, `init` solo los propone: dónde tiene que pasar un caso lo decide la persona. |
 
 Lo que hace depende del proyecto:
 
@@ -384,7 +395,9 @@ Imprime una línea por cada cosa que hizo o que te toca hacer. En una app de Rea
 
 ```text
 added auto() to index.js
-made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 added lynkeus-agent/babel to babel.config.js
 restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file
 ```
@@ -392,6 +405,8 @@ restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN
 No repite un cambio que ya está: `index.js already mounts the agent`, `babel.config.js already has lynkeus-agent/babel`. Si no encuentra la configuración de Babel o no reconoce su forma, no la modifica y lo pide: `add 'lynkeus-agent/babel' to the plugins in babel.config.js, so the app can read LYNKEUS_TOKEN`.
 
 El plugin es lo que hace llegar el token a una app de React Native. Lo explica la [API del agente](/es/reference/agent-api/#el-token-tiene-que-llegar-a-la-app).
+
+Por último deja el skill de Lynkeus en `.claude/skills/lynkeus` y dos subagentes de Claude Code, `lynkeus-setup` y `lynkeus-runner`, en `.claude/agents`, igual que [`lynkeus skill install`](#lynkeus-skill-install). Conviene sumar ambas carpetas al repositorio.
 
 ### `lynkeus status`
 
@@ -405,11 +420,57 @@ Dice qué tiene el proyecto de Lynkeus y qué le falta: el agente como dependenc
 |---|---|
 | `--offline` | Revisa solo los archivos; no espera a que haya una app conectada. |
 
+Si hay más de una app llamando al puerto (por ejemplo, el build de desarrollo del simulador de iOS y el del emulador de Android), la línea de la app conectada las nombra a todas, cada una con su dispositivo, y aclara cuál maneja esta sesión, a cuál rechaza mientras tanto y cómo pasar a la otra: `case run --on android` o `why --on android`, o cerrar la app que está conectada para que entre la otra.
+
 Cada línea empieza con `✓` si se cumple, con `✗` si falta algo necesario o con `○` si falta algo opcional. Las `✗` y las `○` terminan con la solución tras un guion largo.
 
 Después viene **Where cases can run on this machine**: dónde pueden correr los casos en esta máquina. Muestra los simuladores de iOS encendidos, los emuladores y teléfonos Android que lista `adb devices`, si la app puede correr sin pantalla y si Lynkeus FastSim está instalado. La última línea recomienda qué usar en el día a día y qué usar en CI.
 
 Sin `--offline`, `status` hace dos cosas más. Ejecuta `adb reverse tcp:<puerto> tcp:<puerto>` en cada emulador y teléfono Android, para que la app llegue a Lynkeus también por `localhost`. Y en una app con `expo-dev-client` marca como vista la pantalla de bienvenida del menú de desarrollo y oculta su botón flotante, en cada simulador y emulador donde la app está instalada: las dos son vistas nativas que tapan la app y ningún paso puede tocar. El cambio vale desde el próximo arranque de la app. Lo mismo pasa una vez cuando una app se conecta desde un simulador o un emulador.
+
+### `lynkeus setup`
+
+```bash
+lynkeus setup [--platform <nombre>] [--device <nombre>] [--rebuild] [--targets <proposed|lista>]
+```
+
+Deja una app conectada partiendo de cero, con un solo comando. Es lo que un agente de IA debería llamar en vez de compilar, levantar Metro y usar `simctl` o `adb` desde su terminal. Hace esto, en orden:
+
+1. **`init`**, si [`lynkeus status`](#lynkeus-status) ve que al proyecto le falta el agente. Lo que contesta `init` queda completo en `.lynkeus/runs/setup/init.txt`.
+2. **El dispositivo**, por plataforma. Las plataformas salen de `--platform`; si no lo pasas, de los `ios` y `android` que haya en `cases.targets`; y si tampoco, de las que compila la app (iOS solo en una Mac). Usa un simulador encendido o un emulador o teléfono conectado, y prefiere el que nombran `--device` o la configuración. Si no hay ninguno, enciende únicamente el que nombra el proyecto: `device` (nombre o UDID de un simulador) o `avd` (un emulador) en `lynkeus.config.json`, o `--device`. Avisa qué encendió y con qué comando apagarlo. Nunca borra los datos de un dispositivo.
+3. **Metro**, si nadie responde en el puerto 8081 (o en `RCT_METRO_PORT`): `npx expo start --dev-client` o `npx react-native start`, con la caché limpia cuando `init` acaba de cambiar la app. Su log queda en `.lynkeus/runs/setup/metro.log`. Si ya había un Metro corriendo antes de que `init` cambiara la app, `setup` se detiene y te pide cerrarlo: ese Metro le daría a la app un bundle sin el token.
+4. **La compilación de desarrollo**, con el comando del propio proyecto: `npx expo run:ios --device <udid> --no-bundler`, `npx expo run:android --device <avd> --no-bundler`, `npx react-native run-ios --udid <udid> --no-packager` o `npx react-native run-android --deviceId <serie> --no-packager`. El log va a `.lynkeus/runs/setup/build-<plataforma>.log`. Si la última compilación que hizo `setup` sigue instalada y no cambió nada de lo que la afecta (las dependencias, `app.json`, `.env.local`), abre esa en lugar de compilar; con `--rebuild` compila igual.
+5. **Abrir la app y esperar que se conecte**. La compilación ya abre la app; si en dos minutos no se conectó, `setup` la abre una vez más y vuelve a esperar.
+6. **`status`**. Al final de la respuesta van sus líneas con `✗` y su recomendación; la salida entera queda en `.lynkeus/runs/setup/status.txt`.
+
+Si la app de esa plataforma ya está conectada, se salta la compilación y el arranque, así que repetir `setup` sale barato. Responde con una línea por paso. Cuando un paso falla, trae las últimas líneas del log que explican el error (hasta 15) y la ruta del log. Por MCP, los pasos largos mandan notificaciones de progreso a los clientes que las piden.
+
+| Opción | Qué hace |
+|---|---|
+| `--platform <nombre>` | `ios`, `android` o las dos (repite la opción o sepáralas con comas). |
+| `--device <nombre>` | Solo con una plataforma. El simulador (nombre o UDID), el emulador (nombre del AVD o número de serie de `adb`) o el teléfono (número de serie). Si es un simulador o un AVD y no está encendido, lo enciende. |
+| `--rebuild` | Compila aunque la última compilación de `setup` esté instalada. |
+| `--targets <proposed\|lista>` | Escribe `cases.targets`, una vez que la persona dijo dónde tienen que pasar los casos. Sin esta opción, `setup` solo los propone, igual que `status`. |
+
+### `lynkeus guide`
+
+```bash
+lynkeus guide [tema] [sección]
+```
+
+Muestra una sección del skill de Lynkeus. Los temas son `cases`, `targets`, `evidence`, `ci`, `determinism` y `troubleshooting`. Con solo el tema, lista sus secciones, una por línea; con tema y sección, imprime esa sección y nada más, por ejemplo `lynkeus guide targets headless`. Sin argumentos, muestra el índice: el camino barato para escribir un caso y las secciones de cada tema. Por MCP es la herramienta `guide`, pensada para los clientes que no cargan skills. Más detalles en [Agentes de IA](/es/guides/ai-agents/#el-skill-de-lynkeus).
+
+### `lynkeus skill install`
+
+```bash
+lynkeus skill install [--force]
+```
+
+Instala el skill de Lynkeus en `.claude/skills/lynkeus` y los subagentes `lynkeus-setup` y `lynkeus-runner` en `.claude/agents`, o los lleva a la versión de esta CLI. [`lynkeus init`](#lynkeus-init) también lo hace. Lynkeus anota qué archivos escribió y con qué contenido: los del skill en `.lynkeus-skill.json`, los de los subagentes en `.claude/agents/.lynkeus-agents.json`. Si alguno cambió o ya no está, o si no lo escribió Lynkeus, deja esa parte como está y lo avisa. Más en [Subagentes para el trabajo de rutina](/es/guides/ai-agents/#subagentes-para-el-trabajo-de-rutina).
+
+| Opción | Qué hace |
+|---|---|
+| `--force` | Reemplaza el skill y los subagentes aunque alguien haya cambiado sus archivos. |
 
 ## Sistema operativo (`os`)
 
@@ -653,18 +714,23 @@ Solo simulador. Define dónde está el dispositivo.
 ### `lynkeus os language`
 
 ```bash
-lynkeus os language [tag]
+lynkeus os language [tag] [--app <bundleId>]
 ```
 
-Solo simulador. Vuelve a abrir la app en otro idioma.
+Simulador y Android. Actúa sobre el dispositivo al que está conectada la app. En un simulador de iOS vuelve a abrir la app en otro idioma, y cada vez que Lynkeus vuelve a abrir esa app en ese simulador (`app.relaunch`, el reinicio antes de un caso, traerla de nuevo al frente) le pasa los mismos argumentos de arranque, que guarda en `~/.cache/lynkeus/launch-args/`; en un emulador o teléfono Android fija el idioma propio de la app con `cmd locale set-app-locales`, que pide Android 13 (API 33) o posterior y, por debajo, falla diciéndolo.
 
 | Argumento | Qué es |
 |---|---|
 | `tag` | Opcional. `de-DE`, `en-US`, … Si lo omites, se usa el idioma declarado en `lynkeus.config.json`. |
 
+| Flag | Qué es |
+|---|---|
+| `--app <bundleId>` | La app que se reinicia. Si lo omites, la de `lynkeus.config.json`. Por MCP es el argumento `app` de `os_language`. |
+| `--device <udid\|name\|serial>` | El simulador, o el emulador o teléfono (serie de adb), sobre el que actuar cuando hay más de uno. Si lo omites, el dispositivo al que está conectada la app. Por MCP es el argumento `device`; los demás comandos `os` que actúan sobre un simulador o emulador también lo aceptan. |
+
 ## Mapa (`map`)
 
-El mapa es lo que Lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee una vez con `map build`, y los recorridos reales, que dejan `crawl` y las ejecuciones. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
+El mapa es lo que Lynkeus sabe de la app antes de tocarla. Tiene dos fuentes: el código fuente, que se lee con `map build`, y los recorridos reales, que dejan `crawl`, los casos, los flows y cada `press` de una sesión o de un cliente MCP. Ninguno de estos comandos necesita la app corriendo, salvo que se indique.
 
 ### `lynkeus map build`
 
@@ -673,6 +739,8 @@ lynkeus map build [--as-base]
 ```
 
 Lee el código fuente una vez y escribe en `.lynkeus/graph.json` las rutas, los `testID` y las navegaciones que encuentra.
+
+Casi nunca hace falta llamarlo. Los comandos que usan el grafo lo construyen si no existe, y lo vuelven a construir si cambió o desapareció alguno de los archivos de los que salió, o si apareció un archivo nuevo en una de sus carpetas (en Expo Router, una pantalla nueva es solo eso). Para decidirlo comparan fechas de archivos, nada más. Sirve llamarlo a mano para ver qué se leyó y qué no, o para guardar una base con `--as-base`.
 
 | Opción | Qué hace |
 |---|---|
@@ -700,7 +768,7 @@ Muestra los `testID` y las navegaciones que una pantalla probablemente tiene, se
 lynkeus map paths <route>
 ```
 
-Muestra qué lleva a una ruta: primero lo observado en recorridos reales, después lo deducido del código.
+Muestra qué lleva a una ruta: primero lo observado en recorridos reales, después lo deducido del código. Lo observado sale de `crawl` y de cualquier toque que haya llevado a otra ruta, o abierto o cerrado una hoja, durante un caso, un flow, una sesión o una conversación por MCP.
 
 | Argumento | Qué es |
 |---|---|
@@ -919,6 +987,12 @@ Pulsa todos los controles que encuentra y aprende adónde lleva cada uno. Lo que
 
 Termina una pantalla antes de pasar a otra, y anota en `.lynkeus/frontier.jsonl` lo que no llegó a pulsar, así que una segunda ejecución continúa en lugar de repetir.
 
+Por MCP es una de las herramientas que se sirven por defecto, y cada llamada es corta: un nivel y 12 toques, salvo que pida otra cosa con `depth` o `max`. La respuesta es un resumen (pantallas encontradas, caminos nuevos, problemas, toques que escribieron y por eso no siguió, y toques que sacaron a la app con lo que abrieron), no una línea por toque.
+
+Un toque que cierra la sesión (un botón Log Out) deja el camino de vuelta detrás del inicio de sesión: la raíz de la app pasa a tener solo las pantallas de entrada, y la pantalla de la que venía el recorrido ya no está montada. Si en `lynkeus.config.json` declaras `crawl.login`, una macro de `cases.macros` que inicia sesión (por ejemplo `app.signIn`), el recorrido la ejecuta en ese punto, vuelve y sigue. También la ejecuta al empezar si arranca en la pantalla que esa macro espera. Una pantalla que solo existe sin sesión (el propio Login) se recorre una vez y después se deja, porque `crawl` nunca cierra la sesión para volver a ella. Sin `crawl.login`, el recorrido se detiene en el inicio de sesión y el resumen lo dice, con la clave que hay que declarar.
+
+Hay toques que mandan la app al fondo: un enlace que se abre en el navegador, un botón que abre otra app. Para `crawl` eso es una salida de la app. Anota qué se abrió, no vuelve a tocar ese control y trae la app de nuevo al frente como Lynkeus la lanza (`simctl launch` en el simulador, el intent del launcher en Android), así que la app conserva su estado. Solo si no vuelve, la relanza. Para eso necesita el bundle id o el application id de la app: `app` en `lynkeus.config.json` o `--app`.
+
 :::caution
 Por defecto, el recorrido es de solo lectura. En cuanto una pulsación hace que la app escriba (un `POST`, `PUT`, `PATCH` o `DELETE`), `crawl` lo informa, deja de explorar más allá y no vuelve a pulsar ese control. Aun así, esa primera pulsación sí ocurre. Los controles que no deben pulsarse nunca van en `crawl.never`, en [`lynkeus.config.json`](/es/reference/configuration/). Lynkeus no trae ninguna lista propia, porque cuáles controles son irreversibles depende de cada app.
 :::
@@ -996,6 +1070,8 @@ Opciones que deciden qué se ejecuta y cómo:
 
 | Opción | Qué hace |
 |---|---|
+| `--on <destinos>` | Corre los casos a la vez en varios destinos. `targets` usa los que declaró el proyecto para cada caso (`cases.targets`, o el `targets:` del propio caso); si falta uno de ellos en esta máquina, la comprobación queda incompleta y el comando falla. `all` usa todos los que tiene la máquina, y uno que falte aparece con el motivo sin hacer fallar la ejecución. También se pueden nombrar, separados por comas: `headless`, `fastsim:ios`, `fastsim:android`, `ios` (la app en el simulador de iOS), `android` (la app en el emulador de Android o en un teléfono) y `fastsim` (el último bundle, de cualquier plataforma). Las apps de iOS y de Android corren en paralelo sobre el mismo puerto, cada una con su propia conexión. `simulator` (o `emulator`, o `device`) es la app de dispositivo que esté conectada, de cualquier plataforma. Responde con una línea por caso y por destino; un caso que falla en cualquier destino que corrió hace fallar la ejecución. No se combina con `--host`, `--host-command`, `--keep-hosts` ni `--ports`. |
+| `--bundle <dir>` | Con `--on` y un destino de FastSim: la carpeta que hizo `fastsim-bundle`. Por defecto, el último bundle de la plataforma de ese destino dentro de `.lynkeus`. |
 | `--host` | Arranca `headless start` para la ejecución y lo detiene al terminar. Si el host muere en medio de un caso, o su app deja de contestar, se arranca otro antes del caso siguiente (ver [Si el host se cae](#si-el-host-se-cae)). |
 | `--host-heap <percent>` | Con `--host` o `--keep-hosts`: antes de cada caso se le pregunta al host cuánta memoria usa, y si pasó de este porcentaje de su límite se arranca de nuevo. Por defecto `60`. |
 | `--once` | No da una segunda oportunidad al caso que falla. |
@@ -1005,6 +1081,8 @@ Opciones que deciden qué se ejecuta y cómo:
 | `--epoch <iso>` | El instante en que empieza el reloj de la app en un host que lanza la ejecución, en ISO 8601 o en milisegundos desde 1970. Por defecto `launch.epoch`, y luego `LYNKEUS_EPOCH`. |
 | `--continue` | Sigue ejecutando los pasos de un caso después de que uno falla. Si lo que falla es el `setup`, el caso se detiene igual. |
 | `--dry-run` | Analiza los casos y lista sus pasos sin ejecutarlos. Detecta pasos mal escritos. |
+| `--brief` | Con `--on`, muestra solo los casos que no pasaron (o que pasaron al reintentar), el conteo de cada destino y la primera línea de cada nota. Sirve para una suite en varios destinos, donde treinta líneas en verde no aportan nada. |
+| `--verbose` | Muestra entero el caso que falla: el error completo, toda la pantalla y todas las peticiones. Sin esta opción, de la pantalla queda lo que nombraría una comprobación (las filas de una lista contadas, testIDs y controles primero), solo aparecen las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y un aviso idéntico al de la ejecución anterior en el mismo proceso ocupa una línea. `cases.jsonl`, `--report` y `--json` guardan todo siempre. |
 | `--prepared <dir>` | Dónde deja `case prepare` los `setup` hechos por adelantado. Un caso que encuentra el suyo allí se lo salta. |
 
 Opciones que deciden qué queda guardado:
@@ -1013,17 +1091,17 @@ Opciones que deciden qué queda guardado:
 |---|---|
 | `--out <dir>` | Escribe la ejecución como un directorio que un reporte puede leer: `run.json` y `cases.jsonl`, con una línea por intento. |
 | `--screenshots` | Con `--out`: una captura de pantalla después de cada paso de la app. |
-| `--settle <ms>` | Con `--screenshots`: cuánto tiempo tiene que estar quieta la pantalla antes de tomar la captura. Por defecto `150`; usa `700` para capturas que dos ejecuciones van a comparar. |
+| `--settle <ms>` | Con `--screenshots`: cuánto tiempo tiene que estar quieta la pantalla antes de tomar la captura. Por defecto `150`; usa `700` para capturas que dos ejecuciones van a comparar. Por MCP, `case_run` acepta también `settle`, `still` y `frames`. |
 | `--frames-on-change` | Con `--screenshots`: un paso que solo mira (`app.see`, `app.wait`) sobre una pantalla que no cambió comparte la última captura en lugar de tomar otra. |
 | `--still <ms>` | Con `--screenshots`, en un simulador o un emulador: repite cada captura hasta que dos seguidas coinciden, con esta separación en milisegundos. Sirve para una transición nativa que el agente no ve. |
 | `--frames <avif\|png>` | Con `--screenshots`: el formato de las capturas. `avif` (por defecto) pesa cerca de un quinto de un PNG cuando lo escribe el host (Lynkeus FastSim), y un 4 % cuando la CLI recodifica el PNG de un simulador o un emulador; `png` es exacto, y solo hace falta cuando dos ejecuciones se comparan píxel por píxel. |
 | `--no-app-events` | Con `--out`: no lee la lista de eventos propia de la app. Leerla puede encender el modo de depuración del seguimiento de la app, que a veces dibuja algo en pantalla; las capturas que dos ejecuciones comparan no deberían tenerlo. |
-| `--video` | Con `--out`: filma cada caso, donde el host filma (lo nombra en `hello` con su comando `record`). El host sin pantalla incluido y una sesión de simulador o de emulador no lo ofrecen; ahí la ejecución conserva sus capturas y no tiene video. Si el host está en otra máquina (FastSim en una VM de Linux o en un servidor), filma allá y el CLI trae la película al directorio de la ejecución, en trozos. Cada paso indica en qué segundo empezó. |
+| `--video` | Con `--out`: filma cada caso. Si el host filma (lo dice en `hello` con su comando `record`), filma él. Un simulador se filma con `xcrun simctl io recordVideo`, y un emulador o un teléfono Android con `adb shell screenrecord` (hasta 3 minutos), y el archivo se trae al terminar el caso. El host sin pantalla incluido no dibuja nada, así que ahí no hay video. Si el host está en otra máquina (FastSim en una VM de Linux o en un servidor), filma allá y el CLI trae la película al directorio de la ejecución, en trozos. Cada paso indica en qué segundo empezó. |
 | `--video-fps <n>` | Cuadros por segundo del video. Por defecto `30`. |
 | `--video-scale <n>` | Píxeles por punto del video, donde el host puede elegirlo. En FastSim, de 1 a 3; si no lo indicas, 2. |
 | `--report <file>` | Agrega al archivo una línea de JSON por caso. |
 | `--events <dir>` | Guarda lo que la app envió a su analítica, por caso, en `<dir>/<id del caso>/events.jsonl`. |
-| `--seen <dir>` | Escribe `<dir>/<id del caso>.json` con las pantallas por las que pasó cada caso que aprobó, para armar un mapa de cobertura. |
+| `--seen <dir>` | Dónde escribir `<id del caso>.json` con las pantallas por las que pasó cada caso aprobado y la pantalla después de cada paso. Lo leen `case coverage` y `case new`. Por defecto `.lynkeus/seen`. |
 | `--flakes <file>` | El registro de cómo le fue a cada caso a lo largo de las ejecuciones. Por defecto `.lynkeus/flakes.json`. |
 
 Opciones para el reporte y las trazas del backend:
@@ -1039,6 +1117,7 @@ Opciones para seguir una ejecución larga:
 
 | Opción | Qué hace |
 |---|---|
+| `--budget <s>` | Detiene la ejecución pasados estos segundos, igual que `case stop`: no arranca ningún caso más y la respuesta nombra los que no llegaron a correr. Por MCP vale 1500 salvo que se pase otro valor; `0` es sin límite. |
 | `--progress <json\|none>` | Cómo dice la ejecución dónde va, además del archivo `progress.ndjson` que escribe siempre. `json` imprime los eventos por la salida estándar, uno por línea, y el resumen pasa a la salida de error. `none` quita la línea de estado de la terminal. Ver [Seguir una ejecución larga](#seguir-una-ejecución-larga). |
 
 Opciones para ejecutar en paralelo:
@@ -1048,8 +1127,8 @@ Opciones para ejecutar en paralelo:
 | `--jobs <n>` | Cuántos casos a la vez, cada uno en su propio host. Requiere `--ports`. Por defecto `1`. Un caso con `exclusive: true` en su encabezado corre solo: [más abajo](#casos-que-corren-solos). |
 | `--ports <list>` | El puerto del driver para cada job, separados por comas: es adonde se conecta su host. |
 | `--host-command <command>` | Un comando que arranca un host nuevo para cada caso y lo detiene después. `{port}` se reemplaza por el puerto al que se conecta el host, `{job}` por el número de job y `{seed}`, `{locale}`, `{time-zone}` y `{epoch}` por los [datos de arranque](#datos-de-arranque) de la ejecución (vacíos si no los fijaste). |
-| `--keep-hosts` | Con `--host-command`: en lugar de un host por caso, arranca el host de cada job una sola vez y lo conserva para todos los casos del job. Antes de cada caso lo revisa y lo arranca de nuevo si terminó, si su app dejó de contestar o si su heap pasó de `--host-heap`. Un caso que falló porque su host murió lo dice. |
-| `--host-timeout <ms>` | Con `--keep-hosts`: cuánto puede tardar un host en conectarse (primero compila la app). Por defecto `600000`. |
+| `--keep-hosts` | Con `--host-command`: en lugar de un host por caso, arranca el host de cada job una sola vez y lo conserva para todos los casos del job. Antes de cada caso lo revisa y lo arranca de nuevo si terminó, si su app dejó de contestar o si su heap pasó de `--host-heap`. Un caso que falló porque su host murió lo dice. Con FastSim (`fastsim-run`) cada caso tiene su host igual, porque nada reiniciaría la app que guarda un host conservado. |
+| `--host-timeout <ms>` | Cuánto puede tardar en conectarse un host que arranca la ejecución, conservado o de un solo caso (un host headless primero compila la app, y eso es lo lento). Si no se conecta a tiempo, su job termina y los casos que faltaban no corren. Por defecto `600000`. |
 | `--in-order` | Con `--jobs`: toma los casos en el orden dado, en lugar de empezar por los más largos. |
 | `--ahead <n>` | Prepara hasta esa cantidad de `setup` por adelantado mientras otros casos corren. `0` significa ninguno. Por defecto `0`. |
 | `--idle <share>` | Con `--ahead`: empieza un `setup` solo mientras esa fracción de la CPU esté libre. Por defecto `0.25`. |
@@ -1071,7 +1150,9 @@ Si mezclas opciones que dependen unas de otras, el comando lo dice y no ejecuta 
 - `--screenshots and --video keep what they take in the run directory: add --out <dir>`
 - `--push uploads the run directory: add --out <dir>`
 - `--jobs and --host-command need a driver port per job: --ports with <n>`, cuando `--ports` trae menos puertos que `--jobs`. Sin `--ports`, el comando elige puertos libres.
+- `port <n> is already in use by another process …`, cuando otro proceso (un `lynkeus mcp`, por ejemplo) ya escucha en uno de los puertos de `--ports`. Se comprueba antes de arrancar los hosts.
 - `--progress x: json or none`, cuando `--progress` recibe otro valor.
+- `the FastSim bundle at … is older than …`, cuando `--host-command` arranca el `fastsim-run` de [Lynkeus FastSim](/es/guides/fastsim/) sobre un bundle más viejo que el código de la app y no se pudo rehacer. Normalmente el comando lo vuelve a empaquetar solo, con el `fastsim-bundle` que está junto a `fastsim-run`, antes de levantar los hosts; este mensaje aparece cuando no hay `fastsim-bundle` o falla, y trae el comando que hay que ejecutar.
 
 #### Seguir una ejecución larga
 
@@ -1115,7 +1196,8 @@ Qué hace cada host con ellos:
 |---|---|---|---|---|
 | Sin pantalla (`--host`) | `Math.random` repite desde el mismo punto al arrancar y tras cada caso | lo responde `react-native-localize` | el proceso del host corre en esa zona (`TZ`) | `Date` empieza ahí y sigue corriendo; `lynkeus clock --reset` vuelve a ese instante |
 | `--host-command` | va en el entorno y en `{seed}` | `{locale}` | `{time-zone}` | `{epoch}` |
-| Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos | no se aplica | no se aplica | no se aplica |
+| Lynkeus FastSim (`--on fastsim:*`, o un comando de host con `fastsim-run`) | igual que `--host-command` | solo lo aplica un kit cuyo `share/capabilities` incluye `launch-locale`; con un kit anterior la app sigue en el idioma del host, la ejecución lo avisa una vez y anota `locale` en `launch.unsupported` | igual que `--host-command` | igual que `--host-command` |
+| Simulador o emulador ya conectado | solo los `{{random.*}}` de los casos: el `Math.random` de la app no cambia, por eso `seed` figura en `launch.unsupported` | no se aplica | no se aplica | no se aplica |
 
 Un host que arranca `--host-command` recibe `LYNKEUS_SEED`, `LYNKEUS_LOCALE`, `LYNKEUS_TIME_ZONE` (y `TZ`) y `LYNKEUS_EPOCH` en su entorno, además de los marcadores del comando. [Lynkeus FastSim](/es/guides/fastsim/) los usa como valores por defecto. Un simulador o emulador que solo está conectado conserva la zona horaria y el reloj del Mac; en ese caso la ejecución avisa por stderr qué datos no pudo pasar y los anota en `launch.unsupported` de `run.json`. Sin opciones y sin `launch`, `run.json` no lleva nada de esto.
 
@@ -1132,6 +1214,28 @@ Con `--host`, el host de la ejecución puede morir en un caso (se quedó sin mem
 - Antes de cada caso se le pregunta además cuánto heap usa (aparece una línea `host: heap 1520 MB of 4096 MB` en el log). Si pasa de `--host-heap` por ciento de su límite (60 si no dices otra cosa), se arranca de nuevo antes de empezar el caso, para que ninguno empiece en un host a punto de quedarse sin memoria.
 
 Con `--jobs` y `--host-command` sin `--keep-hosts`, cada caso ya tiene un host nuevo, y esto no aplica. Con `--keep-hosts`, la misma revisión se hace por job: el host de un job que murió se arranca de nuevo antes del caso siguiente, y solo se pierde el caso que lo tenía, no todos los que venían después.
+
+### `lynkeus evidence`
+
+```bash
+lynkeus evidence [files]… [--on <destinos>] [--host] [--out <carpeta>] [--no-video] [--push]
+```
+
+Corre los casos guardando todo lo que una persona revisa (una captura después de cada paso, un video por caso y `report.html`) y en la respuesta pone solo lo necesario para encontrarlo:
+
+- dónde quedó cada `report.html` (uno por destino si usas `--on`);
+- una línea por caso con su resultado en cada destino y, si falló, en qué destino, en qué paso y la primera línea del error;
+- las capturas sospechosas: una acción (`app.press`, `app.type`, `app.swipe`, `app.back`, `app.nav`, `app.deeplink`) cuya captura es idéntica a la del paso anterior, o sea que no cambió nada en pantalla; y una captura tomada mientras la app estaba inactiva o en segundo plano en un simulador o emulador, que muestra una vista del sistema u otra app en lugar de la tuya; y una captura que un host tomó mientras su pantalla todavía se movía. Antes de cada captura, a un host con reloj propio (Lynkeus FastSim) se le pide que espere a que la pantalla quede quieta, hasta 1,5 s en su reloj, sin gastar tiempo real: el árbol puede estar asentado mientras todavía se dibuja el espacio del teclado o una animación de layout. Una captura cuya pantalla nunca quedó quieta aparece en esta lista.
+
+Por debajo es `case run --out <carpeta> --screenshots --video`, en los destinos que diga `--on` (igual que en [`case run`](#lynkeus-case-run)), en la app conectada, o sin pantalla con `--host`. La corrida queda en `.lynkeus/runs/evidence/<hora>` salvo que `--out` diga otra cosa, y ahí mismo se guarda la respuesta completa de la corrida en `answer.txt`.
+
+| Opción | Qué hace |
+|---|---|
+| `--on <destinos>` | Como en `case run --on`. Sin ella, la app conectada. |
+| `--host` | Levanta la app en Node para la corrida. No va con `--on`. |
+| `--out <carpeta>` | Dónde guardar la corrida. |
+| `--no-video` | Solo capturas, sin video. |
+| `--push` | Sube la corrida al servicio de reportes y muestra su dirección. |
 
 ### `lynkeus case status`
 
@@ -1204,12 +1308,14 @@ lynkeus case coverage [--route <Route>] [--seen <dir>]
 
 Dice qué pantallas de la app tocan los casos, cuáles no toca ninguno y cuáles nombra algún caso que la app ya no tiene.
 
-Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (`case run --seen <dir>`). Las pantallas salen del grafo de rutas, así que antes hay que ejecutar `lynkeus map build`.
+Una pantalla cuenta como tocada cuando un caso va a ella (`app.nav`), la espera (`app.wait`), la comprueba (`app.see: { route }`), o pasó por ella en su última ejecución aprobada (lo guarda `case run` en `.lynkeus/seen`). Las pantallas salen del grafo de rutas, que se arma solo la primera vez y se rehace cuando el código cambia.
+
+Si tres o más archivos de casos abren su `setup` o sus pasos con los mismos pasos de la app (dos como mínimo; da igual el orden de las claves, los espacios y `timeoutMs`), termina con un aviso: qué casos, cuántos pasos y la entrada para `cases.macros` que los reúne en un paso. Si una macro declarada ya tiene esos pasos, el aviso la nombra. Sin repetición no hay aviso.
 
 | Opción | Qué hace |
 |---|---|
 | `--route <Route>` | Solo esta pantalla: los casos que la tocan. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 
 ### `lynkeus case impact`
 
@@ -1221,11 +1327,15 @@ Dice qué casos alcanzan los cambios de una rama, para ejecutar solo esos, y qu�
 
 Cruza las pantallas que toca o importa el diff contra `--base` (las mismas que encuentra `map check`) con lo que cubre cada caso (lo que encuentra `case coverage`).
 
+Si lo que cambió es una tabla de textos (un archivo de objetos literales de textos, como las traducciones), solo cuentan los archivos que usan las claves cambiadas y los casos cuyos pasos nombran un texto cambiado. Cuando ninguna fuente escribe entera una clave cambiada, cuentan todos los que importan el archivo y una línea explica por qué. Si en un archivo solo cambiaron testIDs, etiquetas de accesibilidad, comentarios o formato, no alcanza ninguna pantalla: alcanza los casos cuyos pasos (o macros) nombran un testID cambiado, viejo o nuevo, o el texto de una etiqueta cambiada. `map check`, `map impact` y `ci --affected` hacen lo mismo.
+
+Si git no puede hacer el diff (porque `--base` no es una referencia de ese checkout, o porque el checkout es superficial y no tiene el punto donde la rama se separó de la base), `case impact`, `map check` y `ci --affected` fallan con código de salida 1. El error trae el mensaje de git y cómo resolverlo: `git fetch origin <rama>`, `git fetch --unshallow`, o `fetch-depth: 0` en `actions/checkout`. Por MCP, `case_impact` responde con ese error. Nunca informan que no cambió nada, porque eso daría por buena una rama que nadie probó.
+
 | Opción | Qué hace |
 |---|---|
 | `--base <ref>` | La referencia de git contra la que se compara. Por defecto `main`. |
 | `--depth <n>` | A cuántas importaciones de distancia un cambio sigue alcanzando una pantalla. Por defecto `4`. |
-| `--seen <dir>` | Dónde guardó `case run --seen` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
+| `--seen <dir>` | Dónde guardó `case run` las pantallas de los casos aprobados. Por defecto `.lynkeus/seen`. |
 | `--files` | Imprime solo los archivos de los casos, uno por línea. |
 
 ```bash
@@ -1240,7 +1350,9 @@ lynkeus case new <id> [--to <Route>] [--from <Route>] [--title <text>] [--write]
 
 Redacta un caso para una pantalla: el camino hasta ella, el `setup` del backend para elegir y las comprobaciones que quedan por escribir.
 
-Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, el `setup` que ofrece el servidor de fixtures del proyecto (lo que contesta a `lynkeus.describe`, comentado: qué estado necesita el caso lo decide quien lo escribe), las pulsaciones desde `--from` hasta la pantalla, tal como las conoce `map plan`, y un lugar para las comprobaciones.
+Imprime un caso para terminar a mano: el encabezado con las preguntas que un lector necesita ver respondidas, un comentario con los nombres de las fixtures que ofrece el servidor del proyecto (lo que contesta a `lynkeus.describe`; qué estado necesita el caso lo decide quien lo escribe, y si el servidor sigue siendo el de ejemplo de `case init`, no aparece), el camino hasta la pantalla y un lugar para las comprobaciones.
+
+El camino sale de un caso existente cuando alguno llega a esa pantalla: su `setup` y sus pasos hasta ahí, o con `--from` solo los pasos posteriores a esa pantalla, bajo un comentario que nombra el caso. Llega si en su última ejecución aprobada estuvo en la pantalla después de un paso (`.lynkeus/seen`) o si un paso va a ella, la espera o la comprueba; gana el camino más corto. Si ningún caso llega, son las pulsaciones desde `--from` que conoce `map plan`.
 
 | Argumento | Qué es |
 |---|---|
@@ -1249,7 +1361,7 @@ Imprime un caso para terminar a mano: el encabezado con las preguntas que un lec
 | Opción | Qué hace |
 |---|---|
 | `--to <Route>` | La pantalla de la que trata el caso. Obligatoria (sin ella, `case here` redacta uno desde la pantalla actual). |
-| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`; si no hay ninguno de los dos, el comando se detiene y lo pide. |
+| `--from <Route>` | Dónde empieza. Por defecto, `cases.start` de `lynkeus.config.json`. Si no hay ninguno de los dos, la pantalla que muestra la app conectada (en una sesión o por MCP) y, si no, la primera pantalla que declara el navegador; el borrador dice en un comentario cuál usó. |
 | `--title <text>` | Qué puede hacer una persona ahí, como lo titulará el reporte. |
 | `--write` | Lo guarda como `<carpeta de casos>/<id>.md` en lugar de imprimirlo. Nunca pisa un archivo que ya existe. |
 
@@ -1261,7 +1373,7 @@ lynkeus case here <id> [--title <text>] [--write] [--host]
 
 Redacta un caso a partir de la pantalla que la app muestra ahora, con comprobaciones que pasan tal como está.
 
-Lee la pantalla de la app conectada y escribe un caso que va a su ruta (`app.nav`, si tiene una) y comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
+Lee la pantalla de la app conectada y escribe un caso que llega hasta ahí igual que lo redacta `case new`: con los pasos de un caso que ya llega a esa pantalla (inicio de sesión incluido), o si no con los toques que conoce el mapa de rutas desde `cases.start`, o si no con `app.nav` a su ruta y una nota de que saltar solo funciona donde la ruta está montada (a una pantalla con sesión no se salta desde una app sin sesión). Después comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
 
 | Argumento | Qué es |
 |---|---|
@@ -1276,17 +1388,18 @@ Lee la pantalla de la app conectada y escribe un caso que va a su ruta (`app.nav
 ### `lynkeus ci`
 
 ```bash
-lynkeus ci [--affected] [--base <ref>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
+lynkeus ci [--affected] [--base <ref>] [--on-diff-error <fail|all>] [--jobs <n>] [--out <dir>] [--keep-up] [--dry-run]
 ```
 
 Ejecuta la suite como lo hace un job de CI: levanta el backend y N hosts, reparte los casos entre ellos, genera el reporte y lo desmonta todo. El código de salida es el de la suite.
 
-Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. Lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts escuchan en puertos consecutivos a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno), y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
+Lee la clave `ci` de `lynkeus.config.json` ([Configuración](/es/reference/configuration/#ci-ci)): los comandos que levantan y bajan el backend, la dirección que responde cuando ya puede servir, cuántos hosts y con qué comando, si sube el reporte y opciones extra de `case run`. Lynkeus no conoce tu backend: solo ejecuta lo que declares. Los hosts usan los primeros puertos libres a partir de `LYNKEUS_PORT` o de `port` de la configuración (`8123` si no hay ninguno); uno en el que ya escucha otro proceso, o que reservó otra ejecución, se salta y el comando lo avisa. Cuando la ejecución termina, falla o recibe SIGINT o SIGTERM, se detienen todos los hosts que arrancó, aunque `case run` haya muerto sin hacerlo, y la ejecución va con `--screenshots` y con `--out`. `lynkeus ci` no levanta los hosts por su cuenta: se los pasa a `case run` con `--host-command … --keep-hosts`, así que un host que muere se lleva un caso y no todos los siguientes.
 
 | Opción | Qué hace |
 |---|---|
 | `--affected` | Ejecuta solo los casos que alcanzan los cambios contra `--base` (los que encuentra `case impact`). Si no hay ninguno, no ejecuta nada y lo dice. |
 | `--base <ref>` | La referencia de git contra la que compara `--affected`. Por defecto `origin/main`. |
+| `--on-diff-error <fail\|all>` | Qué hace `--affected` cuando git no puede comparar contra `--base` (una referencia que no existe, un checkout superficial sin la base): `fail`, el valor por defecto, hace fallar el job con el mensaje de git y la solución; `all` ejecuta todos los casos. |
 | `--jobs <n>` | Cuántos hosts y jobs. Por defecto `ci.hosts.count` y, si no está, `2`. |
 | `--out <dir>` | Dónde queda la ejecución. Por defecto `lynkeus-run`. |
 | `--keep-up` | Deja el backend levantado al terminar. Los hosts terminan con la ejecución. |
@@ -1506,7 +1619,7 @@ Un grant vale una hora. El comando lo guarda en `~/.cache/lynkeus/fastsim/grants
 lynkeus fastsim start <bundle> [--kit <carpeta>] [--timeout <ms>]
 ```
 
-Arranca un host de Lynkeus FastSim sobre un bundle hecho con el `bin/fastsim-bundle` del paquete y le conecta la sesión, para recorrer la app en FastSim antes de escribir un caso: desde ese momento [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` y los demás comandos la manejan a ella. Está pensado para un cliente MCP (`fastsim_start`) o una [`lynkeus session`](#lynkeus-session); desde una terminal, arranca tú `bin/fastsim-run <bundle> <puerto>`. El host se conecta al puerto del driver de la sesión y reemplaza a la app que estuviera conectada; cierra antes la app del Simulator, o vuelve a conectarse. Usa el FastSim instalado más reciente que dibuja la plataforma del bundle, salvo que `--kit` indique otro; pide el permiso igual que [`lynkeus case run`](#lynkeus-case-run) y espera hasta `--timeout` a que la app se conecte. La respuesta indica el log del host (`<bundle>/hosts/<puerto>.err`) y avisa si el bundle es más viejo que el código de la app o si su app no ofrece capturas, video ni reloj (un bundle anterior a que `fastsim-bundle` agregara los controles de FastSim, o `lynkeus-agent` anterior a 0.7.6).
+Arranca un host de Lynkeus FastSim sobre un bundle hecho con el `bin/fastsim-bundle` del paquete y le conecta la sesión, para recorrer la app en FastSim antes de escribir un caso: desde ese momento [`screen`](#lynkeus-screen), [`press`](#lynkeus-press), `type`, `screenshot` y los demás comandos la manejan a ella. Está pensado para un cliente MCP (`fastsim_start`) o una [`lynkeus session`](#lynkeus-session); desde una terminal, arranca tú `bin/fastsim-run <bundle> <puerto>`. El host se conecta al puerto del driver de la sesión y reemplaza a la app que estuviera conectada; cierra antes la app del Simulator, o vuelve a conectarse. Usa el FastSim instalado más reciente que dibuja la plataforma del bundle, salvo que `--kit` indique otro; pide el permiso igual que [`lynkeus case run`](#lynkeus-case-run) y espera hasta `--timeout` a que la app se conecte. Si el bundle es más viejo que el código de la app, primero lo vuelve a empaquetar con el `bin/fastsim-bundle` del kit, igual que [`lynkeus case run`](#lynkeus-case-run); si eso falla, no arranca ningún host y la respuesta trae el comando que hay que ejecutar. La respuesta indica el log del host (`<bundle>/hosts/<puerto>.err`), dice si volvió a empaquetar y avisa si su app no ofrece capturas, video ni reloj (un bundle anterior a que `fastsim-bundle` agregara los controles de FastSim, o `lynkeus-agent` anterior a 0.7.6).
 
 | Opción | Por defecto | Qué hace |
 |---|---|---|
@@ -1607,7 +1720,7 @@ No todos los comandos están disponibles dentro de una sesión. Quedan fuera los
 
 ### `lynkeus mcp`
 
-Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `wait`, `why`, `call`, `os deeplink`, `map show` y `map plan`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
+Sirve los comandos como herramientas MCP por la entrada y salida estándar, para que un agente de IA maneje la app. Por defecto ofrece los que hacen falta en cada turno: `screen`, `press`, `type`, `swipe`, `back`, `wait`, `why`, `call`, `os deeplink`, `map show`, `map plan` y `crawl`; para preparar y ejecutar casos, `init`, `status`, `headless init`, `headless doctor`, `fixtures describe`, `fixtures check`, `case init`, `case new`, `case here`, `case coverage`, `case impact`, `case run` y `case status`.
 
 | Opción | Qué hace |
 |---|---|

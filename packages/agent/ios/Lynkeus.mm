@@ -36,6 +36,136 @@ static UIWindow *QaKeyWindow(void) {
   return UIApplication.sharedApplication.windows.firstObject;
 }
 
+static NSString *QaFieldText(UIView *view) {
+  if ([view isKindOfClass:UITextField.class]) return ((UITextField *)view).text ?: @"";
+  if ([view isKindOfClass:UITextView.class]) return ((UITextView *)view).text ?: @"";
+  for (UIView *child in view.subviews) {
+    NSString *found = QaFieldText(child);
+    if (found) return found;
+  }
+  return nil;
+}
+
+// Every window the app's scenes show, front first: a higher level is in front, and among equals the later one.
+static NSArray<UIWindow *> *QaWindowsFrontFirst(void) {
+  NSMutableArray<UIWindow *> *windows = [NSMutableArray array];
+  for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+    if (![scene isKindOfClass:UIWindowScene.class]) continue;
+    for (UIWindow *window in ((UIWindowScene *)scene).windows) {
+      if (!window.hidden && window.alpha > 0.01 && window.userInteractionEnabled) [windows addObject:window];
+    }
+  }
+  NSArray<UIWindow *> *backFirst = [windows sortedArrayWithOptions:NSSortStable
+                                                    usingComparator:^NSComparisonResult(UIWindow *a, UIWindow *b) {
+                                                      if (a.windowLevel == b.windowLevel) return NSOrderedSame;
+                                                      return a.windowLevel < b.windowLevel ? NSOrderedAscending : NSOrderedDescending;
+                                                    }];
+  return backFirst.reverseObjectEnumerator.allObjects;
+}
+
+static BOOL QaHasReactTag(UIView *view, NSInteger depth) {
+  if (view.tag > 0) return YES;
+  if (depth == 0) return NO;
+  for (UIView *child in view.subviews) {
+    if (QaHasReactTag(child, depth - 1)) return YES;
+  }
+  return NO;
+}
+
+// React Native tags the views it mounts; a window with none drew nothing of the app's React tree.
+static BOOL QaIsReactWindow(UIWindow *window) {
+  return QaHasReactTag(window, 12);
+}
+
+// The keyboard's windows span the whole screen. Lynkeus's touches go to the app under the keys, so the keys cover
+// nothing; but iOS also presents its own prompts from there (AutoFill's Save Password, out of process), and those do.
+static BOOL QaIsKeyboardWindow(UIWindow *window) {
+  NSString *name = NSStringFromClass(window.class);
+  return [name containsString:@"Keyboard"] || [name containsString:@"TextEffects"];
+}
+
+// React Native's own development overlay (RCTDevLoadingView's "Refreshing..." banner, a window of its own over the app)
+// is neither the app's nor the system's. It is known by the class that handles its touches, never by its words; a
+// gesture's targets are private, so a UIKit that names them otherwise leaves the banner listed, as before.
+static BOOL QaIsDevToolingView(UIView *view, NSInteger depth) {
+  for (UIGestureRecognizer *gesture in view.gestureRecognizers) {
+    @try {
+      for (id target in [gesture valueForKey:@"_targets"]) {
+        id owner = [target valueForKey:@"_target"];
+        if (owner && [NSStringFromClass([owner class]) containsString:@"DevLoadingView"]) return YES;
+      }
+    } @catch (__unused NSException *exception) {
+    }
+  }
+  if (depth == 0) return NO;
+  for (UIView *child in view.subviews) {
+    if (QaIsDevToolingView(child, depth - 1)) return YES;
+  }
+  return NO;
+}
+
+static UIViewController *QaPresented(UIWindow *window) {
+  UIViewController *top = window.rootViewController.presentedViewController;
+  while (top.presentedViewController) top = top.presentedViewController;
+  return top;
+}
+
+// What a finger at the point would land on, and in which window.
+static UIView *QaHitInWindows(CGPoint point, UIWindow **landed) {
+  for (UIWindow *window in QaWindowsFrontFirst()) {
+    CGPoint local = [window convertPoint:point fromWindow:nil];
+    UIView *hit = [window hitTest:local withEvent:nil];
+    if (!hit) continue;
+    if (QaIsKeyboardWindow(window)) {
+      UIView *prompt = QaPresented(window).view;
+      if (!prompt || ![hit isDescendantOfView:prompt]) continue;
+    }
+    if (landed) *landed = window;
+    return hit;
+  }
+  return nil;
+}
+
+// The window touches at the point go to: the one in front there, as a finger's would.
+static UIWindow *QaTouchWindow(CGPoint point) {
+  UIWindow *landed = nil;
+  QaHitInWindows(point, &landed);
+  return landed ?: QaKeyWindow();
+}
+
+// The window React Native draws the app in, front first; the key window when none says so.
+static UIWindow *QaAppWindow(void) {
+  for (UIWindow *window in QaWindowsFrontFirst()) {
+    if (!QaIsKeyboardWindow(window) && QaIsReactWindow(window)) return window;
+  }
+  return QaKeyWindow();
+}
+
+// A whole alert or sheet listens for touches, so a recognizer says nothing: a control, or UIKit's action views, does.
+static BOOL QaActsOnTouch(UIView *view, UIView *stop) {
+  for (UIView *at = view; at && at != stop; at = at.superview) {
+    NSString *name = NSStringFromClass(at.class);
+    if ([at isKindOfClass:UIControl.class] || [name containsString:@"ActionView"] || [name containsString:@"Button"]) return YES;
+  }
+  return NO;
+}
+
+static void QaCollectTexts(UIView *view, UIView *stop, NSMutableArray *items) {
+  if (view.hidden || view.alpha < 0.01) return;
+  NSString *text = nil;
+  if ([view isKindOfClass:UILabel.class]) text = ((UILabel *)view).text;
+  else if ([view isKindOfClass:UITextField.class] || [view isKindOfClass:UITextView.class]) text = QaFieldText(view);
+  if (text.length > 0) {
+    CGRect frame = [view convertRect:view.bounds toView:nil];
+    [items addObject:@{
+      @"text" : text,
+      @"kind" : QaActsOnTouch(view, stop) ? @"button" : @"text",
+      @"frame" : @[ @(frame.origin.x), @(frame.origin.y), @(frame.size.width), @(frame.size.height) ],
+    }];
+  }
+  for (UIView *child in view.subviews) QaCollectTexts(child, stop, items);
+}
+
 static UITouch *QaMakeTouch(CGPoint point, UIWindow *window) {
   UITouch *touch = [[UITouch alloc] init];
   [touch setWindow:window];
@@ -83,19 +213,14 @@ static id<UIKeyInput> QaKeyInput(void) {
   return [responder conformsToProtocol:@protocol(UIKeyInput)] ? (id<UIKeyInput>)responder : nil;
 }
 
-static NSString *QaFieldText(UIView *view) {
-  if ([view isKindOfClass:UITextField.class]) return ((UITextField *)view).text ?: @"";
-  if ([view isKindOfClass:UITextView.class]) return ((UITextView *)view).text ?: @"";
-  for (UIView *child in view.subviews) {
-    NSString *found = QaFieldText(child);
-    if (found) return found;
-  }
-  return nil;
-}
-
 #endif
 
 @implementation Lynkeus
+
+- (NSString *)appId
+{
+  return [[NSBundle mainBundle] bundleIdentifier] ?: @"";
+}
 
 - (NSNumber *)isAvailable
 {
@@ -111,9 +236,9 @@ static NSString *QaFieldText(UIView *view) {
 {
 #if DEBUG
   dispatch_async(dispatch_get_main_queue(), ^{
-    UIWindow *window = QaKeyWindow();
-    if (!window) return reject(@"no_window", @"No key window", nil);
     CGPoint point = CGPointMake(x, y);
+    UIWindow *window = QaTouchWindow(point);
+    if (!window) return reject(@"no_window", @"No key window", nil);
     UITouch *touch = QaMakeTouch(point, window);
     QaSend(touch, UITouchPhaseBegan, point);
     double hold = holdMs > 0 ? holdMs : 50;
@@ -132,9 +257,9 @@ static NSString *QaFieldText(UIView *view) {
 {
 #if DEBUG
   dispatch_async(dispatch_get_main_queue(), ^{
-    UIWindow *window = QaKeyWindow();
-    if (!window) return reject(@"no_window", @"No key window", nil);
     CGPoint from = CGPointMake(x1, y1), to = CGPointMake(x2, y2);
+    UIWindow *window = QaTouchWindow(from);
+    if (!window) return reject(@"no_window", @"No key window", nil);
     UITouch *touch = QaMakeTouch(from, window);
     QaSend(touch, UITouchPhaseBegan, from);
     double duration = durationMs > 0 ? durationMs : 250;
@@ -236,13 +361,12 @@ static NSString *QaFieldText(UIView *view) {
 #if DEBUG
   __block NSString *result = @"[]";
   void (^work)(void) = ^{
-    UIWindow *window = QaKeyWindow();
-    if (!window) return;
     NSUInteger count = MIN(xs.count, ys.count);
     NSMutableArray *chains = [NSMutableArray arrayWithCapacity:count];
     for (NSUInteger i = 0; i < count; i++) {
       CGPoint p = CGPointMake([xs[i] doubleValue], [ys[i] doubleValue]);
-      UIView *view = [window hitTest:p withEvent:nil];
+      // In whichever window is in front there: a view of another window (a system prompt, an alert) covers the app.
+      UIView *view = QaHitInWindows(p, nil);
       NSMutableArray<NSNumber *> *chain = [NSMutableArray array];
       while (view) {
         if (view.tag > 0) [chain addObject:@(view.tag)];
@@ -266,13 +390,62 @@ static NSString *QaFieldText(UIView *view) {
   return @"[]";
 }
 
+// What windows the app's React tree did not draw show in front of it: a system prompt, an alert, a native SDK's
+// sheet. Their words, each with its frame, and the frame they take; `null` when there is none. Synchronous, like hitTest.
+- (NSString *)systemViews
+{
+#if DEBUG
+  __block NSString *result = @"null";
+  void (^work)(void) = ^{
+    NSMutableArray *items = [NSMutableArray array];
+    CGRect covers = CGRectNull;
+    for (UIWindow *window in QaWindowsFrontFirst()) {
+      UIView *root = window;
+      if (QaIsDevToolingView(window, 4)) continue;
+      if (QaIsKeyboardWindow(window)) {
+        root = QaPresented(window).view;
+        if (!root) continue;
+      } else if (QaIsReactWindow(window)) {
+        // Windows behind the app's own cannot be in front of it.
+        break;
+      }
+      // A window can pass touches through everywhere but its own views (a toast's): only what catches one is in front.
+      CGRect area = [root convertRect:root.bounds toView:nil];
+      CGRect caught = CGRectNull;
+      for (int gx = 0; gx < 6; gx++) {
+        for (int gy = 0; gy < 12; gy++) {
+          CGPoint p = CGPointMake(area.origin.x + area.size.width * (gx + 0.5) / 6, area.origin.y + area.size.height * (gy + 0.5) / 12);
+          UIView *hit = [window hitTest:[window convertPoint:p fromWindow:nil] withEvent:nil];
+          if (hit && [hit isDescendantOfView:root]) caught = CGRectUnion(caught, CGRectMake(p.x, p.y, 0, 0));
+        }
+      }
+      if (CGRectIsNull(caught)) continue;
+      // Each point that caught one stands for its cell of the grid.
+      covers = CGRectUnion(covers, CGRectIntersection(area, CGRectInset(caught, -area.size.width / 12, -area.size.height / 24)));
+      QaCollectTexts(root, window, items);
+    }
+    if (CGRectIsNull(covers)) return;
+    NSDictionary *found = @{
+      @"frame" : @[ @(covers.origin.x), @(covers.origin.y), @(covers.size.width), @(covers.size.height) ],
+      @"items" : items,
+    };
+    NSData *json = [NSJSONSerialization dataWithJSONObject:found options:0 error:nil];
+    result = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+  };
+  if (NSThread.isMainThread) work(); else dispatch_sync(dispatch_get_main_queue(), work);
+  return result;
+#else
+  return @"null";
+#endif
+}
+
 // Synchronous, like hitTest: asked on the JS thread, read on the main one.
 - (NSString *)texts:(NSArray *)tags
 {
 #if DEBUG
   __block NSString *result = @"[]";
   void (^work)(void) = ^{
-    UIWindow *window = QaKeyWindow();
+    UIWindow *window = QaAppWindow();
     if (!window) return;
     NSMutableArray *texts = [NSMutableArray arrayWithCapacity:tags.count];
     for (NSNumber *tag in tags) {

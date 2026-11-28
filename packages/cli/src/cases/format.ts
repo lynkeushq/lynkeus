@@ -157,6 +157,42 @@ export const dig = (json: unknown, dotted: string): unknown => {
   return current;
 };
 
+/** `{{param.x}}` in a macro's step as the case passed it; anything else stays as written. */
+export const fillParams = (value: unknown, given: Record<string, unknown>): unknown => {
+  if (typeof value === 'string')
+    return value.replace(/\{\{\s*param\.([\w.*-]+)\s*\}\}/g, (ref, at: string) => {
+      const found = dig(given, at);
+      return found === undefined || found === null ? ref : typeof found === 'object' ? JSON.stringify(found) : String(found);
+    });
+  if (Array.isArray(value)) return value.map((v) => fillParams(v, given));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fillParams(v, given)]));
+  return value;
+};
+
+/**
+ * Steps with every macro opened into the steps it stands for, through macros that call macros, `{{param.*}}` filled with
+ * what the caller passed. Every `do` block counts, whatever its `when`/`unless`/`on`: what a case may run, not what one run did.
+ */
+export const expandMacros = (steps: Step[], macros: Record<string, unknown[]> = {}, within: string[] = []): Step[] =>
+  steps.flatMap((step) => {
+    const body = macros[step.verb];
+    if (!body || within.includes(step.verb)) return [step];
+    const given = step.value && typeof step.value === 'object' && !Array.isArray(step.value) ? (step.value as Record<string, unknown>) : { value: step.value };
+    const inner = body.flatMap((raw) => {
+      const entry = raw as Record<string, unknown> | null;
+      const items = entry && typeof entry === 'object' && 'do' in entry ? (Array.isArray(entry.do) ? entry.do : [entry.do]) : [raw];
+      return items.flatMap((item) => {
+        try {
+          const sub = stepOf(item);
+          return [{ ...sub, value: fillParams(sub.value, given) as StepValue, ...(step.on ? { on: step.on } : {}) }];
+        } catch {
+          return [];
+        }
+      });
+    });
+    return [step, ...expandMacros(inner, macros, [...within, step.verb])];
+  });
+
 export type Scope = Record<string, unknown>;
 
 /** Where a seeded case keeps how far its random values have gone; no alias can be named this. */

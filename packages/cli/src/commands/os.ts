@@ -4,7 +4,14 @@
  * and adb do it); each command's summary says which it supports.
  */
 import { type Ctx, define } from '../registry.js';
+import { pickAgentDevice } from '../device/devices.js';
 import { simulatorCommand } from './device.js';
+
+const deviceFlag = {
+  type: 'string',
+  help: 'the simulator (udid or name) or the emulator or phone (adb serial) to act on (default: the one the app is attached to)',
+  value: 'udid|name|serial',
+} as const;
 
 /** A command the agent answers in place of the OS, with parameters taken from the context. */
 const agent =
@@ -13,7 +20,9 @@ const agent =
 
 const simulator = (sub: string) => async (ctx: Ctx) => {
   const device = await ctx.device();
-  const info = await device.resolved();
+  // Named on this command (MCP has no global flags) or with the global `--device`: that device, not the one the app is on.
+  const wanted = ctx.flags.device as string | undefined;
+  const info = wanted ? await pickAgentDevice(wanted) : await device.resolved();
   const lines = await simulatorCommand(info.platform, info.id, sub, ctx.args, (ctx.flags.app as string | undefined) ?? device.appId ?? undefined);
   return { text: lines.join('\n'), json: { ran: lines } };
 };
@@ -38,7 +47,10 @@ export const osCommands = [
     summary:
       'AppState listeners see the change (background, then active: what refetches or re-locks); a host answers it, a simulator or an emulator does it for real',
     positionals: [{ name: 'state', help: 'active | background | inactive (inactive: a host only)', required: true }],
-    flags: { app: { type: 'string', help: 'the app to bring back on a simulator or emulator (default: the config’s app)', value: 'bundleId' } },
+    flags: {
+      app: { type: 'string', help: 'the app to bring back on a simulator or emulator (default: the config’s app)', value: 'bundleId' },
+      device: deviceFlag,
+    },
     aliases: ['appstate'],
     needs: 'app',
     run: async (ctx) => {
@@ -231,6 +243,7 @@ export const osCommands = [
       { name: 'action', help: 'grant | revoke | reset', required: true },
       { name: 'service', help: 'camera, photos, location, microphone, contacts, …', required: true },
     ],
+    flags: { device: deviceFlag },
     needs: 'app',
     run: simulator('permissions'),
   }),
@@ -239,6 +252,7 @@ export const osCommands = [
     group: 'os',
     summary: 'Simulator: deliver a push notification to the app',
     positionals: [{ name: 'payload', help: '\'{"alert":"…"}\' or a .json file', required: true }],
+    flags: { device: deviceFlag },
     needs: 'app',
     run: simulator('push'),
   }),
@@ -247,6 +261,7 @@ export const osCommands = [
     group: 'os',
     summary: 'Simulator: light or dark',
     positionals: [{ name: 'mode', help: 'light | dark', required: true }],
+    flags: { device: deviceFlag },
     needs: 'app',
     run: simulator('appearance'),
   }),
@@ -255,15 +270,22 @@ export const osCommands = [
     group: 'os',
     summary: 'Simulator: where the device is',
     positionals: [{ name: 'where', help: '<lat>,<lon> | clear', required: true }],
+    flags: { device: deviceFlag },
     needs: 'app',
     run: simulator('location'),
   }),
   define({
     name: 'os language',
     group: 'os',
-    summary: 'Simulator: relaunch the app in a locale',
+    summary: 'Simulator: relaunch the app in a locale; Android (API 33+): set the app’s own locale',
     mcp: 'core',
     positionals: [{ name: 'tag', help: 'de-DE, en-US, … (default: the locale in lynkeus.config.json)' }],
+    flags: {
+      app: { type: 'string', help: 'the app to relaunch on a simulator or emulator (default: the config’s app)', value: 'bundleId' },
+      device: deviceFlag,
+    },
+    details:
+      'Acts on the device the app is attached to: the simulator for an iOS app, the emulator or phone for an Android one. With several devices up, pick one with the global `--device` (or `LYNKEUS_DEVICE`). On Android it sets the app’s own locale with `cmd locale set-app-locales`, which needs API 33+.',
     needs: 'app',
     run: async (ctx) => {
       const tag = ctx.args[0] ?? ctx.config.locale?.languageTag ?? ctx.config.language;

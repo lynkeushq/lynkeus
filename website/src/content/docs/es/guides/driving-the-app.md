@@ -40,6 +40,7 @@ Después viene un elemento por línea: su índice, su tipo (`button`, `input`, `
 | `!disabled` | El control no responde a un toque. |
 | `~covered` | Hay algo encima que detendría el toque: un toque en su centro caería en otro elemento. |
 | `~inert` | Se puede leer, pero no tocar. |
+| `~system` | No es de la app: es texto de una alerta del sistema o de una hoja nativa que está delante. Sus botones se pulsan por su texto. |
 
 :::note[Desde 0.3.0]
 Dos lecturas cambian con la versión 0.3.0, y las dos requieren recompilar la app después de actualizar `lynkeus-agent`. El valor de un campo se lee del campo nativo; antes salía de las propiedades de React, y un campo sin propiedad `value` se leía vacío después de escribir en él. Y en Android un control cuenta como `~covered` solo por lo que detendría un toque; antes, en un build de desarrollo, todos los controles se leían como cubiertos.
@@ -62,7 +63,7 @@ Un objetivo es la forma de nombrar el elemento sobre el que actúa un comando. S
 | Forma | A qué corresponde |
 |---|---|
 | `#next-button` | El elemento con ese `testID`. |
-| `"Continue"` | Un control (botón o campo) cuyo texto es exactamente ese, o que lo contiene. Un párrafo solo coincide por texto exacto. |
+| `"Continue"` | Un control (botón o campo) cuyo texto es exactamente ese; si no hay, uno que lo contiene como palabras enteras, y recién después uno que lo contiene dentro de una palabra. Un párrafo solo coincide por texto exacto. Cuando un `press` coincidió solo con una parte de la etiqueta, la respuesta dice qué elemento tocó, y en un caso queda como advertencia. |
 | `12` | El elemento con ese índice en la última lectura de `screen`. |
 | `100,200` | Un punto de la ventana, en puntos. |
 
@@ -98,6 +99,8 @@ npx lynkeus press '#like-message-button' --nth 2
 ```
 
 `--in <objetivo>` elige la coincidencia más cercana a otro objetivo. `--nth <n>` elige por posición.
+
+Una tarjeta accesible junta en su etiqueta las palabras de todo lo que contiene, también las de sus botones. Por eso, dentro del ámbito gana el elemento cuya etiqueta es exactamente el texto buscado frente al que solo lo incluye, y entre dos que coinciden igual gana el de más adentro. Así, `press '"Favorite"' --in '"Offline first"'` toca el botón Favorite de ese episodio y no la tarjeta entera.
 
 ## Tocar, escribir y deslizar
 
@@ -183,6 +186,8 @@ npx lynkeus back
 ```
 
 `nav` salta directo a una ruta, con parámetros en JSON si los necesita. Es un teletransporte, no una acción de usuario: úsalo para llegar al punto donde empieza lo que quieres probar, no para probar la navegación. `back` saca la ruta actual de la pila.
+
+Hay apps que cambian las pantallas de un navegador según el estado: muestran `Login` sin sesión y `Welcome` con sesión. Justo después de iniciar sesión, `Welcome` todavía no existe para React Navigation, que descartaría el `navigate` con apenas un aviso en Metro. Por eso `nav` espera hasta 1,5 s a que algún navegador montado declare esa pantalla. Si ninguno lo hace, el paso falla con `No mounted navigator has a screen named Welcome (the root's: Login)`.
 
 ## Varias órdenes en una sola conexión
 

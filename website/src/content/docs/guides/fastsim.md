@@ -51,13 +51,15 @@ The Team plan includes FastSim on 5 developer machines and 4 parallel CI hosts; 
 
 The app needs its dependencies installed and the Lynkeus agent mounted, as for a simulator. The folder the install printed has a `README.md` with the details. Two commands do the work.
 
-Bundle the app, again after each change to its JavaScript:
+Bundle the app once:
 
 ```bash
 <install folder>/bin/fastsim-bundle <app folder> <bundle folder> ios
 ```
 
-Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle.
+Use `android` in place of `ios` for an Android bundle. Run it in a shell that has the environment your development build uses, such as `EXPO_PUBLIC_` variables and the backend's address. They are written into the bundle. That includes the project's token (`EXPO_PUBLIC_LYNKEUS_TOKEN`, which `lynkeus init` puts in `.env.local`; `LYNKEUS_TOKEN` with `lynkeus-agent/babel` in a React Native app without Expo): a bundle without it keeps its agent off, and its host never attaches. `case run` and `fastsim start` check the bundle for the token before any host starts, and bundle it again with the token set when it carries none. A FastSim release whose host hands the agent the token it is started with (its `share/capabilities` lists `host-token`) needs no token in the bundle: Lynkeus starts each host with `LYNKEUS_TOKEN`.
+
+The bundle is a release bundle: `__DEV__` is false in it. The agent turns itself on there anyway, but app code behind `if (__DEV__)` does not run. Register the app's commands (`reset`, a sign-in shortcut) with `qa.register` outside that check, as the [Agent API](/reference/agent-api/#qa) says; it is inert in a production build. If you pass `enabled` yourself, an expression that requires `__DEV__` turns the agent off on FastSim too.
 
 Then run the cases, one host per case:
 
@@ -67,11 +69,15 @@ npx lynkeus case run <cases> --host-command "<install folder>/bin/fastsim-run <b
 
 Lynkeus starts a host on a free port for each case, waits for the app to attach and stops the host when the case ends. `--jobs <n>` runs `n` cases side by side, each on its own host. `case run` also gives each host the run's [launch facts](/reference/cli/#launch-facts): `--seed`, `--locale`, `--time-zone` and `--epoch` reach it as environment variables, and FastSim starts with that language, zone and clock.
 
+`case run --on fastsim:ios` (or `fastsim:android`), which finds the install folder and that platform's latest bundle by itself, and `lynkeus ci` work the same way. No case inherits anything from the one before it: not its storage (MMKV included), its navigation or its module state. On FastSim, `--keep-hosts` doesn't change this; that flag is for headless hosts, which are reset between cases.
+
 A host's output goes to `<bundle folder>/hosts/<port>.out` and `.err`; JavaScript errors and console lines are in the `.err` file.
+
+A run never tests old code. Before it starts the hosts, `case run` checks the files the bundle is made from: the app's files its entry reaches through imports (every file of an Expo Router `app` folder included), plus the bundler's own inputs (`package.json`, the lockfile, `babel.config.js`, `metro.config.js`, `app.json`, `app.config.*`, `tsconfig.json`, `.env` files). A source map beside the bundle (`app.js.map`), when there is one, gives that list instead. It keeps a hash of each in `inputs.json` in the bundle folder, so a file that was only touched, or saved unchanged, does not count, and neither does a file the bundle does not include, such as `lynkeus.config.json` or a module nothing imports. When an import cannot be followed (an alias only Babel knows), it falls back to comparing dates across the app's source files. When one of those files changed after the bundle was made, it runs the `fastsim-bundle` that sits next to the command's `fastsim-run` again, for the app and platform the bundle was made for, and says so in the summary. That bundling uses Lynkeus's own environment, so start Lynkeus (or the MCP server) with the variables your bundle needs. If there is no `fastsim-bundle` next to `fastsim-run`, or bundling fails, the run stops before any host starts and prints the command to run yourself. `fastsim start` does the same check.
 
 ## From an AI agent over MCP
 
-The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android`, with `LYNKEUS_CLOUD_KEY` in the environment the server was started in, or with the sign-in you saved by running `lynkeus login` in a terminal. The server never opens a browser: if there is no key and no saved sign-in, run `lynkeus fastsim install` or `lynkeus login` yourself in a terminal. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side. To look around the app on FastSim first, the agent calls `fastsim_start` with the bundle folder: the server attaches to a host of its own, `screen`, `press` and `type` drive it, and `fastsim_stop` ends it.
+The [MCP server](/guides/ai-agents/) has the same steps as tools. The agent calls `fastsim_install` with `platform` set to `ios` or `android`, with `LYNKEUS_CLOUD_KEY` in the environment the server was started in, or with the sign-in you saved by running `lynkeus login` in a terminal. The server never opens a browser: if there is no key and no saved sign-in, run `lynkeus fastsim install` or `lynkeus login` yourself in a terminal. It reads the `README.md` in the folder the tool answers, runs `bin/fastsim-bundle` to bundle the app, and calls `case_run` with `host_command` set to `<install folder>/bin/fastsim-run <bundle folder> {port}`. Add `jobs` to run cases side by side. To look around the app on FastSim first, the agent calls `fastsim_start` with the bundle folder: the server starts a host on a free port of its own and attaches to it, `screen`, `press` and `type` drive it, and `fastsim_stop` ends it. Until then the server drives only that host. A development build still attached on the server's port (a Simulator's or an emulator's) stays connected but is not driven, so its screens, system prompts and logs never reach an answer. Every answer about the app starts with the lane it came from, such as `[FastSim iOS]` or `[iOS Simulator]`. When the app it drives is another than the previous answer's (the iOS app closed and the Android one took the port), or another app on the port is being turned away, the next answer says so once, in parentheses after the lane.
 
 ## What it stands in for, and its limits
 
@@ -91,7 +97,15 @@ Install and compare per platform: an iOS build tells you nothing about Android.
 
 ## Troubleshooting
 
-**`no way to sign in to https://lynkeus.io: run lynkeus login in a terminal to sign in as a member with a FastSim seat; in CI, set LYNKEUS_CLOUD_KEY ...`.** Exit code 2. The command found neither a sign-in nor a key. If you are a person at a terminal, run `lynkeus login` (or run the command again from a terminal: it signs you in). In CI, export `LYNKEUS_CLOUD_KEY` with an API key an owner made with **May download Lynkeus FastSim**, or put it under `[env]` in `mise.local.toml`. This code is what a script, CI or MCP gets when there is nothing to sign in with.
+**`Lynkeus FastSim for android not installed in <folder>`, or `declared but not startable here: fastsim:android`, though you installed it.** The FastSim folder is `~/.cache/lynkeus/fastsim`, moved by `XDG_CACHE_HOME` or `LYNKEUS_FASTSIM_DIR`. A shell and an MCP server started with different values of those variables read different installs. `lynkeus status`, `fastsim start` and the message itself name the folder they read, and which variable moved it: start the shell and the server with the same values, or install again where the message points.
+
+**`the host on port … did not bring its app within … s: its app's agent stayed off, as the bundle carries no Lynkeus token`.** The bundle was made without the project's token in its environment. Bundle it again with `EXPO_PUBLIC_LYNKEUS_TOKEN="$(cat .lynkeus/token)"` in front of `fastsim-bundle`, or let `case run` bundle it (it sets the token itself). In CI, the workflow `map ci --cases` writes sets it for the bundle step from the `LYNKEUS_TOKEN` secret.
+
+**`the FastSim bundle at ... is older than ...`, followed by a `fastsim-bundle` command.** The app's code changed after the bundle was made and Lynkeus could not bundle it again: the host command does not start `fastsim-run` from an installed FastSim folder, or `fastsim-bundle` failed (its last lines follow). Run the command it prints, fix what it reports, and run the cases again.
+
+**`Unknown method <name> (this is a release bundle, __DEV__ is false, ...)`** or **`no command reset registered; ... (this is a release bundle ...)`**. The app registers that command inside `if (__DEV__)`, which never runs in a FastSim bundle. Move the `qa.register` call out of the check; the next run bundles the app again.
+
+**`A step only the person can do: run lynkeus login in a terminal and sign in in the browser it opens (an agent cannot), then try again.`**, followed by **`no way to sign in to https://lynkeus.io: ...`** or **`the saved sign-in for https://lynkeus.io has ended (...)`**. Exit code 2. The command found neither a sign-in nor a key, or the saved sign-in expired and could not be renewed, and nobody at a terminal could sign in again. An agent that reads the first line stops and tells you; only you can sign in. If you are a person at a terminal, run `lynkeus login` (or run the command again from a terminal: it signs you in). In CI, export `LYNKEUS_CLOUD_KEY` with an API key an owner made with **May download Lynkeus FastSim**, or put it under `[env]` in `mise.local.toml`. This code is what a script, CI or MCP gets when there is nothing to sign in with.
 
 **`this key may not download Lynkeus FastSim`.** The key was made without **May download Lynkeus FastSim**. Ask an owner of the organization for a key made with it.
 

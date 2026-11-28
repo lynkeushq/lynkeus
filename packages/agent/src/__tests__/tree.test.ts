@@ -185,6 +185,31 @@ describe('snapshotElements', () => {
   const fill = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 };
   const byTestId = (elements: ReturnType<typeof snapshotElements>['elements']) => Object.fromEntries(elements.map((e) => [e.testId ?? `#${e.i}`, e]));
 
+  it('lists the words of a view the app did not draw after its own elements, and where that view stands', () => {
+    install(composite([host('RCTView', { testID: 'delete', onClick: () => null }, [10, 10, 100, 40])]));
+    jest.spyOn(touch, 'hitTest').mockReturnValue([[]]);
+    jest.spyOn(touch, 'systemViews').mockReturnValue({
+      frame: [0, 0, 400, 800],
+      items: [
+        { text: 'Delete card?', kind: 'text', frame: [71, 397, 260, 20] },
+        { text: 'Cancel', kind: 'button', frame: [100, 477, 54, 20] },
+      ],
+    });
+    const { elements, system } = snapshotElements();
+    expect(system).toEqual({ frame: { x: 0, y: 0, w: 400, h: 800 } });
+    expect(elements.map((e) => [e.i, e.kind, e.testId ?? e.text, e.covered, e.system])).toEqual([
+      [0, 'button', 'delete', true, undefined],
+      [1, 'text', 'Delete card?', undefined, true],
+      [2, 'button', 'Cancel', undefined, true],
+    ]);
+  });
+
+  it('says nothing of system views when nothing is in front, or the native side does not say', () => {
+    install(composite([host('RCTView', { testID: 'delete', onClick: () => null }, [10, 10, 100, 40])]));
+    jest.spyOn(touch, 'systemViews').mockReturnValue(null);
+    expect(snapshotElements().system).toBeUndefined();
+  });
+
   it('hides what a root layer with controls is covering', () => {
     const page = host('RCTView', {}, [0, 0, 400, 800], [host('RCTView', { testID: 'behind', onClick: () => null }, [10, 10, 100, 40])]);
     const sheet = host('RCTView', { style: fill }, [0, 0, 400, 800], [host('RCTView', { testID: 'key-1', onClick: () => null }, [10, 500, 60, 60])]);
@@ -411,5 +436,34 @@ describe('moveToViews', () => {
     moveToViews(elements, (tag) => (tag === 7 ? [10, 150, 100, 40] : null));
     expect(elements[1]?.frame.y).toBe(164);
     expect(elements[2]?.frame.y).toBe(300);
+  });
+});
+
+describe('the open drawer back closes', () => {
+  afterEach(() => {
+    delete g.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+  });
+
+  it('is the innermost react-native-drawer-layout Drawer whose props say it is open, composite as it is', async () => {
+    const { openDrawerOnClose } = await import('../tree');
+    const outer = jest.fn();
+    const inner = jest.fn();
+    const drawer = (open: boolean, onClose: () => void, children: FakeFiber[]) => {
+      const fiber = composite(children);
+      fiber.memoizedProps = { open, onClose, renderDrawerContent: () => null };
+      return fiber;
+    };
+    const tree = drawer(true, outer, [host('RCTView', {}, [0, 0, 400, 800], [drawer(true, inner, [host('RCTView', {}, [0, 0, 400, 800])])])]);
+    g.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+      renderers: new Map([[1, {}]]),
+      getFiberRoots: () => new Set([{ current: { tag: 3, child: tree, sibling: null } }]),
+      onCommitFiberRoot: () => undefined,
+    };
+    openDrawerOnClose()?.();
+    expect(inner).toHaveBeenCalledTimes(1);
+    expect(outer).not.toHaveBeenCalled();
+    (tree.child!.child as FakeFiber).memoizedProps = { open: false, onClose: inner, renderDrawerContent: () => null };
+    openDrawerOnClose()?.();
+    expect(outer).toHaveBeenCalledTimes(1);
   });
 });

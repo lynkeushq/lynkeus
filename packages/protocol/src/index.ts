@@ -45,6 +45,8 @@ export type Element = {
   offscreen?: boolean;
   /** A control's own text, each piece with its frame (a card's name next to its balance), when the control holds more than one. Not elements: `see` and `find` still match the control's `text`. */
   texts?: { text: string; frame: Frame }[];
+  /** Words of a view the app's React tree did not draw (a system alert, a native SDK's sheet), listed after the app's own: see `Screen.system`. */
+  system?: boolean;
 };
 
 export type Screen = {
@@ -60,6 +62,12 @@ export type Screen = {
   window: { w: number; h: number };
   /** The layer on top, when the app is presenting one over its screen. */
   presenting?: { i: number; modal: boolean; testId?: string };
+  /**
+   * A view the app's React tree did not draw is in front of the app over this frame: a system alert or prompt, a
+   * native SDK's sheet. Its words are the `system` elements; there are none when another process draws it (iOS's
+   * Save Password prompt), and then no touch from inside the app reaches it.
+   */
+  system?: { frame: Frame };
   /** Milliseconds spent building this snapshot inside the app. */
   costMs: number;
 };
@@ -146,13 +154,14 @@ export type RequestRecord = {
 export type CoreMethods = {
   ping: {
     params: undefined;
-    result: { pong: true; native: boolean; commands: string[] };
+    result: { pong: true; native: boolean; commands: string[]; js?: JsAge };
   };
   screen: { params: undefined; result: Screen };
   find: { params: Target; result: Element | null };
   press: {
     params: Target & PressOptions;
-    result: { x: number; y: number; element?: Element; mode: 'native' | 'js' };
+    /** `opened`: a URL the press made the app hand the OS (`Linking.openURL`), which puts the browser or another app in front. */
+    result: { x: number; y: number; element?: Element; mode: 'native' | 'js'; opened?: string };
   };
   type: {
     params: { text: string; target?: Target; clear?: boolean; paste?: boolean; submit?: boolean };
@@ -166,7 +175,8 @@ export type CoreMethods = {
     params: { name: string; params?: object };
     result: { route: string };
   };
-  back: { params: undefined; result: { route?: string } };
+  /** `closed`: what it closed (an open drawer or menu) instead of popping the route. */
+  back: { params: undefined; result: { route?: string; closed?: string } };
   waitFor: {
     params: WaitForParams;
     result: { route?: string; matched?: Target; waitedMs: number /** The route was reached after `since` and left again. */; passed?: boolean };
@@ -194,7 +204,11 @@ export type CoreMethods = {
 };
 
 export type Request = { id: number; method: string; params?: unknown };
-export type Response = { id: number; result: unknown } | { id: number; error: { message: string; code?: string } };
+/**
+ * `method` repeats the request's, so a driver can refuse a reply that answers another request instead of passing a step
+ * with it. Agents before 0.7.7 leave it out.
+ */
+export type Response = { id: number; method?: string } & ({ result: unknown } | { error: { message: string; code?: string } });
 
 export type HelloEvent = {
   event: 'hello';
@@ -206,6 +220,8 @@ export type HelloEvent = {
   commands: string[];
   route?: string;
   app?: Record<string, unknown>;
+  /** The app's own bundle id (iOS) or application id (Android), so the driver can bring it back or relaunch it without being told; absent from older agents and from hosts that have none. */
+  appId?: string;
   /** The device's locale as the app's JavaScript sees it (a BCP 47 tag); absent from agents before it was sent. */
   locale?: string;
   /** The app's half of the handshake: a fresh nonce, and HMAC-SHA256 under the token of `lynkeus/app/<session>/<driver nonce>/<app nonce>`. */
@@ -213,7 +229,15 @@ export type HelloEvent = {
   proof?: string;
   /** React Native's AppState when the app said hello (`active`, `background`, `inactive`); absent from older agents. */
   appState?: string;
+  /** How old the JavaScript the app runs is, so a driver can tell it from source changed since; absent from older agents. */
+  js?: JsAge;
 };
+/**
+ * The age of the JavaScript an app runs, in ms before the message that carries it (ages, not instants, so a device
+ * clock that differs from the computer's does not matter): `loadedMs` since the bundle loaded, `refreshedMs` since a
+ * Fast Refresh last applied an edit, absent when none has.
+ */
+export type JsAge = { loadedMs: number; refreshedMs?: number };
 export type NavigationEvent = { event: 'navigation'; route?: string };
 /**
  * The app's AppState changed. A phone suspends an app in the background without closing its socket, so without this

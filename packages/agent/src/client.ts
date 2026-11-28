@@ -8,7 +8,11 @@ import { hmacSha256Hex, sameHex } from './hmac';
 import { installHostControls } from './hostControls';
 import { AGENT_VERSION, type AgentEvent, type AuthEvent, type HelloEvent, PROTOCOL_VERSION, type Request, type Response, type VerifiedEvent } from './protocol';
 import { addDefault, host } from './registry';
+import { trackOpenedUrls } from './opened';
 import { trackRequests } from './requests';
+import { appId } from './native';
+import { watchDevLoading } from './devLoading';
+import { jsAge, watchFastRefresh } from './jsAge';
 import { readLogs, tapLogs } from './logs';
 import { readSdkCalls, tapSdks } from './sdks';
 import { record as trace } from './trace';
@@ -54,6 +58,9 @@ const UNTRACED = new Set(['screen', 'find', 'trace', 'requests', 'ping', 'debug'
 const NO_TOKEN =
   "lynkeus: the app passed a token and it is empty (or no token at all), so the agent stays off. React Native gives the app no environment: add 'lynkeus-agent/babel' to the plugins in babel.config.js and start Metro with LYNKEUS_TOKEN set (after a change, with --reset-cache). In Expo, name the variable EXPO_PUBLIC_LYNKEUS_TOKEN.";
 
+const refusedBy = (url: string) =>
+  `lynkeus: the driver at ${url} does not hold this app's token, so the link was dropped and nothing is served to it. Another project's Lynkeus is probably listening there (each project has its own .lynkeus/token; \`lynkeus status\` in this project names the process), or this bundle carries an older token (restart Metro with --reset-cache).`;
+
 const openSocket = (url: string): Socket => new (globalThis as unknown as { WebSocket: new (url: string) => Socket }).WebSocket(url);
 
 // Hermes has no WebCrypto everywhere; where it lacks getRandomValues, time and Math.random still make the nonce
@@ -76,13 +83,29 @@ const deviceLocale = (): string | undefined => {
   }
 };
 
-export const start = (options: ClientOptions): (() => void) => {
+/**
+ * The token a Lynkeus FastSim host hands the agent, when it was started with one (LYNKEUS_TOKEN, as Lynkeus starts
+ * it): a bundle made without the token in its environment then attaches all the same (trial run 11). Only a FastSim
+ * host sets `__fastsimDevice`, before the app's code runs; a store build or a device never has it. The host is started
+ * by whoever holds the token, so the app learns nothing its driver does not already prove, and the token still never
+ * crosses the socket: both sides prove it, as with a token in the bundle.
+ */
+const hostToken = (): string | undefined => {
+  const device = (globalThis as { __fastsimDevice?: { lynkeusToken?: unknown } }).__fastsimDevice;
+  return typeof device?.lynkeusToken === 'string' && device.lynkeusToken.length > 0 ? device.lynkeusToken : undefined;
+};
+
+export const start = (given: ClientOptions): (() => void) => {
+  const options = given.token ? given : { ...given, token: hostToken() };
   // A missing token must not turn into serving anyone who connects; opt out only for isolated tests.
   if (!options.token && options.allowUnauthenticated !== true) {
     console.warn(NO_TOKEN);
     return () => undefined;
   }
   trackRequests();
+  trackOpenedUrls();
+  watchFastRefresh();
+  watchDevLoading();
   // Before `hello`, which lists the commands: the host's own (FastSim's screenshots and clock) are among them.
   installHostControls();
   // A host that stands in for the SDKs (fastsim, headless) answers `analytics` itself; elsewhere the agent does,
@@ -104,6 +127,13 @@ export const start = (options: ClientOptions): (() => void) => {
   let socket: Socket | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopped = false;
+  // Said once until a driver proves the token again: the agent redials every 1.5 s, and a line per dial would bury the app's own logs.
+  let warnedRefusal = false;
+  const refused = (url: string) => {
+    if (warnedRefusal) return;
+    warnedRefusal = true;
+    console.warn(refusedBy(url));
+  };
 
   const send = (message: Response | AgentEvent) => {
     if (socket?.readyState === OPEN) socket.send(JSON.stringify(message));
@@ -118,21 +148,26 @@ export const start = (options: ClientOptions): (() => void) => {
     commands: host.commands(),
     route: navigation.currentRoute()?.name,
     app: options.app,
+    ...(appId() ? { appId: appId() as string } : {}),
     ...(typeof AppState.currentState === 'string' ? { appState: AppState.currentState } : {}),
     locale: deviceLocale(),
+    js: jsAge(),
     ...proof,
   });
 
   // The driver resends in-flight requests verbatim after a reconnect. One the
   // app already ran (only the reply was lost) answers from the recorded reply:
-  // a press is not idempotent. Keyed by driver session, since every driver
-  // numbers its requests from 1.
+  // a press is not idempotent. Keyed by driver session and by the request whole:
+  // drivers sharing a port share its session, and one older than 0.7.7 numbers
+  // its requests from 1, so an id alone may name another request already
+  // answered, whose reply would pass a step it never ran.
   const replies = new Map<string, Response>();
   const running = new Map<string, Promise<void>>();
   let session = '';
 
   const serve = async (request: Request) => {
-    const key = `${session}:${request.id}`;
+    // Parsed from JSON, so it serializes back.
+    const key = `${session}:${request.id}:${request.method}:${JSON.stringify(request.params)}`;
     const seen = replies.get(key);
     if (seen) {
       send(seen);
@@ -149,12 +184,12 @@ export const start = (options: ClientOptions): (() => void) => {
       try {
         const result = await dispatch(handlers, request.method, request.params, navigation);
         if (!UNTRACED.has(request.method)) trace({ kind: 'command', method: request.method, ms: Date.now() - started });
-        reply = { id: request.id, result };
+        reply = { id: request.id, method: request.method, result };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         trace({ kind: 'command', method: request.method, ms: Date.now() - started, error: message });
         options.onError?.(error, request.method);
-        reply = { id: request.id, error: { message } };
+        reply = { id: request.id, method: request.method, error: { message } };
       }
       replies.set(key, reply);
       if (replies.size > REPLAY_WINDOW) replies.delete(replies.keys().next().value as string);
@@ -170,7 +205,8 @@ export const start = (options: ClientOptions): (() => void) => {
 
   const connect = () => {
     if (stopped) return;
-    const ws = (options.createSocket ?? openSocket)(`ws://${hosts[at]}:${options.port ?? 8123}`);
+    const url = `ws://${hosts[at]}:${options.port ?? 8123}`;
+    const ws = (options.createSocket ?? openSocket)(url);
     socket = ws;
     let opened = false;
     let authenticated = options.token === undefined && options.allowUnauthenticated === true;
@@ -217,19 +253,29 @@ export const start = (options: ClientOptions): (() => void) => {
         }
         if (parsed.event === 'verified' && options.token && appNonce) {
           // Whatever listens on the port gets nothing but our proof unless it proves the token too.
-          if (sameHex(parsed.proof, hmacSha256Hex(options.token, `lynkeus/driver/${session}/${driverNonce}/${appNonce}`))) authenticated = true;
-          else ws.close();
+          if (sameHex(parsed.proof, hmacSha256Hex(options.token, `lynkeus/driver/${session}/${driverNonce}/${appNonce}`))) {
+            authenticated = true;
+            warnedRefusal = false;
+          } else {
+            refused(url);
+            ws.close();
+          }
         }
         return;
       }
       if (!authenticated) {
-        send({ id: parsed.id, error: { message: 'Not authenticated', code: 'unauthenticated' } });
+        send({ id: parsed.id, method: parsed.method, error: { message: 'Not authenticated', code: 'unauthenticated' } });
         return;
       }
       void serve(parsed);
     };
     ws.onclose = () => {
-      if (socket === ws) socket = null;
+      // A socket already replaced must not redial: it would orphan the current one, whose own close redials again,
+      // and the two would take turns replacing each other.
+      if (socket !== ws) return;
+      socket = null;
+      // A driver that closes after our proof and before its own refused the proof: its token is another one.
+      if (appNonce && !authenticated && !stopped) refused(url);
       if (stopped) return;
       if (!opened) at = (at + 1) % hosts.length;
       if (eagerUntil === Number.POSITIVE_INFINITY) eagerUntil = Date.now() + EAGER_MS;

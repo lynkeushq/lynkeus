@@ -63,7 +63,9 @@ Si todavía no es una dependencia, el comando instala `lynkeus-agent` con el ges
 ```
 installed lynkeus-agent (npm install lynkeus-agent); it has native code, so build the app again
 added auto() to index.js
-made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 added lynkeus-agent/babel to babel.config.js
 restart Metro with --reset-cache so the bundle picks the token up; LYNKEUS_TOKEN in the environment still wins over the file
 next: build the app again and open it, then `lynkeus status` (over MCP: the status tool) to see that it attaches
@@ -82,7 +84,7 @@ add 'lynkeus-agent/babel' to the plugins in babel.config.js, so the app can read
 
 #### Qué hace, y cómo hacerlo a mano
 
-En el punto de entrada, el comando agrega un `import` y una llamada a `auto()` antes de `registerComponent`. El resultado equivale a este archivo, que puedes escribir tú. El comando no escribe `enabled`, porque su valor por defecto ya es `__DEV__`; aquí aparece para que se vea dónde acotarlo:
+En el punto de entrada, el comando agrega un `import` y una llamada a `auto()` antes de `registerComponent`. El resultado equivale a este archivo, que puedes escribir tú. Tampoco escribe `enabled`: el valor por defecto ya enciende el agente en desarrollo y en Lynkeus FastSim, y lo deja apagado en un build de tienda. No escribas `enabled: __DEV__`, porque FastSim corre un bundle de release donde `__DEV__` vale `false` y el agente quedaría apagado:
 
 ```js title="index.js"
 import { AppRegistry } from 'react-native';
@@ -91,8 +93,8 @@ import { auto } from 'lynkeus-agent/auto';
 import App from './src/App';
 import { name as appName } from './app.json';
 
-// Monta el agente solo en builds de depuración.
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ });
+// Sin `enabled`: corre en desarrollo y en FastSim, no en un build de tienda.
+auto({ token: process.env.LYNKEUS_TOKEN });
 
 AppRegistry.registerComponent(appName, () => App);
 ```
@@ -113,11 +115,11 @@ Las dos opciones del ejemplo:
 
 | Opción | Valor por defecto | Qué controla |
 |---|---|---|
-| `enabled` | `__DEV__` | Si el agente corre o no. Cuando es `false`, el cliente (el código que lee la pantalla y habla con el CLI) nunca se evalúa. |
+| `enabled` | `enabledByDefault()`: verdadero en desarrollo y en FastSim, falso en un build de tienda | Si el agente corre o no. Cuando es `false`, el cliente (el código que lee la pantalla y habla con el CLI) nunca se evalúa. |
 | `token` | ninguno | El secreto que debe presentar el CLI antes de ser atendido. Lo explica el paso 3. |
 
 :::caution
-Un build de depuración que apunta a producción, con cuentas reales, no debería correr el agente. Acota `enabled` según tu entorno, por ejemplo `enabled: __DEV__ && config.ENV !== 'prod'`.
+Un build de depuración que apunta a producción, con cuentas reales, no debería correr el agente. Acota `enabled` según tu entorno, por ejemplo `enabled: enabledByDefault() && config.ENV !== 'prod'`, con `enabledByDefault` importado de `lynkeus-agent`.
 :::
 
 ### 3. Define el token
@@ -205,7 +207,7 @@ Se monta una sola vez, en cualquier lugar debajo del contenedor de navegación. 
 
 ```tsx title="src/App.tsx"
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
-import { Lynkeus, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, reactNavigationAdapter } from 'lynkeus-agent';
 
 const App = () => {
   const ref = useNavigationContainerRef();
@@ -215,7 +217,7 @@ const App = () => {
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
         token={process.env.LYNKEUS_TOKEN}
-        enabled={__DEV__}
+        enabled={enabledByDefault()}
         app={{ name: 'myapp' }}
       />
     </NavigationContainer>
@@ -227,7 +229,7 @@ Sus propiedades:
 
 | Propiedad | Valor por defecto | Qué controla |
 |---|---|---|
-| `enabled` | `__DEV__` | Si el agente corre. |
+| `enabled` | `enabledByDefault()` | Si el agente corre. |
 | `navigation` | ninguno | El adaptador de navegación. El paquete incluye `reactNavigationAdapter(ref)`. Sin adaptador hay pantalla, toques y esperas, pero no rutas. |
 | `host`, `port` | `localhost` (`10.0.2.2` en el emulador de Android), `8123` | Dónde escucha el CLI. |
 | `token` | ninguno | El secreto compartido con el CLI. Si lo pasas y llega vacío, el agente queda apagado y la app lo dice en su log. |

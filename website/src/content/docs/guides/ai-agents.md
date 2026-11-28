@@ -42,9 +42,11 @@ Ask the agent, in plain words:
 Set lynkeus up in this app.
 ```
 
-The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file.
+The server tells the model the order to follow when it connects. The agent calls `status`, which lists what the project has and what each missing piece needs, then `init`, which installs `lynkeus-agent`, mounts it from the app's entry and makes the project's token in `.lynkeus/token` (kept out of git). Nobody sets a variable: the app's bundle, the CLI and the server all read that file. It also installs the [Lynkeus skill](#the-lynkeus-skill) in `.claude/skills/lynkeus` and two [subagents](#subagents-for-routine-work) in `.claude/agents`.
 
-The agent has native code, so the app is built again (`npx react-native run-ios`, or `npx expo run:ios` for Expo) and Metro restarted with `--reset-cache`. An agent with a shell does that itself; otherwise it asks you to. Then `status` shows the app attached, and the agent can read the screen.
+The agent has native code, so the app is built again. The `setup` tool does all of it in one call: `init` when the agent is not set up, then for each platform the device, Metro (started with its own log when it is not running), the project's own development build (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), the launch and the wait until the app attaches, then `status`. It answers a line per step and keeps the build and Metro logs, and `init`'s and `status`'s whole answers, in `.lynkeus/runs/setup`. A failed step comes back with its last log lines and the log's path. Run it again after a fix: the steps already done are said and skipped.
+
+Which platforms: `platform` when given, else the `ios` and `android` in `cases.targets`, else the ones the app builds for. Which device: a booted Simulator, or a running emulator or phone. With none up, `setup` boots only the one the project names, `device` (a Simulator's name or udid) or `avd` (an emulator) in `lynkeus.config.json`, and says it booted it, so the agent shuts it down when it is done. It never wipes a device. While it builds, it reports progress to clients that ask for it.
 
 To run without a simulator, ask it to set the app up headless: `headless_init` installs jest, Testing Library and `lynkeus-headless` and writes the entry, `headless_doctor` names any native module still to mock, and cases then run in Node with `case_run` and `host`. The app's backend must be local; `apiUrl` in `lynkeus.config.json` gives it to the host.
 
@@ -56,7 +58,7 @@ Write a test for the sign-in screen, run it and push the run.
 
 The agent calls `case_init` the first time, which writes an example case and the format beside it, drives the app to the screen with `press`, `type` and `wait`, writes the case as a markdown file and runs it with `case_run`. A case that fails comes back with the screen it failed on and the reason, so the agent fixes the case or reports the app's bug. With `push`, the run goes to lynkeus.io and the agent prints its address as soon as the run starts; the report fills in case by case.
 
-To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the presses to get there and the setup the fixtures server offers. `fixtures_describe` lists what that server can prepare in the backend.
+To start from what is on screen, `case_here` drafts a case that passes as the app is now; `case_new` drafts one for another screen, with the way there and the setup the fixtures server offers. When an existing case already reaches that screen, the way is that case's steps, and the draft names the case: the agent reuses navigation that works instead of finding it again by hand, which is where most of a session's tokens went in our trials. `fixtures_describe` lists what that server can prepare in the backend.
 
 A long case is easier to read in parts. The format `case_init` writes tells the agent to open each part of `steps` with a numbered comment (`# 3 A wrong PIN`), numbered like the `expected` list; reports group the steps by those sections.
 
@@ -72,7 +74,9 @@ Run every case headless, three at a time, and tell me how it goes.
 
 `case_run` takes `jobs`, `ports` and `host_command`: each job gets its own host, which `host_command` starts for every case. A case that changes something every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone. With `host`, the run starts the headless host again when it dies during a case or its heap passes `host_heap` percent of its limit, so one crash does not fail every case after it.
 
-While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` also gets MCP progress notifications, with the same line as the message.
+A case is done when it passes on your project's targets, the list in `cases.targets` in `lynkeus.config.json` (a case can declare its own with `targets:` in its frontmatter). The agent checks with one `case_run` with `on: targets`: it runs each case on its targets at the same time, and only there, and answers one line per case per target. A declared target the machine is missing is named with the reason and the check is reported incomplete. If your project has no targets yet, the agent asks you which ones matter; `status` proposes a value from what the machine has. `on: all` still runs every target the machine has, when you ask for it.
+
+While the run goes on, `case_status` says where it is: cases done and failed, what each job runs and in which section, and the time left. Any client can call it, and so can a person, with `npx lynkeus case status` in another terminal. A client that sends a progress token with `case_run` or `evidence` also gets an MCP progress notification for everything the run does: each case starting (with its attempt) and ending (with its result, how long it took and the lane's count of cases done, such as `2/10 done`), and each step starting and ending (`step 3/6`, the step, its time). On a run with several targets, each line starts with its target, such as `[fastsim:ios] sign-in · step 4/6 ✅ app.press #login-submit · 117 ms`, so the lanes interleave readably. Clients show these notifications in their interface; they don't enter the model's context, and the tool's answer stays as short as before. While one step waits a long time, the run's status line repeats at least every 20 seconds, so the client doesn't give up on a call that is still working. `setup` reports each of its steps and build lines the same way. Over MCP, a run stops after `budget` seconds (1500 unless the agent passes another value, or `0` for none): the answer lists what ran and names the cases it didn't reach, for the agent to run in another call. Cancelling the call stops the run the same way `case_stop` does: no step starts after it, the hosts it started are stopped and a running `exec` command is killed. A step that runs past its own `timeoutMs` plus 30 seconds (180 seconds when it names none, or `cases.stepCeilingMs`) fails as stuck instead of holding the run.
 
 ## Step 4: Choose the tool set
 
@@ -80,27 +84,29 @@ The server comes in two sizes. The size matters because tool definitions are sen
 
 | Command | Tools | Cost per turn |
 |---|---|---|
-| `npx lynkeus mcp` | The 23 core tools | About 3,500 tokens |
-| `npx lynkeus mcp --full` | All 56 commands | About 7,300 tokens |
+| `npx lynkeus mcp` | The 34 core tools | About 7,700 tokens |
+| `npx lynkeus mcp --full` | All 64 commands | About 11,500 tokens |
 
-Start with the core. Add `--full` for an agent whose job is crawling, recording or snapshots.
+Start with the core. Add `--full` for an agent whose job is recording or snapshots.
 
 ### The core tools
 
 | Tool | What it does |
 |---|---|
 | `status` | What the project has of Lynkeus and what is missing, each with its fix, and whether an app is attached. |
+| `setup` | Connects the app in one call: `init`, the device, Metro, the development build, the launch, the wait until it attaches, `status`. A line per step; logs in `.lynkeus/runs/setup`. |
 | `init` | Installs the agent, mounts it from the app's entry, makes the project's token. |
 | `headless_init` | Prepares the app to run in Node with no simulator. An Expo Router app works too. |
 | `headless_doctor` | Lists the native modules the app uses that nothing mocks yet, and can write stubs for them. |
 | `fastsim_install` | Downloads Lynkeus FastSim for this machine and a platform (`ios` or `android`), for organizations whose plan includes it. Its README says how to run cases on it with `case_run` and `host_command`. See [Run cases on Lynkeus FastSim](/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Start a Lynkeus FastSim host on a bundle and attach the server to it, so `screen`, `press` and `type` explore the app on FastSim before a case is written; stop it again. |
 | `case_init` | Writes an example case and the reference of the format. |
-| `case_run` | Runs cases, one at a time or side by side; a failure comes back with its screen and reason. |
+| `case_run` | Runs cases, one at a time or side by side. A passing case is one line; a failure comes back with its step, its screen and the reason (`verbose` for all of it). With `on: targets` and `brief`, a suite on several targets answers only the cases that did not pass and each target's count. |
+| `evidence` | Runs cases with a frame per step, a film per case and `report.html`, and answers only the report's path, each case's result per target and the frames that look wrong (an action that changed nothing on screen, a system view in front). |
 | `case_status` | Where a run is: cases done, what each job runs and in which section, the time left. |
 | `case_here` | Drafts a case from the screen the app shows now, with checks that pass as it is. |
-| `case_new` | Drafts a case for a screen: the way there, the setup to pick from, the checks left to write. |
-| `case_coverage` | Which screens the cases reach, which none does, and which a case names that the app no longer has. |
+| `case_new` | Drafts a case for a screen: the way there (an existing case's, when one reaches it), the setup to pick from, the checks left to write. |
+| `case_coverage` | Which screens the cases reach, which none does, which a case names that the app no longer has, and steps several cases repeat that belong in a macro. |
 | `case_impact` | The cases a branch's changes reach, to run only those. |
 | `fixtures_describe` | What the project's fixtures server can prepare and read, with each command's parameters. |
 | `fixtures_check` | Whether the fixtures server keeps the fixtures protocol. |
@@ -113,22 +119,22 @@ Start with the core. Add `--full` for an agent whose job is crawling, recording 
 | `os_deeplink` | Opens a URL in the app, as the operating system would hand it over. |
 | `map_show` | The testIDs and navigations a screen is likely to have, read from source. |
 | `map_plan` | Directions from one route to another: which buttons to press, screen by screen. |
+| `crawl` | Presses the controls on the current screen and records where each one leads. Short by default: one level, 12 presses. |
+| `guide` | One section of the [Lynkeus skill](#the-lynkeus-skill), or a topic's list of sections, for a client that does not load skills. |
 
 A tool takes its command's arguments and most of its flags. A few that a model rarely needs, such as `--nth` and `--hold` on `press`, are left out of the core tools to keep their definitions small. Tool names are the command names with spaces replaced by underscores.
 
 When `lynkeus.config.json` sets `language` or `locale`, the server adds one more tool, `app_locale`, which tells the model the language and region the app is built for.
 
-## Step 5: Build the map
+## Step 5: Let the map fill itself
 
-`map_show` and `map_plan` answer from a map of the app that Lynkeus builds by reading the source. Build it once, and again when navigation changes:
+`map_show`, `map_plan`, `case_new` and `case_coverage` answer from a map of the app, `.lynkeus/graph.json`. There is nothing to build by hand. The first tool that needs the map reads the app's source and writes it. After that, any tool that needs it checks whether a source file changed since, and reads the source again when one did. The check only looks at file dates, so it costs milliseconds.
 
-```bash
-npx lynkeus map build
-```
+Reading the source gives every route, the testIDs each screen is likely to have, and the navigations the code makes. Some ways between screens only show up when someone taps through the app. Lynkeus collects those as it goes. Every `press` the agent makes and every press in a `case_run` that lands on another screen, or opens or closes a sheet, is saved as a step `map_plan` can use next time. That costs the app no extra calls.
 
-You should see `.lynkeus/graph.json` written. The map lists every route, the testIDs each screen is likely to have, and the navigations it can perform.
+When `map_plan` or `case_new` still has no way to a screen, have the agent call `crawl` from the screen nearest to it. Over MCP a crawl stops after one level and 12 presses, and it answers in a few lines: the screens it found, the new steps it learned, and anything that went wrong. Calling it again carries on from where it stopped. Pass `max` or `depth` for a longer walk.
 
-The static map only knows the navigations it can read from source. If `map_plan` has no directions, run `npx lynkeus crawl` from the starting screen: it presses the controls it finds and records where each one actually leads.
+You can still run `npx lynkeus map build` in a terminal to see what was read from the source and what could not be.
 
 ## Step 6: Give the agent its instructions
 
@@ -159,8 +165,9 @@ Moving around
 When something fails
 - Call `why` instead of reading the screen again. It says whether the target is
   covered, hidden behind a layer, disabled or not there (and the nearest
-  match), and whether the session is gone, the backend failed, or requests are
-  still in flight.
+  match), and whether the session is gone, the backend failed, requests are
+  still in flight, or a request answered 2xx and the app logged an error about
+  its body.
 ```
 
 Two points from that text deserve an explanation.
@@ -168,6 +175,42 @@ Two points from that text deserve an explanation.
 **Why `screen` and not `screen --json`.** An average screen reads in about 250 tokens in the text form. The JSON form is several times larger and carries nothing a model needs; it is for programs. With a sheet open, what the sheet covers is not in the listing at all.
 
 **Why `why` and not `screen` after a failure.** Reading the screen again costs as much and says less. `why` reads the screen, the last requests and the trace as rules, and returns the conclusion. When a tool call fails over MCP, the error already carries that diagnosis.
+
+## The Lynkeus skill
+
+The instructions the server gives the model when it connects are short on purpose: a client reads them again with every call, so each extra line is paid for many times in a session. The rest of what an agent needs to write good cases is in the Lynkeus skill, which costs nothing until a task needs it. It covers the case format and how texts match, macros and `on:` blocks, `app.relaunch`, the targets and how to run cases side by side, evidence and how to share a run, CI, and runs that repeat exactly.
+
+`lynkeus init` installs it in `.claude/skills/lynkeus` and says so in its output. Commit that folder, so everyone who works on the app has it. Claude Code and other clients that load Agent Skills keep only its one-line description in context until a task needs it.
+
+The skill is cut into short sections, one file each, of a few hundred bytes to about 1.4 KB: `cases/mocks.md`, `targets/headless.md`, `troubleshooting/port.md`. `SKILL.md` lists them by topic, and both it and the server's instructions tell the model to read a section when the task reaches it, not up front. This matters because whatever enters the conversation is paid for again on every later call. In a trial on Claude Code, the agent read four whole topics (26 KB, about 7,000 tokens) at the start and carried them through some 215 calls after that.
+
+- `lynkeus init --no-skill` leaves it out, along with the subagents. `LYNKEUS_NO_SKILL=1` does the same for every `init`.
+- `lynkeus skill install` brings the skill and the subagents to the version of the CLI you run. Lynkeus records what it wrote in `.lynkeus-skill.json` and `.claude/agents/.lynkeus-agents.json`. When you changed one of those files, it leaves that part alone and names the file. `--force` replaces it anyway.
+
+A client that does not load skills reads the same text through the `guide` tool:
+
+| Call | Answer |
+|---|---|
+| `guide` | The index: the cheap way to write a case and each topic's sections. |
+| `guide` with `topic: "cases"` | That topic's sections, one line each: `mocks: Mocks: app.mock, errors, lost answers, loading states`. |
+| `guide` with `topic: "cases"`, `section: "mocks"` | That section only. |
+
+The topics are `cases`, `targets`, `evidence`, `ci`, `determinism` and `troubleshooting`. In a terminal, `npx lynkeus guide cases mocks` prints the same text.
+
+### Subagents for routine work
+
+Much of a session is routine: connecting the app, checking where cases can run, running the suite, collecting evidence. Next to the skill, `lynkeus init` installs two Claude Code subagents in `.claude/agents`:
+
+| Subagent | What it does | Tools |
+|---|---|---|
+| `lynkeus-setup` | Runs `status`, `init`, the build and Metro until the app attaches, and reports where cases can run in a few lines. | The Lynkeus tools, Bash, Read |
+| `lynkeus-runner` | Runs cases or the suite on the project's targets and returns totals and one line per failure. It does not edit cases or code. | The Lynkeus tools, Read |
+
+Both set `model: sonnet` in their frontmatter, so the routine part runs on a smaller model than the one writing cases. The bigger saving is the context: build logs, screens and run output stay in the subagent, and the main conversation gets only the summary. Change the model or the tools in the files if you want; Lynkeus then leaves them alone.
+
+Their tools are listed as `mcp__lynkeus__*`, which assumes you added the server under the name `lynkeus`, as in [Step 1](#step-1-connect-the-server). With another name, edit the `tools` line in both files.
+
+A client loads files like these when a session starts, so subagents that `init` writes during a session are there only from the next one. Nothing depends on them: the server's instructions tell any client (Claude Code, Codex, Gemini, Kimi, Qwen or another) to prefer the one-call jobs (`setup`, `case_run` with `on: targets` and `brief`, `evidence`) to driving builds and devices through its shell, and, when it can run a task in a separate context, to hand that context the jobs and keep only their summaries. Each job's long output is in files the agent opens only when the answer points at one.
 
 ## A sample exchange
 
@@ -207,7 +250,7 @@ The first time, the client opens Lynkeus to ask for your approval and which orga
 
 The MCP server and the command line share one runtime. A tool call is turned back into the arguments of its command and executed the same way, so a tool behaves exactly as the command does in a terminal.
 
-The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time.
+The server keeps one connection to the app, as `lynkeus session` does, so a tool call does not pay for a new process and a new connection each time. An iOS and an Android development build can both be attached to it, and `fastsim_start` adds a FastSim host on a port of its own, so every answer about the app starts with the app it came from: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` or `[headless]`.
 
 Some commands are never served over MCP, in either size: `record` and the `report` commands, among others. They need a person or talk to the hosted service.
 
@@ -215,9 +258,9 @@ Some commands are never served over MCP, in either size: `record` and the `repor
 
 **The client shows no tools, or the server exits.** Run `npx lynkeus mcp` in the client's working directory by hand. It should start and wait. Check that the folder is the app's, or pass `--root`.
 
-**Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has another token than the server: the one in `.lynkeus/token`, or `LYNKEUS_TOKEN` when the server's environment sets it. Call `status`: it says which piece is missing. After `init` made a token, the bundle needs Metro restarted with `--reset-cache` to carry it.
+**Every tool call fails to attach.** The app is not running, is not a debug build, received an empty token (its log then says `lynkeus: the app passed a token and it is empty`), or has another token than the server: the one in `.lynkeus/token`, or `LYNKEUS_TOKEN` when the server's environment sets it. Call `status`: it says which piece is missing. After `init` made a token, the bundle needs Metro restarted with `--reset-cache` to carry it; `setup` starts Metro clean itself, and refuses to go on when a Metro it did not start was already running.
 
-**`map_plan` has no directions.** Build the map with `npx lynkeus map build`, then add observed edges with `npx lynkeus crawl`.
+**`map_plan` has no directions.** The code does not show that way between the two screens. Call `crawl` from the starting screen, or from a screen close to the target, and ask again.
 
 **The agent keeps calling `screen`.** Tell it, in its instructions, to call `why` after a failure and `map_show` before exploring.
 

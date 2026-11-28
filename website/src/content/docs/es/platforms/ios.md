@@ -31,7 +31,9 @@ Si necesitas otro puerto, define `LYNKEUS_PORT` con el mismo valor para la app y
 
 Con un solo simulador encendido no hay nada que elegir: Lynkeus usa ese.
 
-Con varios, indica cuál por su UDID o por una parte de su nombre. Hay tres lugares donde decirlo, de mayor a menor prioridad:
+Con varios, Lynkeus busca el simulador donde corre la app que se conectó (la app le dice su *bundle id* al conectarse). Las capturas, el video y los comandos `os` de un caso salen de ese simulador, aunque haya otro encendido mostrando su pantalla de inicio o un emulador de Android abierto al lado. Si la app conectada cambia, por ejemplo cuando la de Android toma el puerto después de la de iOS, Lynkeus vuelve a buscar.
+
+Si la app corre en varios simuladores a la vez, o Lynkeus no puede saber en cuál, indica cuál por su UDID o por una parte de su nombre. Hay tres lugares donde decirlo, de mayor a menor prioridad:
 
 | Dónde | Ejemplo |
 |---|---|
@@ -71,7 +73,7 @@ En un simulador, la capa nativa es real. Los comandos del grupo `os` actúan sob
 | `lynkeus os push <payload>` | Entrega una notificación push. Recibe un JSON o un archivo `.json`. |
 | `lynkeus os appearance <light\|dark>` | Cambia entre modo claro y oscuro. |
 | `lynkeus os location <lat>,<lon>` | Fija la ubicación del dispositivo. Con `clear` la borra. |
-| `lynkeus os language [tag]` | Reinicia la app en otro idioma, por ejemplo `de-DE`. Sin argumento usa el de `lynkeus.config.json`. |
+| `lynkeus os language [tag]` | Reinicia la app en otro idioma, por ejemplo `de-DE`. Sin argumento usa el de `lynkeus.config.json`. El idioma se mantiene cada vez que Lynkeus vuelve a abrir la app (`app.relaunch`, el reinicio antes de un caso, traerla al frente); si la reinicias a mano, vuelve en el idioma del simulador. Con un simulador y un emulador a la vez, `--device` elige cuál. |
 | `lynkeus os deeplink <url>` | Abre una URL en la app, como se la entregaría el sistema. |
 | `lynkeus os appstate <active\|background>` | Manda la app al fondo o la trae de vuelta, de verdad: quienes escuchan `AppState` se enteran, y con `active` el comando espera a que el agente se conecte otra vez. `--app` nombra la app que se trae de vuelta. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Inscribe o quita Face ID o Touch ID en el simulador. Lo que responde cada solicitud (`--next`, `--fallback`) lo decide la persona frente al dispositivo, así que un caso que lo pide queda como no compatible. |

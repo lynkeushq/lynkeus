@@ -20,9 +20,42 @@ export type Evidence = {
   target?: { testId?: string; text?: string; route?: string };
   /** Whether the app made any request before `requests` begins: `requests` may be only those of the failed command. */
   fetchedBefore?: boolean;
+  /** The app's uncommitted source changes as `git diff -U0` prints them, to find where a sought text was rewritten. */
+  sourceDiff?: string;
+  /** What the app wrote to its console while the command ran (warnings and errors are read), oldest first. */
+  logs?: { level: string; text: string }[];
+  /**
+   * The host has no network beyond this machine (a FastSim host reaches only localhost and 10.0.2.2): a request to any
+   * other host failed there by design, not because a server or the connection broke.
+   */
+  noNetwork?: boolean;
+  /** The route's screen as Lynkeus last kept it (before this failure), where a text that is gone used to stand. */
+  lastSeen?: { elements: Element[]; frames: Record<string, { x: number; y: number; w: number; h: number }> };
 };
 
+/**
+ * Commands Lynkeus itself sends the app between steps (to read its memory, console, events, frames…). An app without
+ * one answers `Unknown method`, which is no reason a step failed.
+ */
+const OWN_PROBES = new Set([
+  'memory',
+  'logs',
+  'analytics',
+  'networkBodies',
+  'events',
+  'traceContext',
+  'nativeValues',
+  'nativeMocks',
+  'still',
+  'screenshot',
+  'record',
+  'clock',
+]);
+
 export type Finding = { rule: string; message: string };
+
+// React's test renderer warns about updates outside act() on the headless host: the host's doing, never why a step failed.
+const ACT_WARNING = /not wrapped in act\(|wrapped into act\(|not configured to support act\(|environment is not configured to support act/;
 
 const fold = (t: string): string =>
   t
@@ -42,16 +75,141 @@ const distance = (a: string, b: string): number => {
   }
   return prev[n]!;
 };
-const similar = (a: string, b: string): boolean => {
-  if (a.includes(b) || b.includes(a)) return true;
-  if (a.length > 200 || b.length > 200) return false;
-  return distance(a, b) <= Math.max(2, Math.floor(Math.max(a.length, b.length) * 0.25));
+const words = (t: string) => new Set(t.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+
+/**
+ * How close a text on screen is to the one sought, 0 when not close enough to name: a few edits away (a typo, an
+ * accent), one inside the other (a title that grew words), or sharing most of their words (a title reworded).
+ */
+const closeness = (a: string, b: string): number => {
+  const short = a.length <= b.length ? a : b;
+  const long = short === a ? b : a;
+  const edits = a.length > 200 || b.length > 200 ? Infinity : distance(a, b);
+  // Two edits turn most short words into others ("ok" into "book"): a short text gets one.
+  const allowed = long.length <= 4 ? 1 : Math.max(2, Math.floor(long.length * 0.25));
+  const byEdits = edits <= allowed ? 1 - edits / Math.max(long.length, 1) : 0;
+  const inside = short.length >= 3 && long.includes(short) ? 0.5 + short.length / long.length / 2 : 0;
+  const wa = words(a);
+  const wb = words(b);
+  const shared = [...wa].filter((w) => wb.has(w)).length;
+  const union = new Set([...wa, ...wb]).size;
+  const byWords = shared >= 2 && shared / union >= 0.5 ? shared / union : 0;
+  return Math.max(byEdits, inside, byWords);
+};
+
+/** A text's shape: its words folded, numbers as one kind ("rnr # mocked first episode"). */
+const shapeOf = (t: string): string[] => [...words(fold(t))].map((w) => (/\d/.test(w) ? '#' : w));
+
+/**
+ * Texts on screen of the same kind as the one sought, when it is not there: an item of the same list (an episode
+ * card, a row) that is another one. Its shape shares most of the sought one's words, or a leading word and its count.
+ * The data came, and the case is pointing at another item than the screen shows (a wrong nth, a filter).
+ */
+const sameKind = (sought: string, texts: string[]): string[] => {
+  const want = shapeOf(sought);
+  // Two words say too little: "Log Out" is not of a kind with "Log In".
+  if (want.length < 3) return [];
+  return [...new Set(texts)].filter((t) => {
+    if (t === sought) return false;
+    const have = shapeOf(t);
+    const shared = want.filter((w) => have.includes(w)).length;
+    const leading = want[0] === have[0] && Math.abs(want.length - have.length) <= 1;
+    return shared >= 2 && (shared / Math.max(want.length, have.length) >= 0.5 || leading);
+  });
+};
+
+/** The text on screen closest to the one sought, when one is close enough. */
+const closestText = (sought: string, texts: string[]): string | undefined => {
+  const want = fold(sought);
+  let best: { text: string; score: number } | undefined;
+  for (const t of new Set(texts)) {
+    if (t === sought) continue;
+    const score = closeness(fold(t), want);
+    if (score > 0 && (!best || score > best.score)) best = { text: t, score };
+  }
+  return best?.text;
+};
+
+const clip = (line: string) => {
+  const t = line.trim();
+  return t.length > 80 ? `${t.slice(0, 77)}…` : t;
+};
+
+/**
+ * Where a diff took a text out: the file and line it was on, and the line that replaced it. Read from `git diff -U0`,
+ * so each hunk's removed lines are followed by the lines put in their place.
+ */
+export const textChangeIn = (diff: string, text: string): { file: string; line: number; before: string; after?: string } | undefined => {
+  if (!text.trim()) return undefined;
+  let file = '';
+  let removed: string[] = [];
+  let added: string[] = [];
+  let at = 0;
+  const found = () => {
+    const i = removed.findIndex((l) => l.includes(text));
+    if (i < 0 || added.some((l) => l.includes(text))) return undefined;
+    const after = added[i] ?? added[0];
+    return { file, line: at + Math.min(i, Math.max(added.length - 1, 0)), before: clip(removed[i]!), ...(after !== undefined ? { after: clip(after) } : {}) };
+  };
+  for (const line of diff.split('\n')) {
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (line.startsWith('+++ ') || hunk || line.startsWith('diff --git')) {
+      const hit = found();
+      if (hit) return hit;
+      removed = [];
+      added = [];
+      if (line.startsWith('+++ ')) file = line.slice(4).replace(/^b\//, '');
+      if (hunk) at = Number(hunk[1]);
+      continue;
+    }
+    if (line.startsWith('-') && !line.startsWith('---')) removed.push(line.slice(1));
+    else if (line.startsWith('+')) added.push(line.slice(1));
+  }
+  return found();
+};
+
+const SAME_PLACE = 40;
+
+/**
+ * A text that is gone and has no look-alike: the controls of the same kind that are on screen now and were not before,
+ * nearest first to where the old one stood when its frame was kept.
+ */
+const replacements = (text: string, els: Element[], seen: NonNullable<Evidence['lastSeen']>): string[] => {
+  const want = fold(text);
+  const old = seen.elements.find((el) => [el.text, el.accessibilityLabel].some((t) => t && fold(t) === want));
+  if (!old) return [];
+  const before = new Set(
+    seen.elements
+      .flatMap((el) => [el.text, el.accessibilityLabel])
+      .filter((t): t is string => !!t)
+      .map(fold),
+  );
+  const at = old.testId ? seen.frames[old.testId] : undefined;
+  const centre = (f: { x: number; y: number; w: number; h: number }) => ({ x: f.x + f.w / 2, y: f.y + f.h / 2 });
+  return els
+    .filter((el) => el.kind === old.kind && (!el.hidden || el.hidden === 'inert') && el.text && !before.has(fold(el.text)))
+    .map((el) => {
+      const gap = at && el.frame ? Math.hypot(centre(el.frame).x - centre(at).x, centre(el.frame).y - centre(at).y) : undefined;
+      return { el, gap };
+    })
+    .sort((a, b) => (a.gap ?? Infinity) - (b.gap ?? Infinity))
+    .slice(0, 2)
+    .map(({ el, gap }) => `maybe it is now: ${JSON.stringify(el.text)} (${el.kind}${gap !== undefined && gap <= SAME_PLACE ? ', same place' : ''})`);
 };
 
 const isTarget = (el: Element, { testId, text }: NonNullable<Evidence['target']>): boolean =>
   !!((testId && el.testId === testId) || (text && (el.text === text || el.accessibilityLabel === text)));
 
 const refusedByHost = (r: RequestRecord) => r.status === 0 && !!r.error && /networkHosts|is off/.test(r.error);
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '10.0.2.2']);
+const isLocal = (url: string): boolean => {
+  try {
+    return LOCAL_HOSTS.has(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
 
 const describeRequest = (r: RequestRecord) => `${r.method} ${pathOf(r.url)} ${r.status ? r.status : (r.error ?? 'failed')}${r.mocked ? ' (mocked)' : ''}`;
 
@@ -117,6 +275,18 @@ export const explain = (e: Evidence): Finding[] => {
       message: `the host broke a render loop${stall.component ? ` in ${stall.component}` : ''} (${stall.renders} updates in ${stall.windowMs}ms): the screen is dead until a reset. A component whose effect and store feed each other.`,
     });
 
+  // On a host with no network the app's error ("network error or aborted") says nothing: the request never left.
+  const offline = e.noNetwork ? done.filter((r) => !r.mocked && !r.status && !!r.error && !refusedByHost(r) && !isLocal(r.url)) : [];
+  if (offline.length) {
+    const first = offline.at(-1)!;
+    out.push({
+      rule: 'host-offline',
+      message: `this host has no network: ${[...new Set(offline.map((r) => `${r.method} ${pathOf(r.url)}`))]
+        .slice(-3)
+        .join(', ')} never left it (it reaches only this machine); mock the request (app.mock: { route: "${first.method} ${pathOf(first.url)}", body: … })`,
+    });
+  }
+
   const sought = e.target ? els.find((el) => isTarget(el, e.target!)) : undefined;
   const missing = !sought || (sought.hidden !== undefined && sought.hidden !== 'inert');
   const target = e.target?.testId ? `#${e.target.testId}` : e.target?.text !== undefined ? JSON.stringify(e.target.text) : undefined;
@@ -126,7 +296,7 @@ export const explain = (e: Evidence): Finding[] => {
     if (sought?.hidden) {
       out.push({
         rule: 'hidden',
-        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${sought.hidden}): it belongs to a screen the app is not showing. Close what is open, or target something inside it.`,
+        message: `${testId ? `#${testId}` : JSON.stringify(text)} is in the tree but not presented (${sought.hidden}): something hides it, such as a screen the app is not showing, a closed drawer or a sheet over it. Open what holds it, or close what is over it.`,
       });
     }
     if (sought?.covered)
@@ -141,12 +311,40 @@ export const explain = (e: Evidence): Finding[] => {
       });
     if (!sought && text) {
       const want = fold(text);
-      const near = els
-        .map((el) => el.text ?? el.accessibilityLabel)
-        .filter((t): t is string => !!t)
-        .find((t) => similar(fold(t), want));
-      if (near && near !== text)
-        out.push({ rule: 'near-match', message: `the text is not there, but ${JSON.stringify(near)} is: a wording, accent or case difference?` });
+      const near = closestText(
+        text,
+        els.map((el) => el.text ?? el.accessibilityLabel).filter((t): t is string => !!t),
+      );
+      const change = e.sourceDiff ? textChangeIn(e.sourceDiff, text) : undefined;
+      const where = change && `${change.file}:${change.line} changed it in the working tree: ${change.before}${change.after ? ` → ${change.after}` : ''}`;
+      // Several of its kind on screen is a list showing other items: no text changed, the case picked another one.
+      const kin = where
+        ? []
+        : sameKind(
+            text,
+            els.map((el) => el.text ?? el.accessibilityLabel).filter((t): t is string => !!t),
+          );
+      const alike = kin.length >= 2 || !near ? kin : [];
+      if (near && !alike.length)
+        out.push({
+          rule: 'near-match',
+          message: `${JSON.stringify(text)} is not on screen; ${JSON.stringify(near)} is (the text may have changed)${where ? `\n    ${where}` : ''}`,
+        });
+      else if (where) out.push({ rule: 'text-changed', message: `${JSON.stringify(text)} is not on screen; ${where}` });
+      else if (alike.length)
+        out.push({
+          rule: 'same-kind',
+          message: `${JSON.stringify(text)} is not on screen, but ${alike.length === 1 ? 'another' : 'others'} of its kind ${alike.length === 1 ? 'is' : 'are'} (${alike
+            .slice(0, 2)
+            .map((t) => JSON.stringify(t))
+            .join(
+              ', ',
+            )}${alike.length > 2 ? `, ${alike.length - 2} more` : ''}): the data came and the screen shows it; the case points at another item than the one there (which one it picks: nth, within, a filter, the order)`,
+        });
+      else if (e.lastSeen) {
+        const now = replacements(text, els, e.lastSeen);
+        if (now.length) out.push({ rule: 'renamed', message: `${JSON.stringify(text)} is not on screen; ${now.join('; ')}` });
+      }
       const listed = els.filter((el) => el.testId && /-\d+-item$/.test(el.testId));
       const prefix = want.slice(0, 4);
       if (listed.length >= 10 && prefix && listed.filter((el) => fold(el.text ?? '').includes(prefix)).length >= listed.length / 2)
@@ -158,7 +356,7 @@ export const explain = (e: Evidence): Finding[] => {
     // A screen shows its empty or error state when its data did not come: a missing row next to a failed request is
     // that request's doing, whoever answered it.
     if (missing && target) {
-      const failed = done.filter((r) => (r.status ?? 0) >= 400 || (r.error && !refusedByHost(r)));
+      const failed = done.filter((r) => ((r.status ?? 0) >= 400 || (r.error && !refusedByHost(r))) && !offline.includes(r));
       if (failed.length)
         out.push({
           rule: 'request-failed',
@@ -213,24 +411,58 @@ export const explain = (e: Evidence): Finding[] => {
       message: `${refused.length} request(s) were refused by the host (${[...new Set(refused.map((r) => r.url.replace(/^https?:\/\//, '').split('/')[0]))].slice(0, 3).join(', ')}): if the screen needs one of them, allow the host in networkHosts or mock it.`,
     });
 
+  // A 2xx whose body the app could not use: it logs the parse or type error, and shows its empty state.
+  const answered = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 300);
+  const complaints = (e.logs ?? [])
+    .filter((l) => (l.level === 'error' || l.level === 'warn') && !ACT_WARNING.test(l.text))
+    .map((l) => clip(l.text.split('\n')[0]!));
+  if (
+    missing &&
+    complaints.length &&
+    answered.length &&
+    // Others of the sought item's kind on screen: the body was read, whatever the app logged.
+    !out.some((f) => ['request-failed', 'backend-error', 'host-offline', 'same-kind', 'near-match'].includes(f.rule))
+  ) {
+    const mocked = answered.some((r) => r.mocked);
+    out.push({
+      rule: 'bad-body',
+      message: `${target ? `${target} is not on screen; ` : ''}${answered
+        .slice(-3)
+        .map(describeRequest)
+        .join(', ')} answered, and then the app logged ${complaints
+        .slice(-2)
+        .map((t) => JSON.stringify(t))
+        .join(
+          ', ',
+        )}: the body is likely not the shape the app reads (a parse or type error), so the screen shows its empty or error state. ${mocked ? 'The mocked body is the case’s own (app.mock): give it the fields the app reads.' : 'Compare the body with what the app expects.'}`,
+    });
+  } else if (complaints.length && out.length === 0)
+    out.push({
+      rule: 'app-logged',
+      message: `the app logged ${complaints
+        .slice(-2)
+        .map((t) => JSON.stringify(t))
+        .join(', ')} while this ran`,
+    });
+
   const lastCommand = e.trace
     ?.slice()
     .reverse()
-    .find((t) => t.kind === 'command' && t.error);
+    .find((t) => t.kind === 'command' && t.error && !OWN_PROBES.has(t.method));
   if (lastCommand && lastCommand.kind === 'command' && out.length === 0)
     out.push({ rule: 'last-error', message: `the last command that failed was ${lastCommand.method}: ${lastCommand.error}` });
 
   // Said only when nothing else is: that the data came is worth knowing, and no reason by itself.
-  const answered = served.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 400);
-  if (out.length === 0 && target && missing && answered.length && e.inFlight === 0)
+  const came = done.filter((r) => r.status !== undefined && r.status >= 200 && r.status < 400);
+  if (out.length === 0 && target && missing && came.length && e.inFlight === 0)
     out.push({
       rule: 'requests-ok',
-      message: `${target} is not on screen, though the screen's requests answered (${answered
+      message: `${target} is not on screen, though the screen's requests answered (${came
         .slice(-3)
         .map(describeRequest)
         .join(
           ', ',
-        )}${answered.length > 3 ? `, ${answered.length - 3} more` : ''}): the data came, so look at what the screen made of it (an empty list from the backend, a filter, a wording).`,
+        )}${came.length > 3 ? `, ${came.length - 3} more` : ''}): the data came, so look at what the screen made of it (an empty list, a body of another shape than the app reads, a filter, a wording).${came.some((r) => r.mocked) ? ' A mocked body is the case’s own (app.mock): check it has the fields the app reads.' : ''}`,
     });
 
   return out;

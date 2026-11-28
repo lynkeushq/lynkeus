@@ -115,7 +115,8 @@ test('fastsim grant with no key and no sign-in exits 2 naming both ways', async 
   isolate();
   const result = await run('https://lynkeus.io');
   assert.equal(result.code, 2);
-  assert.match(result.text, /^no way to sign in to \S+: run lynkeus login in a terminal/);
+  assert.match(result.text, /^A step only the person can do: run `lynkeus login`/);
+  assert.match(result.text, /no way to sign in to \S+/);
   assert.match(result.text, /in CI, set LYNKEUS_CLOUD_KEY.*May download Lynkeus FastSim/);
 });
 

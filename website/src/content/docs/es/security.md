@@ -63,7 +63,7 @@ auto({ token: process.env.LYNKEUS_TOKEN });
 
 El CLI lee el mismo valor de la variable de entorno `LYNKEUS_TOKEN` o, si no está definida, del archivo `.lynkeus/token` que crea `lynkeus init`. Ese archivo queda fuera de git (`init` lo agrega al `.gitignore` de `.lynkeus`) y se escribe con permisos de lectura solo para quien lo creó.
 
-A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo: el token nunca se escribe en un build de producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
+A la app el valor hay que hacérselo llegar, porque React Native no le da ningún entorno. En una app de React Native lo escribe en el bundle el plugin de Babel `lynkeus-agent/babel`, que toma el valor del entorno de Metro. El plugin actúa solo en un bundle de desarrollo, con una excepción: el bundle que arma `fastsim-bundle` para Lynkeus FastSim, que es de release y se marca con `LYNKEUS_FASTSIM_BUNDLE=1` mientras se arma. El build que subes a la tienda no tiene esa variable, así que el token nunca llega a producción. En Expo, la app lo lee de `EXPO_PUBLIC_LYNKEUS_TOKEN`.
 
 **Un token vacío no abre la puerta.** Si la app pasa un token y el valor llega vacío, porque falta el plugin o porque Metro arrancó sin la variable, el agente queda apagado y la app lo dice en su log. No se convierte en un agente sin token que atiende a cualquiera. Con una app que monta el agente sin `token` pasa igual. Atender sin token solo ocurre con la opción `allowUnauthenticated: true`, pensada para un entorno de pruebas aislado, al que ningún otro proceso llega.
 
@@ -85,9 +85,9 @@ Un componente que acepta órdenes de afuera no debe existir en la app que recibe
 
 | Capa | Qué garantiza |
 |---|---|
-| `enabled` vale `__DEV__` por defecto | En un bundle de producción, el agente no arranca. |
+| `enabled` vale `enabledByDefault()` por defecto | Es verdadero solo en desarrollo (`__DEV__`) y en un host de Lynkeus FastSim, que marca su entorno con una variable global antes de que corra el código de la app; esa variable no existe en ningún otro lugar. Un bundle de tienda no tiene ninguna de las dos cosas, así que el agente no arranca. |
 | El cliente se carga solo cuando hace falta | El cliente es todo lo que lee la pantalla y habla con el driver. Solo se evalúa si `enabled` es verdadero, sea cual sea la forma en que la app importa el paquete y lo que Metro esté configurado para incorporar. Un bundle de producción lleva el paquete, y ese código nunca se ejecuta ahí. |
-| El token no viaja a producción | El plugin `lynkeus-agent/babel` escribe el token solo en un bundle de desarrollo. |
+| El token no viaja a producción | El plugin `lynkeus-agent/babel` escribe el token solo en un bundle de desarrollo o en uno armado por `fastsim-bundle`. |
 | iOS: `#if DEBUG` | La síntesis de toques usa una API privada de UIKit, la misma técnica en la que se apoyan KIF y Detox. Está envuelta en `#if DEBUG`: en un binario de producción esos símbolos no existen. No están desactivados; no están. |
 | Android: `FLAG_DEBUGGABLE` | El módulo nativo se niega a correr si la app no es depurable. |
 
@@ -97,17 +97,19 @@ Queda un caso que solo tú puedes cerrar: **un build de depuración que apunta a
 
 Ese build pasa todas las comprobaciones anteriores, porque es de depuración. Pero ahí el agente maneja una app con sesión en cuentas reales, sobre datos reales. Un `lynkeus crawl` en ese build pulsaría botones que hacen cosas de verdad.
 
-Ciérralo condicionando `enabled` a tu entorno, además de a `__DEV__`:
+Ciérralo condicionando `enabled` a tu entorno, partiendo del valor por defecto (`enabledByDefault` se importa de `lynkeus-agent`):
 
 ```js
 auto({
   token: process.env.LYNKEUS_TOKEN,
-  enabled: __DEV__ && config.ENV !== 'prod',
+  enabled: enabledByDefault() && config.ENV !== 'prod',
 });
 ```
 
 :::danger
-Un build de depuración que habla con un backend real, con cuentas reales, no debe correr el agente. `__DEV__` no distingue ese caso; tu configuración de entorno sí.
+Un build de depuración que habla con un backend real, con cuentas reales, no debe correr el agente. El valor por defecto no distingue ese caso; tu configuración de entorno sí.
+
+La condición solo puede restringir. Una que sea verdadera donde el valor por defecto es falso, como `config.ENV !== 'prod'` a secas, enciende el agente en un bundle de release para cualquier entorno que no sea producción, por ejemplo un build de staging que repartes a testers. Tampoco partas de `__DEV__` solo: FastSim corre un bundle de release donde vale `false`, y el agente quedaría apagado ahí. `lynkeus init` escribe `auto({ token })` sin `enabled`, así que el valor por defecto rige sin que hagas nada.
 :::
 
 ## El host sin pantalla
@@ -210,7 +212,7 @@ No lo confundas con `lynkeus mcp`, el comando del CLI. Ese corre en tu máquina,
 Antes de dejar Lynkeus instalado en un proyecto, repasa esto:
 
 1. El agente se monta con un `token`, el valor no está en el repositorio y llega a la app: el plugin `lynkeus-agent/babel` está en `babel.config.js`, o la variable es `EXPO_PUBLIC_LYNKEUS_TOKEN` en Expo.
-2. `enabled` depende de tu entorno, no solo de `__DEV__`.
+2. `enabled` queda en su valor por defecto, o es `enabledByDefault() && <tu comprobación de entorno>`; nunca una condición que pueda ser verdadera donde el valor por defecto es falso.
 3. Ningún store que guarde credenciales en claro pasa por `qa.observe`: la traza las recorta por el nombre de la clave, pero el comando `stores` devuelve el estado completo.
 4. Los comandos registrados con `qa.register` no hacen nada que no quieras que un proceso local pueda disparar.
 5. Los tests corren contra un backend de pruebas, con datos de prueba.

@@ -1,13 +1,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { casesNamingIds, type IdentifierNarrowing } from '../knowledge/identifiers.js';
 import type { Affected } from '../knowledge/query.js';
-import type { Case, Step } from './format.js';
+import { casesNamingText, type StringNarrowing } from '../knowledge/stringTables.js';
+import { type Case, expandMacros, type Step } from './format.js';
 
 const ROUTE = /^[A-Z][\w.]+$/;
 
-// A step names a route when it goes there, waits for it or checks it is on screen.
-const routeOf = (step: Step): string | undefined => {
+/** Where `case run` keeps what each passing case went through, unless --seen says where. */
+export const SEEN_DIR = '.lynkeus/seen';
+
+/** A step names a route when it goes there, waits for it or checks it is on screen. */
+export const routeOf = (step: Step): string | undefined => {
   const v = step.value;
   const named = (x: unknown) => (typeof x === 'string' && ROUTE.test(x) ? x : undefined);
   if (step.verb === 'app.nav' || step.verb === 'app.wait')
@@ -19,21 +24,43 @@ const routeOf = (step: Step): string | undefined => {
   return undefined;
 };
 
-/** The routes a case names in its steps. */
-export const routesNamed = (c: Case): string[] => [...new Set([...c.setup, ...c.steps].map(routeOf).filter((r): r is string => !!r))];
+/** The routes a case names in its steps, and in the steps of the macros they call (with what the case passes them). */
+export const routesNamed = (c: Case, macros: Record<string, unknown[]> = {}): string[] => [
+  ...new Set(
+    expandMacros([...c.setup, ...c.steps], macros)
+      .map(routeOf)
+      .filter((r): r is string => !!r),
+  ),
+];
 
-/** What `case run --seen <dir>` kept: each passing case's screens, by case id. */
-export const readSeen = (dir: string | undefined): Record<string, string[]> => {
+/** A step of a passing run as `case run` labels it, and the screen the app was on when it ended. */
+export type WalkedStep = { step: string; route?: string };
+
+/** What `case run` kept of a passing case: its screens, and the screen after each step (runs since 0.7.7). */
+export type Seen = { routes: string[]; steps?: WalkedStep[] };
+
+/** What `case run` kept in `dir`, by case id. */
+export const readSeenRuns = (dir: string | undefined): Record<string, Seen> => {
   if (!dir || !fs.existsSync(dir)) return {};
-  const seen: Record<string, string[]> = {};
+  const seen: Record<string, Seen> = {};
   for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.json'))) {
     try {
-      const s = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as { id?: string; routes?: unknown };
-      if (typeof s.id === 'string' && Array.isArray(s.routes)) seen[s.id] = s.routes.filter((r): r is string => typeof r === 'string');
+      const s = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8')) as { id?: string; routes?: unknown; steps?: unknown };
+      if (typeof s.id !== 'string' || !Array.isArray(s.routes)) continue;
+      const steps = Array.isArray(s.steps)
+        ? s.steps.flatMap((w: { step?: unknown; route?: unknown }) =>
+            typeof w?.step === 'string' ? [{ step: w.step, ...(typeof w.route === 'string' ? { route: w.route } : {}) }] : [],
+          )
+        : undefined;
+      seen[s.id] = { routes: s.routes.filter((r): r is string => typeof r === 'string'), ...(steps ? { steps } : {}) };
     } catch {}
   }
   return seen;
 };
+
+/** What `case run` kept in `dir`: each passing case's screens, by case id. */
+export const readSeen = (dir: string | undefined): Record<string, string[]> =>
+  Object.fromEntries(Object.entries(readSeenRuns(dir)).map(([id, s]) => [id, s.routes]));
 
 export type Coverage = {
   routes: number;
@@ -41,12 +68,21 @@ export type Coverage = {
   uncovered: string[];
   /** Routes a case names that the graph does not know: renamed, or a typo. */
   unknown: string[];
+  /** Routes bound to a navigator: known, but neither covered nor uncovered, since a case tests the screens inside. */
+  navigators: string[];
   byRoute: Record<string, string[]>;
   files: Record<string, string>;
 };
 
 /** Which cases touch which of the app's routes, by what they name and what they went through last time they passed. */
-export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<string, string[]> = {}): Coverage => {
+export const coverageOf = (
+  cases: Case[],
+  graphRoutes: string[],
+  seen: Record<string, string[]> = {},
+  o: { macros?: Record<string, unknown[]>; navigators?: string[] } = {},
+): Coverage => {
+  const navigators = graphRoutes.filter((r) => o.navigators?.includes(r));
+  const screens = graphRoutes.filter((r) => !navigators.includes(r));
   const byRoute: Record<string, string[]> = {};
   const files: Record<string, string> = {};
   const add = (route: string, id: string) => {
@@ -55,18 +91,18 @@ export const coverageOf = (cases: Case[], graphRoutes: string[], seen: Record<st
   };
   for (const c of cases) {
     files[c.id] = c.file;
-    for (const r of routesNamed(c)) add(r, c.id);
+    for (const r of routesNamed(c, o.macros)) add(r, c.id);
     for (const r of seen[c.id] ?? []) add(r, c.id);
   }
   const known = new Set(graphRoutes);
-  const covered = graphRoutes.filter((r) => byRoute[r]?.length);
   return {
-    routes: graphRoutes.length,
-    covered,
-    uncovered: graphRoutes.filter((r) => !byRoute[r]?.length),
+    routes: screens.length,
+    covered: screens.filter((r) => byRoute[r]?.length),
+    uncovered: screens.filter((r) => !byRoute[r]?.length),
     unknown: Object.keys(byRoute)
       .filter((r) => !known.has(r))
       .sort(),
+    navigators,
     byRoute,
     files,
   };
@@ -77,17 +113,29 @@ export type Impact = {
   cases: { id: string; file: string; routes: string[]; distance: number; via: string }[];
   /** Routes the change reaches that no case touches. */
   untested: string[];
+  /** Why every case is here, when a change reaches the whole app rather than a screen. */
+  reason?: string;
 };
 
 /** The cases a change reaches: the screens it touches or imports, crossed with what each case covers. */
-export const impactOf = (affected: Affected[], coverage: Coverage): Impact => {
+export const impactOf = (affected: Affected[], coverage: Coverage, everything?: string): Impact => {
+  if (everything) {
+    const cases = Object.entries(coverage.files).map(([id, file]) => ({
+      id,
+      file,
+      routes: Object.keys(coverage.byRoute).filter((r) => coverage.byRoute[r]!.includes(id)),
+      distance: 0,
+      via: everything,
+    }));
+    return { cases: cases.sort((a, b) => a.id.localeCompare(b.id)), untested: [], reason: everything };
+  }
   const nearest = new Map<string, Affected>();
   for (const a of affected) if (!nearest.has(a.route) || nearest.get(a.route)!.distance > a.distance) nearest.set(a.route, a);
   const byCase = new Map<string, Impact['cases'][number]>();
   const untested: string[] = [];
   for (const [route, hit] of nearest) {
     const ids = coverage.byRoute[route] ?? [];
-    if (!ids.length) untested.push(route);
+    if (!ids.length && !coverage.navigators.includes(route)) untested.push(route);
     for (const id of ids) {
       const c = byCase.get(id) ?? { id, file: coverage.files[id] ?? '', routes: [], distance: hit.distance, via: hit.via };
       c.routes.push(route);
@@ -96,4 +144,24 @@ export const impactOf = (affected: Affected[], coverage: Coverage): Impact => {
     }
   }
   return { cases: [...byCase.values()].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)), untested: untested.sort() };
+};
+
+/** The impact, with the cases whose steps (or the macros they call) name a testID that went or came (`casesNamingIds`). */
+export const withIdCases = (impact: Impact, cases: Case[], ids: IdentifierNarrowing['ids'], macros?: Record<string, unknown[]>): Impact => {
+  if (impact.reason || !ids.length) return impact;
+  const known = new Set(impact.cases.map((c) => c.id));
+  const added = casesNamingIds(cases, ids, macros)
+    .filter((hit) => !known.has(hit.case.id))
+    .map((hit) => ({ id: hit.case.id, file: hit.case.file, routes: [], distance: 0, via: `#${hit.id} in ${hit.file}` }));
+  return { ...impact, cases: [...added, ...impact.cases].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)) };
+};
+
+/** The impact, with the cases that check a changed string's old or new text (`casesNamingText`) among those to run. */
+export const withTextCases = (impact: Impact, cases: Case[], texts: StringNarrowing['texts']): Impact => {
+  if (impact.reason || !texts.length) return impact;
+  const ids = new Set(impact.cases.map((c) => c.id));
+  const added = casesNamingText(cases, texts)
+    .filter((hit) => !ids.has(hit.case.id))
+    .map((hit) => ({ id: hit.case.id, file: hit.case.file, routes: [], distance: 0, via: `${JSON.stringify(hit.text)} in ${hit.file}` }));
+  return { ...impact, cases: [...added, ...impact.cases].sort((a, b) => a.distance - b.distance || a.id.localeCompare(b.id)) };
 };

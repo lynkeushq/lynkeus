@@ -1,0 +1,3 @@
+# Simulator or emulator
+
+The app attached on the port is the target. Frames, films and `os` commands go to the device that app runs on (the one where its process is, of its platform), so a Simulator booted beside the emulator does not get in the way. `os language <tag>` relaunches it in a language, which every later relaunch Lynkeus makes keeps. On Android, `status` runs `adb reverse` for the port. `setup` builds and opens the app there in one call, and boots a device only when none is up and the project names it (`device` for a Simulator, `avd` for an emulator, in `lynkeus.config.json`); it says what it booted. Lynkeus never closes a device: shut down what you or `setup` booted, never what was already running.

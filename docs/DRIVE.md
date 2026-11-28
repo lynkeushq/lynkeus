@@ -12,7 +12,8 @@ anything:
 ```ts
 // index.js
 import { auto } from 'lynkeus-agent/auto';
-auto({ token: process.env.LYNKEUS_TOKEN, enabled: __DEV__ && config.ENV !== 'prod' });
+import { enabledByDefault } from 'lynkeus-agent';
+auto({ token: process.env.LYNKEUS_TOKEN, enabled: enabledByDefault() && config.ENV !== 'prod' });
 ```
 
 `auto()` wraps the root through `AppRegistry` and finds your React Navigation
@@ -39,7 +40,7 @@ Prefer the explicit component when you want to hand it an adapter for another
 router:
 
 ```tsx
-import { Lynkeus, qa, reactNavigationAdapter } from 'lynkeus-agent';
+import { Lynkeus, enabledByDefault, qa, reactNavigationAdapter } from 'lynkeus-agent';
 
 // Optional, but the two names drivers rely on:
 qa.register('reset', async () => { await session.logout(); await cache.clear(); });
@@ -56,7 +57,7 @@ const App = () => {
       <RootNavigator />
       <Lynkeus
         navigation={reactNavigationAdapter(ref)}
-        enabled={__DEV__ && config.ENV !== 'prod'}
+        enabled={enabledByDefault() && config.ENV !== 'prod'}
         app={{ name: 'myapp', env: config.ENV }}
       />
     </NavigationContainer>
@@ -69,7 +70,7 @@ socket and the second stays quiet.
 
 | Prop | Default | |
 |---|---|---|
-| `enabled` | `__DEV__` | Gate it further: a debug build pointed at production is not a QA surface. |
+| `enabled` | `enabledByDefault()`: dev builds and Lynkeus FastSim | Gate it further with `enabledByDefault() && ...`, never with `__DEV__` alone (that is false on FastSim): a debug build pointed at production is not a QA surface. |
 | `navigation` | none | An adapter; `reactNavigationAdapter(ref)` ships. Without one you still get screen, touches and waits, not routes. |
 | `host`, `port` | `localhost` (Android: `10.0.2.2`, then `localhost`), `8123` | Where the driver listens. `LYNKEUS_PORT` moves both ends when you run several at once. |
 | `token` | — | Neither end sends it: each proves it holds it with HMAC-SHA256 over fresh nonces (see PROTOCOL.md), so another local process posing as the driver, or as the app, is not talked to and learns nothing. The CLI reads it from `LYNKEUS_TOKEN`. A token that is passed and arrives empty keeps the agent off, and the app says so in its log: it never falls back to serving anyone. |
@@ -214,6 +215,14 @@ registered. Two names are conventions every driver looks for:
 | `reset` | Log out, clear storage and caches. A driver calls it before each case (`lynkeus launch --clean` does too); a stale query cache is the most common cross-test bug. |
 | `busy` | `true` while the app is fetching. Lets a driver wait for data, not for a timer. |
 
+Register commands unconditionally, not inside `if (__DEV__)`. Lynkeus FastSim
+runs a release bundle (`__DEV__` is false), so a command behind that check does
+not exist there and a case calling it fails with `Unknown method <name>` (or
+`no command reset registered`); the agent adds why to the error when it runs in
+a release bundle. Registering is inert in a production build: the function is
+only kept in memory, and nothing can call it unless the agent is enabled and a
+Lynkeus driver connects.
+
 `qa.observe(name, store)` puts a store's changes in the trace, so a failure
 report says what the app believed at that moment, not just what it painted,
 and `lynkeus call stores '{"name":"session"}'` reads its state. A store is
@@ -254,7 +263,9 @@ evidence (the screen, the last requests, the trace) as rules and says what
 it found: the navigator is dead, every request is 401, the backend answered
 5xx, the target is there but covered or disabled, the text is a wording or
 accent away, the list is capped by look-alikes, requests were still in
-flight. `lynkeus why <target>` asks the same question at any moment
+flight, or a request answered 2xx and the app then logged an error (its
+console, read whenever the agent keeps it): the body is not the shape the
+app reads, so the screen shows its empty state. `lynkeus why <target>` asks the same question at any moment
 (`--route <Route>` when a route was expected); in session mode the answer
 rides along in the JSON (`why`), so a runner prints it under the failure.
 
@@ -314,9 +325,13 @@ and a histogram of where it died and with what.
   emulator's is. An iPhone is not supported: simctl drives only simulators, so
   iOS needs a booted simulator.
 - **Film**: `case run --video` films a case where the host offers a `record`
-  command, which it names in `hello`. The built-in headless host draws
-  nothing and a simulator or emulator session offers none, so there a run
-  keeps its screenshots and no film.
+  command, which it names in `hello` (Lynkeus FastSim). On a Simulator the OS
+  films it (`xcrun simctl io <udid> recordVideo`, stopped with SIGINT so the
+  file is finished); on an emulator or Android phone `adb shell screenrecord`
+  films on the device (3 minutes at most) and the file is pulled when the case
+  ends. Each step's `videoS` counts from the recorder's first frame. The
+  built-in headless host draws nothing, and a run that starts its own hosts
+  never films whatever Simulator is booted.
 
 ### Security posture
 

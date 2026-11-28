@@ -22,6 +22,23 @@ export const reset = (): void => {
   }
 };
 
+const mountHooks: Array<() => void> = [];
+
+// Work that needs the module the app got (a mock or the real one), done once the app has required it.
+export const onMounted = (fn: () => void): void => {
+  mountHooks.push(fn);
+};
+
+export const mounted = (): void => {
+  for (const fn of mountHooks.splice(0)) {
+    try {
+      fn();
+    } catch (error) {
+      log(`mount: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+};
+
 export const resolvable = (id: string): boolean => {
   try {
     require.resolve(id);
@@ -29,6 +46,37 @@ export const resolvable = (id: string): boolean => {
   } catch {
     return false;
   }
+};
+
+// A loaded image's size, which no host has: a square, so an image sized by its aspect ratio keeps one.
+const IMAGE_SIZE = { width: 100, height: 100 };
+
+type SizeCallback = (width: number, height: number) => void;
+type ImageStatics = { getSize?: (...args: unknown[]) => unknown; getSizeWithHeaders?: (...args: unknown[]) => unknown };
+
+// Jest's image loader answers nothing, so `Image.getSize(uri)` threw reading `then` of undefined inside a layout effect
+// and took the whole screen down (an auto-sizing image scrolled into view). The host answers as a device does once the
+// image has loaded, through the promise or the callbacks. An app's own working mock is left alone.
+const installImageSize = (): void => {
+  const { Image } = require('react-native') as { Image?: ImageStatics };
+  if (!Image) return;
+  let works = false;
+  try {
+    const answer = Image.getSize?.('lynkeus://probe');
+    works = typeof (answer as { then?: unknown } | undefined)?.then === 'function';
+    (answer as Promise<unknown> | undefined)?.catch?.(() => undefined);
+  } catch {
+    works = false;
+  }
+  if (works) return;
+  const answered = (success: unknown, failure: unknown) => {
+    const size = Promise.resolve({ ...IMAGE_SIZE });
+    if (typeof success !== 'function') return size;
+    size.then((s) => (success as SizeCallback)(s.width, s.height)).catch(typeof failure === 'function' ? (failure as (e: unknown) => void) : () => undefined);
+    return undefined;
+  };
+  Image.getSize = (_uri: unknown, success?: unknown, failure?: unknown) => answered(success, failure);
+  Image.getSizeWithHeaders = (_uri: unknown, _headers: unknown, success?: unknown, failure?: unknown) => answered(success, failure);
 };
 
 // What React Native's InitializeCore does to the global scope and its jest
@@ -49,6 +97,7 @@ export const installRuntime = (): void => {
   const window = { width: 390, height: 844, scale: 3, fontScale: 1 };
   Dimensions.set?.({ window, screen: window });
   installXMLHttpRequest();
+  installImageSize();
   // A development build loads its bundle from Metro and says so; jest's says null, and dev tooling that reads the
   // dev server's address from it (Expo's metro runtime, Reactotron) throws or warns at import.
   const { NativeModules, Platform } = require('react-native') as {

@@ -129,6 +129,28 @@ export const findAppComponent = (root: string, main?: string): AppComponent | un
   return candidate ? { file: candidate, exportName: exportOf(root, candidate) } : undefined;
 };
 
+/** The files that start the app: the entry that registers it and the root component it hands over, relative to the project. */
+export const appEntryFiles = (root: string): string[] => {
+  let main: string | undefined;
+  try {
+    main = (JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')) as { main?: string }).main;
+  } catch {}
+  const found = findAppComponent(root, main);
+  const entry = found?.entry ?? entryFile(root, main);
+  return [...new Set([entry, found?.file].filter((f): f is string => !!f))];
+};
+
+/** The first of `changed` that starts the app: the entry or its root component. */
+export const changedAppEntry = (root: string, changed: string[]): string | undefined => {
+  const entries = appEntryFiles(root);
+  const norm = (f: string) => f.replace(/\\/g, '/');
+  // Git may name the file from the repository's root when the app is in a subfolder.
+  const hit = changed.find((f) => entries.some((e) => norm(f) === norm(e) || norm(f).endsWith(`/${norm(e)}`)));
+  return hit;
+};
+
+export const entryReason = (file: string | undefined): string | undefined => file && `${file} starts the app, so every screen runs through it`;
+
 // Where entries were written before they went next to the cases: a project that has one keeps it.
 const LEGACY_ENTRY = 'qa/headless.tsx';
 

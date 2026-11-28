@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { caseVersion, Flakes } from '../flakes.js';
+import { appStamp, caseVersion, Flakes, whereOf } from '../flakes.js';
 import type { CaseReport } from '../runner.js';
 
 const report = (result: CaseReport['result'], retried = false, error = 'not on screen: Sent\nmore'): CaseReport & { retried?: boolean } => ({
@@ -64,4 +65,75 @@ test('a run with no app attached, or a case that cannot run as written, is not c
   assert.deepEqual(ledger.flaky(['pay']), []);
   ledger.note(report('failed'));
   assert.deepEqual(ledger.flaky(['pay']), ['⚠ pay is flaky: 1 of its last 3 runs failed or needed a second chance']);
+});
+
+test('a macro the case calls is part of what it runs: changing it in the config starts the history again', () => {
+  const c = { setup: [], steps: [{ verb: 'app.login', value: {} }], teardown: [] };
+  const one = caseVersion(c, { 'app.login': [{ 'app.press': '#a' }], 'app.other': [] });
+  assert.equal(one, caseVersion(c, { 'app.login': [{ 'app.press': '#a' }], 'app.other': [{ 'app.press': '#z' }] }));
+  assert.notEqual(one, caseVersion(c, { 'app.login': [{ 'app.press': '#b' }] }));
+  // A macro another macro calls counts too.
+  const nested = (inner: string) => caseVersion(c, { 'app.login': [{ 'app.reset': {} }], 'app.reset': [{ 'app.press': inner }] });
+  assert.notEqual(nested('#a'), nested('#b'));
+});
+
+test('a failure that reproduces is a break, not a flake', () => {
+  const ledger = new Flakes(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flakes-')), 'flakes.json'));
+  ledger.note(report('passed'));
+  // Failed on its second chance too.
+  ledger.note(report('failed', true));
+  ledger.note(report('passed'));
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  // The same step failing the same way in two runs, then fixed.
+  ledger.note(report('failed', false, 'not on screen: Total'));
+  ledger.note(report('failed', false, 'not on screen: Total'));
+  ledger.note(report('passed'));
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  ledger.note(report('passed', true));
+  assert.deepEqual(ledger.flaky(['pay']), ['⚠ pay is flaky: 1 of its last 4 runs failed or needed a second chance']);
+});
+
+test('runs on another target, or of another app source, are not compared', () => {
+  const ledger = new Flakes(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flakes-')), 'flakes.json'));
+  ledger.note(report('passed'), new Date(), 'v', { where: 'ios', app: 'a1' });
+  ledger.note(report('failed'), new Date(), 'v', { where: 'android', app: 'a1' });
+  ledger.note(report('passed'), new Date(), 'v', { where: 'host:ios', app: 'a1' });
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  // The app changed and the case fails from then on: a break, not a flake.
+  ledger.note(report('failed', false, 'not on screen: Welcome'), new Date(), 'v', { where: 'ios', app: 'a2' });
+  assert.deepEqual(ledger.flaky(['pay']), []);
+  ledger.note(report('passed'), new Date(), 'v', { where: 'ios', app: 'a2' });
+  assert.deepEqual(ledger.flaky(['pay']), ['⚠ pay is flaky on ios: 1 of its last 2 runs failed or needed a second chance']);
+});
+
+test('a run whose driver could not take its port is not counted', () => {
+  const ledger = new Flakes(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-flakes-')), 'flakes.json'));
+  ledger.note(report('passed'));
+  ledger.note(report('failed', false, 'Port 8123 is already taken: another Lynkeus run is probably still driving the app there.'));
+  assert.deepEqual(ledger.flaky(['pay']), []);
+});
+
+test('where names a phone by its platform, FastSim and hosts apart', () => {
+  assert.equal(whereOf({ platform: 'ios', native: true, commands: [] }), 'ios');
+  assert.equal(whereOf({ platform: 'android', native: true, commands: ['clock'] }), 'fastsim:android');
+  assert.equal(whereOf({ platform: 'ios', native: false }), 'host:ios');
+  assert.equal(whereOf(undefined), undefined);
+});
+
+test('the app stamp follows the working tree, not the excluded folders', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-stamp-'));
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, stdio: 'ignore' });
+  git('init', '-q');
+  fs.mkdirSync(path.join(dir, 'cases'));
+  fs.writeFileSync(path.join(dir, 'app.ts'), 'a\n');
+  fs.writeFileSync(path.join(dir, 'cases', 'x.md'), 'x\n');
+  git('add', '.');
+  git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'one');
+  const first = appStamp(dir, ['cases']);
+  assert.ok(first);
+  fs.writeFileSync(path.join(dir, 'cases', 'x.md'), 'y\n');
+  assert.equal(appStamp(dir, ['cases']), first);
+  fs.writeFileSync(path.join(dir, 'app.ts'), 'b\n');
+  assert.notEqual(appStamp(dir, ['cases']), first);
+  assert.equal(appStamp(os.tmpdir()), undefined);
 });

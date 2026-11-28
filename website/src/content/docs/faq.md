@@ -19,7 +19,7 @@ That has a benefit and a cost. The benefit is speed and precision: a step takes 
 
 ### Does anything ship in my release build?
 
-The package is in the bundle and does nothing there. The agent's native module compiles to no-ops outside debug builds. The client, which is everything that reads the screen and talks to the driver, is loaded only when `enabled` is true, whichever way the app imports the package and whatever Metro is configured to inline; `enabled` is false by default whenever `__DEV__` is false. The Babel plugin that passes the token writes it into a development bundle only, never a release one. On iOS the touch-synthesis code is inside `#if DEBUG`, so its symbols do not exist in a release binary. On Android the module refuses to run unless the app is debuggable. See [Security](/security/).
+The package is in the bundle and does nothing there. The agent's native module compiles to no-ops outside debug builds. The client, which is everything that reads the screen and talks to the driver, is loaded only when `enabled` is true, whichever way the app imports the package and whatever Metro is configured to inline; `enabled` is false by default in a store build (it is true only in development and on Lynkeus FastSim). The Babel plugin that passes the token writes it into a development bundle only, never a release one. On iOS the touch-synthesis code is inside `#if DEBUG`, so its symbols do not exist in a release binary. On Android the module refuses to run unless the app is debuggable. See [Security](/security/).
 
 ### Can it test a release build, or the app from the store?
 
@@ -151,7 +151,7 @@ Values of password fields (`secureTextEntry`) are masked in the screen. The requ
 
 ### Should the agent run against production?
 
-No. Gate `enabled` on your environment as well as on `__DEV__`. A debug build that talks to a real backend with real accounts should not run the agent. The headless host goes further and refuses any backend that is not on a local address. See [Security](/security/).
+No. Gate `enabled` on your environment as well, as `enabledByDefault() && config.ENV !== 'prod'`. A debug build that talks to a real backend with real accounts should not run the agent. The headless host goes further and refuses any backend that is not on a local address. See [Security](/security/).
 
 ## The project
 

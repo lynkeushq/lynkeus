@@ -30,13 +30,30 @@ export const fiberName = (fiber: Fiber): string => {
   return t.displayName || t.name || t.render?.displayName || t.render?.name || t.type?.displayName || t.type?.name || 'anonymous';
 };
 
+type Animated = { value?: Record<string, unknown> } | undefined;
+
+const has = (values: Record<string, unknown> | undefined): values is Record<string, unknown> => !!values && Object.keys(values).length > 0;
+
+/**
+ * A host's props as they stand now. Reanimated under jest keeps what its animations set in `jestAnimatedStyle` and
+ * `jestAnimatedProps`, never in the props the view rendered with: a drawer that opened still read as closed (hidden
+ * from accessibility, behind its screen) and a closed one as open. Its live values win, as they do on a device.
+ */
+export const liveProps = (node: ReactTestInstance): Record<string, unknown> => {
+  const p = node.props;
+  const style = (p.jestAnimatedStyle as Animated)?.value;
+  const props = (p.jestAnimatedProps as Animated)?.value;
+  if (!has(style) && !has(props)) return p;
+  return { ...p, ...props, ...(has(style) ? { style: [p.style, style] } : {}) };
+};
+
 // As the device walker reads it: a nested text inherits the `textTransform` around it unless it sets its own.
 export const textOf = (node: ReactTestInstance): string => {
   const parts: string[] = [];
   const visit = (n: ReactTestInstance | string, transform: TextTransform | 'none' | undefined) => {
     if (typeof n === 'string') parts.push(transformText(n, transform, Platform.OS));
     else {
-      const own = textTransformOf(n.props) ?? transform;
+      const own = textTransformOf(liveProps(n)) ?? transform;
       for (const child of n.children) visit(child, own);
     }
   };

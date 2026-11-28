@@ -4,32 +4,159 @@
  * only launching, screenshots and the status bar go through simctl or adb.
  */
 import { AgentServer } from 'lynkeus-client';
-import type { CoreMethods, Screen, TraceEvent } from 'lynkeus-protocol';
+import type { CoreMethods, HelloEvent, Screen, TraceEvent } from 'lynkeus-protocol';
 
 import { portFromEnv, readToken } from '../config.js';
 import { withoutHost } from '../knowledge/problems.js';
+import { viaOf, type Walk } from '../knowledge/walk.js';
+import { onPhone } from '../runtime.js';
 import type { DeviceInfo } from './devices.js';
-import { lifecycleFor, type PlatformLifecycle } from './platform.js';
+import { lifecycleFor, type PlatformLifecycle, type Recording } from './platform.js';
+
+// The OS brings an app back to the front in well under a second; a suspended one may take a few to answer again.
+const FOREGROUND_MS = 8000;
+
+/** Whether the app says it is in front again within the time, from an AppState event or the hello of a reconnect. */
+const untilActive = (server: AgentServer, timeoutMs: number): { done: Promise<boolean>; cancel: () => void } => {
+  let finish: (back: boolean) => void = () => undefined;
+  const done = new Promise<boolean>((resolve) => {
+    const check = (event: { state?: string; appState?: string }) => {
+      const state = event.state ?? event.appState;
+      // An agent older than AppState says hello without one: being back on the line is all it can say.
+      if (state === undefined || state === 'active') finish(true);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    finish = (back) => {
+      clearTimeout(timer);
+      server.off('appstate', check);
+      server.off('hello', check);
+      resolve(back);
+    };
+    server.on('appstate', check);
+    server.on('hello', check);
+  });
+  return { done, cancel: () => finish(false) };
+};
+
+/** Whether an app says hello on this server within the time: a process started again, not the connection that was there. */
+export const nextHello = (server: Pick<AgentServer, 'on' | 'off'>, timeoutMs: number): { done: Promise<boolean>; cancel: () => void } => {
+  let finish: (back: boolean) => void = () => undefined;
+  const done = new Promise<boolean>((resolve) => {
+    const onHello = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    finish = (back) => {
+      clearTimeout(timer);
+      server.off('hello', onHello);
+      resolve(back);
+    };
+    server.on('hello', onHello);
+  });
+  return { done, cancel: () => finish(false) };
+};
+
+const OBSERVING = new Set([
+  'events',
+  'logs',
+  'analytics',
+  'networkBodies',
+  'traceContext',
+  'record',
+  'screenshot',
+  'still',
+  'nativeValues',
+  'netmock',
+  'nativeMocks',
+]);
+
+// After Lynkeus starts the app again, the commands that follow wait this long for it to attach: a development build
+// fetching its bundle from Metro can take well past the 10 s an app that just left gets.
+const RELAUNCH_BACK_MS = 60_000;
 
 export class Device {
   info: DeviceInfo;
   readonly server: AgentServer;
 
   #lifecycle: PlatformLifecycle;
+  #lifecycleGiven: boolean;
   #appId: string | null;
   #resolving?: Promise<DeviceInfo>;
+  #locate?: (hello: HelloEvent) => Promise<DeviceInfo>;
+  // The app whose device `info` names, and a hello from another app (the port taken over) still to look up.
+  #locatedFor?: string;
+  #unlocated?: { hello: HelloEvent; lookup?: Promise<DeviceInfo> };
+  #walk?: Walk;
+  // A phone's app that let go of the driver in the background says hello no more; what it said last tells it was a phone.
+  #hello: HelloEvent | null = null;
+  #opened?: string;
+  #helloAt?: number;
 
-  constructor(info: DeviceInfo, options: { server?: AgentServer; appId?: string | null; resolving?: Promise<DeviceInfo> } = {}) {
+  /**
+   * `locate` finds the device an app that said hello runs on. It is asked again whenever another app takes the port
+   * (the Android app after the iOS one, both dialing 8123), so screenshots, films and OS commands follow the app that
+   * is attached, never the device the first one was on.
+   */
+  constructor(
+    info: DeviceInfo,
+    options: {
+      server?: AgentServer;
+      appId?: string | null;
+      resolving?: Promise<DeviceInfo>;
+      locate?: (hello: HelloEvent) => Promise<DeviceInfo>;
+      lifecycle?: PlatformLifecycle;
+    } = {},
+  ) {
     this.info = info;
     this.#resolving = options.resolving;
+    this.#locate = options.locate;
     // The app serves commands only to a driver that presents its token; without one, anything on the loopback could drive a dev build.
     this.server = options.server ?? new AgentServer({ token: readToken(), port: portFromEnv() });
-    this.#lifecycle = lifecycleFor(info.platform);
+    this.#lifecycleGiven = options.lifecycle !== undefined;
+    this.#lifecycle = options.lifecycle ?? lifecycleFor(info.platform);
     this.#appId = options.appId ?? null;
+    if (this.#locate && this.server.hello) this.#relocate(this.server.hello);
+    // A stand-in server in a test may have no events.
+    if (typeof this.server.on === 'function')
+      this.server.on('hello', (hello: HelloEvent) => {
+        this.#helloAt = Date.now();
+        this.#relocate(hello);
+      });
+  }
+
+  #relocate(hello: HelloEvent): void {
+    if (!this.#locate) return;
+    const platform = hello.platform === 'android' ? 'android' : 'ios';
+    const app = `${platform}\0${hello.appId ?? ''}\0${String(hello.app?.name ?? '')}\0${String(hello.app?.runtime ?? '')}`;
+    if (app === this.#locatedFor) return;
+    this.#locatedFor = app;
+    this.#resolving = undefined;
+    this.#unlocated = { hello };
+    this.info = { ...this.info, platform };
+    if (!this.#lifecycleGiven) this.#lifecycle = lifecycleFor(platform);
+  }
+
+  /** When this connection last heard the app say hello (a launch, a relaunch, a reconnect); undefined if before it existed. */
+  get attachedAt(): number | undefined {
+    return this.#helloAt;
   }
 
   /** The device as the OS knows it: reading the screen needs none of it; launching, screenshots and OS commands do. */
   async resolved(): Promise<DeviceInfo> {
+    const pending = this.#unlocated;
+    if (pending && this.#locate) {
+      // One lookup for the callers that ask at once; a failed one is tried again by the next.
+      pending.lookup ??= this.#locate(pending.hello);
+      try {
+        const info = await pending.lookup;
+        if (this.#unlocated === pending) {
+          this.info = info;
+          this.#unlocated = undefined;
+        }
+        return info;
+      } catch (error) {
+        if (this.#unlocated === pending) pending.lookup = undefined;
+        throw error;
+      }
+    }
     if (this.#resolving) {
       this.info = await this.#resolving;
       this.#resolving = undefined;
@@ -37,22 +164,120 @@ export class Device {
     return this.info;
   }
 
+  /** The id the caller gave (config, --app), else the one the app said in its hello. */
   get appId(): string | null {
-    return this.#appId;
+    return this.#appId ?? this.server.hello?.appId ?? this.#hello?.appId ?? null;
+  }
+
+  /** Learns where presses lead from what this connection reads anyway (see knowledge/walk.ts). */
+  learn(walk: Walk): void {
+    this.#walk = walk;
+    this.server.on('navigation', (event: { route?: string }) => this.#walk?.routed(event.route));
+  }
+
+  /** Drives the app without learning from it, for a caller that records what it learns itself (a crawl). */
+  async unlearned<T>(fn: () => Promise<T>): Promise<T> {
+    const walk = this.#walk;
+    this.#walk = undefined;
+    try {
+      return await fn();
+    } finally {
+      walk?.forget();
+      this.#walk = walk;
+    }
   }
 
   async stop(): Promise<void> {
+    this.#walk?.settle();
     await this.server.close();
+  }
+
+  /**
+   * Whether the app's process runs on the Simulator, emulator or phone while its agent is away: it is loading or
+   * reloading its JavaScript, not crashed. False on a host, which the run starts and stops itself, and when unknown.
+   */
+  async processRunning(): Promise<boolean> {
+    this.#hello = this.server.hello ?? this.#hello;
+    const appId = this.appId;
+    if (!appId || !onPhone({ hello: this.#hello })) return false;
+    return this.#lifecycle.running((await this.resolved()).id, appId).catch(() => false);
   }
 
   async launchApp(appId: string, options: { fresh?: boolean } = {}): Promise<void> {
     this.#appId = appId;
+    this.server.expectBack?.(RELAUNCH_BACK_MS);
     await this.server.listen();
     await this.#lifecycle.launchApp((await this.resolved()).id, appId, options.fresh ?? true);
     await this.server.waitForApp();
   }
 
+  /** The OS put another app in front of this one (a press opened a link, say). Only a phone's app: a host stands in for the OS. */
+  get inBackground(): boolean {
+    this.#hello = this.server.hello ?? this.#hello;
+    return this.server.appState === 'background' && onPhone({ hello: this.#hello });
+  }
+
+  /** The last URL a press made the app hand the OS, until the app is brought back: what is in front of it. */
+  get opened(): string | undefined {
+    return this.#opened;
+  }
+
+  /**
+   * Brings the app back to the front after the OS put another app there, the way it is launched (simctl launch,
+   * the launcher intent), which keeps it as it was; only if it does not come back is it relaunched, losing its state.
+   */
+  async foreground(timeoutMs = FOREGROUND_MS): Promise<'returned' | 'relaunched'> {
+    const appId = this.appId;
+    if (!appId)
+      throw new Error(
+        'the app is in the background and Lynkeus does not know its bundle id or application id to bring it back: set app in lynkeus.config.json, or pass --app (the app’s agent did not say it either)',
+      );
+    const id = (await this.resolved()).id;
+    this.#opened = undefined;
+    const active = untilActive(this.server, timeoutMs);
+    const launched = await this.#lifecycle.launchApp(id, appId, false).then(
+      () => true,
+      () => false,
+    );
+    if (!launched) active.cancel();
+    else this.server.expectBack?.(RELAUNCH_BACK_MS);
+    if (await active.done) return 'returned';
+    // The old connection can outlive the relaunch for a moment and answer for an app that is not there any more.
+    const relaunched = untilActive(this.server, timeoutMs);
+    await this.launchApp(appId, { fresh: true }).catch((error: unknown) => {
+      relaunched.cancel();
+      throw error;
+    });
+    if (this.server.appState === 'background') await relaunched.done;
+    else relaunched.cancel();
+    return 'relaunched';
+  }
+
+  /** Terminates the app and launches it again (simctl, adb), and waits for the new process to attach. */
+  async relaunch(timeoutMs = 30_000): Promise<void> {
+    const appId = this.appId;
+    if (!appId)
+      throw new Error(
+        'Lynkeus does not know the app’s bundle id or application id to relaunch it: set app in lynkeus.config.json, or pass --app (the app’s agent did not say it either)',
+      );
+    const id = (await this.resolved()).id;
+    this.#opened = undefined;
+    this.#walk?.acted(true);
+    // The old connection can answer for a moment after the launch: only the new process's hello counts.
+    const attached = nextHello(this.server, timeoutMs);
+    this.server.expectBack?.(RELAUNCH_BACK_MS);
+    try {
+      await this.server.listen();
+      await this.#lifecycle.launchApp(id, appId, true);
+    } catch (error) {
+      attached.cancel();
+      throw error;
+    }
+    if (!(await attached.done)) throw new Error(`the app did not attach again within ${timeoutMs} ms of its relaunch`);
+  }
+
   async openUrl(url: string): Promise<void> {
+    this.#walk?.acted(true);
     await this.server.call('deepLink', { url });
   }
 
@@ -70,33 +295,57 @@ export class Device {
     await this.#lifecycle.screenshot((await this.resolved()).id, destination);
   }
 
-  screen(): Promise<Screen> {
-    return this.server.call('screen');
+  /** Films the simulator or emulator the app is on, through its OS; a host films with its own `record` command instead. */
+  async recordVideo(destination: string): Promise<Recording> {
+    return this.#lifecycle.recordVideo((await this.resolved()).id, destination);
   }
 
-  press(params: CoreMethods['press']['params']): Promise<CoreMethods['press']['result']> {
-    return this.server.call('press', params);
+  async screen(): Promise<Screen> {
+    const screen = await this.server.call<Screen>('screen');
+    this.#walk?.saw(screen);
+    return screen;
+  }
+
+  async press(params: CoreMethods['press']['params']): Promise<CoreMethods['press']['result']> {
+    this.#walk?.pressing();
+    try {
+      const result = await this.server.call<CoreMethods['press']['result']>('press', params);
+      this.#opened = result.opened;
+      this.#walk?.pressed(viaOf(result.element) ?? ('testId' in params || 'text' in params ? viaOf(params) : undefined));
+      return result;
+    } catch (error) {
+      this.#walk?.pressed(undefined);
+      throw error;
+    }
   }
 
   type(params: CoreMethods['type']['params']): Promise<CoreMethods['type']['result']> {
+    this.#walk?.acted(false);
     return this.server.call('type', params);
   }
 
   swipe(params: CoreMethods['swipe']['params']): Promise<CoreMethods['swipe']['result']> {
+    this.#walk?.acted(true);
     return this.server.call('swipe', params);
   }
 
-  back(): Promise<CoreMethods['back']['result']> {
-    return this.server.call('back');
+  async back(): Promise<CoreMethods['back']['result']> {
+    this.#walk?.acted(true);
+    const result = await this.server.call<CoreMethods['back']['result']>('back');
+    this.#walk?.routed(result?.route);
+    return result;
   }
 
   async navigate(name: string, params?: object): Promise<void> {
+    this.#walk?.acted(true);
     await this.server.call('navigate', { name, params });
   }
 
   // The agent's own timeout governs; the transport waits a little longer so it hears the agent's answer.
-  waitFor(params: CoreMethods['waitFor']['params']): Promise<CoreMethods['waitFor']['result']> {
-    return this.server.call('waitFor', params, (params.timeoutMs ?? 5000) + 2000);
+  async waitFor(params: CoreMethods['waitFor']['params']): Promise<CoreMethods['waitFor']['result']> {
+    const result = await this.server.call<CoreMethods['waitFor']['result']>('waitFor', params, (params.timeoutMs ?? 5000) + 2000);
+    if (!result?.passed) this.#walk?.routed(result?.route);
+    return result;
   }
 
   idle(params?: CoreMethods['idle']['params']): Promise<CoreMethods['idle']['result']> {
@@ -113,6 +362,8 @@ export class Device {
 
   /** A command the app registered with `qa.register`. */
   command<T = unknown>(name: string, params?: unknown): Promise<T> {
+    // An app's own command may move it anywhere (a reset, a sign-in); Lynkeus's own observers move nothing.
+    if (!OBSERVING.has(name)) this.#walk?.acted(true);
     return this.server.call<T>(name, params);
   }
 }
@@ -160,19 +411,27 @@ type DescribeOptions = {
 export const NATIVE_COVER =
   'a native view outside React Native covers the app (the Expo dev menu’s sheet, a system alert, a permission prompt): every control reads ~covered, and that view’s own buttons are not in the tree; close it on the device, or relaunch the app';
 
+/** How the agent and these notes name a view outside the app's React tree; a message that has it already says why. */
+export const NOT_DRAWN = 'the app did not draw';
+
+export const SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it (a system alert, a native sheet): its words are listed ~system, and its buttons are pressed by their text`;
+
+export const REMOTE_SYSTEM_VIEW = `a view ${NOT_DRAWN} is in front of it, drawn by another process (iOS's Save Password prompt after a login form, a permission prompt) or natively outside React (Expo's dev-menu onboarding sheet on a development build's first launch: \`lynkeus status\` marks it seen, then relaunch the app): Lynkeus can neither read nor tap it, and presses under it fail; relaunch the app, or answer it on the device`;
+
 /**
  * Whether something outside the app's React tree is over it. The agent marks a control covered when a touch at its
  * centre would land elsewhere; when every presented control is covered at once and the tree shows nothing on top,
  * what is over them is a native view of its own (expo-dev-client's onboarding sheet on a first launch, say).
  */
-export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting'>): string | undefined => {
+export const nativeCover = (screen: Pick<Screen, 'elements' | 'presenting' | 'system'>): string | undefined => {
+  if (screen.system) return screen.elements.some((e) => e.system) ? SYSTEM_VIEW : REMOTE_SYSTEM_VIEW;
   const controls = screen.elements.filter((e) => !e.hidden && (e.kind === 'button' || e.kind === 'input'));
   return !screen.presenting && controls.length > 0 && controls.every((e) => e.covered) ? NATIVE_COVER : undefined;
 };
 
 export const describeScreen = (screen: Screen, options: DescribeOptions = {}): string => {
   const { limit = 80, all = false, frames = false, verbose = false } = options;
-  const layer = screen.presenting ? ` +${screen.presenting.modal ? 'modal' : 'overlay'}${screen.presenting.testId ? `#${screen.presenting.testId}` : ''}` : '';
+  const layer = `${screen.presenting ? ` +${screen.presenting.modal ? 'modal' : 'overlay'}${screen.presenting.testId ? `#${screen.presenting.testId}` : ''}` : ''}${screen.system ? ' +system' : ''}`;
   // Plain views are layout; one that names itself (a testID, a label) is content.
   const named = screen.elements.filter((e) => e.kind !== 'view' || e.accessibilityLabel !== undefined || e.testId !== undefined);
   // What sits inside a button is the button: its icon is not something else to read or press.
@@ -210,7 +469,7 @@ export const describeScreen = (screen: Screen, options: DescribeOptions = {}): s
         : e.value !== undefined
           ? ` value=${quote(e.value)}` // a QR's encoded string, say
           : '';
-    const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}`;
+    const state = `${e.enabled ? '' : ' !disabled'}${e.covered ? ' ~covered' : ''}${e.hidden ? ` ~${e.hidden}` : ''}${e.system ? ' ~system' : ''}`;
     const at = frames ? ` @${Math.round(e.frame.x + e.frame.w / 2)},${Math.round(e.frame.y + e.frame.h / 2)}` : '';
     return `${index}${e.kind}${id}${label ? ` ${quote(shortened(label))}` : ''}${value}${state}${at}`;
   });

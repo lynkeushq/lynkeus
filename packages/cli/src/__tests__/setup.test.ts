@@ -10,13 +10,17 @@ import type { Screen } from 'lynkeus-protocol';
 
 import { freePorts } from '../cases/portClaim.js';
 import { agentInstallCommand, headlessSpecs, importStyle, managerCommand, mountAgent, type PathProbe } from '../commands/init.js';
-import { runTargets } from '../commands/runTargets.js';
-import { ensureLynkeusIgnore, LYNKEUS_GITIGNORE } from '../config.js';
+import { caseCommands } from '../commands/cases.js';
+import { proposeCasesTargets } from '../commands/headless.js';
+import { appPlatforms, proposeTargets, runTargets, targetGap } from '../commands/runTargets.js';
+import { ensureLynkeusIgnore, loadConfig, LYNKEUS_GITIGNORE } from '../config.js';
 import { CLI_VERSION } from '../device/agentVersion.js';
 import { appIdsOf, finishDevMenuOnboarding, onboardedPrefs, usesDevClient } from '../device/devMenu.js';
 import type { DeviceInfo } from '../device/devices.js';
 import { describeScreen, nativeCover } from '../device/driver.js';
+import { register } from '../registry.js';
 import { reactNative } from '../runtimes/react-native/index.js';
+import { execute } from '../runtime.js';
 
 const tmp = (prefix: string) => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)));
 
@@ -198,7 +202,10 @@ test('status lists where cases run, reverses Android to the port, and marks what
   const none = runTargets({ port: 8123, simulators: [], android: [], headless: { what: 'h', ok: false, fix: 'init' }, fastsim: [] });
   assert.ok(none.checks.every((c) => !c.ok && c.optional));
   assert.match(none.checks.find((c) => c.what.startsWith('Lynkeus FastSim'))!.what, /not installed/);
-  assert.match(none.advice, /^day to day: .*; in CI: headless/);
+  assert.match(
+    none.advice,
+    /^write cases on .*; a case is done when `case run --on targets` passes on the targets the project declared \(cases\.targets\); in CI: headless/,
+  );
   const up = runTargets({
     attached: 'shop-trial',
     port: 8200,
@@ -218,8 +225,96 @@ test('status lists where cases run, reverses Android to the port, and marks what
   );
   assert.equal(
     up.advice,
-    'day to day: the attached app (shop-trial); in CI: FastSim hosts side by side (`case run --jobs <n> --host-command`, see its README)',
+    'write cases on FastSim; a case is done when `case run --on targets` passes on the targets the project declared (cases.targets); in CI: FastSim hosts side by side (`case run --jobs <n> --host-command`, see its README)',
   );
+});
+
+test('status shows the declared targets and whether each runs here, or proposes them from FastSim and the app', () => {
+  const facts = {
+    port: 8123,
+    simulators: [sim],
+    android: [],
+    headless: { what: 'h', ok: false, fix: '`lynkeus headless init`' },
+    fastsim: [{ version: '0.9.0', variant: 'darwin-arm64-ios' }],
+  };
+  const declared = runTargets({
+    ...facts,
+    targets: { declared: ['ios', 'fastsim:ios', 'fastsim:android', 'headless'], platforms: ['ios', 'android'], kits: ['ios'], bundles: ['ios'] },
+  });
+  assert.deepEqual(
+    declared.declared.map((c) => `${c.ok ? '✓' : '○'} ${c.what}${c.fix ? ` — ${c.fix}` : ''}`),
+    [
+      '✓ ios: available here',
+      '✓ fastsim:ios: available here',
+      '○ fastsim:android: not available here — Lynkeus FastSim for android not installed (`lynkeus fastsim install --platform android`)',
+      '○ headless: not available here — not set up (`lynkeus headless init`)',
+    ],
+  );
+  assert.match(
+    declared.advice,
+    /a case is done when `case run --on targets` passes on the project's targets \(ios, fastsim:ios, fastsim:android, headless\); in CI: `lynkeus ci` runs the declared fastsim:ios, fastsim:android, headless \(ios need a device\)$/,
+  );
+  const proposing = runTargets({ ...facts, targets: { declared: undefined, platforms: ['ios', 'android'], kits: ['ios'], bundles: [] } });
+  assert.equal(proposing.declared.length, 1);
+  assert.match(
+    proposing.declared[0]!.fix ?? '',
+    /^propose \["fastsim:ios","fastsim:android"\] .* set "cases": \{ "targets": \["fastsim:ios","fastsim:android"\] \} in lynkeus\.config\.json$/,
+  );
+  assert.match(proposing.advice, /none are declared: ask the person which matter \(proposed: \["fastsim:ios","fastsim:android"\]\)/);
+  const wrong = runTargets({
+    ...facts,
+    targets: { declared: 'cases.targets in lynkeus.config.json: web is not a target', platforms: ['ios'], kits: [], bundles: [] },
+  });
+  assert.equal(wrong.declared[0]!.ok, false);
+  assert.equal(targetGap('ios', { ...facts, simulators: undefined }), 'not asked (--offline)');
+  assert.equal(
+    targetGap('fastsim:ios', { ...facts, targets: { declared: undefined, platforms: ['ios'], kits: ['ios'], bundles: [] } })?.startsWith('no ios bundle'),
+    true,
+  );
+});
+
+test('the proposed targets: FastSim for each of the app platforms when installed, else headless and the device platforms', () => {
+  assert.deepEqual(proposeTargets({ fastsim: ['android'], platforms: ['ios', 'android'] }), ['fastsim:ios', 'fastsim:android']);
+  assert.deepEqual(proposeTargets({ fastsim: [], platforms: ['android'] }), ['headless', 'android']);
+  const root = tmp('lynkeus-platforms-');
+  assert.deepEqual(appPlatforms(root), ['ios', 'android']);
+  fs.mkdirSync(path.join(root, 'android'));
+  assert.deepEqual(appPlatforms(root), ['android']);
+});
+
+test('init proposes cases.targets and writes them only when told, keeping the rest of the config; case init keeps them', async () => {
+  const root = tmp('lynkeus-init-targets-');
+  assert.equal(proposeCasesTargets(root, {}, []), undefined);
+  write(root, { 'package.json': '{}', 'ios/Podfile': '', 'lynkeus.config.json': JSON.stringify({ port: 8200 }) });
+  // Where a case must pass is the person's call, as status says: proposed, not written.
+  const proposed = proposeCasesTargets(root, { port: 8200 }, []);
+  assert.match(proposed ?? '', /^cases\.targets: none declared; proposed \["headless","ios"\] .*ask them, then write it \(`lynkeus init --targets proposed`/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8')), { port: 8200 });
+  assert.match(proposeCasesTargets(root, { port: 8200 }, [], 'headless,watch') ?? '', /^cases\.targets: not written, watch is not a target/);
+  const said = proposeCasesTargets(root, { port: 8200 }, [], 'proposed');
+  assert.match(said ?? '', /^wrote "cases": \{ "targets": \["headless","ios"\] \} to lynkeus\.config\.json: .*, as proposed from/);
+  const written = JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8'));
+  assert.deepEqual(written, { port: 8200, cases: { targets: ['headless', 'ios'] } });
+  assert.equal(proposeCasesTargets(root, written, []), undefined);
+  assert.match(proposeCasesTargets(root, written, [], 'ios') ?? '', /^wrote "cases": \{ "targets": \["ios"\] \}/);
+  proposeCasesTargets(root, written, [], 'headless,ios');
+  register([...caseCommands]);
+  const caseInit = await execute(['case', 'init'], {
+    root,
+    config: loadConfig(root),
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => {
+      throw new Error('no app');
+    },
+  });
+  assert.match(caseInit.text ?? '', /added cases to lynkeus\.config\.json/);
+  const after = JSON.parse(fs.readFileSync(path.join(root, 'lynkeus.config.json'), 'utf8'));
+  assert.deepEqual(after.cases.targets, ['headless', 'ios']);
+  assert.equal(after.cases.dir, 'cases');
 });
 
 test('the dev menu is found by expo-dev-client, and the app’s ids from app.json, app.config or the native projects', () => {
@@ -303,4 +398,25 @@ test('every control covered at once is named as a native view over the app, not 
   assert.equal(nativeCover(screenOf([{ testId: 'next', covered: true }, { testId: 'back' }])), undefined);
   assert.equal(nativeCover(screenOf([{ testId: 'next', covered: true }], { i: 0, modal: true })), undefined);
   assert.equal(nativeCover(screenOf([{ kind: 'text', text: 'only text' }])), undefined);
+});
+
+test('a view the app did not draw is named for what Lynkeus can do with it', () => {
+  const frame = { x: 0, y: 0, w: 402, h: 874 };
+  const alert = {
+    ...screenOf([
+      { testId: 'delete', covered: true },
+      { kind: 'button', text: 'Cancel', system: true },
+    ]),
+    system: { frame },
+  };
+  assert.match(nativeCover(alert) ?? '', /its buttons are pressed by their text/);
+  const lines = describeScreen(alert).split('\n');
+  assert.match(lines[0] ?? '', /\+system/);
+  assert.ok(
+    lines.some((l) => /^button "Cancel" ~system$/.test(l)),
+    lines.join('\n'),
+  );
+  // Another process draws it (iOS's Save Password prompt): nothing to read, nothing a touch from the app reaches.
+  const remote = { ...screenOf([{ testId: 'login', covered: true }, { testId: 'signup' }]), system: { frame } };
+  assert.match(nativeCover(remote) ?? '', /drawn by another process.*relaunch the app/);
 });

@@ -3,10 +3,11 @@
  * distinct edge so concurrent edits merge in git, and a counter instead of a
  * row per sighting so the file converges instead of growing.
  *
- * A run appends one line per sighting and compacts once at the end; reading
- * merges duplicate lines, so a run that is killed halfway loses nothing.
+ * A run appends one line per sighting to a part of its own and folds it in once
+ * at the end; reading merges the store with every part, so a run that is killed
+ * halfway loses nothing, and runs side by side never write the same file.
  */
-import { appendJsonl, readJsonl, today, writeJsonl } from '../files.js';
+import { appendShared, foldShared, readShared, today } from '../files.js';
 
 export type ObservedEdge = {
   from: string;
@@ -51,41 +52,56 @@ const merged = (rows: ObservedEdge[]): Map<string, ObservedEdge> => {
   return byKey;
 };
 
-const save = (file: string, edges: ObservedEdge[]) =>
-  writeJsonl(
-    file,
-    [...edges].sort((a, b) => key(a).localeCompare(key(b))),
-  );
+const sorted = (rows: ObservedEdge[]) => [...merged(rows).values()].sort((a, b) => key(a).localeCompare(key(b)));
 
-export const load = (file: string): ObservedEdge[] => [...merged(readJsonl<ObservedEdge>(file)).values()];
+export const load = (file: string): ObservedEdge[] => [...merged(readShared<ObservedEdge>(file)).values()];
+
+/** One sighting, appended to this process's part: no read, so a press that led somewhere costs one small write. */
+export const append = (file: string, observation: EdgeObservation): void => {
+  const row: ObservedEdge = { ...observation, seen: 1, last: today() };
+  appendShared(file, row);
+};
+
+/** Folds this process's sightings into the store, one sorted line per edge. */
+export const fold = (file: string): void => {
+  foldShared<ObservedEdge>(file, sorted);
+};
 
 /** The edges in a file, kept in memory while a run adds to them. */
 export const open = (file: string) => {
-  const known = merged(readJsonl<ObservedEdge>(file));
+  const known = merged(readShared<ObservedEdge>(file));
   let appended = false;
   return {
     all: (): ObservedEdge[] => [...known.values()],
     /** True when the edge is new. */
     record: (observation: EdgeObservation): boolean => {
-      const row: ObservedEdge = { ...observation, seen: 1, last: today() };
-      appendJsonl(file, row);
+      append(file, observation);
       appended = true;
+      const row: ObservedEdge = { ...observation, seen: 1, last: today() };
       const found = known.get(key(row));
       if (found) merge(found, row);
       else known.set(key(row), { ...row });
       return !found;
     },
     compact: () => {
-      if (appended) save(file, load(file));
+      if (appended) fold(file);
     },
   };
 };
 
 /** Drops the edges of routes that no longer exist, so the store is collected against the app rather than a clock. */
 export const prune = (file: string, routes: Set<string>): number => {
-  const before = load(file);
-  if (before.length === 0) return 0;
-  const after = before.filter((e) => routes.has(e.from) && routes.has(e.to));
-  save(file, after);
-  return before.length - after.length;
+  if (load(file).length === 0) return 0;
+  let dropped = 0;
+  foldShared<ObservedEdge>(
+    file,
+    (rows) => {
+      const all = sorted(rows);
+      const kept = all.filter((e) => routes.has(e.from) && routes.has(e.to));
+      dropped = all.length - kept.length;
+      return kept;
+    },
+    true,
+  );
+  return dropped;
 };

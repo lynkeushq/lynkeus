@@ -12,7 +12,22 @@ import type { Device } from '../../device/driver.js';
 import { type Base, find, register } from '../../registry.js';
 import { Fixtures } from '../fixtures.js';
 import { parseCase } from '../format.js';
-import { argvFor, fetchFilm, missingFixtures, newSince, type Prepared, preparable, runCase } from '../runner.js';
+import {
+  argvFor,
+  expandSteps,
+  fetchFilm,
+  missingFixtures,
+  newSince,
+  phaseNote,
+  slowTargetNote,
+  type Prepared,
+  preparable,
+  runCase,
+  type StepReport,
+  stepRoutes,
+} from '../runner.js';
+import { filmSeconds as filmSecondsOf } from '../film.js';
+import { mp4Of } from './mp4.js';
 import { FIXTURES } from '../templates.js';
 
 register([...driveCommands, ...osCommands]);
@@ -63,6 +78,7 @@ const fakeApp = () => {
     },
     waitFor: async () => ({ waitedMs: 0 }),
     idle: async () => ({ settled: true }),
+    swipe: (params: never) => server.call('swipe', params),
     command: async (name: string) => (name === 'events' ? [{ name: 'points_viewed', properties: { points: 25 } }] : {}),
   } as unknown as Device;
   const base: Base = {
@@ -237,6 +253,50 @@ test('a run that asks for routes gets the screens the case went through, not the
   assert.equal(asked.at(-1), 7);
 });
 
+test('a run that asks for routes keeps the screen each step left the app on, read off the marks steps take anyway', async () => {
+  const c = parseCase('---\nid: steps\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: "#refresh"\n  - app.press: "#refresh"\n', 'steps.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const events: { seq: number; t: number; kind: 'route'; route: string; path: string[] }[] = [];
+  const reached = ['Home.Main', 'Settings.Main'];
+  device.trace = async (since?: number) => ({ last: events.length, events: since === undefined ? [] : events.filter((e) => e.seq > since) });
+  const press = device.press.bind(device);
+  device.press = async (params) => {
+    const done = await press(params);
+    events.push({ seq: events.length + 1, t: 0, kind: 'route', route: reached[events.length]!, path: [] });
+    return done;
+  };
+  const report = await runCase(c, { base, config, fixtures, routes: true });
+  assert.deepEqual(
+    report.steps.map((s) => s.route),
+    ['Home.Main', 'Home.Main', 'Settings.Main'],
+  );
+  const plain = await runCase(c, { base, config, fixtures });
+  assert.ok(plain.steps.every((s) => s.route === undefined));
+});
+
+test('a step that only looked keeps the screen it found; one skipped gets none', () => {
+  const ran: StepReport[] = [
+    { step: 'a', status: 'passed', ms: 0 },
+    { step: 'b', status: 'passed', ms: 0 },
+    { step: 'c', status: 'passed', ms: 0 },
+    { step: 'd', status: 'skipped', ms: 0 },
+  ];
+  stepRoutes(
+    ran,
+    [0, undefined, 5],
+    [
+      { seq: 2, route: 'A' },
+      { seq: 4, route: 'B' },
+      { seq: 7, route: 'C' },
+    ],
+  );
+  assert.deepEqual(
+    ran.map((s) => s.route),
+    ['B', 'B', 'C', undefined],
+  );
+});
+
 test('an optional press of something that is not there is skipped, not failed', async () => {
   const c = parseCase('---\nid: opt\n---\nsteps:\n  - app.press: { target: "#dismiss", optional: true }\n', 'opt.md');
   const { base } = fakeApp();
@@ -277,6 +337,35 @@ test('a macro is the steps a project gave a name to, with what the case passed',
   const report = await runCase(c, { base, config: { ...config, macros }, fixtures });
   assert.equal(report.result, 'passed', JSON.stringify(report.steps));
   assert.equal(calls.filter((x) => x.method === 'press').length, 1);
+});
+
+test('each step says where its time went, a macro summing its steps, and a slow one says it in the log', async () => {
+  const c = parseCase('---\nid: p\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { text: "25 points" }\n  - app.again: {}\n', 'p.md');
+  const { base } = fakeApp();
+  const after = <T>(ms: number, value: T) => new Promise<T>((r) => setTimeout(() => r(value), ms));
+  const device = await base.device();
+  const tap = device.press.bind(device);
+  Object.assign(device, { idle: () => after(30, { idle: true }), press: async (params: never) => after(5, await tap(params)) });
+  const slow = { ...base, device: async () => device };
+  const macros = { 'app.again': [{ 'app.press': '#refresh' }, { 'app.press': '#refresh' }] };
+  const report = await runCase(c, { base: slow as Base, config: { ...config, macros }, fixtures });
+  const [press, see, again] = report.steps;
+  // In the order they happen; marks and target take no time against a stand-in app that answers at once.
+  assert.deepEqual(
+    Object.keys(press?.phases ?? {}).filter((p) => p !== 'marks' && p !== 'target'),
+    ['action', 'settle'],
+  );
+  assert.ok((press?.phases?.settle ?? 0) >= 25, JSON.stringify(press?.phases));
+  assert.ok(
+    Object.keys(see?.phases ?? {}).every((p) => p === 'marks' || p === 'look'),
+    JSON.stringify(see?.phases),
+  );
+  // Two presses, each settling for at least 25 ms, under the one step.
+  assert.ok((again?.phases?.settle ?? 0) >= 50, JSON.stringify(again?.phases));
+  const sum = Object.values(press?.phases ?? {}).reduce((a, b) => a + b, 0);
+  assert.ok(sum <= (press?.ms ?? 0), `${sum} > ${press?.ms}`);
+  assert.equal(phaseNote({ ms: 120, phases: { action: 100 } }), '');
+  assert.equal(phaseNote({ ms: 548, phases: { target: 66, action: 420, settle: 62 } }), ': target 66 · action 420 · settle 62');
 });
 
 test("a step that is neither the app's nor a declared fixture says so", async () => {
@@ -437,6 +526,20 @@ steps:
   assert.equal(report.evidence, undefined);
 });
 
+test('an app command a release bundle never registered says why with the step', async () => {
+  const c = parseCase('---\nid: sign-in\n---\nsteps:\n  - app.call: { command: signIn }\n', 'sign-in.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const why =
+    '(this is a release bundle, __DEV__ is false, as on Lynkeus FastSim: if the app registers signIn inside if (__DEV__), that never ran here; call qa.register without the guard, it does nothing until Lynkeus connects)';
+  (device as unknown as { command: (n: string) => Promise<unknown> }).command = async (name) => {
+    throw new Error(`Unknown method ${name} ${why}`);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'unsupported');
+  assert.equal(report.steps[0]?.error, `this host has no signIn ${why}`);
+});
+
 test('the fixtures server says what it answers, and a case that names anything else is caught', async () => {
   const described = await fixtures.describe();
   assert.ok(described?.commands.includes('create_user'));
@@ -536,7 +639,7 @@ steps:
   );
 });
 
-test('a host that keeps its own clock is not a device', async () => {
+test('a host that keeps its own clock (FastSim) is not a device, and not the headless host either: it is fastsim and host', async () => {
   const c = parseCase(
     `---
 id: clock
@@ -548,6 +651,15 @@ steps:
       - app.see: { text: "never shown" }
   - on: headless
     do:
+      - app.see: { text: "never shown either" }
+  - on: fastsim
+    do:
+      - app.see: { text: "Hello" }
+  - on: host
+    do:
+      - app.see: { text: "Hello" }
+  - on: "!headless"
+    do:
       - app.see: { text: "Hello" }
 `,
     'clock.md',
@@ -558,7 +670,7 @@ steps:
   const report = await runCase(c, { base, config, fixtures });
   assert.deepEqual(
     report.steps.map((s) => s.status),
-    ['skipped', 'passed'],
+    ['skipped', 'skipped', 'passed', 'passed', 'passed'],
   );
 });
 
@@ -664,6 +776,34 @@ test('a step waits only for requests started after the action before it began', 
   assert.match(report.steps[3]!.error!, /not requested since the step before began: POST \/api\/points/);
 });
 
+test('a seen request wants an answer: one with status 0 fails and says so, unless the step says answered: false or names the status', async () => {
+  const c = parseCase(
+    '---\nid: offline\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { request: "GET /v1/feed.json", timeoutMs: 100 }\n  - app.see: { request: "GET /v1/feed.json", answered: false }\n  - app.see: { request: "GET /v1/feed.json", status: 0 }\n',
+    'offline.md',
+  );
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  const press = device.press.bind(device);
+  (device as unknown as { press: typeof press }).press = async (params) => {
+    const answer = await press(params);
+    requests.push({
+      id: requests.length + 1,
+      method: 'GET',
+      url: 'https://feed.example/v1/feed.json',
+      status: 0,
+      error: 'network error or aborted',
+      startedAt: 0,
+    });
+    return answer;
+  };
+  const report = await runCase(c, { base, config, fixtures, continue: true });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'failed', 'passed', 'passed'],
+  );
+  assert.match(report.steps[1]!.error!, /^GET \/v1\/feed\.json was requested but got no answer \(status 0: network error or aborted\); .*`answered: false`/);
+});
+
 test('a request the press before did not cause is not waited for', async () => {
   const c = parseCase('---\nid: stale\n---\nsteps:\n  - app.type: { text: "x" }\n  - app.wait: { request: "GET /api/points", timeoutMs: 300 }\n', 'stale.md');
   const { base } = fakeApp();
@@ -740,6 +880,39 @@ test('a host that waits for a still screen on its own clock is asked to, and the
     // A screen that never stood still keeps what moved while the host waited.
     assert.equal(frame.still, !changed);
     assert.deepEqual(frame.moving, changed ? [{ x: 1, y: 2, w: 3, h: 4 }] : undefined);
+  }
+});
+
+test('a frame on a host that can say when its screen stands still waits for its paint first, and one still moving is flagged', async () => {
+  const c = parseCase('---\nid: type\n---\nsteps:\n  - app.press: "#refresh"\n', 'type.md');
+  for (const settles of [true, false]) {
+    const { base } = fakeApp();
+    const device = await base.device();
+    (device as unknown as { server: { hello: unknown } }).server.hello = { native: true, commands: ['screenshot', 'still', 'clock'] };
+    const order: string[] = [];
+    (device as unknown as { command: unknown }).command = async (name: string, params: Record<string, unknown>) => {
+      order.push(name === 'still' ? `still ${String(params.stepMs)}/${String(params.timeoutMs)}` : name);
+      if (name === 'screenshot') {
+        fs.writeFileSync(String(params.path), 'frame');
+        return { path: params.path };
+      }
+      if (name === 'still') return settles ? { still: true, waitedMs: 200 } : { still: false, waitedMs: 1500, moving: [{ x: 0, y: 700, w: 390, h: 56 }] };
+      return {};
+    };
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-paint-'));
+    const report = await runCase(c, { base, config, fixtures, evidence: { dir, screenshots: true, frames: 'png' } });
+    assert.equal(report.result, 'passed');
+    const at = order.indexOf('still 100/1500');
+    assert.ok(at >= 0 && at < order.indexOf('screenshot'), order.join(', '));
+    const frame = JSON.parse(fs.readFileSync(report.steps[0]!.screenshot!.replace(/\.png$/, '.json'), 'utf8'));
+    if (settles) {
+      assert.equal(frame.still, undefined);
+      assert.equal(report.warnings, undefined);
+    } else {
+      assert.equal(frame.still, false);
+      assert.deepEqual(frame.moving, [{ x: 0, y: 700, w: 390, h: 56 }]);
+      assert.match(report.warnings?.[0] ?? '', /^frame of a moving screen at step 1 \(app\.press #refresh\): the host's screen still moved/);
+    }
   }
 });
 
@@ -921,6 +1094,20 @@ test('a failed see says when the scrolls moved nothing and its target was never 
   assert.deepEqual(step.looked?.target, { found: false, seen: [{ atMs: step.looked!.target!.seen[0]!.atMs, scrolls: 0, state: 'not in the tree' }] });
 });
 
+test('a failed see whose target is hidden says so, as why does, not that it was never in the tree', async () => {
+  // The agent's find passes over what the platform hides (a closed drawer's row); the screen still lists it.
+  const c = parseCase('---\nid: hidden-row\n---\nsteps:\n  - app.see: { testId: how-it-works-button, timeoutMs: 100 }\n', 'hidden-row.md');
+  const { base } = await longPage(2000, 'stuck');
+  const device = (await base.device()) as unknown as { server: { call: (method: string, params: never) => Promise<unknown> } };
+  const call = device.server.call;
+  device.server.call = async (method, params) => (method === 'find' ? null : call(method, params));
+  const report = await runCase(c, { base, config, fixtures });
+  const step = report.steps[0]!;
+  assert.doesNotMatch(step.error!, /never in the tree/);
+  assert.match(step.error!, /\(found, below the window, hidden \(behind-modal\)/);
+  assert.equal(step.looked!.target?.found, true);
+});
+
 test('a failed wait for a target keeps the listing and where the target stands', async () => {
   const c = parseCase('---\nid: wait-found\n---\nsteps:\n  - app.wait: { what: "#how-it-works-button", timeoutMs: 100 }\n', 'wait-found.md');
   const { base } = await longPage(2000, 'stuck');
@@ -992,8 +1179,225 @@ test('a case starts with no mocks, and one that set a mock leaves none behind', 
     const report = await runCase(c, { base, config, fixtures });
     assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
     assert.equal(asked[0], 'netmock:clear');
-    assert.deepEqual(asked.slice(1), sets ? ['netmock:add', 'netmock:clear'] : []);
+    assert.deepEqual(asked.slice(1), sets ? ['netmock:add', 'netmock:list', 'netmock:clear'] : []);
   }
+});
+
+test('a mock rule nothing matched is a warning naming what went to the network instead', async () => {
+  const c = parseCase('---\nid: feed\n---\nsteps:\n  - app.mock: { route: "GET /v1/feed.json", status: 200 }\n  - app.press: "#refresh"\n', 'feed.md');
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  (device as unknown as { command: unknown }).command = async (name: string, params: { action?: string }) =>
+    name === 'netmock' && params?.action === 'list'
+      ? {
+          rules: [
+            { method: 'GET', path: '/v1/feed.json', hits: 0 },
+            { method: '*', path: '/used', hits: 2 },
+          ],
+          holds: [],
+        }
+      : {};
+  const press = device.press;
+  device.press = async (params) => {
+    requests.push({ id: requests.length + 1, method: 'GET', url: 'http://x/v1/api.json?rss=1', status: 200, startedAt: 0 });
+    return press(params);
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed');
+  assert.deepEqual(report.warnings, ['mock rule GET /v1/feed.json never matched; GET /v1/api.json, GET /api/points went to the network']);
+});
+
+test('an on block inside a macro runs on the hosts it names, in steps and in teardown, and a teardown that fails is said', async () => {
+  const macros = {
+    'app.x': [
+      { on: 'headless', do: [{ 'app.press': '#refresh' }] },
+      { on: 'device', do: { 'app.press': '#never' } },
+    ],
+    'app.broken': [{ no_such_fixture: {} }],
+  };
+  const c = parseCase('---\nid: on-macro\n---\nsteps:\n  - app.x: {}\nteardown:\n  - app.x: {}\n  - app.broken: {}\n', 'on-macro.md');
+  const { base, calls } = fakeApp();
+  const report = await runCase(c, { base, config: { ...config, macros }, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.deepEqual(
+    calls.filter((x) => x.method === 'press').map((x) => (x.params as { testId?: string }).testId),
+    ['refresh', 'refresh'],
+  );
+  assert.equal(report.warnings?.length, 1);
+  assert.match(report.warnings![0]!, /^teardown app\.broken failed: /);
+});
+
+test('a target written as a bare number is an index', async () => {
+  const c = parseCase('---\nid: index\n---\nsteps:\n  - app.press: 0\n  - app.see: 1\n', 'index.md');
+  const { base, calls } = fakeApp();
+  const device = await base.device();
+  device.server.call = (async (method: string, params: { i?: number; testId?: string }) => {
+    calls.push({ method, params });
+    if (method === 'find') return (await device.screen()).elements.find((e) => e.i === params.i) ?? null;
+    return null;
+  }) as typeof device.server.call;
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal((calls.find((x) => x.method === 'press')?.params as { i?: number } | undefined)?.i, 0);
+});
+
+test('see contains finds a text inside a longer one, where a target matches a whole text', async () => {
+  const { base } = fakeApp();
+  const device = await base.device();
+  const screen = device.screen;
+  device.screen = async () => {
+    const sc = await screen();
+    sc.elements.push({
+      i: 2,
+      kind: 'text',
+      text: 'Toggle. Renders a boolean input. Use it for settings.',
+      enabled: true,
+      depth: 0,
+      frame: { x: 0, y: 80, w: 300, h: 60 },
+    });
+    return sc;
+  };
+  // As the agent matches a text target: the whole text, whatever its case.
+  device.server.call = (async (method: string, params: { text?: string }) =>
+    method === 'find'
+      ? ((await device.screen()).elements.find((e) => e.text?.toLowerCase() === params.text?.toLowerCase()) ?? null)
+      : null) as typeof device.server.call;
+  const whole = parseCase('---\nid: whole\n---\nsteps:\n  - app.see: { target: "renders a boolean input.", timeoutMs: 100 }\n', 'whole.md');
+  assert.equal((await runCase(whole, { base, config, fixtures })).result, 'failed');
+  const part = parseCase(
+    '---\nid: part\n---\nsteps:\n  - app.see: { target: "renders a boolean input.", contains: true }\n  - app.see: { target: "nowhere", contains: true, absent: true }\n',
+    'part.md',
+  );
+  const report = await runCase(part, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+});
+
+test('app.call waits for a command an app that just attached has not registered yet', async () => {
+  const c = parseCase('---\nid: call\n---\nsteps:\n  - app.call: { command: signOut }\n', 'call.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  let asked = 0;
+  (device as unknown as { attachedAt: number }).attachedAt = Date.now();
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    if (name !== 'signOut') return {};
+    asked += 1;
+    if (asked < 3) throw new Error('Unknown method signOut');
+    return { ok: true };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(asked, 3);
+
+  // One that attached long ago will not register it: unsupported at once.
+  (device as unknown as { attachedAt: number }).attachedAt = Date.now() - 60_000;
+  asked = -100;
+  const started = Date.now();
+  assert.equal((await runCase(c, { base, config, fixtures })).result, 'unsupported');
+  assert.ok(Date.now() - started < 500);
+});
+
+test("app.relaunch starts the run's own host again, or mounts the app again on a host it did not start", async () => {
+  const c = parseCase('---\nid: relaunch\n---\nsteps:\n  - app.relaunch\n  - app.see: { text: "Hello" }\n', 'relaunch.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  const commands: string[] = [];
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    commands.push(name);
+    return {};
+  };
+  let restarted = 0;
+  assert.equal(
+    (
+      await runCase(c, {
+        base,
+        config,
+        fixtures,
+        relaunch: async () => {
+          restarted += 1;
+        },
+      })
+    ).result,
+    'passed',
+  );
+  assert.equal(restarted, 1);
+  assert.ok(!commands.includes('reset'));
+  assert.equal((await runCase(c, { base, config, fixtures })).result, 'passed');
+  assert.ok(commands.includes('reset'));
+  (device as unknown as { command: unknown }).command = async (name: string) => {
+    if (name === 'reset') throw new Error('no command reset registered; registered: none');
+    return {};
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'unsupported');
+  assert.match(report.steps[0]!.error!, /host_command/);
+});
+
+test('app.relaunch on a kept host mounts the app again in it, and starts the host again only when that fails', async () => {
+  const c = parseCase('---\nid: relaunch\n---\nsteps:\n  - app.relaunch\n  - app.see: { text: "Hello" }\n', 'relaunch.md');
+  const { base } = fakeApp();
+  const logs: string[] = [];
+  let restarted = 0;
+  let remounts = 0;
+  const run = (remounted: boolean) =>
+    runCase(c, {
+      base,
+      config,
+      fixtures,
+      log: (line) => logs.push(line),
+      remount: async () => {
+        remounts += 1;
+        return remounted;
+      },
+      relaunch: async () => {
+        restarted += 1;
+      },
+    });
+  assert.equal((await run(true)).result, 'passed');
+  assert.deepEqual([remounts, restarted], [1, 0]);
+  assert.ok(logs.some((l) => /mounted the app again \(the host is kept for the run\)/.test(l)));
+  assert.equal((await run(false)).result, 'passed');
+  assert.deepEqual([remounts, restarted], [2, 1]);
+  assert.ok(logs.some((l) => /started the host again/.test(l)));
+});
+
+test('a phone covered by a view the app did not draw is relaunched before the first step, and the case says so', async () => {
+  const c = parseCase('---\nid: covered\n---\nsteps:\n  - app.see: { text: "Hello" }\n', 'covered.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  let system = true;
+  let relaunched = 0;
+  (device.server as unknown as { hello: unknown }).hello = { native: true, commands: [] };
+  const screen = device.screen;
+  device.screen = async () => ({ ...(await screen()), ...(system ? { system: { frame: { x: 0, y: 500, w: 390, h: 300 } } } : {}) });
+  (device as unknown as { relaunch: unknown }).relaunch = async () => {
+    relaunched += 1;
+    system = false;
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', report.steps.map((s) => s.error).join(' '));
+  assert.equal(relaunched, 1);
+  assert.match(report.warnings?.[0] ?? '', /did not draw covered it before the first step.*relaunched the app/);
+});
+
+test('a dry run lists every step, each macro opened into its own', () => {
+  const c = parseCase('---\nid: dry\n---\nsetup:\n  - create_user: { as: u }\nsteps:\n  - app.login: { as: u, wait: Home }\n  - app.tap: "#x"\n', 'dry.md');
+  const macros = {
+    'app.login': [
+      { 'app.call': { command: 'reset' } },
+      { on: 'headless', do: [{ 'app.press': '#a' }] },
+      { when: 'wait', do: { 'app.wait': '{{param.wait}}' } },
+    ],
+  };
+  assert.deepEqual(expandSteps(c, { macros }), [
+    '  setup:',
+    '    1. create_user as: u',
+    '  steps:',
+    '    2. app.login as: u, wait: Home',
+    '         ↳ app.call command: reset',
+    '         ↳ [on headless] app.press #a',
+    '         ↳ [when wait] app.wait Home',
+    '    3. app.tap #x  ✗ app.tap is not a step: Lynkeus has no command tap, and the project declares no macro for it',
+  ]);
 });
 
 test('a frame after a press waits for the commit the press caused, not only for a quiet app', async () => {
@@ -1062,4 +1466,307 @@ test('a text check finds a text drawn in capitals by the words the source writes
     report.steps.map((s) => s.status),
     ['passed', 'failed'],
   );
+});
+
+test('on a simulator or emulator a case asked to film is filmed by the OS, and each app step says its second in the film', async () => {
+  const { base } = fakeApp();
+  const device = (await base.device()) as unknown as { server: { hello?: unknown }; recordVideo?: (file: string) => Promise<unknown> };
+  device.server.hello = { native: true, commands: [] };
+  const filmed: string[] = [];
+  let stopped = false;
+  device.recordVideo = async (file: string) => {
+    filmed.push(file);
+    return {
+      file,
+      startedAt: Date.now() - 1500,
+      stop: async () => {
+        stopped = true;
+        fs.writeFileSync(file, mp4Of(1.5));
+        return true;
+      },
+    };
+  };
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } } });
+  assert.deepEqual(filmed, [path.join(dir, 'video.mp4')]);
+  assert.ok(stopped);
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.ok((report.steps[0]!.videoS ?? 0) >= 1.5, `step began at ${report.steps[0]!.videoS}`);
+  // A run that started its own host never films whatever Simulator happens to be booted.
+  filmed.length = 0;
+  await runCase(c, { base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
+  assert.deepEqual(filmed, []);
+});
+
+/** A host that films: `record { path }` starts a film, `{ stop }` ends it with `write` into the file it was given. */
+const filmingHost = (write: (file: string) => void) => {
+  const { base } = fakeApp();
+  const asked: unknown[] = [];
+  let file: string | undefined;
+  let frames = 0;
+  return {
+    base,
+    asked,
+    install: async () => {
+      const device = (await base.device()) as unknown as { server: { hello?: unknown }; command: (name: string, params?: unknown) => Promise<unknown> };
+      device.server.hello = { native: true, commands: ['record', 'clock'] };
+      device.command = async (name: string, params?: unknown) => {
+        if (name !== 'record') return {};
+        const p = (params ?? {}) as { path?: string; stop?: boolean; frames?: boolean };
+        asked.push(p);
+        if (p.path) {
+          file = p.path;
+          frames = 0;
+          return { path: p.path };
+        }
+        if (p.frames) {
+          frames += 30;
+          return { frames };
+        }
+        if (p.stop && file) write(file);
+        return { frames };
+      };
+    },
+  };
+};
+
+test('a film the host never finished is no film: the case says why, and the empty file and the recorder’s leftovers are gone', async () => {
+  const host = filmingHost((file) => {
+    fs.writeFileSync(file, '');
+    fs.writeFileSync(`${file}.sb-7b31a107-UQhtrh`, 'half a film');
+  });
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base: host.base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true });
+  assert.equal(report.video, undefined);
+  assert.ok(report.warnings?.includes('no film: the file is empty: the recorder never finished it'), JSON.stringify(report.warnings));
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((f) => f.includes('video')),
+    [],
+  );
+});
+
+test('a host started again for a relaunch finishes the film so far first, then films again; steps keep the second of the film they are in', async () => {
+  let n = 0;
+  const host = filmingHost((file) => fs.writeFileSync(file, mp4Of(++n)));
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  let relaunched = 0;
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.press: "#refresh"\n  - app.relaunch\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, {
+    base: host.base,
+    config,
+    fixtures,
+    evidence: { dir, video: { fps: 30 } },
+    ownHost: true,
+    relaunch: async () => {
+      relaunched++;
+    },
+  });
+  assert.equal(relaunched, 1);
+  assert.deepEqual(
+    host.asked.filter((p) => (p as { path?: string }).path || (p as { stop?: boolean }).stop).map((p) => ((p as { path?: string }).path ? 'start' : 'stop')),
+    ['start', 'stop', 'start', 'stop'],
+  );
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.equal(filmSecondsOf(path.join(dir, 'video.1.mp4')), 1, 'the film before the relaunch is kept, finished');
+  assert.equal(filmSecondsOf(path.join(dir, 'video.mp4')), 2);
+  assert.equal(report.steps[0]!.videoS, undefined, 'a step before the relaunch is not in video.mp4');
+  assert.equal(report.steps[1]!.videoS, 0, 'the step that relaunched goes on at the start of video.mp4');
+  assert.equal(typeof report.steps[2]!.videoS, 'number');
+  assert.ok(
+    report.warnings?.some((w) =>
+      /^the film in video\.mp4 starts during step 2: the host was started again there \(a relaunch\), and what it filmed before is in video\.1\.mp4$/.test(w),
+    ),
+    JSON.stringify(report.warnings),
+  );
+});
+
+test('a relaunch in the first step keeps no film of the screen the case began on, and says nothing of it', async () => {
+  let n = 0;
+  const host = filmingHost((file) => fs.writeFileSync(file, n++ === 0 ? '' : mp4Of(2)));
+  await host.install();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-film-'));
+  const c = parseCase('---\nid: film\n---\nsteps:\n  - app.relaunch\n  - app.press: "#refresh"\n', 'film.md');
+  const report = await runCase(c, { base: host.base, config, fixtures, evidence: { dir, video: { fps: 30 } }, ownHost: true, relaunch: async () => undefined });
+  assert.equal(report.video, path.join(dir, 'video.mp4'));
+  assert.deepEqual(
+    fs.readdirSync(dir).filter((f) => f.includes('video')),
+    ['video.mp4'],
+  );
+  assert.equal(report.warnings, undefined);
+  assert.equal(report.steps[0]!.videoS, 0);
+});
+
+test('nav waits for the nested screen it names, and finds the parent of a nested screen itself', async () => {
+  const c = parseCase(
+    '---\nid: nested\n---\nsteps:\n  - app.nav: { route: Demo, params: { screen: DemoPodcastList } }\n  - app.nav: DemoPodcastList\n',
+    'nested.md',
+  );
+  const { base, calls } = fakeApp();
+  base.graph = () => ({
+    app: 'shop',
+    root,
+    extractedAt: '',
+    screens: {
+      Welcome: { route: 'Welcome', component: 'Welcome', file: 'app/Welcome.tsx', declaredIn: 'app/AppNavigator.tsx' },
+      Demo: { route: 'Demo', component: 'DemoNavigator', file: 'app/DemoNavigator.tsx', declaredIn: 'app/AppNavigator.tsx' },
+      DemoPodcastList: { route: 'DemoPodcastList', component: 'List', file: 'app/List.tsx', declaredIn: 'app/DemoNavigator.tsx' },
+    },
+    files: {},
+    warnings: [],
+  });
+  const device = await base.device();
+  device.navigate = async (name, params) => {
+    calls.push({ method: 'navigate', params: { name, params } });
+  };
+  device.waitFor = async (params) => {
+    calls.push({ method: 'waitFor', params });
+    return { waitedMs: 0 };
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+  assert.deepEqual(
+    calls.filter((x) => x.method === 'navigate' || x.method === 'waitFor').map((x) => x.params),
+    [
+      { name: 'Demo', params: { screen: 'DemoPodcastList' } },
+      { route: 'DemoPodcastList', timeoutMs: 8000 },
+      { name: 'Demo', params: { screen: 'DemoPodcastList' } },
+      { route: 'DemoPodcastList', timeoutMs: 8000 },
+    ],
+  );
+});
+
+test('nav to a navigator passes once the focused screen is inside it, with an agent that only compares the focused screen', async () => {
+  const c = parseCase('---\nid: navigator\n---\nsteps:\n  - app.nav: Profile\n', 'navigator.md');
+  const { base } = fakeApp();
+  const device = await base.device();
+  device.navigate = async () => undefined;
+  device.screen = async () => ({ route: 'Profile.Main', path: ['Profile', 'Profile.Main'], commit: 1, elements: [] }) as never;
+  device.waitFor = async () => {
+    throw new Error('Timed out waiting for Profile  (on Profile.Main)');
+  };
+  const report = await runCase(c, { base, config, fixtures });
+  assert.equal(report.result, 'passed', JSON.stringify(report.steps));
+});
+
+test('a run that keeps a run folder files the app console under each step, without frames', async () => {
+  const { base } = fakeApp();
+  const device = (await base.device()) as unknown as {
+    server: { hello?: { commands: string[] } };
+    command: (name: string, params?: unknown) => Promise<unknown>;
+  };
+  device.server.hello = { commands: ['logs'] };
+  let printed: { at: number; level: string; source: string; text: string }[] = [];
+  device.command = async (name: string) => {
+    if (name !== 'logs') return {};
+    const out = printed;
+    printed = [];
+    return out;
+  };
+  const press = (base.device as () => Promise<Device>)().then((d) => d.press.bind(d));
+  const pressed = await press;
+  (device as unknown as { press: Device['press'] }).press = async (params) => {
+    printed.push({ at: Date.now(), level: 'error', source: 'js', text: 'Error fetching episodes: bad-data' });
+    return pressed(params);
+  };
+  const c = parseCase('---\nid: logs\n---\nsteps:\n  - app.press: "#refresh"\n', 'logs.md');
+  const report = await runCase(c, { base, config, fixtures, keep: true });
+  assert.deepEqual(
+    report.steps[0]!.logs?.map((l) => [l.level, l.text]),
+    [['error', 'Error fetching episodes: bad-data']],
+  );
+  const without = await runCase(c, { base, config, fixtures });
+  assert.equal(without.steps[0]!.logs, undefined);
+});
+
+/** A native app whose list scrolls forever and never lists `#later`: every look and scroll costs `costMs`. */
+const scrollingApp = (costMs: number) => {
+  const calls: Call[] = [];
+  let offset = 0;
+  const pause = () => new Promise((r) => setTimeout(r, costMs));
+  const screen = () => ({
+    route: 'Showroom',
+    path: ['Showroom'],
+    commit: offset,
+    busy: false,
+    window: { w: 390, h: 844 },
+    costMs: 1,
+    elements: [{ i: 0, kind: 'text', text: `row ${offset}`, enabled: true, depth: 0, frame: { x: 0, y: 100, w: 390, h: 40 } }],
+  });
+  const server = {
+    connected: true,
+    hello: { native: true, platform: 'ios', commands: [] },
+    call: async (method: string, params: unknown) => {
+      calls.push({ method, params });
+      if (method === 'swipe') {
+        offset += 1;
+        await pause();
+      }
+      return null;
+    },
+  };
+  const device = {
+    server,
+    screen: async () => screen(),
+    trace: async () => ({ last: 0, events: [] }),
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    press: async (params: unknown) => {
+      calls.push({ method: 'press', params });
+      return { x: 0, y: 0, mode: 'native' };
+    },
+    waitFor: async (params: { timeoutMs?: number }) => {
+      await new Promise((r) => setTimeout(r, params.timeoutMs ?? 0));
+      throw new Error('timed out');
+    },
+    idle: async () => {
+      await pause();
+      return { settled: true };
+    },
+    swipe: (params: never) => server.call('swipe', params),
+    command: async () => ({}),
+  } as unknown as Device;
+  const base: Base = {
+    root,
+    config: {},
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => device,
+  };
+  return { base, calls };
+};
+
+test('a press on a point does not look for, scroll to or wait for a target: it presses there', async () => {
+  const c = parseCase('---\nid: drawer\n---\nsteps:\n  - app.press: "390,450"\n', 'drawer.md');
+  const { base, calls } = scrollingApp(50);
+  const started = Date.now();
+  const report = await runCase(c, { base, config: {}, fixtures });
+  assert.equal(report.steps[0]?.status, 'passed', report.steps[0]?.error);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.deepEqual(
+    calls.map((x) => x.method),
+    ['press'],
+  );
+  assert.deepEqual(calls[0]?.params, { x: 390, y: 450, holdMs: undefined, mode: undefined });
+  assert.equal(report.warnings, undefined);
+});
+
+test("a press's timeoutMs bounds every wait for its target, the scrolls included", async () => {
+  const c = parseCase('---\nid: late\n---\nsteps:\n  - app.press: { target: "#later", timeoutMs: 300 }\n', 'late.md');
+  const { base, calls } = scrollingApp(50);
+  const report = await runCase(c, { base, config: {}, fixtures });
+  const target = report.steps[0]?.phases?.target ?? 0;
+  // Without the bound, twelve scrolls down and thirty up at 100 ms each, after a 500 ms wait.
+  assert.ok(target < 1200, `target phase ${target} ms`);
+  assert.ok(calls.filter((x) => x.method === 'swipe').length < 6, `${calls.filter((x) => x.method === 'swipe').length} swipes`);
+});
+
+test('a step that spends more than a few seconds finding its target is warned about', () => {
+  assert.equal(slowTargetNote({ step: 'app.press #go', phases: { target: 2900 } }), undefined);
+  assert.match(slowTargetNote({ step: 'app.press 390,450', phases: { target: 20937, action: 282 } }) ?? '', /^app\.press 390,450: 20\.9 s finding its target/);
 });

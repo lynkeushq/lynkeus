@@ -76,6 +76,7 @@ Each step says:
 | `heading` | The numbered section of the case the step is in, such as `3 A wrong PIN`. A step of `setup`, or one before the first numbered comment, has none. See [Sections](/reference/case-format/#sections). |
 | `status` | `passed`, `failed`, `skipped` or `unsupported` |
 | `ms` | How long it took |
+| `phases` | Where that time went, in ms, for the phases it spent time in: `marks` (where the trace and requests stood before it acted), `target` (waiting for its target to be listed, clear and enabled, a scroll to it included), `action` (the command itself, with the agent's wait for the target to hold still), `settle` (the app going quiet after it), `wait` (an `app.wait`, or the route a nav leads to), `look` (an `app.see`) and `events` (reading the app's analytics). A macro's steps add up under the step that runs it. What is left of `ms` is the runner's own work. The run's console writes them out after a step that took 500 ms or more, and the report shows them on hover over a step's time (written beside it from 500 ms). |
 | `error` | Why it failed, when it did |
 | `events` | The analytics events the app sent while it ran |
 | `screenshot` | The frame after it, relative to the run directory |
@@ -94,6 +95,26 @@ The TypeScript types are `RunManifest`, `RunCase`, `RunStep` and `RunEvent` in t
 :::
 
 `progress.ndjson` is not part of the schema. It is one JSON event per line, written while the run goes on, and `lynkeus case status <dir>` reads it. See [Watch a long run](#watch-a-long-run).
+
+## Open the run as a page, offline
+
+Every run written with `--out` ends with a page beside it, `report.html`:
+
+```text
+run kept in /path/to/app/run
+report: /path/to/app/run/report.html (open it in a browser, offline)
+```
+
+Open it in any browser, with no network and no account. It shows each case by its last attempt, and earlier attempts are named. You see its steps under their sections with the frame after each step, and why a failed case failed. With `--video`, the film plays from any step at the press of a button. Each step lists the requests it sent, with their bodies, and its events, logs and backend spans. The frames and the film stay as files in the folder, so share the folder, for example as a CI artifact or a zip.
+
+To write the page again, or to write it for a run made by an older version:
+
+```bash
+npx lynkeus report html run
+npx lynkeus report html run --embed
+```
+
+`--embed` puts the frames inside the page exactly as stored (AVIF or PNG, never re-encoded) and leaves the film as a file beside it, so send the folder if you want the film. `--embed-film` inlines the film too, which makes the page much larger. The command prints the size and warns above 10 MB. Over MCP the tool is `report_html`.
 
 ## Step 3: Get a key for the hosted service
 
@@ -247,7 +268,9 @@ The run directory is the only thing the service reads. It does not connect to yo
 
 **The run has no screenshots.** The host takes none. The headless host renders nothing to capture; use a simulator or an emulator for runs that need pictures.
 
-**The run has no video.** A case is filmed only where the host offers a `record` command; run `npx lynkeus hello` and look for `record` among its `commands`. The built-in headless host and a simulator or emulator session offer none, so a run there keeps its screenshots and no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
+**The run has no video.** A case is filmed by a host that offers a `record` command (run `npx lynkeus hello` and look for `record` among its `commands`), as Lynkeus FastSim does. On a Simulator it is filmed with `xcrun simctl io recordVideo`. On an emulator or Android phone it is filmed with `adb shell screenrecord`, in segments of up to 3 minutes (its limit) joined with `ffmpeg` when it is installed. The built-in headless host draws nothing, so a run there keeps no video. The case does not fail because of it, and the run ends with a warning that `--video` kept no film. A host on another machine (FastSim in a Linux VM or on a server) films there, and the CLI reads the film from it at the end of each case.
+
+**`no film: the file is empty: the recorder never finished it`** (or **`has no index (moov)`**). A recorder ran but left nothing a player can open. Lynkeus checks every film before it keeps it: the file must have its index and a length. A film that fails the check is deleted, along with what the recorder left beside it (`video.mp4.sb-…`). The case's warnings say why, the run ends with `⚠ --video: N of M case(s) have no film that plays`, and `evidence` answers `⚠ film missing for …` and fails. A FastSim host started again for an `app.relaunch` finishes the film so far before it stops, and the new host starts filming again. When that happens after the first step, the film before the relaunch is kept as `video.1.mp4`, and the case says at which step `video.mp4` begins.
 
 ## Next steps
 

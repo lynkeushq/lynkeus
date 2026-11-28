@@ -22,6 +22,9 @@ exports[`answers the scripted sequence as it did 1`] = `
         "traceContext",
       ],
       "event": "hello",
+      "js": {
+        "loadedMs": "<time>",
+      },
       "locale": "<locale>",
       "native": false,
       "nonce": "<hex>",
@@ -34,6 +37,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 1,
+      "method": "ping",
       "result": {
         "commands": [
           "events",
@@ -48,6 +52,9 @@ exports[`answers the scripted sequence as it did 1`] = `
           "stores",
           "traceContext",
         ],
+        "js": {
+          "loadedMs": "<time>",
+        },
         "native": false,
         "pong": true,
       },
@@ -58,6 +65,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 2,
+      "method": "screen",
       "result": {
         "busy": false,
         "commit": 1,
@@ -652,6 +660,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 3,
+      "method": "find",
       "result": {
         "depth": 1,
         "enabled": true,
@@ -677,6 +686,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 4,
+      "method": "press",
       "result": {
         "element": {
           "depth": 1,
@@ -707,6 +717,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 5,
+      "method": "press",
       "result": {
         "element": {
           "depth": 1,
@@ -737,6 +748,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 6,
+      "method": "waitFor",
       "result": {
         "waitedMs": "<time>",
       },
@@ -752,6 +764,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 7,
+      "method": "type",
       "result": {
         "element": {
           "depth": 1,
@@ -783,6 +796,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 8,
+      "method": "press",
       "result": {
         "element": {
           "depth": 1,
@@ -813,6 +827,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 9,
+      "method": "waitFor",
       "result": {
         "waitedMs": "<time>",
       },
@@ -828,6 +843,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 10,
+      "method": "find",
       "result": null,
     },
     "call": "find",
@@ -841,6 +857,7 @@ exports[`answers the scripted sequence as it did 1`] = `
         "message": "No element matches {"testId":"missing"}",
       },
       "id": 11,
+      "method": "press",
     },
     "call": "press",
     "params": {
@@ -850,6 +867,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 12,
+      "method": "press",
       "result": {
         "element": {
           "depth": 1,
@@ -880,6 +898,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 13,
+      "method": "swipe",
       "result": {
         "from": {
           "x": 195,
@@ -899,6 +918,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 14,
+      "method": "press",
       "result": {
         "element": {
           "depth": 1,
@@ -929,6 +949,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 15,
+      "method": "screen",
       "result": {
         "busy": false,
         "commit": 6,
@@ -1629,6 +1650,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 16,
+      "method": "press",
       "result": {
         "element": {
           "depth": 2,
@@ -1659,6 +1681,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 17,
+      "method": "waitFor",
       "result": {
         "waitedMs": "<time>",
       },
@@ -1674,6 +1697,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 18,
+      "method": "batch",
       "result": {
         "results": [
           {
@@ -1690,6 +1714,9 @@ exports[`answers the scripted sequence as it did 1`] = `
               "stores",
               "traceContext",
             ],
+            "js": {
+              "loadedMs": "<time>",
+            },
             "native": false,
             "pong": true,
           },
@@ -1733,6 +1760,7 @@ exports[`answers the scripted sequence as it did 1`] = `
         "message": "Unknown method nope",
       },
       "id": 19,
+      "method": "nope",
     },
     "call": "nope",
     "params": undefined,
@@ -1740,6 +1768,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 20,
+      "method": "greet",
       "result": "hello Ana",
     },
     "call": "greet",
@@ -1753,6 +1782,7 @@ exports[`answers the scripted sequence as it did 1`] = `
         "message": "Nothing to go back to",
       },
       "id": 21,
+      "method": "back",
     },
     "call": "back",
     "params": undefined,
@@ -1760,6 +1790,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 22,
+      "method": "reset",
       "result": null,
     },
     "call": "reset",
@@ -1768,6 +1799,7 @@ exports[`answers the scripted sequence as it did 1`] = `
   {
     "answer": {
       "id": 23,
+      "method": "screen",
       "result": {
         "busy": false,
         "commit": 8,

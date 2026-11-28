@@ -3,20 +3,27 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { AgentError, type PortApp } from 'lynkeus-client';
 import type { HelloEvent } from 'lynkeus-protocol';
 
 import { nativeValuesEnv } from '../cases/nativeValues.js';
-import { DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { configFile, DEFAULT_PORT, type LynkeusConfig, lynkeusDir, portFromEnv, readToken } from '../config.js';
+import { readJson, writeJson } from '../files.js';
 import { prepareDevMenu } from '../device/devMenu.js';
-import { reverseAndroid } from '../device/devices.js';
+import { describeHolder, portHolder } from '../device/portHolder.js';
+import { type DeviceInfo, reverseAndroid } from '../device/devices.js';
 import { describeExplanations, explainError } from '../knowledge/errors.js';
 import { type Ctx, define } from '../registry.js';
+import { laneLabel } from '../runtime.js';
 import { doctor } from './doctor.js';
 import { runtimeAt } from '../runtimes/index.js';
-import { installedFastsim } from './fastsim.js';
+import { fastsimCacheNote, installedFastsim, installedKit } from './fastsim.js';
 import { runHost } from './hostProcess.js';
 import { headlessMissing, init, installHeadless, jestPreset, type SetupCheck } from './init.js';
-import { machineTargets, runTargets } from './runTargets.js';
+import { appPlatforms, isAppFolder, machineTargets, type Platform, proposeTargets, runTargets } from './runTargets.js';
+import { declaredTargets, TARGETS } from '../cases/onTargets.js';
+import { bundlePlatform, fastsimBundles } from './cases.js';
+import { installSkill } from './skill.js';
 import { headlessEntryOf } from './appEntry.js';
 import { detectApiEnv, setupMocks, transformIgnorePattern } from './appEnv.js';
 
@@ -178,13 +185,63 @@ export const attachedCheck = (hello: HelloEvent | null, attachFix: string): { wh
 };
 
 /**
- * The host file is named so that no default \`testMatch\` takes it (no __tests__, no .test.): the app's own \`jest\` run
- * must not start a host. The host run names it itself, as \`testRegex\` when the app's config uses that (jest refuses both).
+ * The status line when several apps dial the driver's port (an iOS Simulator's and an emulator's development build):
+ * each with its lane and device, which one this session drives, and how to drive the other. Undefined for one app.
  */
-export const hostTestFlag = (root: string, file: string): string => {
-  const config = jestConfigText(root);
-  const literal = file.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  return /\btestRegex\b/.test(config) ? `--testRegex=/\\.lynkeus/host/${literal}$` : `--testMatch=**/.lynkeus/host/${file}`;
+export const portAppsCheck = (apps: PortApp[], port: number, devices: DeviceInfo[] = []): { what: string; ok: boolean } | undefined => {
+  if (apps.length < 2) return undefined;
+  const onDevice = (a: PortApp) => {
+    const own = devices.filter((d) => d.platform === a.hello.platform && a.hello.native && !a.hello.commands?.includes('clock'));
+    return own.length === 1 ? own[0] : undefined;
+  };
+  const role = { this: 'driven by this session', other: 'driven by a run', none: 'turned away while the other is attached' };
+  const listed = apps.map((a) => {
+    const device = onDevice(a);
+    const lane = laneLabel(a.hello, device?.type) ?? a.hello.platform;
+    return `${String(a.hello.app?.name ?? a.hello.appId ?? a.hello.platform)} on ${lane}${device ? ` (${device.name})` : ''}: ${role[a.driven]}`;
+  });
+  const driven = apps.find((a) => a.driven === 'this');
+  const others = [...new Set(apps.filter((a) => a !== driven).map((a) => a.hello.platform))];
+  const switchTo = `case run and why take --on ${others.join('|') || 'ios|android'} (on, over MCP); screen, press and the other tools drive ${driven ? `the ${driven.hello.platform} app` : 'the first app that attaches'} until it closes: close it (xcrun simctl terminate booted <app id>, adb shell am force-stop <app id>) and the other attaches within 2 s`;
+  return { what: `${apps.length} apps dial port ${port}: ${listed.join('; ')}. To drive another: ${switchTo}`, ok: true };
+};
+
+/**
+ * The status line when connecting to the app failed. A port another process holds names that process (`holder`,
+ * from `describeHolder`) when it can be told, else says so as `screen` does; an app refused for another token says that.
+ */
+export const attachFailureCheck = (error: unknown, port: number, attachFix: string, holder?: string): { what: string; ok: boolean; fix?: string } => {
+  if (error instanceof AgentError && error.code === 'port-in-use') return { what: holder ?? error.message, ok: false };
+  if (error instanceof AgentError && error.code === 'wrong-token')
+    return {
+      what: `an app is attached (port ${port}): one dialed in with another project's token and was refused`,
+      ok: false,
+      fix: "open this project's development build (the app's token comes from this project's .lynkeus/token through Metro: restart it with --reset-cache)",
+    };
+  return { what: `an app is attached (Lynkeus listens on port ${port})`, ok: false, fix: attachFix };
+};
+
+/**
+ * The host file is named so that no default \`testMatch\` takes it (no __tests__, no .test.): the app's own \`jest\` run
+ * must not start a host. The flag matches every host file, as \`testRegex\` when the app's config uses that (jest
+ * refuses both), and the run picks its own by path: the pattern is part of the config jest hashes into every
+ * transform's cache key, and one naming the port threw the whole cache away each time a run got another free port.
+ */
+export const hostTestFlag = (root: string): string =>
+  /\btestRegex\b/.test(jestConfigText(root)) ? '--testRegex=/\\.lynkeus/host/[^/]+\\.host\\.tsx$' : '--testMatch=**/.lynkeus/host/*.host.tsx';
+
+/** jest's own bin in the app, run by this node; \`npx jest\` spends a few hundred ms finding it on every start. */
+export const jestCommand = (root: string): { command: string; args: string[] } => {
+  try {
+    const manifestFile = createRequire(path.join(root, 'package.json')).resolve('jest/package.json');
+    const { bin } = JSON.parse(fs.readFileSync(manifestFile, 'utf8')) as { bin?: string | Record<string, string> };
+    const file = typeof bin === 'string' ? bin : bin?.jest;
+    if (file && fs.existsSync(path.join(path.dirname(manifestFile), file)))
+      return { command: process.execPath, args: [path.join(path.dirname(manifestFile), file)] };
+  } catch {
+    // not resolvable from the app: npx finds it, or says it is missing
+  }
+  return { command: 'npx', args: ['jest'] };
 };
 
 /** Where `headless start` used to write the host, which the app's own jest run picked up. */
@@ -198,19 +255,68 @@ const removeOldHostTests = (root: string): void => {
   }
 };
 
+/** The platforms an installed Lynkeus FastSim draws here. */
+const fastsimKits = (): Platform[] => (['ios', 'android'] as const).filter((p) => installedKit(p) !== undefined);
+
+/**
+ * Proposes `cases.targets` when lynkeus.config.json declares none: a project without them leaves an agent to guess
+ * where a case must pass, which ends in running everything everywhere. Where a case must pass is the person's call,
+ * so it is written only when `write` says so: `proposed`, or the targets themselves (`headless,ios`).
+ */
+export const proposeCasesTargets = (root: string, config: LynkeusConfig, kits: Platform[] = fastsimKits(), write?: string): string | undefined => {
+  if (config.cases?.targets !== undefined && write === undefined) return undefined;
+  // Not an app's folder: init says so itself, and a config written here would belong to nothing.
+  if (!isAppFolder(root)) return undefined;
+  const file = configFile(root);
+  let current: Record<string, unknown> = {};
+  try {
+    current = fs.existsSync(file) ? readJson<Record<string, unknown>>(file) : {};
+  } catch {
+    return `cases.targets: not written, ${path.basename(file)} is not JSON Lynkeus can read; add "cases": { "targets": [...] } yourself`;
+  }
+  const proposed = proposeTargets({ fastsim: kits, platforms: appPlatforms(root) });
+  const from = `${kits.length ? 'the FastSim installed here' : 'this machine (no FastSim installed)'} and the app's platforms`;
+  if (write === undefined)
+    return `cases.targets: none declared; proposed ${JSON.stringify(proposed)} (from ${from}). Where a case must pass is the person's call: ask them, then write it (\`lynkeus init --targets proposed\`, or --targets headless,ios)`;
+  const named =
+    write === 'proposed'
+      ? proposed
+      : write
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+  const unknown = named.filter((t) => !(TARGETS as readonly string[]).includes(t));
+  if (unknown.length || named.length === 0) return `cases.targets: not written, ${unknown.join(', ') || 'none'} is not a target (${TARGETS.join(', ')})`;
+  const cases = current.cases && typeof current.cases === 'object' ? (current.cases as Record<string, unknown>) : {};
+  writeJson(file, { ...current, cases: { ...cases, targets: named } });
+  return `wrote "cases": { "targets": ${JSON.stringify(named)} } to ${path.basename(file)}: where a case must pass (\`case run --on targets\` checks them; \`lynkeus ci\` runs the headless and FastSim ones)${write === 'proposed' ? `, as proposed from ${from}` : ''}`;
+};
+
 export const headlessCommands = [
   define({
     name: 'init',
     group: 'drive',
     summary: "Set Lynkeus up in this app: install the agent, mount it from the app's entry, make the project's token",
     details:
-      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left.',
-    flags: { 'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' } },
+      'React Native or Expo (an Expo Router app gets an entry of its own). Safe to run again: it changes only what is missing. The agent has native code, so the app is built again afterwards (`npx react-native run-ios`, `npx expo run:ios`) and Metro restarted with `--reset-cache`; `lynkeus status` says what is left. It also installs the Lynkeus skill in .claude/skills/lynkeus, or updates one nobody changed.',
+    flags: {
+      'no-install': { type: 'boolean', help: 'do not add lynkeus-agent to the app; mount it only' },
+      'no-skill': { type: 'boolean', help: 'leave the Lynkeus skill and its Claude Code subagents out (also LYNKEUS_NO_SKILL=1)' },
+      targets: {
+        type: 'string',
+        help: 'write cases.targets, once the person said where cases must pass: the proposed ones, or a list (headless,ios)',
+        value: 'proposed|list',
+      },
+    },
     needs: 'nothing',
     mcp: 'core',
     run: async (ctx) => {
       const runtime = await runtimeAt(ctx.root);
       const lines = runtime.init(ctx.root, { install: !ctx.flags['no-install'], headless: !!ctx.flags.headless });
+      const targets = proposeCasesTargets(ctx.root, ctx.config, undefined, typeof ctx.flags.targets === 'string' ? ctx.flags.targets : undefined);
+      if (targets) lines.push(targets);
+      // The environment form lets a team, or a measured comparison, turn it off for every init an agent runs.
+      if (!ctx.flags['no-skill'] && process.env.LYNKEUS_NO_SKILL !== '1') lines.push(installSkill(ctx.root).text);
       return { text: lines.join('\n'), json: lines };
     },
   }),
@@ -236,19 +342,28 @@ export const headlessCommands = [
           const device = await ctx.device();
           // Over MCP the connection outlives the app: it is asked again, and named from its latest hello, since
           // another app (another platform) may have taken the port since.
-          const hello = device.server.connected ? device.server.hello : await device.server.waitForApp(3000).catch(() => null);
+          const waited: HelloEvent | null | Error = device.server.connected
+            ? device.server.hello
+            : await device.server.waitForApp(3000).catch((error: unknown) => (error instanceof Error ? error : null));
+          if (waited instanceof AgentError && waited.code === 'wrong-token') throw waited;
+          const hello = waited instanceof Error ? null : waited;
           const check = attachedCheck(hello, runtime.attachFix);
           if (check.ok) {
             attached = String(hello?.app?.name ?? hello?.platform);
             check.what = check.what.replace(/\)$/, `, port ${port})`);
           }
-          checks.push(check);
-        } catch {
-          checks.push({
-            what: `an app is attached (Lynkeus listens on port ${port})`,
-            ok: false,
-            fix: runtime.attachFix,
-          });
+          const up = machine ? await machine : undefined;
+          const devices = up ? [...up.simulators, ...up.android] : [];
+          let apps = device.server.apps?.() ?? [];
+          // A second device's app turned away dials again within 1.5 s: a fresh process waits that long to see it.
+          for (const until = Date.now() + 1600; check.ok && !ctx.attached && apps.length < devices.length && Date.now() < until; ) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            apps = device.server.apps?.() ?? [];
+          }
+          checks.push((check.ok ? portAppsCheck(apps, port, devices) : undefined) ?? check);
+        } catch (error) {
+          const taken = error instanceof AgentError && error.code === 'port-in-use';
+          checks.push(attachFailureCheck(error, port, runtime.attachFix, taken ? describeHolder(port, await portHolder(port), ctx.root) : undefined));
         }
       }
       const dir = path.resolve(ctx.config.cases?.base ?? ctx.root, ctx.config.cases?.dir ?? 'cases');
@@ -274,8 +389,19 @@ export const headlessCommands = [
         android: found?.android.map((d) => ({ ...d, reversed: reversed.includes(d.id) })),
         headless: runtime.headlessCheck(ctx.root, entryOf(ctx)),
         fastsim: installedFastsim(),
+        fastsimCache: fastsimCacheNote(),
+        ...(isAppFolder(ctx.root)
+          ? {
+              targets: {
+                declared: declaredTargets({}, ctx.config.cases?.targets),
+                platforms: appPlatforms(ctx.root),
+                kits: fastsimKits(),
+                bundles: fastsimBundles(ctx.root).flatMap((b) => bundlePlatform(b) ?? []),
+              },
+            }
+          : {}),
       });
-      const all = [...checks, ...where.checks];
+      const all = [...checks, ...where.checks, ...where.declared];
       const mark = (c: SetupCheck) => (c.ok ? '✓' : c.optional ? '○' : '✗');
       const line = (c: SetupCheck) => `${mark(c)} ${c.what}${c.ok || !c.fix ? '' : ` — ${c.fix}`}`;
       const text = [
@@ -284,6 +410,7 @@ export const headlessCommands = [
         'Where cases can run on this machine:',
         ...where.checks.map(line),
         ...devMenu.map((l) => `  ${l}`),
+        ...(where.declared.length ? ['', 'Where a case must pass for this project (cases.targets):', ...where.declared.map(line)] : []),
         `→ ${where.advice}`,
       ].join('\n');
       return { text, json: [...all, { what: where.advice, ok: true, group: 'advice' }] };
@@ -348,19 +475,23 @@ export const headlessCommands = [
         NODE_OPTIONS: nodeOptions,
         ...(nativeValues ? { LYNKEUS_NATIVE_VALUES: nativeValues } : {}),
         ...(expoConfig ? { LYNKEUS_EXPO_CONFIG: expoConfig } : {}),
+        // Date reads the time zone from the process; the mocks read LYNKEUS_TIME_ZONE. One setting moves both.
+        ...(process.env.LYNKEUS_TIME_ZONE ? { TZ: process.env.LYNKEUS_TIME_ZONE } : {}),
       };
       const cache = `--cacheDirectory=${cacheFor(ctx.root, env, apiEnv)}`;
+      const jest = jestCommand(ctx.root);
       return {
         code: await runHost(
           ctx,
-          'npx',
+          jest.command,
           [
-            'jest',
+            ...jest.args,
+            '--runTestsByPath',
             testFile,
             '--runInBand',
             '--watchAll=false',
             ...jestDefaults(ctx.root),
-            hostTestFlag(ctx.root, path.basename(testFile)),
+            hostTestFlag(ctx.root),
             cache,
             ...ctx.passthrough,
           ],

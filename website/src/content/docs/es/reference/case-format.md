@@ -46,13 +46,14 @@ Si el archivo no empieza con el encabezado, el caso se rechaza con `no frontmatt
 | `ticket` | texto | ninguno | El ticket que cubre. Aparece en el reporte. Desde 0.5.0. |
 | `matrix` | objeto | ninguno | Ejecuta el caso una vez por cada combinación de valores. Ver [Matrices](#matrices). |
 | `exclusive` | booleano | `false` | Con `true`, `case run --jobs` lo ejecuta sin ningún otro caso al mismo tiempo: espera a que terminen los que están en curso y no empieza ninguno hasta que termina. Para un caso que cambia algo que comparten todos, como un flag global. Su preparación nunca se hace por adelantado. |
+| `targets` | lista de textos | `cases.targets` | Dónde tiene que pasar este caso; reemplaza la lista del proyecto solo para él. Por ejemplo `[ios, android]` para un caso que usa algo que solo tiene un dispositivo. Acepta los mismos nombres que `cases.targets`, y lo leen `case run --on targets` y `lynkeus ci`. |
 
 ### Las secciones
 
 | Sección | Qué contiene |
 |---|---|
 | `setup` | Los pasos que preparan el estado antes de que empiece lo que se quiere probar. |
-| `teardown` | Los pasos que devuelven lo que el caso cambió fuera de la app, por ejemplo una cara registrada en un Simulator compartido. Corren después de `steps`, hayan pasado, fallado o quedado omitidos. Un paso que falla aquí se avisa como advertencia y no cambia el resultado; no cuenta entre los pasos del caso. Una ejecución cortada por un timeout no llega a ellos. |
+| `teardown` | Los pasos que devuelven lo que el caso cambió fuera de la app, por ejemplo una cara registrada en un Simulator compartido. Corren después de `steps`, hayan pasado, fallado o quedado omitidos. Un paso que falla aquí no cambia el resultado ni cuenta entre los pasos del caso, pero el resultado lo nombra como advertencia (`warnings` en `cases.jsonl`, una línea con ⚠ en la respuesta). Una ejecución cortada por un timeout no llega a ellos. |
 | `steps` | Los pasos del test. |
 | `expected` | Un texto libre que dice qué demuestra el caso. Es para quien lo lee; no se ejecuta. |
 
@@ -114,7 +115,7 @@ En YAML, `#` empieza un comentario, así que un objetivo por `testID` va siempre
 
 Las comillas de YAML no llegan a lynkeus: `"Continuar"` y `Continuar` son el mismo valor. Un texto con **comillas propias**, dentro de las del YAML, es otra cosa: `'"Continuar"'` es siempre el texto que está adentro, y nunca una ruta, un índice ni un `testID`. Hacen falta en dos situaciones:
 
-- En `app.wait` y `app.see`, una palabra con mayúscula inicial, como `Next`, se lee como una ruta. `'"Next"'` es el texto.
+- En `app.wait` y `app.see`, una palabra con mayúscula inicial, como `Next`, se lee como una ruta. `'"Next"'` es el texto. Si la espera falla, la app no tiene ninguna ruta con ese nombre que lynkeus conozca y la palabra (o una muy parecida) está en pantalla, el error lo dice y propone las comillas. `lynkeus why Next` avisa lo mismo.
 - Un texto hecho solo de dígitos, como `12`, se lee como un índice. `'"12"'` es el texto.
 
 Todo verbo que recibe `target` recibe también `testId` en su lugar, con el identificador sin `#`: `{ testId: pay-button }` equivale a `{ target: "#pay-button" }`.
@@ -153,10 +154,12 @@ Pulsa un control. Antes de pulsar espera a que el control esté en pantalla, hab
 | `nth` | número | ninguno | Elige la coincidencia número `nth`, desde 0. |
 | `optional` | booleano | `false` | Pulsa solo si el control está en pantalla. Si no está, el paso queda como omitido y el caso sigue. |
 | `hold` | número (ms) | `50` | Cuánto se mantiene el dedo. Unos 600 ms son una pulsación larga. |
-| `timeoutMs` | número (ms) | `3000` | Cuánto esperar a que el control quede habilitado y libre. |
+| `timeoutMs` | número (ms) | `3000` | Cuánto esperar a que el control quede habilitado y libre. Si el paso lo indica, también es el límite para esperar a que aparezca en el listado y para desplazarse a buscarlo. |
 | `js` | booleano | `false` | Llama a `onPress` directamente, sin sintetizar un toque. |
 
 Si el objetivo no aparece en el listado, `app.press` espera un momento y después se desplaza por la página para buscarlo. Lo mismo si está en el listado pero fuera de la ventana.
+
+Un punto en coordenadas (`app.press: "390,450"`) se pulsa tal cual: no se busca, no se desplaza la página ni se espera a que nada lo destape, aunque lo cubra algo (el fondo de un menú lateral, por ejemplo). Si un paso tarda más de 3 s en encontrar su objetivo, pase o no, el caso lo anota entre sus advertencias con el tiempo que tardó.
 
 Sin `target`, `testId` ni `text`, el paso falla con `app.press needs a target`.
 
@@ -226,7 +229,7 @@ Con una ruta o un objetivo:
 |---|---|---|---|
 | `target` | ruta u objetivo | obligatorio | Lo que se espera. Un elemento también como `testId`. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
-| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana. |
+| `scroll` | booleano | `false` | Desplaza la lista más cercana hasta que el objetivo esté en la ventana y nada lo tape (una barra de pestañas, un encabezado). Si está tapado, lo saca de abajo con un desplazamiento corto, para que no se salga de la ventana por el otro lado. |
 | `gone` | booleano | `false` | Espera a que deje de estar en pantalla. |
 | `enabled` | booleano | `false` | Espera a que el objetivo esté presente, habilitado y recibiendo toques, como el botón de un formulario que depende de sus campos. |
 | `anyOf` | lista de objetivos | | Basta con que aparezca uno de ellos, y entonces `target` sobra. Cada elemento es un texto (`"#welcome"`, `'"Try again"'`) o un objeto: `{ testId }` o `{ text, nth? }`, con `nth` contado desde 0. No se combina con `gone`. |
@@ -252,16 +255,21 @@ Comprueba lo que la app muestra o hizo. Es la aserción principal de un caso. To
 - app.see: { target: "#balance", text: "25" }
 - app.see: { route: Checkout.Confirm, request: "GET /v1/cart" }
 - app.see: { target: "#error-banner", absent: true }
+- app.see: { target: "Renders a boolean input.", contains: true }
 ```
+
+Las mayúsculas y minúsculas nunca importan, ni los espacios al principio o al final. Un objetivo de texto tiene que ser el texto completo de un elemento (la etiqueta de un control también vale si solo lo contiene). Para encontrar una frase dentro de un párrafo más largo, agregá `contains: true`. `text` sin objetivo ya busca dentro de cualquier texto.
 
 | Parámetro | Tipo | Por defecto | Qué hace |
 |---|---|---|---|
 | `target` | objetivo | ninguno | Un elemento que tiene que estar en pantalla. También como `testId`. |
+| `contains` | booleano | `false` | Con un objetivo de texto: alcanza con que el texto de un elemento lo contenga. Respeta `within`, y `nth` cuenta entre esos elementos. |
 | `within`, `nth` | | | Eligen entre varias coincidencias. |
 | `text` | texto | ninguno | Solo: algún elemento presentado contiene ese texto. Con `target`: el texto del elemento, o el de un elemento que tiene dentro, lo contiene. |
 | `route` | texto | ninguno | La ruta actual es esta. |
-| `request` | texto | ninguno | La app hizo esa petición, con el formato `MÉTODO /ruta`. |
-| `status` | número | cualquiera | Con `request`: la petición respondió con ese estado. |
+| `request` | texto | ninguno | La app hizo esa petición, con el formato `MÉTODO /ruta`, y recibió respuesta. Una petición con estado 0 (el host no tiene red, la conexión se rechazó o se cortó) hace fallar el paso, y el error lo explica. |
+| `status` | número | cualquier respuesta | Con `request`: la petición respondió con ese estado. `status: 0` comprueba justamente una petición que no tuvo respuesta. |
+| `answered` | booleano | `true` | Con `request`: con `false` alcanza con que la petición se haya enviado, tenga respuesta o no. |
 | `event` | texto | ninguno | La app envió un evento de analítica con ese nombre. |
 | `props` | objeto | ninguno | Con `event`: el evento lleva estas propiedades con estos valores. |
 | `layer` | booleano o texto | ninguno | `true`: hay una capa abierta sobre la pantalla (un modal, una hoja). `false`: no hay ninguna. Un texto: hay una capa abierta cuyo `testID` lo contiene. |
@@ -284,6 +292,10 @@ Salta directamente a una ruta. Es un atajo para llegar adonde empieza el caso, n
 
 Después de saltar, espera a que la app esté en esa ruta y a que se aquiete.
 
+Para una pantalla que vive dentro de un navegador anidado alcanza con su nombre: `app.nav: DemoPodcastList`. React Navigation no llega a una pantalla de un navegador que todavía no está montado, así que Lynkeus entra por los padres (aquí, `Demo`). Los saca del camino en el que una ejecución vio esa pantalla por última vez o, si no la vio nunca, del grafo de rutas (`lynkeus map build`). Si no tiene ninguna de las dos fuentes, el agente avisa qué navegador falta en lugar de agotar el tiempo.
+
+También se puede nombrar la pantalla anidada a mano, con `params: { screen: DemoPodcastList }` sobre la ruta del navegador. En ese caso el paso espera a esa pantalla, la más interna, y no al navegador. Si lo que se nombra es el navegador mismo (`app.nav: Demo`), basta con que la pantalla enfocada quede adentro.
+
 ### `app.back`
 
 Vuelve a la pantalla anterior. No lleva valor.
@@ -305,6 +317,27 @@ Ejecuta un comando que la app registró con `qa.register`. La [API del agente](/
 | `as` | texto | ninguno | Guarda la respuesta bajo ese alias, para leerla después con `{{alias.campo}}`. |
 | `expect` | objeto | ninguno | Comprueba campos de la respuesta: cada clave es una ruta con puntos y cada valor lo que debe valer. `null` exige que el campo no exista. |
 | `timeoutMs` | número (ms) | `3000` | Con `expect`: cuánto seguir reintentando hasta que la respuesta coincida. |
+
+La app registra sus comandos mientras arranca. Si el paso llega en los 5 segundos que siguen a que la app se conectó (después de abrirla o de relanzarla) y el comando todavía no existe, lo vuelve a pedir hasta que aparezca. Pasado ese tiempo, o en un bundle de release que nunca lo registra, el paso queda `unsupported` sin esperar.
+
+### `app.relaunch`
+
+Vuelve a abrir la app como la encuentra un caso nuevo. No lleva valor.
+
+```yaml
+- app.relaunch
+```
+
+| Dónde corre | Qué hace |
+|---|---|
+| Simulator o emulador | Cierra la app y la abre de nuevo (`simctl launch --terminate-running-process`, o `am force-stop` y el launcher) y espera a que se conecte. Necesita `app` en `lynkeus.config.json`. |
+| Un host que la corrida arrancó para el caso (`--host-command`, `host_command`) | Detiene el host y lo arranca otra vez, igual que arrancó el del caso. |
+| Un host headless que la corrida mantiene entre casos (`--host`, `--on headless`, `--keep-hosts`) | Vuelve a montar la app en el mismo proceso, como hace entre un caso y otro: borra el estado nativo simulado, pero lo que la app guarda a nivel de módulo sigue ahí. Tarda unos 100 ms, contra los 2 o 3 s de levantar un host nuevo. Si el host no puede hacer el reset, lo arranca de nuevo. |
+| Otro host (headless) | Monta la app desde cero (el `reset` del agente) y borra el estado nativo simulado del host. Un host que no puede hacerlo responde `unsupported`. |
+
+En un dispositivo, los mocks del caso se van con la app: si hacen falta, hay que volver a ponerlos después. Los `nativeMocks` de la configuración se mandan de nuevo.
+
+En un Simulator o emulador, un caso también relanza la app por su cuenta antes del primer paso si algo que la app no dibujó la tapa: el aviso de iOS para guardar la contraseña que dejó el caso anterior al iniciar sesión, un pedido de permisos, una alerta abierta. El resultado del caso lo cuenta en una advertencia, y avisa si la vista volvió a aparecer después del relanzamiento: en ese caso la muestra el propio arranque y el caso tiene que responderla.
 
 ### `app.run`
 
@@ -374,6 +407,8 @@ Algunas opciones tienen un nombre alternativo, más claro dentro de un caso:
 
 `app.mock` responde una petición antes de que llegue a la red. La ruta se escribe `MÉTODO /ruta`; sin método coincide con cualquiera, y se compara por contenido (con `^` al principio, como expresión regular).
 
+Una regla que pone un caso dura hasta que el caso termina, en cualquier destino: si dentro del caso se reinicia la app (por ejemplo, una macro de inicio de sesión que llama al `reset` de la app), la regla sigue. Cada caso empieza y termina sin reglas. Una regla puesta a mano con `lynkeus mock` sí se pierde cuando un host reinicia la app, salvo que sea `--sticky`.
+
 ```yaml
 - app.mock: { route: "GET /v3/accounts", status: 500, delayMs: 3000 }
 - app.mock: { route: "POST /v1/transfers", lost: true, times: 1 }
@@ -393,6 +428,8 @@ Para que un estado de carga se quede en pantalla, retén la petición, revisa la
 Con `lost: true`, la petición sale y el servidor la recibe y actúa; lo que se pierde es solo la respuesta, y a la app le llega un fallo de red. Es lo mismo en el host sin pantalla y en un simulador, un emulador o un teléfono. Hasta 0.5 un dispositivo hacía fallar la petición sin enviarla.
 
 Una petición que contestó un mock (o cuya respuesta se perdió) queda marcada como `mocked` en el registro de peticiones y en la traza de la app, y la evidencia de un caso fallido la lista con `(mocked)`. Las reglas que explican un fallo, como «el backend respondió 500 (error del servidor, no de la app)», leen solo lo que respondió el servidor: un 500 que puso el propio caso no se le atribuye al backend.
+
+Si al terminar el caso una regla no coincidió con ninguna petición, el resultado lo avisa y dice qué pidió la app a la red desde el primer mock: `mock rule GET /v1/feed.json never matched; GET /v1/api.json went to the network`. Casi siempre es una ruta mal escrita; `lynkeus requests` muestra lo que la app pide de verdad.
 
 Una clave que el comando no reconoce hace fallar el paso con `<comando> has no <clave>`. Un verbo que no corresponde a ningún comando ni a ningún macro falla con `app.<nombre> is not a step: Lynkeus has no command <nombre>, and the project declares no macro for it`.
 
@@ -482,13 +519,17 @@ steps:
 
 | Condición | Se cumple cuando |
 |---|---|
-| `device` | La app corre en un simulador o un emulador, con toques reales. |
-| `headless` | La app corre en un host sin pantalla. |
+| `device` | La app corre en un simulador, un emulador o un teléfono, con toques reales. |
+| `headless` | La app corre en el host sin pantalla, en Node. |
+| `fastsim` | La app corre en un host de Lynkeus FastSim. |
+| `host` | La app corre en cualquiera de los dos hosts, el sin pantalla o FastSim. |
 | `ios`, `android` | La app informa esa plataforma. |
 | `has:<comando>` | La app registró ese comando. Sirve cuando un build tiene comandos que otro no. |
 | `!<condición>` | Lo contrario de cualquiera de las anteriores: `!ios`, `!has:reset`. |
 
 Un bloque con `do:` y sin `on:` se rechaza.
+
+Antes de 0.7.7, `headless` también se cumplía en FastSim. Pero FastSim dibuja de forma nativa y con layout real, así que un paso pensado para el host en Node (por ejemplo, un control de texto que reemplaza a uno nativo) no le corresponde. Para un paso que necesitan los dos hosts, usa `host`.
 
 ## Referencias `{{…}}`
 
@@ -578,7 +619,7 @@ Un paso del macro puede ser condicional. Se escribe como un objeto con `do` y un
 | `do` | El paso que se ejecuta si las condiciones se cumplen. |
 | `when` | Ejecuta el paso solo si la condición se cumple. Con una lista, tienen que cumplirse todas. |
 | `unless` | Lo contrario: omite el paso si la condición se cumple. Con una lista, basta con que se cumpla una. |
-| `on` | Una condición de host, igual que [`on:`](#condiciones-on) en un caso. |
+| `on` | Una condición de host, igual que [`on:`](#condiciones-on) en un caso. `do` puede ser un paso o una lista de pasos. |
 
 Las condiciones de `when` y `unless` tienen tres formas:
 
@@ -651,4 +692,4 @@ Para revisar un caso sin ejecutarlo:
 npx lynkeus case run cases/points.md --dry-run
 ```
 
-`--dry-run` analiza el archivo, lista los pasos y marca los que nombran un verbo o una opción que no existe.
+`--dry-run` analiza el archivo, lista los pasos y marca los que nombran un verbo o una opción que no existe. Cada macro aparece abierto en los pasos que representa, con los `{{param.*}}` que pasó el caso ya completados, y cada bloque `on`, `when` o `unless` dice su condición.

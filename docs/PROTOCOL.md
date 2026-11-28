@@ -63,6 +63,18 @@ Driver → app, once the app's proof checks out:
 - `agentVersion`: the `lynkeus-agent` release in the app; agents older than
   the field do not send it.
 
+- `appId`: the app's own bundle identifier (iOS) or application id (Android),
+  read once from the native module. The driver uses it to bring the app to the
+  front or relaunch it when `app` is not set in the config or passed with
+  `--app`. Absent from older agents, from release builds, and from hosts that
+  have none.
+
+- `js`: how old the JavaScript the app runs is, in ms before the message:
+  `loadedMs` since the bundle loaded, `refreshedMs` since a Fast Refresh last
+  applied an edit (absent when none has). Ages, so the device's clock does not
+  matter; `ping` answers it too. `case run` warns when the app on a device runs
+  code older than the app's newest source file. Absent from older agents.
+
 - `native`: whether touch synthesis is compiled in (debug builds only).
 - `commands`: the names the app registered with `qa.register`. The driver
   may call them like any method.
@@ -77,12 +89,21 @@ App → driver, whenever the focused route may have changed:
 
 ```json
 { "id": 7, "method": "press", "params": { "testId": "next-button" } }
-{ "id": 7, "result": { "x": 201, "y": 812, "mode": "native", "element": { … } } }
-{ "id": 8, "error": { "message": "No element matches {\"testId\":\"nope\"}" } }
+{ "id": 7, "method": "press", "result": { "x": 201, "y": 812, "mode": "native", "element": { … } } }
+{ "id": 8, "method": "find", "error": { "message": "No element matches {\"testId\":\"nope\"}" } }
 ```
 
-`id` is chosen by the driver and echoed back. Requests may be in flight
+`id` is chosen by the driver and echoed back, with the request's `method`
+(agents before 0.7.7 leave `method` out). Requests may be in flight
 concurrently; the app answers each when its work is done.
+
+Ids are unique per driver process, across every connection sharing a port:
+several drivers of one process (the MCP server's own connection, and one per
+`case run --on ios|android`) take turns with one app link and one session. The
+agent answers a request resent after a reconnect (same id, method and params)
+from the reply it recorded, so an action never runs twice; any other request
+runs. A driver fails a call whose reply names another method, and drops a reply
+no call waits for (one that came after its call timed out).
 
 ## Targets
 
@@ -159,6 +180,7 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   busy: boolean             // requests in flight, or the app's `busy` command said so
   window: { w, h }          // points
   presenting?: { i, modal, testId? }   // the layer on top, when the app presents one
+  system?: { frame }        // a view the app's React tree did not draw is in front of it, over this frame
   costMs: number            // time spent building the snapshot
 }
 ```
@@ -185,11 +207,26 @@ A host registers commands beside the app's, called like any method (`lynkeus cal
   hidden?: HiddenReason     // not presented at all, and why
   offscreen?: boolean       // its rect is outside the window: on screen only after scrolling
   texts?: { text, frame }[] // a control's own texts with their frames, when it holds more than one
+  system?: boolean          // words of the view in `Screen.system`, listed after the app's own
 }
 ```
 
 `covered` comes from a native hit test at the element's centre (UIKit
-`hitTest:` / Android view tree) when the native module is available.
+`hitTest:` / Android view tree) when the native module is available. It runs in
+whichever of the app's windows is in front at that point, front to back: on iOS
+an alert or a prompt in a window of its own covers the app (the keyboard's
+windows count only for a prompt presented from them, such as AutoFill's Save
+Password); on Android the windows are the process's (a `Modal`'s dialog, an
+`AlertDialog`), React Native's own target search runs from each React root, and
+a native view outside React covers only when it is visible and clickable, as
+Android's dispatch would hand it a touch.
+
+`system` says what the app did not draw: the native module's `systemViews`
+reads the windows in front of the app's React window and lists their words
+(`UILabel`s, Android `TextView`s) as `system` elements, `button` when a control
+holds them. A remote view (iOS draws Save Password in another process) has no
+words to read and takes no touch synthesized in the app; `press` on a control
+under it is refused with `… is under a view the app did not draw`.
 
 `hidden` is the structural answer, and it is the stronger one: the element is
 mounted but the app is not presenting it. The reasons are `a11y` (hidden from
@@ -217,6 +254,9 @@ it.
   outside the focused field would only dismiss it, measures again, then puts a
   finger down for `holdMs` (50 by default; ~600 is a long press). Consecutive
   taps let the run loop turn between them.
+- `press` answers `opened` when the press made the app hand a URL to the OS
+  (`Linking.openURL`): the driver then waits for the app to report its
+  AppState and says that the app went to the background, and what is in front.
 - `press` with `mode: 'js'` calls the element's `onPress` directly. It needs a
   `testId`, refuses disabled or covered controls, and skips gestures and
   animations entirely. Use it when you want the outcome, not the gesture.

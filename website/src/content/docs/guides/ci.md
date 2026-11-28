@@ -117,6 +117,8 @@ LYNKEUS_PORT=8125 npx lynkeus headless start &
 npx lynkeus case run --jobs 3 --ports 8123,8124,8125 --out run
 ```
 
+With `--host-command`, a port in `--ports` that another process already listens on is refused before any host starts: the hosts would dial that process's driver instead of the run's.
+
 The longest cases start first, so the jobs finish together (`--in-order` keeps the order given). Hosts scale with the machine's cores. To have Lynkeus start the hosts, give `--host-command` with `{port}` where the host takes its port: `--host-command 'LYNKEUS_PORT={port} npx lynkeus headless start'` starts a fresh host for every case. Add `--keep-hosts` to start each job's host once and keep it for the job's cases: it is started again before a case when it exited, its app stopped answering, or its heap is past `--host-heap`. `--host-timeout <ms>` (600000 by default) is how long a host may take to attach.
 
 The jobs share one backend. A case that changes what every case sees, such as a global feature flag, declares `exclusive: true` in its frontmatter and runs alone: it waits for the cases in flight to end, no other case starts until it has ended, and its setup is never made ahead. A case waiting to run alone goes before the cases asked for after it.
@@ -141,9 +143,9 @@ A long-lived host clears what the app's jest mocks record about their calls ever
 npx lynkeus ci
 ```
 
-Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it) with screenshots, and with `ci.push` it is pushed. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
+Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `ready` is a URL it waits on until it answers. The keys are in [Configuration](/reference/configuration/#ci). The run goes to `lynkeus-run` (`--out` changes it), and with `ci.push` it is pushed. Frames are kept when `ci.hosts.command` names hosts that draw, such as Lynkeus FastSim; the default headless host draws nothing, so the run asks it for none. The exit code is the suite's. When `GITHUB_STEP_SUMMARY` is set, the summary of the run goes to the job's page.
 
-`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The first host's port is `LYNKEUS_PORT` or `port` in the configuration (8123 unless told).
+`--dry-run` prints what it would start and runs nothing, which is the way to check the configuration. `--keep-up` leaves the backend up afterward, to look at what a failed run left. The hosts end with the run. The hosts' ports start at `LYNKEUS_PORT` or `port` in the configuration (8123 unless told). A port that another process listens on, such as a `lynkeus mcp` server you left running in the project, or that another case run has claimed, is passed over, and the run says which ports its hosts took. When the run ends, fails or is stopped with Ctrl-C or SIGTERM, every host it started is stopped, even when `case run` itself died. On a normal end `case run` waits for its hosts to exit, so the `▸ stopped N host(s) the run left running` line appears only after a run that died or was killed.
 
 `--affected` runs only the cases that a branch's changes reach:
 
@@ -151,7 +153,19 @@ Lynkeus knows no backend, so `ci.backend.up` and `down` are your commands, and `
 npx lynkeus ci --affected --base origin/main
 ```
 
-It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
+It diffs against `--base` (`origin/main` by default), finds the screens the changed files reach, and keeps the cases that touch them, as `lynkeus case impact` does. With no case to run it says so and exits with 0. When git cannot make that diff (a base that is not in the checkout, or a shallow checkout without the commit where the branch left it), the job fails and says why and how to fix it, instead of passing with nothing run. Check out with `fetch-depth: 0` (or fetch the base), and pass `--on-diff-error all` if you would rather run every case when the diff fails. For a plain job, `npx lynkeus case run $(npx lynkeus case impact --files)` does the same.
+
+### On the targets your project declared
+
+When `lynkeus.config.json` lists where cases must pass in `cases.targets` (see [Where a case must pass](/guides/writing-cases/#where-a-case-must-pass)), `lynkeus ci` follows it. Each case runs on its declared targets that a job can start by itself: `headless`, `fastsim:ios` and `fastsim:android`. With `"targets": ["fastsim:ios", "fastsim:android"]`, a job runs every case on FastSim for iOS, then on FastSim for Android, and never on headless.
+
+- The targets run one after another, each with `ci.hosts.count` hosts, so a runner never holds two targets' hosts at once.
+- With more than one target, each run goes to its own folder (`lynkeus-run/fastsim-ios`, `lynkeus-run/headless`), and the job summary names each case with its target and links each target's report.
+- A FastSim target uses `ci.hosts.command` when that command runs `fastsim-run` on a bundle of the same platform. Otherwise it uses the installed FastSim for that platform and the last bundle of that platform under `.lynkeus`. A `ci.hosts.command` that does not start FastSim is taken to be your own headless host.
+- `ios` and `android` need a Simulator, an emulator or a phone, so the job lists them as not run. Check them on a machine that has one, with `case run --on targets`.
+- If a declared FastSim target cannot start in the job (FastSim is not installed, or there is no bundle for that platform), the job fails and says the check is incomplete. It does not pass with fewer targets than you declared.
+
+Without `cases.targets`, the job runs every case on `ci.hosts.command`, or on headless hosts, as described above. `--dry-run` shows the plan for each target.
 
 ## Run on a simulator or an emulator
 
@@ -195,7 +209,7 @@ Store the organization's API key as a secret and add `--push`:
 
 The report is made when the run starts and fills case by case, so its link works from the first case: the step prints it right away, and you can open it while the suite is still running. A send that fails along the way is tried again at the end. At the end the step prints the link again, and which cases broke or were fixed since the run before. The run records the branch and the commit it was made from, read from the checkout and from GitHub's own variables.
 
-On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case only where the host offers a `record` command, which it names in `hello`; the built-in headless host and a simulator or emulator session offer none, so a run there has screenshots and no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
+On a simulator or an emulator, add `--screenshots` to keep a frame after every step. `--video` films each case: on a Simulator with `xcrun simctl io recordVideo`, on an emulator with `adb shell screenrecord` (3 minutes at most), and on a host that offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so a run there has no video. Lynkeus FastSim does film, including when it runs on another machine, such as a Linux server: the CLI fetches the film from the host at the end of each case. Where a video is recorded, it is kept on the Team plan.
 
 ### Comment on the pull request
 
@@ -238,9 +252,13 @@ One check runs on every pull request with no app, no device and no backend. `map
 npx lynkeus map ci
 ```
 
-You should see `wrote .github/workflows/lynkeus-map-check.yml`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
+You should see `wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)`. On every pull request, that workflow builds the map from the sources, runs `map check` against the base branch, and keeps one comment on the pull request up to date with the screens the diff reaches. The analysis takes well under a second.
 
-`--depth <n>` sets how many imports away the check looks (2 by default). `--force` overwrites an existing workflow file.
+The workflow runs the lynkeus your app depends on: the range in `package.json` for `lynkeus`, or else for `lynkeus-agent` or `lynkeus-headless`, which are released with it. Without one, it runs the release of the CLI that wrote it. CI cannot install a development build or a local path, so for those the workflow names the release they lead to (`0.7.7-dev.…` becomes `^0.7.7`) and the command says so. `map ci` then asks npm whether a release in that range is published; when none is yet, the workflow runs the last release instead (`^0.7.6`) and the command says to move it on once the new one is out. When npm cannot be asked, the range stays and the command says to check it.
+
+`--depth <n>` sets how many imports away the check looks. The default is 4, the same as `case impact` and `ci --affected`, so the comment and the cases the pipeline runs agree. `--force` overwrites an existing workflow file.
+
+`--cases` adds a second job to the same workflow: it runs `lynkeus ci --affected` on every pull request, so the cases the diff reaches run on your project's CI targets (the `headless` and FastSim entries of `cases.targets`). The job runs on `macos-latest` when it includes `fastsim:ios`, since FastSim draws iOS as the Simulator does only on a Mac, and on `ubuntu-latest` otherwise. For each FastSim platform the job installs FastSim and bundles the app first, since bundles are not committed. The job needs a backend the app can reach (`ci.backend`) and these repository secrets: `LYNKEUS_TOKEN` always, `LYNKEUS_CLOUD_KEY` when it runs FastSim, and `LYNKEUS_REPORTS_KEY` when `ci.push` is on. It is off by default because a job without those fails. When your project declares targets a job can run, `map ci` without `--cases` ends with a line saying what `--cases` would add and which secrets it needs.
 
 Reviewers use the comment to know where to look, and a pipeline can use the same list to decide which cases to run.
 

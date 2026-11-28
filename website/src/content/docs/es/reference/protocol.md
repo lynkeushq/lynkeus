@@ -66,6 +66,8 @@ La app espera este mensaje para presentarse: no envía `hello` por su cuenta al 
 |---|---|
 | `protocolVersion` | La versión del protocolo que habla la app. |
 | `agentVersion` | La versión de `lynkeus-agent` en la app. Los agentes anteriores a este campo no lo envían. |
+| `appId` | El identificador propio de la app: el bundle id en iOS, el application id en Android. La CLI lo usa para traer la app al frente o relanzarla cuando no hay `app` en `lynkeus.config.json` ni `--app`. No lo envían los agentes anteriores ni los hosts que no tienen uno. |
+| `js` | Qué edad tiene el JavaScript que corre la app, en milisegundos antes de este mensaje: `loadedMs` desde que cargó el bundle y `refreshedMs` desde el último Fast Refresh que aplicó un cambio (no está si no hubo ninguno). Son edades y no instantes, para que no importe que el reloj del dispositivo difiera del de la computadora. `ping` también lo devuelve. `case run` lo compara con el archivo fuente más reciente de la app y avisa cuando la app de un dispositivo corre código viejo. Los agentes anteriores no lo envían. |
 | `platform` | `ios`, `android` u otro texto. |
 | `native` | `true` si los toques son toques reales sintetizados. Solo ocurre en builds de depuración, sobre un simulador o un emulador. |
 | `commands` | Los comandos de la app: los que registró con `qa.register` y los que el agente trae. El driver puede llamarlos como cualquier método. Un host que puede filmar nombra aquí su comando `record`; es lo que mira `case run --video`. |
@@ -131,6 +133,8 @@ Puede haber varias peticiones en curso a la vez. La app responde cada una cuando
 Una pulsación no se puede repetir sin consecuencias. Por eso, si la conexión se corta con peticiones en curso, el driver las reenvía tal cual al reconectar, con el mismo `session` y el mismo `id`. Si la app ya había ejecutado una y solo se perdió la respuesta, contesta con la respuesta guardada en lugar de ejecutarla de nuevo. Guarda las últimas 64.
 
 Un `session` distinto le indica a la app que es otro driver, que numera sus peticiones desde 1, y descarta lo guardado.
+
+Cuando una app se relanza, se conecta de nuevo antes de que el driver note que la conexión anterior se cerró; `lynkeus-client` se queda con la nueva. Otra app distinta (de otra plataforma, o con otro app id) no desplaza a la que está conectada y en primer plano: una vez que ambos lados probaron el token, `lynkeus-client` cierra la conexión nueva con el código 1013. Esa app entra cuando vuelve a llamar después de que la primera se fue.
 
 ## Objetivos
 
@@ -312,6 +316,7 @@ type Screen = {
   busy: boolean;        // hay peticiones en curso, o el comando `busy` de la app dijo que sí
   window: { w: number; h: number };  // en puntos
   presenting?: { i: number; modal: boolean; testId?: string };  // la capa de arriba, si hay una
+  system?: { frame: { x: number; y: number; w: number; h: number } };  // una vista que la app no dibujó está delante, sobre este rectángulo
   costMs: number;       // lo que tardó la app en armar esta lectura
 };
 ```
@@ -339,6 +344,7 @@ type Element = {
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;  // su rectángulo queda fuera de la ventana
   texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];  // los textos de un control, cada uno con su rectángulo, si tiene más de uno
+  system?: boolean;     // texto de una vista que la app no dibujó (ver más abajo)
 };
 ```
 
@@ -353,6 +359,14 @@ Desde la versión 0.3.0 lo responde el módulo nativo, y la app tiene que recomp
 Los dos dicen que un elemento no se puede tocar, pero por razones distintas, y la diferencia importa al diagnosticar.
 
 **`covered`** significa "un dedo caería sobre otra cosa". Sale de una prueba de toque nativa en el centro del elemento, cuando el módulo nativo está disponible. Solo cuenta aquello en lo que un toque se detendría. En Android, desde la versión 0.3.0, la respuesta viene de la búsqueda con la que React Native decide el destino de un toque; antes, la capa invisible de depuración de un build de desarrollo hacía que todos los controles se leyeran cubiertos. Requiere recompilar la app después de actualizar `lynkeus-agent`.
+
+Como la prueba se hace en la ventana que está delante en ese punto, una alerta o un aviso que se muestra en una ventana propia tapa lo que hay debajo; el teclado no. En Android solo cuentan las vistas nativas que no son de React Native (los fondos de las barras del sistema, por ejemplo) si de verdad tomarían el toque, y los controles de un `Modal` se prueban en la ventana del diálogo que los muestra.
+
+### Lo que la app no dibujó
+
+`Screen.system` aparece cuando delante de la app hay una vista que su árbol de React no dibujó: una alerta del sistema, un pedido de permiso, la hoja de un SDK nativo. Su texto llega como elementos con `system: true`, al final de la lista, y sus botones se pulsan por su texto. Si esa vista la dibuja otro proceso, como el "¿Guardar contraseña?" de iOS, no llega ningún texto y ningún toque desde dentro de la app la alcanza; `press` sobre un control que quedó debajo falla con `… is under a view the app did not draw`.
+
+Cuando un `press` hace que la app abra una URL (`Linking.openURL`), la respuesta la incluye en `opened`: el navegador u otra app está por quedar delante.
 
 **`hidden`** significa "esto no está en pantalla". El elemento está montado, pero la app no lo presenta. Es la respuesta más fuerte de las dos, y dice el motivo:
 
@@ -486,11 +500,16 @@ const screen = await server.call('screen');
 | `port` | `8123` | El puerto donde escucha. |
 | `host` | `127.0.0.1` | La interfaz donde escucha. |
 | `token` | ninguno | Tiene que coincidir con el `token` de la app. |
+| `goneMs` | `10000` | Cuánto esperan las llamadas a que una app que se fue vuelva a conectarse, contando desde que se fue, antes de fallar con el código `gone`. |
+| `stillRunning` | ninguna | Una función asíncrona que dice si el proceso de la app sigue vivo; se le pregunta cuando ya pasó `goneMs`. Si sigue vivo, la app está cargando su JavaScript y las llamadas esperan hasta `reloadMs` desde que se fue; después fallan con el código `loading`. La CLI se lo pregunta al simulador (`launchctl list`) o al dispositivo (`pidof`). |
+| `reloadMs` | `60000` | Cuánto esperan las llamadas a una app cuyo proceso sigue vivo, contando desde que se fue. |
+| `accepts` | cualquier app | Una función que recibe el `hello` de la app y decide si este servidor la maneja, por ejemplo `(hello) => hello.platform === 'android'`. Con ella, varios servidores de un mismo proceso pueden compartir un puerto: cada app va al servidor que la acepta o, si ninguno la acepta, al que no tiene `accepts`; si no queda ninguno, se la desconecta. Todos deben tener el mismo token. Así es como `case run --on ios,android` maneja a la vez la app del simulador de iOS y la del emulador. |
 
 | Método | Qué hace |
 |---|---|
 | `listen()` | Abre el servidor. Si el puerto está ocupado, falla con un error de código `port-in-use`. |
 | `waitForApp(timeoutMs = 15000)` | Espera el `hello` de la app y lo devuelve. |
+| `expectBack(ms)` | Avisa que la app se volvió a abrir a propósito (un reinicio): las llamadas esperan su `hello` hasta `ms` desde ahora, diga lo que diga `goneMs`. |
 | `call(method, params?, timeoutMs = 20000)` | Envía una petición y devuelve su resultado. Si no llega respuesta a tiempo, falla con un error de código `timeout`. |
 
 Los tipos de esta página (`Screen`, `Element`, `Target`, `CoreMethods` y los demás) están en el paquete `lynkeus-protocol`.

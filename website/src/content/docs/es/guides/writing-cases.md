@@ -99,10 +99,16 @@ Un paso que falla detiene el caso. La salida muestra entonces la pantalla en el 
 Hay tres comandos que redactan un caso por ti, y los tres lo imprimen para que lo termines (con `--write` lo guardan en la carpeta de casos, sin pisar un archivo que ya exista):
 
 - **`lynkeus case here <id>`** lee la pantalla que la app muestra ahora y escribe un caso que va a su ruta y comprueba hasta tres de las cosas que hay en ella. Pasa tal como queda, así que sirve de primer caso verde de un proyecto. Con `--host` levanta la app en Node para leerla.
-- **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: las pulsaciones desde donde empieza (`--from`, o `cases.start` de la configuración) hasta ella, según `map plan`; el `setup` que ofrece tu servidor de fixtures, comentado, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
+- **`lynkeus case new <id> --to <Route>`** redacta el caso de una pantalla: el camino hasta ella; un comentario con las fixtures que ofrece tu servidor, porque qué estado necesita el caso lo decides tú; y un lugar para las comprobaciones.
 - **`lynkeus fixtures describe`** lista lo que sabe hacer tu servidor de fixtures, con sus parámetros, para elegir el `setup`. `lynkeus fixtures check` verifica que cumple el protocolo.
 
-Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama.
+El camino que propone `case new` sale primero de tus propios casos. Si alguno ya llega a esa pantalla, el borrador trae su `setup` y sus pasos hasta ahí, con un comentario que dice de qué caso vienen: la navegación nueva parte de una que ya funciona. Un caso llega a la pantalla si en su última ejecución aprobada estuvo en ella después de un paso, o si uno de sus pasos va a ella, la espera o la comprueba. Si ningún caso llega, usa las pulsaciones que conoce `map plan` desde `--from` (o `cases.start` de la configuración; sin ninguno, la pantalla que muestra la app o la primera que declara el navegador). Si desde ese inicio el mapa no conoce camino y no pasaste `--from`, prueba con `cases.start` y después con la primera pantalla declarada, y el comentario del borrador dice cuál usó y por qué. Cuando ningún caso pasa por la pantalla, el borrador agrega, comentado, lo que se sabe que hay en ella: los testIDs que escribe su código, los textos cortos que vieron las ejecuciones y las pulsaciones que llevan a otra pantalla.
+
+Para saber qué falta, `lynkeus case coverage` dice qué pantallas tocan tus casos y cuáles no toca ninguno, y `lynkeus case impact` qué casos alcanza una rama. Una pantalla cuenta si un caso va a ella, la espera o la comprueba, ya sea en sus propios pasos o dentro de una macro que llama (con los parámetros que le pasa). `case run` guarda además en `.lynkeus/seen` por qué pantallas pasó cada caso aprobado, paso a paso, y de ahí leen los dos. En CI, donde el checkout no trae `.lynkeus/seen`, deciden solo los pasos y las macros. Una ruta que monta un navegador (unas pestañas o una pila anidadas bajo una ruta) no es una pantalla que probar: la cobertura no la cuenta y `case impact` nunca la lista como alcanzada sin casos; las pantallas que contiene cuentan como siempre. Un cambio en el archivo que registra la app o en el componente raíz que registra alcanza todas las pantallas: salen todos los casos, y la salida dice qué archivo lo causó.
+
+Cambiar un texto de las traducciones no arrastra todas las pantallas que importan ese archivo. Lynkeus reconoce una tabla de textos por su forma (objetos literales cuyas hojas son todas textos, anidados o no), sea cual sea su nombre, compara sus textos con los de la base y se queda con los archivos que usan una clave cambiada (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) y con los casos cuyos pasos nombran el texto viejo o el nuevo. Si ninguna fuente escribe entera una de las claves cambiadas (un hook atado a un prefijo, una clave armada en tiempo de ejecución), cuentan todos los que importan el archivo, como antes, y una línea dice qué clave fue.
+
+Renombrar o quitar un testID tampoco arrastra todas las pantallas. Si en un archivo solo cambiaron valores de `testID`, `nativeID`, `accessibilityLabel` o `aria-label` (o solo comentarios y formato), ese archivo no alcanza ninguna pantalla a través de sus importaciones. Alcanza los casos cuyos pasos nombran uno de esos testIDs, el viejo o el nuevo, ya sea directamente o dentro de una macro que usan, y los casos que nombran el texto de una etiqueta que cambió. Cualquier otro cambio en el archivo vuelve a contar todas las pantallas que lo importan, y los demás archivos del diff siguen alcanzando las suyas.
 
 ## Los pasos que manejan la app
 
@@ -274,6 +280,15 @@ setup:
 
 Dentro de la macro, `{{param.x}}` es lo que el caso pasó. Si un parámetro nombra un alias, vale por ese alias: por eso `{{param.as.user_id}}` lee el `user_id` de `u`. `when` ejecuta un paso solo si el caso pasó ese parámetro (`"when": "wait"`) o ese valor (`"when": "method=phone"`); `unless` hace lo contrario.
 
+Para encontrar qué repetir no hace falta leer todos los casos. Si tres o más archivos de casos empiezan con los mismos pasos de la app, `lynkeus case coverage` termina con un aviso que nombra esos casos, cuenta los pasos y trae la entrada lista para pegar en `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus no toca los casos: el nombre, los parámetros y dónde reemplazar los pasos quedan a tu criterio.
+
 ## Lo que se atraviesa: interrupciones
 
 Una pantalla de bloqueo o una hoja de consentimiento pueden aparecer delante de cualquier paso. En lugar de defender cada caso, descríbelas una vez:
@@ -301,9 +316,62 @@ npx lynkeus case run --report out.jsonl       # una línea JSON por caso
 
 Sin archivos, corre todos los `.md` de la carpeta de casos, salvo `README.md`, `FORMAT.md` y `CATALOG.md`. El comando termina con código 1 si algún caso falló.
 
+La respuesta es corta a propósito. Un caso que pasa ocupa una línea. Uno que falla dice en qué paso (`failed at step 4 of 6`), con su error, la pantalla en ese momento, las peticiones que fallaron, quedaron sin respuesta o eran simuladas, y el motivo. De la pantalla muestra lo que podrías nombrar en una comprobación: las filas de una lista se cuentan en lugar de repetirse, y los testIDs y controles van antes que los textos. Con `--verbose` aparece todo; `cases.jsonl` y `--json` lo guardan siempre completo.
+
 ### Reintentos
 
 Un caso que falla se ejecuta una vez más antes de contarse como fallido. Si pasa en el segundo intento, el resumen lo dice: `⚠ passed on retry`. `--once` quita esa segunda oportunidad. Qué hacer con los casos que pasan a veces está en [tests intermitentes](/es/guides/flaky-tests/).
+
+### Dónde tiene que pasar un caso
+
+Eso lo decide el proyecto, una sola vez, en `lynkeus.config.json`:
+
+```json
+{ "cases": { "targets": ["fastsim:ios", "fastsim:android"] } }
+```
+
+Los destinos posibles son `headless` (la app en Node, sin pantalla), `fastsim:ios` y `fastsim:android` (Lynkeus FastSim dibujando cada plataforma), `ios` (tu app en el simulador de iOS o en un iPhone) y `android` (tu app en el emulador de Android o en un teléfono). Un equipo que tiene FastSim para las dos plataformas declara esos dos y nada más; otro puede preferir `["headless", "ios"]`. Si un caso necesita algo que solo da un dispositivo real, lleva su propia lista en el encabezado (`targets: [ios, android]`) y esa lista reemplaza la del proyecto para ese caso.
+
+Una ejecución en un destino con nombre (`--on headless`, o `--host`) también la respeta: un caso cuyos `targets:` no incluyen ese destino se omite con una línea (`skipped on headless: login, its targets are ios, android`), no falla.
+
+Para dar un caso por terminado, se corre en sus destinos y en ningún otro:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on targets
+```
+
+```text
+✅ fastsim:ios      settings-dark-mode
+❌ fastsim:android  settings-dark-mode — step 5/5 app.see testId: theme-dark-selected: not on screen: {"testId":"theme-dark-selected"}
+fastsim:ios 1/1 passed · fastsim:android 0/1 passed
+```
+
+Si esta máquina no tiene alguno de los destinos declarados, la respuesta lo nombra con el motivo y la última línea avisa `⚠ check incomplete`: la comprobación quedó a medias y el comando termina con código 1, porque el caso no se probó en todos los lugares donde tiene que pasar. Si el proyecto todavía no declaró destinos, `--on targets` no corre nada y los pide. `npx lynkeus status` sugiere una lista según lo que hay en la máquina (FastSim para cada plataforma de la app si está instalado; si no, `headless` y las plataformas para las que se compila la app), y `npx lynkeus init` la escribe cuando falta. Revísala y cámbiala si no es la que quieres.
+
+Mientras escribes el caso, `case run` a secas sobre la app conectada sigue siendo la vuelta rápida.
+
+### En todos los destinos a la vez
+
+`--on all` corre el caso en todo lo que esta máquina puede ejecutar, haya sido declarado o no:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on all
+```
+
+```text
+✅ ios        settings-dark-mode
+✅ android    settings-dark-mode
+✅ headless   settings-dark-mode
+○ fastsim:ios not available: no ios bundle under .lynkeus: make one with …/bin/fastsim-bundle … ios, or pass --bundle
+○ fastsim:android not available: not installed: `lynkeus fastsim install --platform android` (Team plan)
+ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim:ios not available · fastsim:android not available
+```
+
+Cada caso ocupa una línea por destino. También puedes nombrar los destinos separados por comas: `ios`, `android`, `fastsim:ios`, `fastsim:android` y `headless`; `all` equivale a esos cinco, y `fastsim` a secas usa el último bundle que hiciste, sea de la plataforma que sea. Corren al mismo tiempo, así que revisar varios tarda más o menos lo que tarda el más lento.
+
+Si tienes abiertos un simulador de iOS y un emulador de Android, las dos apps se conectan al mismo puerto de Lynkeus y cada una queda en su propia conexión. Así las ejecuciones de iOS y de Android avanzan en paralelo, sin recompilar ninguna app ni cambiarle el puerto. El destino `simulator` sigue existiendo y significa la app de dispositivo que esté conectada, sea cual sea la plataforma; con dos apps abiertas, es la última que se conectó (en Android su línea dice `emulator`).
+
+Con `all` o con una lista de nombres, si en esta máquina falta un destino la respuesta lo dice una vez y explica por qué, sin dar la ejecución por fallida: no hay un simulador o emulador de esa plataforma encendido, o su app no se conectó en 3 segundos, el modo headless no está preparado (`npx lynkeus headless init`), o FastSim no está instalado, no tiene un bundle o el servicio no da acceso. Cada destino de FastSim usa el último bundle de su plataforma dentro de `.lynkeus`, o el que indiques con `--bundle`. Basta con que el caso falle en un destino que corrió para que el comando termine con código 1; la línea dice el paso y el error, y `--verbose` agrega la pantalla y las peticiones.
 
 ### Varios casos a la vez
 

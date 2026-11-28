@@ -7,7 +7,9 @@ import { test } from 'node:test';
 import { caseCommands, describe } from '../commands/cases.js';
 import { driveCommands } from '../commands/drive.js';
 import { osCommands } from '../commands/os.js';
-import { attachedCheck } from '../commands/headless.js';
+import { AgentError } from 'lynkeus-client';
+
+import { attachFailureCheck, attachedCheck, portAppsCheck } from '../commands/headless.js';
 import { claimPorts } from '../cases/portClaim.js';
 import { lastRunFile, statusOf } from '../cases/progress.js';
 import type { CaseReport } from '../cases/runner.js';
@@ -35,7 +37,7 @@ const project = () => {
   });
   hanging.catch(() => undefined);
   const device = {
-    server: { connected: true, hello: null, port },
+    server: { connected: true, hello: null, port, call: async () => null },
     screen: async () => ({ route: 'Home', path: ['Home'], commit: 1, busy: false, window: { w: 390, h: 844 }, costMs: 1, elements: [] }),
     trace: async () => ({ last: 0, events: [] }),
     requests: async () => ({ inFlight: 0, requests: [] }),
@@ -131,6 +133,43 @@ test('a run stops when another process asks it to with case stop', async () => {
   p.free();
 });
 
+test('a step that runs past its timeout and the margin, or past the ceiling, fails as stuck and the case goes on to its end', async () => {
+  const p = project();
+  // The project's ceiling stands in for the default 180 s; a step naming its own timeout gets that plus 30 s.
+  p.base.config.cases = { dir: 'cases', stepCeilingMs: 300 };
+  fs.writeFileSync(path.join(p.root, 'cases', 'slow.md'), '---\nid: slow\n---\nsteps:\n  - app.wait: "#never"\n  - app.press: "#after"\n');
+  const t0 = Date.now();
+  const outcome = await execute(['case', 'run', '--once'], p.base);
+  assert.ok(Date.now() - t0 < 3000, `the run took ${Date.now() - t0} ms`);
+  assert.equal(outcome.code, 1, JSON.stringify(outcome));
+  assert.match(outcome.text ?? '', /app\.wait #never: still running after 0\.3 s \(the step ceiling, cases\.stepCeilingMs\), so it was given up/);
+  assert.deepEqual(p.pressed, [], 'no step runs after the stuck one');
+  p.free();
+});
+
+test('a run held to a budget stops when it runs out and names the cases it did not reach', async () => {
+  const p = project();
+  fs.writeFileSync(path.join(p.root, 'cases', 'later.md'), '---\nid: later\n---\nsteps:\n  - app.press: "#x"\n');
+  const t0 = Date.now();
+  const outcome = await execute(
+    ['case', 'run', '--once', '--in-order', '--budget', '1', path.join(p.root, 'cases', 'slow.md'), path.join(p.root, 'cases', 'later.md')],
+    p.base,
+  );
+  const took = Date.now() - t0;
+  assert.ok(took >= 900 && took < 3000, `the run took ${took} ms`);
+  assert.equal(outcome.code, 130);
+  assert.match(outcome.text ?? '', /⏹ stopped \(the run's budget of 1 s ran out\) after 0 of 2 cases/);
+  assert.match(outcome.text ?? '', /not run: slow, later; run them in another call \(name their files\), or give budget more seconds/);
+  p.free();
+});
+
+test('case_run over MCP is held to 1500 s unless the caller gives a budget', async () => {
+  const { argvFor } = await import('../mcp/server.js');
+  const run = caseCommands.find((c) => c.name === 'case run')!;
+  assert.deepEqual(argvFor(run, {}).slice(-2), ['--budget', '1500']);
+  assert.deepEqual(argvFor(run, { budget: 0 }).slice(-2), ['--budget', '0']);
+});
+
 test('case status of a run that goes on says how to stop it', async () => {
   const p = project();
   const run = execute(['case', 'run', '--once'], p.base);
@@ -157,7 +196,7 @@ test("a failed case's summary carries the failing step's own error, whatever the
     evidence: { why: '  (nothing in the evidence explains it: the screen, requests and trace look ordinary)' },
   };
   const text = describe(report);
-  assert.match(text, /— failed at: wait_for_backend\n {4}no 2xx GET \/v1\/api\.json within 10000 ms\n— why:/);
+  assert.match(text, /— failed at step 2 of 3: wait_for_backend\n {4}no 2xx GET \/v1\/api\.json within 10000 ms\n— why:/);
 });
 
 test('status names the app from its latest hello, and an app that left as gone', () => {
@@ -174,6 +213,28 @@ test('status names the app from its latest hello, and an app that left as gone',
     ok: false,
     fix: 'the app that was attached is gone (crashed or closed): start it again; open the app',
   });
+});
+
+test('status says a port another run holds, as screen does, and keeps the generic line for any other failure', () => {
+  const taken = new AgentError(
+    'Port 8123 is already taken: another Lynkeus run is probably still driving the app there. Stop it, or use another port (LYNKEUS_PORT, --ports).',
+    'port-in-use',
+  );
+  assert.deepEqual(attachFailureCheck(taken, 8123, 'open the app'), { what: taken.message, ok: false });
+  assert.deepEqual(attachFailureCheck(new Error('boom'), 8123, 'open the app'), {
+    what: 'an app is attached (Lynkeus listens on port 8123)',
+    ok: false,
+    fix: 'open the app',
+  });
+});
+
+test('status names the process holding the port, and an app refused for another token', () => {
+  const taken = new AgentError('Port 8123 is already taken: …', 'port-in-use');
+  assert.deepEqual(attachFailureCheck(taken, 8123, 'open the app', 'port 8123 is taken by pid 1 (x)'), { what: 'port 8123 is taken by pid 1 (x)', ok: false });
+  const refused = attachFailureCheck(new AgentError('No app attached…', 'wrong-token'), 8123, 'open the app');
+  assert.equal(refused.ok, false);
+  assert.match(refused.what, /dialed in with another project's token and was refused/);
+  assert.match(refused.fix ?? '', /this project's development build/);
 });
 
 const SCREEN = {
@@ -262,7 +323,7 @@ test('why reads about the last case run, not a command that failed before it', a
       return {
         last: 2,
         events: [
-          { seq: 1, t: now - 5 * 60_000, kind: 'command', method: 'memory', ms: 1, error: 'Unknown method memory' },
+          { seq: 1, t: now - 5 * 60_000, kind: 'command', method: 'signOut', ms: 1, error: 'Unknown method signOut' },
           { seq: 2, t: now - 100, kind: 'route', route: 'Home', path: ['Home'] },
         ].filter((e) => since === undefined || e.seq > since),
       };
@@ -270,12 +331,150 @@ test('why reads about the last case run, not a command that failed before it', a
   } as unknown as Device;
   const base: Base = { root: os.tmpdir(), config: {}, attached: true, err: () => undefined, graph: () => ({}) as never, device: async () => device };
   const unscoped = await execute(['why'], base);
-  assert.match(unscoped.text ?? '', /the last command that failed was memory/);
+  assert.match(unscoped.text ?? '', /the last command that failed was signOut/);
   scopeWhy(port, { at: now - 1000, case: 'login', failed: 'app.press #go: No element matches {"testId":"go"}' });
   const scoped = await execute(['why'], base);
   assert.match(scoped.text ?? '', /^the last case \(login\) failed at app\.press #go: No element matches/);
-  assert.doesNotMatch(scoped.text ?? '', /memory/);
+  assert.doesNotMatch(scoped.text ?? '', /signOut/);
   scopeWhy(port, { at: now - 1000, since: 1, case: 'login' });
   await execute(['why'], base);
   assert.equal(asked.at(-1), 1);
+});
+
+test('a case run on a FastSim bundle older than the app, with no fastsim-bundle at hand, is refused before any host starts', async () => {
+  const p = project();
+  const bundle = path.join(p.root, '.lynkeus', 'fastsim-ios');
+  fs.mkdirSync(bundle, { recursive: true });
+  fs.writeFileSync(path.join(bundle, 'app.hbc'), '');
+  fs.utimesSync(path.join(bundle, 'app.hbc'), 1000, 1000);
+  fs.writeFileSync(path.join(p.root, 'index.js'), '');
+  const outcome = await execute(['case', 'run', '--once', '--host-command', `/nowhere/bin/fastsim-run ${bundle} {port}`, '--ports', String(p.port)], p.base);
+  assert.equal(outcome.code, 1);
+  assert.match(outcome.text ?? '', /^the FastSim bundle at .*fastsim-ios is older than index\.js, and no fastsim-bundle is beside/);
+  assert.match(outcome.text ?? '', /\n {2}<FastSim folder>\/bin\/fastsim-bundle .* ios$/);
+  assert.equal(fs.existsSync(path.join(bundle, 'hosts')), false);
+  p.free();
+});
+
+test('why reads the case of the attached app’s platform, not the other app on the same port', async () => {
+  const { scopeWhy } = await import('../runtime.js');
+  const port = 8123;
+  const now = Date.now();
+  scopeWhy(port, { at: now - 1000, case: 'login', failed: 'app.press #go: ios broke' }, 'ios');
+  scopeWhy(port, { at: now - 500, case: 'checkout', failed: 'app.press #pay: android broke' }, 'android');
+  const on = (platform: string) =>
+    ({
+      server: { port, hello: { platform } },
+      screen: async () => ({ route: 'Home', elements: [] }),
+      requests: async () => ({ requests: [], inFlight: 0 }),
+      trace: async () => ({ events: [] }),
+    }) as unknown as Device;
+  const base = (platform: string): Base => ({
+    root: os.tmpdir(),
+    config: {},
+    attached: true,
+    err: () => undefined,
+    graph: () => ({}) as never,
+    device: async () => on(platform),
+  });
+  assert.match((await execute(['why'], base('ios'))).text ?? '', /^the last case \(login\) failed at app\.press #go: ios broke/);
+  assert.match((await execute(['why'], base('android'))).text ?? '', /^the last case \(checkout\) failed at app\.press #pay: android broke/);
+  const picked = (await execute(['why', '--on', 'ios'], base('android'))).text ?? '';
+  assert.match(picked, /case is ios's/);
+  assert.match(picked, /the last case \(login\) failed/);
+});
+
+test('why with no target explains the last failed case of the last run on its own lane, a FastSim host gone since', async () => {
+  const { runCase } = await import('../cases/runner.js');
+  const { parseCase } = await import('../cases/format.js');
+  const { noteRunStart } = await import('../runtime.js');
+  const fastsim = {
+    server: { connected: true, hello: { platform: 'ios', native: true, commands: ['clock'] }, port: nextPort++, call: async () => null },
+    info: { type: 'host' },
+    screen: async () => SCREEN,
+    trace: async () => ({ last: 0, events: [] }),
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    waitFor: async () => undefined,
+    idle: async () => ({ idle: true }),
+    command: async () => ({}),
+  } as unknown as Device;
+  const onHost: Base = { root: os.tmpdir(), config: {}, attached: true, err: () => undefined, graph: () => ({}) as never, device: async () => fastsim };
+  const ended = noteRunStart();
+  const report = await runCase(parseCase('---\nid: podcast\n---\nsteps:\n  - app.see: { target: "#episodes", timeoutMs: 50 }\n', 'podcast.md'), {
+    base: onHost,
+    config: {},
+  });
+  ended();
+  assert.equal(report.result, 'failed');
+  let read = 0;
+  const simulator = {
+    server: { connected: true, hello: { platform: 'ios', native: true, commands: [] }, port: nextPort++ },
+    screen: async () => {
+      read += 1;
+      return SCREEN;
+    },
+    requests: async () => ({ inFlight: 0, requests: [] }),
+    trace: async () => ({ last: 0, events: [] }),
+  } as unknown as Device;
+  const attached: Base = { ...onHost, device: async () => simulator };
+  const why = await execute(['why'], attached);
+  assert.equal(why.lane, 'FastSim iOS');
+  assert.match(why.text ?? '', /^the last failed case of the last run \(podcast, on FastSim iOS\) failed at app\.see/);
+  assert.match(why.text ?? '', /as the run read it at the failure/);
+  assert.equal(read, 0);
+  assert.match((await execute(['why', '--on', 'fastsim:ios'], attached)).text ?? '', /\(podcast, on FastSim iOS\)/);
+  assert.match((await execute(['why', '--on', 'headless'], attached)).text ?? '', /^the last run failed nothing on headless \(1 case\(s\) on FastSim iOS\)/);
+  assert.equal((await execute(['why', '--on', 'watch'], attached)).code, 2);
+  // A command given after the run is what why explains then, on the attached app.
+  await execute(['see', '#nothing'], attached);
+  const after = await execute(['why'], attached);
+  assert.equal(after.lane, undefined);
+  assert.doesNotMatch(after.text ?? '', /podcast/);
+});
+
+test('status lists every app on the port with its device, says which one the session drives and how to drive the other', () => {
+  const hello = (platform: string) => ({ event: 'hello' as const, protocolVersion: 2, platform, native: true, commands: [], app: { name: 'ShopTrial' } });
+  const devices = [
+    { id: 'A1', name: 'iPhone 17 Pro', platform: 'ios' as const, type: 'simulator' as const, connected: true },
+    { id: 'emulator-5554', name: 'lynkeus-trial', platform: 'android' as const, type: 'emulator' as const, connected: true },
+  ];
+  assert.equal(portAppsCheck([{ hello: hello('ios'), at: 1, driven: 'this' }], 8123, devices), undefined);
+  const check = portAppsCheck(
+    [
+      { hello: hello('ios'), at: 2, driven: 'this' },
+      { hello: hello('android'), at: 1, driven: 'none' },
+    ],
+    8123,
+    devices,
+  );
+  assert.equal(check?.ok, true);
+  assert.equal(
+    check?.what,
+    '2 apps dial port 8123: ShopTrial on iOS Simulator (iPhone 17 Pro): driven by this session; ShopTrial on Android emulator (lynkeus-trial): turned away while the other is attached. To drive another: case run and why take --on android (on, over MCP); screen, press and the other tools drive the ios app until it closes: close it (xcrun simctl terminate booted <app id>, adb shell am force-stop <app id>) and the other attaches within 2 s',
+  );
+});
+
+test('an answer about the app says once when the app it drives changed, and when another app on the port is turned away', async () => {
+  const { drivenNote } = await import('../runtime.js');
+  const ios = { key: 'ios|native||ShopTrial', lane: 'iOS Simulator' };
+  const android = { key: 'android|native||ShopTrial', lane: 'Android emulator', name: 'ShopTrial' };
+  let told = {};
+  const say = (now: Parameters<typeof drivenNote>[0]) => {
+    const r = drivenNote(now, told);
+    told = r.told;
+    return r.note;
+  };
+  assert.equal(say({ ...ios, away: [], port: 8123 }), undefined);
+  assert.equal(
+    say({ ...ios, away: [android], port: 8123 }),
+    'ShopTrial on Android emulator also dials port 8123 and is turned away while the iOS Simulator app is attached: case run and why take --on to reach it; close the iOS Simulator app to drive it here (status lists both)',
+  );
+  // Said once, until it changes.
+  assert.equal(say({ ...ios, away: [android], port: 8123 }), undefined);
+  // The iOS app left; the Android one took the port.
+  assert.equal(
+    say({ key: android.key, lane: android.lane, away: [], port: 8123 }),
+    'now driving the Android emulator app; the iOS Simulator app the answers came from before left (closed, relaunched or sent away)',
+  );
+  assert.equal(say({ key: android.key, lane: android.lane, away: [], port: 8123 }), undefined);
 });

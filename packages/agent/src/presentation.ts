@@ -44,6 +44,14 @@ export const transformText = (text: string, transform: TextTransform | 'none' | 
   return text.replace(/(^|[^\p{L}\p{N}'’])([\p{L}\p{N}])/gu, (_, before: string, first: string) => before + first.toUpperCase());
 };
 
+/**
+ * An open drawer of react-native-drawer-layout (its `Drawer`, which React Navigation's drawer also renders): a controlled
+ * component, `open` with the `onClose` its owner passed, and `renderDrawerContent`. Its overlay and the content it hides
+ * change on the UI thread (animated props), so its own props are what says it is open, on a device, FastSim or headless.
+ */
+export const isOpenDrawer = (p: HostProps): boolean =>
+  p.open === true && typeof p.onClose === 'function' && typeof p.renderDrawerContent === 'function' && p.drawerType !== 'permanent';
+
 /** The platform draws nothing here, so there is no frame to report either. */
 export const isUnrendered = (name: string, p: HostProps): boolean =>
   flatStyle(p).display === 'none' || (name === 'RNSScreen' && p.activityState === 0) || (name === 'RCTModalHostView' && p.visible === false);

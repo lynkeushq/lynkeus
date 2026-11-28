@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { caseLaunch, fillLaunch, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
+import { caseLaunch, fillLaunch, ignoredByHost, launchEnv, recordLaunch, resolveLaunch } from '../launch.js';
 
 test('flags win over the config, the config over the environment', () => {
   const launch = resolveLaunch(
@@ -39,10 +39,10 @@ test('a host the run starts gets every fact, in the environment and in the comma
   assert.equal(recordLaunch(launch, true), launch);
 });
 
-test('an attached app keeps its own locale, time zone and clock, and the manifest says so', () => {
+test('an attached app keeps its own random values, locale, time zone and clock, and the manifest says so', () => {
   const launch = { seed: '7', locale: 'es-AR', epoch: '2026-03-01T09:00:00.000Z' };
-  assert.deepEqual(recordLaunch(launch, false), { ...launch, unsupported: ['locale', 'epoch'] });
-  assert.deepEqual(recordLaunch({ seed: '7' }, false), { seed: '7' });
+  assert.deepEqual(recordLaunch(launch, false), { ...launch, unsupported: ['seed', 'locale', 'epoch'] });
+  assert.deepEqual(recordLaunch({ seed: '7' }, false), { seed: '7', unsupported: ['seed'] });
 });
 
 test('a host started for a case draws its own values, the same on every run', () => {
@@ -52,4 +52,16 @@ test('a host started for a case draws its own values, the same on every run', ()
   assert.notEqual(caseLaunch(launch, 'login-sign-up')?.seed, caseLaunch(launch, 'onboarding-kyc')?.seed);
   assert.deepEqual(caseLaunch({ locale: 'es-AR' }, 'login-sign-up'), { locale: 'es-AR' });
   assert.equal(caseLaunch(undefined, 'login-sign-up'), undefined);
+});
+
+test('a FastSim host that does not apply the locale has it listed as unsupported, until its kit says launch-locale', () => {
+  const launch = { locale: 'es-AR', timeZone: 'America/Argentina/Buenos_Aires', seed: 's' };
+  // Trial run 13: the app on FastSim still read "Log In" while run.json claimed es-AR.
+  assert.deepEqual(ignoredByHost(true, []), ['locale']);
+  assert.deepEqual(recordLaunch(launch, true, ignoredByHost(true, ['host-token']))?.unsupported, ['locale']);
+  assert.deepEqual(ignoredByHost(true, ['launch-locale']), []);
+  assert.equal(recordLaunch(launch, true, ignoredByHost(true, ['launch-locale'])), launch);
+  // Headless applies it; a run with no locale lists nothing.
+  assert.equal(recordLaunch(launch, true, ignoredByHost(false, [])), launch);
+  assert.equal(recordLaunch({ seed: 's' }, true, ['locale'])?.unsupported, undefined);
 });

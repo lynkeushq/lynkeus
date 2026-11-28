@@ -48,7 +48,7 @@ export const smoke = async (options: SmokeOptions): Promise<SmokeResult[]> => {
   const results: SmokeResult[] = [];
 
   const recover = async () => {
-    if (!options.appId) throw new Error('App disconnected and no --app to relaunch');
+    if (!options.appId) throw new Error('App disconnected and no app id to relaunch (--app, app in lynkeus.config.json, or the agent’s hello)');
     await device.launchApp(options.appId, { fresh: true });
     await clearOverlayIfShown(device, options.overlay);
   };

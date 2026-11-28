@@ -72,7 +72,9 @@ Si todavía no es una dependencia, el comando instala `lynkeus-agent` con `npx e
 
 ```
 wrote index.js (mounts the agent, then loads expo-router) and pointed package.json's main at it
-made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 wrote EXPO_PUBLIC_LYNKEUS_TOKEN to .env.local (check it is in .gitignore: Expo's template ignores .env*.local)
 Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go
 Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file
@@ -165,7 +167,7 @@ auto({ token: process.env.EXPO_PUBLIC_LYNKEUS_TOKEN });
 import 'expo-router/entry';
 ```
 
-`auto()` envuelve el componente raíz y encuentra el contenedor de navegación por su cuenta. Por defecto solo corre cuando `__DEV__` es verdadero, así que no necesitas pasar `enabled` salvo que quieras restringirlo más.
+`auto()` envuelve el componente raíz y encuentra el contenedor de navegación por su cuenta. Por defecto solo corre en desarrollo y en Lynkeus FastSim, nunca en un build de tienda, así que no necesitas pasar `enabled` salvo que quieras restringirlo más.
 
 Segundo, la clave `main` de `package.json`. En un proyecto con expo-router apunta a `expo-router/entry`; tiene que apuntar al archivo nuevo:
 

@@ -2,6 +2,8 @@
  * One definition per command, read by every surface: the terminal's parser and
  * usage, session lines, the MCP tools and the reference document.
  */
+import type { HelloEvent } from 'lynkeus-protocol';
+
 import type { ProgressEvent } from './cases/progress.js';
 import type { LynkeusConfig } from './config.js';
 import type { Device } from './device/driver.js';
@@ -32,12 +34,33 @@ export type Base = {
   attached: boolean;
   /** A case step that has already waited for its control to be there and uncovered: the command need not wait again. */
   waited?: boolean;
-  /** The same, but waiting for its app on another port: one per host when several run side by side. */
-  forPort?: (port: number) => { base: Base; stop: () => Promise<void> };
+  /**
+   * The same, but waiting for its app on another port: one per host when several run side by side. `ended` says why
+   * that port's app can no longer come (its host exited), so a wait for it fails at once instead of at its timeout.
+   */
+  forPort?: (port: number, o?: { ended?: () => string | undefined }) => { base: Base; stop: () => Promise<void> };
+  /** The same, on this port, for the apps `accepts` takes: an iOS Simulator's and an emulator's app attach side by side. */
+  forApp?: (accepts: (hello: HelloEvent) => boolean, share: string) => { base: Base; stop: () => Promise<void> };
+  /** Made by `forApp`: which apps of the port it drives (`ios`), so runs of this process on its other apps go on beside it. */
+  shares?: string;
   /** Where a long command says how far it has got, for a caller that follows it (an MCP client's progress). */
   progress?: (event: ProgressEvent) => void;
+  /** Where a long job that is not a case run (setup building the app) says what it is doing now, for the same caller. */
+  notify?: (message: string) => void;
   /** Aborted when the caller gives up on the command (an MCP client cancelling its request): a long one stops. */
   signal?: AbortSignal;
+  /**
+   * In a session or an MCP server: every command after it drives the app of `other` (a FastSim host on a port of its
+   * own) instead of the apps on the session's port, until it is called with none.
+   */
+  takeOver?: (other: Base | undefined) => void;
+  /** Which app the commands drive now, as an answer names it (`FastSim iOS`, `iOS Simulator`); undefined before one attached. */
+  lane?: () => string | undefined;
+  /**
+   * What an answer about the app adds when the app it drives is another than the last answer's, or another app on the
+   * port is turned away (said once, until that changes); undefined when there is nothing new.
+   */
+  appNote?: () => string | undefined;
 };
 
 export type Ctx = Base & { args: string[]; flags: FlagValues; passthrough: string[] };
@@ -48,6 +71,8 @@ export type Result = {
   /** What a program reads; printed instead of the text under --json. */
   json?: unknown;
   code?: number;
+  /** The lane the answer is about, when not the attached app's: it heads the answer instead. */
+  lane?: string;
 };
 
 export type Command = {
@@ -70,6 +95,8 @@ export type Command = {
   mcpOmit?: string[];
   /** What a model is told instead of `details`. */
   mcpDetails?: string;
+  /** Flag defaults over MCP when they differ from the terminal's: a walk an agent did not ask to be long stays short. */
+  mcpDefaults?: Record<string, number | string | boolean>;
   /** Runnable from a session line (default: when it needs the app or the graph). */
   session?: boolean;
   /** The usage line, when the generated one would mislead. */

@@ -25,9 +25,17 @@ La diferencia está en qué es real:
 
 **Se gana:** no hace falta simulador ni build; el host arranca en unos 40 segundos; se pueden levantar varios a la vez, uno por puerto; y la lectura de la pantalla y los toques son los mismos que en un dispositivo, con el diseño incluido.
 
+Además, cada paso tarda lo que tarda la app, no lo que tardarían el teclado y las transiciones de un dispositivo. En un dispositivo, un toque con un campo enfocado espera 300 ms a que el teclado se oculte, y escribir espera 80 ms a que el teclado aparezca y 25 ms entre letra y letra. En headless no hay teclado y cada letra se confirma antes de que el host responda, así que esas esperas no se hacen. En una app chica, un toque pasó de unos 170 ms a 85 ms, un toque justo después de escribir de unos 550 ms a 130 ms, y escribir tres letras de unos 370 ms a 30 ms. El campo `phases` de cada paso en `cases.jsonl` dice en qué se va el resto.
+
 **Se pierde:** todo lo nativo. La cámara, la biometría y las integraciones profundas con el sistema son mocks. Un WebView se renderiza como una caja vacía. Un fallo nativo aparece como un error de Jest.
 
 Para lo que el host no cubre, los mismos casos corren en un simulador. Lo único que cambia es cómo arranca la app.
+
+Los componentes de reemplazo de Jest pierden algunos estilos que el dispositivo sí aplica, y el host los repone cuando puede deducirlos. El `contentContainerStyle` de un ScrollView va a la vista que contiene el contenido. Una vista nativa de una biblioteca que no tiene tamaño propio (un proveedor de teclado o de gestos) y solo envuelve una pantalla que debe ocupar todo el espacio, ocupa ese espacio como ella. Sin esto, una pantalla entera quedaba con altura cero, cada campo se encimaba con el siguiente, y un control que figuraba como tapado hacía que cada toque o escritura esperara a que se destapara.
+
+Lo que anima Reanimated llega a la pantalla como en un dispositivo. Bajo Jest, Reanimated guarda el estilo y las props actuales de cada animación aparte de los que la vista usó al renderizarse; el host lee esos valores, aplica los `translateX` y `translateY`, y entrega a los callbacks de cada fotograma el mismo reloj con el que corren las animaciones de Reanimated, también cuando la ejecución fija `--epoch`. Un cajón hecho con react-native-drawer-layout se abre y se cierra: mientras está abierto, sus filas se presentan y la pantalla de atrás queda oculta, y `app.swipe: { direction: left }` lo cierra, porque un deslizamiento donde nada se desplaza en esa dirección mueve el gesto de arrastre (pan) de gesture-handler que está bajo el dedo. Un caso que cerraba el cajón en headless volviendo a tocar su botón (el rodeo que había que hacer antes) ahora falla igual que en un dispositivo, donde ese botón está oculto mientras el cajón está abierto: usa el deslizamiento en todos los destinos.
+
+Un FlatList o SectionList largo se desplaza hasta mostrar lo que se busca, como en un dispositivo. El ScrollView de Jest nunca mide nada, y una lista virtualizada renderiza solo sus primeras filas hasta que los eventos de layout le dicen cuánto mide su contenido y cada fila. Por eso una fila más abajo nunca llegaba al árbol. Antes de cada desplazamiento, el host le informa a la lista lo que Yoga midió para ella, su contenido y sus filas, y así `app.wait: { target: …, scroll: true }` alcanza una fila que está miles de puntos más abajo. El dedo cae en la lista que se dibuja encima en ese punto: la lista de un cajón cerrado, detrás de su pantalla, nunca es la que se desplaza. `Image.getSize` responde un cuadrado de 100 puntos, como un dispositivo una vez que la imagen cargó; antes, el cargador de Jest no respondía nada y una imagen de tamaño automático que entraba en pantalla tiraba abajo la pantalla entera. Lo que el host todavía no hace es mover una lista cuando la propia app la desplaza (`scrollToIndex`, `scrollToLocation`): ese salto se queda donde estaba.
 
 ## Antes de empezar
 
@@ -77,6 +85,8 @@ Deberías ver, después de que Jest compile la app:
 hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 ```
 
+El primer arranque es el lento: Jest compila con Babel tu app y cada paquete que importa, unos 9 segundos en una app de Expo con Reanimated. Guarda lo compilado en `.lynkeus/jest-cache/` y los arranques siguientes lo reutilizan: rondan el segundo y medio, también cuando el host lo levanta `case run --host`, `--on headless` o `lynkeus ci` en otro puerto o para otro trabajo. Si editas un archivo, solo se vuelve a compilar ese.
+
 Dos cosas intervienen:
 
 - El token. Es obligatorio: sin él el host se niega a arrancar, porque una app alojada habla con un backend real, y sin token cualquier proceso local podría manejarla. `headless init` crea el token del proyecto en `.lynkeus/token` (fuera de git) y el host y el CLI lo leen de ahí, así que no hay nada que exportar. Si prefieres otro valor, `LYNKEUS_TOKEN` en el entorno gana sobre el archivo.
@@ -100,9 +110,15 @@ Para ejecutar casos no necesitas los pasos 3 y 4. La opción `--host` levanta el
 API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-Verás `host: up (its log: …)` cuando esté listo; esa ruta es el registro de todo lo que imprime el host. Si el host no arranca en 180 segundos, la ejecución termina con las últimas líneas de su salida.
+Verás `--host: a headless host on port 8124, its own …` y la ruta del registro de todo lo que imprime el host. El host se conecta a un puerto libre propio y nunca al configurado: si tienes la app de desarrollo abierta en un simulador o emulador conectada a ese puerto, la ejecución no la mezcla con el host. La ejecución espera hasta 10 minutos a que el host se conecte (`--host-timeout`) y avisa si no lo hace; su registro tiene lo que imprimió.
+
+Con `--jobs <n>`, `--host` levanta un host por trabajo, cada uno conectado al puerto de su trabajo (Lynkeus elige puertos libres si no pasas `--ports`). Cada host sirve a los casos de su trabajo durante toda la ejecución y escribe su registro en la carpeta temporal del sistema, con el número de puerto en el nombre.
 
 Si el host muere a mitad de la ejecución (se queda sin memoria, un fallo), o está vivo pero su app dejó de contestar, `case run --host` arranca otro antes del caso siguiente, en lugar de dejar que todos los demás fallen con `No app attached`. Antes de cada caso también le pregunta al host cuánto heap usa y lo reinicia pasado el `--host-heap` por ciento de su límite (60 si no dices otra cosa). El caso que perdió el host sigue fallando, y sus razones dicen cómo terminó el host, con sus últimas líneas y la ruta de su registro; el host nuevo escribe un registro propio.
+
+**Cada caso empieza de cero, aunque compartan host.** Cuando un host atiende varios casos (`--host`, o `--keep-hosts` con un comando que ejecuta `headless start`, como hace `lynkeus ci`), antes de cada caso, salvo el primero, se reinicia en unos 200 ms. Vacía su almacenamiento simulado (MMKV, keychain, AsyncStorage), las reglas de red, el reloj, el modo sin conexión y los mocks nativos; ejecuta el comando `reset` de la app si la app registró uno, y vuelve a montar la app, así que la navegación arranca desde el principio. El registro del caso lo indica con una línea `↺`. Hay algo que no se reinicia: lo que la app guarda a nivel de módulo, como una caché de consultas o un store creado al importar un archivo, porque cada host carga los módulos de la app una sola vez. Si por eso un caso ve datos de otro, dale a cada caso su propio host con `--host-command` y sin `--keep-hosts`. Cuesta un arranque de host por caso.
+
+En un host así, `app.relaunch` (y cualquier macro que lo use, como un `app.fresh` que reinicia y relanza) hace ese mismo reinicio en vez de levantar otro host. Tarda unos 100 ms, cuando arrancar Jest y la app de nuevo llevaba entre 2 y 3 s, y aísla igual que el reinicio entre casos. Si el host no puede reiniciarse, se arranca otro. Con un host por caso, relanzar sigue levantando un host nuevo.
 
 ## El archivo de entrada
 
@@ -124,7 +140,7 @@ const { default: App } = require('../app/App');
 export { App };
 ```
 
-`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view y webview. Si una biblioteca trae su propio mock de jest o su archivo de setup para jest, se usa solo.
+`installDefaultMocks` simula lo que está instalado y que de otro modo fallaría en Node: MMKV, keychain, device-info, safe-area-context, react-native-localize, expo-localization, async-storage, worklets, pager-view y webview. Si una biblioteca trae su propio mock de jest o su archivo de setup para jest, se usa solo.
 
 Los mocks de biometría, in-app-review, vision-camera, image-picker, video, fast-image y de la parte nativa de vector-icons hay que pedirlos. Se pasan en `overrides`:
 
@@ -139,6 +155,8 @@ Las pantallas de SDK nativos que jest no puede ejecutar (verificación de identi
 Reanimated y gesture-handler quedan intactos a propósito: su soporte para Jest es un plugin de Babel, no un `jest.mock`. Si tu app los quiere simulados, pásalos en `overrides`.
 
 Las opciones que acepta son `skip`, `overrides`, `network`, `networkHosts`, `websocket`, `animations`, `deviceVersion` y `locale`.
+
+**Idioma y zona horaria.** Si la ejecución arranca con `--locale es-AR` (o con `launch.locale` en `lynkeus.config.json`), la app ve ese idioma en todos los lugares donde lo consulta: expo-localization, react-native-localize y el propio `Intl`. Un `toLocaleString()` o un `new Intl.NumberFormat()` sin idioma da formato de es-AR. Los separadores, la moneda, el reloj de 12 o 24 horas y el primer día de la semana salen de lo que Intl dice que muestra un teléfono configurado así. `--time-zone` cambia a la vez la zona que informan esas bibliotecas y la zona en la que corre `Date` (el `TZ` del host). La opción `locale` de la entrada da las mismas respuestas cuando la ejecución no fija otra, pero no mueve la zona de `Date`: eso solo lo hace el entorno del host.
 
 La ruta del archivo puede ir en `lynkeus.config.json` como `entry`, para no repetir `--entry` en cada comando.
 
@@ -192,6 +210,7 @@ El host ejecuta el JavaScript de tu app contra un backend real, con la capa nati
 - **Los fallos nativos.**
 - **Los píxeles.** `lynkeus screenshot` y `lynkeus snapshot --pixels` necesitan un simulador. La comparación por árbol de `snapshot` sí funciona en el host.
 - **Una película del caso.** `case run --video` filma solo donde el host ofrece un comando `record`. Este host no dibuja nada y no lo ofrece.
+- **Que algo salga de la ventana.** Aquí una lista renderiza todos sus elementos y no se desplaza, así que no puede pasar una comprobación de que un texto quedó fuera de la vista (`app.see: { text: …, absent: true }` sobre un elemento que sigue dentro de una lista o de un scroll). Si se agota el tiempo con un elemento así, el paso queda como no compatible (`this host has no window (…)`), no como fallido. Comprobar que algo desapareció del árbol, como un modal que se cerró o un error que se fue, sigue funcionando, y falla si eso sigue ahí.
 
 Para todo eso, ejecuta los mismos casos en un simulador.
 

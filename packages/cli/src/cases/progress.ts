@@ -19,14 +19,15 @@ export type ProgressEvent =
       total: number;
       jobs: number;
       /** In the order the jobs take them; `expectedMs` is how long the case took when it last passed, where known. */
-      cases: { id: string; title?: string; expectedMs?: number }[];
+      cases: { id: string; title?: string; expectedMs?: number; lane?: string }[];
       out?: string;
     })
   /** The report the run fills as it goes, where it is pushed. */
   | (At & { type: 'report'; url: string })
-  | (At & { type: 'case-start'; id: string; job: number; attempt: number; steps: number; host?: string })
-  | (At & { type: 'step'; id: string; job: number } & StepProgress)
-  | (At & { type: 'case-end'; id: string; job: number; attempt: number; result: CaseReport['result']; ms: number; retrying?: boolean })
+  /** `lane`: the target a case runs on beside others (`case run --on`), whose label also ends its `id`. */
+  | (At & { type: 'case-start'; id: string; job: number; attempt: number; steps: number; host?: string; lane?: string })
+  | (At & { type: 'step'; id: string; job: number; lane?: string } & StepProgress)
+  | (At & { type: 'case-end'; id: string; job: number; attempt: number; result: CaseReport['result']; ms: number; retrying?: boolean; lane?: string })
   /** `stopped`: why the run ended before its cases did (the MCP client cancelled it, `case stop`). */
   | (At & { type: 'run-end'; passed: number; failed: number; unsupported: number; ms: number; report?: string; stopped?: string });
 
@@ -242,6 +243,12 @@ export const PROGRESS_FILE = 'progress.ndjson';
 
 /** Where `case status` looks when it is given no run: what the last run of this project wrote. */
 export const lastRunFile = (root: string) => path.join(root, '.lynkeus', 'last-run.json');
+
+/** Points `case status` and `case stop` at a run that is starting: its progress file, and the file that asks it to stop. */
+export const writeLastRun = (root: string, progress: string, stop: string | undefined): void => {
+  fs.mkdirSync(path.dirname(lastRunFile(root)), { recursive: true });
+  fs.writeFileSync(lastRunFile(root), `${JSON.stringify({ progress, pid: process.pid, startedAt: new Date().toISOString(), stop })}\n`);
+};
 
 const clock = (msLeft: number): string => {
   const s = Math.round(msLeft / 1000);

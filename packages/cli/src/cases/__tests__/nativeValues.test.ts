@@ -58,7 +58,10 @@ test('a property read in several cases is listed once, and called when any case 
 test('FastSim says what read as true and gives a snippet to paste, leaving out what the app called', () => {
   const lines = describeNativeValues([fastsim('isTablet'), fastsim('addCard', { called: true })]);
   const text = lines.join('\n');
-  assert.match(text, /your app read RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; it read as true/);
+  assert.match(
+    text,
+    /your app read RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; it read as a function and was never called: a constant read as true/,
+  );
   assert.doesNotMatch(text, /addCard/);
   assert.match(text, /"nativeMocks": \{\s+"RNFoo\.isTablet": \{\s+"value": null/);
 });
@@ -121,4 +124,71 @@ test('what the headless fallback answered is told once, grouped by module, with 
     lines.findIndex((l) => l.startsWith('native values')),
     5,
   );
+});
+
+test('a module the cases config declares absent is not listed as one the host does not know', () => {
+  const read = (module: string, platform: 'ios' | 'android'): RunNativeValue => ({ module, platform, host: 'headless', readAs: 'undefined' });
+  const reads = [read('EXDevLauncher', 'ios'), read('EXOther', 'ios'), read('EXAndroidOnly', 'ios')];
+  const text = describeNativeValues(reads, { nativeMocks: { EXDevLauncher: { absent: true }, EXAndroidOnly: { absent: ['android'] } } }).join('\n');
+  assert.doesNotMatch(text, /EXDevLauncher/);
+  assert.match(text, /EXOther/);
+  assert.match(text, /EXAndroidOnly/);
+  assert.deepEqual(describeNativeValues([read('EXDevLauncher', 'ios')], { nativeMocks: { EXDevLauncher: { absent: true } } }), []);
+});
+
+test('a member read and never called that the spec declares a method is not a finding; a declared constant is', () => {
+  const specs = new Map([
+    [
+      'RNFoo',
+      new Map([
+        ['setFocusTo', 'method' as const],
+        ['isTablet', 'constant' as const],
+      ]),
+    ],
+  ]);
+  assert.deepEqual(describeNativeValues([fastsim('setFocusTo')], { specs }), []);
+  const text = describeNativeValues([fastsim('setFocusTo'), fastsim('isTablet')], { specs }).join('\n');
+  assert.doesNotMatch(text, /setFocusTo/);
+  assert.match(text, /RNFoo\.isTablet on ios, which Lynkeus FastSim does not know; its spec declares it a constant, and it read as true/);
+  assert.doesNotMatch(text, /for a constant only/);
+});
+
+test('a member no spec covers is told as a constant or a reference, and its snippet is for a constant only', () => {
+  const text = describeNativeValues([fastsim('hasNotch')]).join('\n');
+  assert.match(text, /it read as a function and was never called: a constant read as true, or a method the app only took a reference to/);
+  assert.doesNotMatch(text, /a constant with a wrong value/);
+  assert.match(text, /for a constant only: a method given a value stops being callable/);
+  assert.match(text, /"RNFoo\.hasNotch": \{\s+"value": null/);
+});
+
+test('the constants FastSim guesses are named beside what the app config says, with the nativeMocks that give them', async () => {
+  const { appFacts, describeGuessed } = await import('../nativeValues.js');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lk-guessed-'));
+  fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { 'expo-application': '~7.0.0' } }));
+  fs.writeFileSync(
+    path.join(root, 'app.json'),
+    JSON.stringify({
+      expo: { name: 'ShopTrial', version: '0.0.1', ios: { bundleIdentifier: 'com.shoptrial' }, android: { package: 'com.shoptrial', versionCode: 3 } },
+    }),
+  );
+  // A FastSim whose kit applies nativeMocks reads the identity from the app's config: nothing left to say here.
+  const applies = { hostApplies: true };
+  assert.deepEqual(describeGuessed(appFacts(root), {}, applies), []);
+  // What the config does not give is still a placeholder there, until nativeMocks sets it.
+  const bare = { dependencies: ['expo-application'], ids: { ios: 'com.shoptrial', android: 'com.shoptrial' } };
+  const lines = describeGuessed(bare, {}, applies);
+  assert.match(lines[0] ?? '', /^native values Lynkeus FastSim guessed \(3\): .*its config gives none of these/);
+  assert.equal(lines[1], '  • ExpoApplication.applicationName reads "App"');
+  assert.match(lines.join('\n'), /"ExpoApplication\.nativeBuildVersion": \{\n\s+"value": null/);
+  assert.match(describeGuessed(bare, { 'ExpoApplication.applicationName': { value: 'Shop' } }, applies)[0] ?? '', /\(2\)/);
+  assert.deepEqual(describeGuessed({ dependencies: [], ids: {} }), []);
+  // FastSim as it is (no expo-native-mocks): every guessed value stays listed, a mock set for one said to have done nothing.
+  const ignored = describeGuessed(appFacts(root), { 'ExpoApplication.applicationId': { value: 'com.shoptrial' } });
+  assert.equal(
+    ignored[0],
+    'native values Lynkeus FastSim guessed (4): the app reads expo-application, which this FastSim answers with placeholders, and it does not apply nativeMocks to Expo modules: the 1 set there had no effect',
+  );
+  assert.equal(ignored[1], '  • ExpoApplication.applicationId reads "com.example.app", though nativeMocks sets it');
+  assert.match(ignored.at(-1) ?? '', /passes on a device or headless, not on this FastSim; .*expo-native-mocks/);
+  assert.doesNotMatch(ignored.join('\n'), /"nativeMocks":/);
 });

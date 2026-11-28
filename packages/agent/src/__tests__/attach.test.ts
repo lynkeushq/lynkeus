@@ -69,6 +69,42 @@ describe('a token that did not arrive', () => {
   });
 });
 
+describe('a token from a FastSim host', () => {
+  const g = globalThis as { __fastsimDevice?: unknown };
+  afterEach(() => {
+    delete g.__fastsimDevice;
+  });
+
+  it('lets a bundle made without the token attach on a FastSim host started with one, proving it as a bundled one', () => {
+    g.__fastsimDevice = { width: 402, height: 874, lynkeusToken: 'host-secret' };
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: undefined });
+    expect(d.dials).toHaveLength(1);
+    const link = opened(d);
+    const hello = handshake(link.socket, link.sent, 'host-secret');
+    // The proof is the host's token's: a driver holding another one would be refused.
+    expect(hello.proof).toBe(hmac('host-secret', `lynkeus/app/s/${DRIVER_NONCE}/${hello.nonce}`));
+    expect(link.sent.join('\n')).not.toContain('host-secret');
+    stop();
+  });
+
+  it('is not used anywhere else, nor over a token the bundle carries', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    g.__fastsimDevice = { width: 402 };
+    const none = dialer();
+    start({ navigation: noNavigation, backend, createSocket: none.createSocket, token: undefined })();
+    expect(none.dials).toHaveLength(0);
+    g.__fastsimDevice = { lynkeusToken: 'host-secret' };
+    const bundled = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: bundled.createSocket, token: 'bundled-secret' });
+    const link = opened(bundled);
+    const hello = handshake(link.socket, link.sent, 'bundled-secret');
+    expect(hello.proof).toBe(hmac('bundled-secret', `lynkeus/app/s/${DRIVER_NONCE}/${hello.nonce}`));
+    stop();
+    warn.mockRestore();
+  });
+});
+
 describe('dialing the driver', () => {
   beforeEach(() => {
     jest.useFakeTimers({ now: 0 });
@@ -125,6 +161,28 @@ describe('dialing the driver', () => {
     expect(d.dials[d.dials.length - 1]! - before).toBe(100);
     stop();
   });
+  it('ignores the close of a socket it already replaced, so two sockets cannot take turns redialing', () => {
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const first = d.sockets[0]!;
+    first.onopen?.();
+    first.onclose?.();
+    jest.runOnlyPendingTimers();
+    expect(d.sockets).toHaveLength(2);
+    const second = d.sockets[1]!;
+    second.onopen?.();
+    // The stale socket closes again (a late close event, or a socket that outlived its replacement).
+    for (let i = 0; i < 5; i++) {
+      first.onclose?.();
+      jest.runOnlyPendingTimers();
+    }
+    expect(d.sockets).toHaveLength(2);
+    second.onclose?.();
+    jest.runOnlyPendingTimers();
+    jest.runOnlyPendingTimers();
+    expect(d.sockets).toHaveLength(3);
+    stop();
+  });
 });
 
 describe('replayed requests', () => {
@@ -149,6 +207,32 @@ describe('replayed requests', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(link.sent.filter((line) => JSON.parse(line).id === 1)).toHaveLength(1);
+    unregister();
+    stop();
+  });
+
+  it('runs another request that reuses an answered id, and says which method each reply answers', async () => {
+    const d = dialer();
+    const unregister = qa.register('say', (params) => params);
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    link.sent.length = 0;
+    const settle = async () => {
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    };
+    // A driver older than 0.7.7 numbers its requests from 1, and drivers sharing a port share its session.
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'say', params: { word: 'one' } }) });
+    await settle();
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'ping' }) });
+    await settle();
+    d.sockets[0]!.onmessage?.({ data: JSON.stringify({ id: 1, method: 'say', params: { word: 'two' } }) });
+    await settle();
+    const replies = link.sent.map((line) => JSON.parse(line) as { id: number; method: string; result: Record<string, unknown> });
+    expect(replies.map((r) => r.method)).toEqual(['say', 'ping', 'say']);
+    expect(replies[0]!.result).toEqual({ word: 'one' });
+    expect(replies[1]!.result.pong).toBe(true);
+    expect(replies[2]!.result).toEqual({ word: 'two' });
     unregister();
     stop();
   });
@@ -210,6 +294,33 @@ describe('the handshake', () => {
     link.socket.onmessage?.({ data: JSON.stringify({ id: 2, method: 'screen' }) });
     expect(JSON.parse(link.sent[2]!)).toMatchObject({ id: 2, error: { code: 'unauthenticated' } });
     stop();
+  });
+
+  it("warns once when a driver holding another project's token refuses the app or fails its own proof", () => {
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    link.socket.onmessage?.({ data: JSON.stringify({ event: 'auth', session: 's', nonce: DRIVER_NONCE }) });
+    // The driver checks the app's proof against its own token and drops the link without a word.
+    link.socket.onclose?.();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String(spy.mock.calls[0]![0])).toContain("does not hold this app's token");
+    expect(String(spy.mock.calls[0]![0])).toContain('ws://localhost:8123');
+    stop();
+    spy.mockRestore();
+  });
+
+  it('does not warn when a proven link drops, as a relaunch does', () => {
+    const spy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const d = dialer();
+    const stop = start({ navigation: noNavigation, backend, createSocket: d.createSocket, token: 'secret' });
+    const link = opened(d);
+    handshake(link.socket, link.sent);
+    link.socket.onclose?.();
+    expect(spy).not.toHaveBeenCalled();
+    stop();
+    spy.mockRestore();
   });
 
   it('says nothing to a driver of the old handshake, which would have taken the token', () => {

@@ -42,9 +42,11 @@ Con palabras comunes:
 Configura lynkeus en esta app.
 ```
 
-Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo.
+Al conectarse, el servidor le explica al modelo el orden a seguir. El agente llama a `status`, que lista lo que el proyecto tiene y qué arregla cada pieza que falta, y después a `init`, que instala `lynkeus-agent`, lo monta en el punto de entrada de la app y crea el token del proyecto en `.lynkeus/token` (fuera de git). Nadie define variables: el bundle de la app, la CLI y el servidor leen ese archivo. De paso deja el [skill de Lynkeus](#el-skill-de-lynkeus) en `.claude/skills/lynkeus` y dos [subagentes](#subagentes-para-el-trabajo-de-rutina) en `.claude/agents`.
 
-El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo (`npx react-native run-ios`, o `npx expo run:ios` en Expo) y reiniciar Metro con `--reset-cache`. Un agente con terminal lo hace solo; si no, te lo pide. Después `status` muestra la app conectada y el agente ya puede leer la pantalla.
+El agente de Lynkeus tiene código nativo, así que hay que compilar la app de nuevo. Para eso está la herramienta `setup`, que lo hace todo en una sola llamada: corre `init` si hace falta y, por cada plataforma, elige el dispositivo, levanta Metro si no está corriendo (con su propio log), compila con el comando del proyecto (`npx expo run:ios --no-bundler`, `npx react-native run-android --no-packager`), abre la app, espera a que se conecte y al final llama a `status`. Contesta con una línea por paso; los logs de la compilación y de Metro, y lo que dijeron `init` y `status`, quedan en `.lynkeus/runs/setup`. Si un paso falla, trae las últimas líneas del log que lo explican y la ruta del archivo. Después de arreglar algo se puede volver a llamar: lo que ya estaba hecho se anuncia y se salta.
+
+Las plataformas salen del argumento `platform`, o de los `ios` y `android` de `cases.targets`, o de lo que compila la app. El dispositivo es un simulador encendido o un emulador o teléfono conectado; si no hay ninguno, `setup` enciende solo el que nombra el proyecto (`device` para un simulador, `avd` para un emulador, en `lynkeus.config.json`) y lo avisa, para que el agente lo apague al terminar. Nunca borra un dispositivo. Mientras compila, informa el progreso a los clientes que lo piden.
 
 Para correr sin simulador, pídele que la prepare en modo headless: `headless_init` instala jest, Testing Library y `lynkeus-headless` y escribe el punto de entrada, `headless_doctor` nombra los módulos nativos que falten simular, y los casos corren en Node con `case_run` y `host`. El backend de la app tiene que ser local; `apiUrl` en `lynkeus.config.json` se lo indica al host.
 
@@ -56,7 +58,7 @@ Escribe un test para la pantalla de inicio de sesión, córrelo y sube la corrid
 
 La primera vez el agente llama a `case_init`, que escribe un caso de ejemplo y la referencia del formato. Después lleva la app a la pantalla con `press`, `type` y `wait`, escribe el caso como archivo markdown y lo corre con `case_run`. Un caso que falla vuelve con la pantalla donde falló y el motivo, para que el agente corrija el caso o reporte el error de la app. Con `push`, la corrida sube a lynkeus.io y el agente tiene la dirección del reporte apenas arranca: no hace falta esperar al final, porque el reporte se va completando caso por caso.
 
-Hay dos atajos para no escribir el caso desde cero. `case_here` arma uno con lo que la app muestra en ese momento, con verificaciones que ya pasan. `case_new` arma el borrador para otra pantalla: los toques para llegar, la preparación del backend que ofrece el servidor de fixtures y las verificaciones que quedan por escribir. Para saber qué puede preparar ese servidor, el agente llama a `fixtures_describe`.
+Hay dos atajos para no escribir el caso desde cero. `case_here` arma uno con lo que la app muestra en ese momento, con verificaciones que ya pasan. `case_new` arma el borrador para otra pantalla: los toques para llegar (si otro caso ya llega ahí, sus mismos pasos, con el nombre de ese caso, así el agente no vuelve a buscar a mano una navegación que ya existe), la preparación del backend que ofrece el servidor de fixtures y las verificaciones que quedan por escribir. Para saber qué puede preparar ese servidor, el agente llama a `fixtures_describe`.
 
 Si el caso es largo, conviene partirlo. La referencia que escribe `case_init` le enseña al agente a abrir cada parte de `steps` con un comentario numerado (`# 3 Un PIN equivocado`), con la misma numeración que la lista de `expected`. El reporte agrupa los pasos según esas secciones, y quien lo lee encuentra cada parte sin abrir el archivo.
 
@@ -74,7 +76,9 @@ Corre todos los casos en headless, de a tres, y avísame cómo va.
 
 Con `host`, si el host headless se cae a mitad de un caso, o si su memoria pasa del porcentaje que indica `host_heap`, la corrida lo vuelve a levantar antes del caso siguiente. Una caída hace fallar ese caso y no todos los que vienen después.
 
-Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run`, además recibe notificaciones de progreso de MCP con esa misma línea.
+Un caso está listo cuando pasa en los destinos de tu proyecto: la lista `cases.targets` de `lynkeus.config.json`, o la que el caso trae en su encabezado con `targets:`. El agente lo comprueba con un solo `case_run` con `on: targets`, que corre cada caso a la vez en sus destinos, solo en esos, y contesta con una línea por caso y por destino. Si a la máquina le falta un destino declarado, lo nombra con el motivo y la comprobación queda incompleta. Si el proyecto no tiene destinos declarados, el agente te pregunta cuáles importan; `status` sugiere una lista a partir de lo que hay en la máquina. `on: all` sigue disponible para correr en todo lo que tenga la máquina, si se lo pides.
+
+Mientras tanto, `case_status` responde en qué va la corrida: cuántos casos terminaron y cuántos fallaron, qué está corriendo cada trabajo y en qué sección del caso, y cuánto falta. Lo puede llamar el agente, o una persona desde otra terminal con `npx lynkeus case status`. Si el cliente manda un progress token junto con `case_run` o `evidence`, recibe además una notificación de progreso de MCP por cada cosa que hace la corrida: cuando arranca un caso (con su intento) y cuando termina (con el resultado, lo que tardó y cuántos casos lleva ese destino, por ejemplo `2/10 done`), y cuando empieza y termina cada paso (`step 3/6`, el paso y su tiempo). Si la corrida usa varios destinos, cada línea empieza con el suyo, por ejemplo `[fastsim:ios] sign-in · step 4/6 ✅ app.press #login-submit · 117 ms`, y así se pueden leer intercaladas. El cliente las muestra en su interfaz; no entran en el contexto del modelo, y la respuesta de la herramienta sigue igual de corta. Mientras un paso tarda mucho, la línea de estado de la corrida se repite por lo menos cada 20 segundos, así el cliente no abandona una llamada que sigue trabajando. `setup` avisa de la misma manera cada uno de sus pasos y las líneas del build. Por MCP, una corrida se detiene a los `budget` segundos (1500 si el agente no pasa otro valor; `0` la deja sin límite): la respuesta incluye lo que llegó a correr y nombra los casos que quedaron afuera, para correrlos en otra llamada. Si el cliente cancela la llamada, la corrida para como con `case_stop`: no empieza ningún paso más, se detienen los hosts que levantó y se corta el comando de un `exec` en curso. Un paso que se pasa de su propio `timeoutMs` por más de 30 segundos (o de 180 segundos si no lo declara, valor que cambia `cases.stepCeilingMs`) falla por trabado y no deja la corrida colgada.
 
 ## 4. Elige cuántas herramientas servir
 
@@ -82,27 +86,29 @@ Cada herramienta que ofreces le cuesta tokens al modelo en cada turno, la use o 
 
 | Comando | Herramientas | Costo aproximado por turno |
 |---|---|---|
-| `lynkeus mcp` | 23 | 3500 tokens |
-| `lynkeus mcp --full` | las 56 | 7300 tokens |
+| `lynkeus mcp` | 34 | 7700 tokens |
+| `lynkeus mcp --full` | las 64 | 11 500 tokens |
 
-Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea rastrear la app, grabar o tomar snapshots.
+Empieza con el conjunto básico. Agrega `--full` solo para un agente cuyo trabajo sea grabar o tomar snapshots.
 
 Las herramientas básicas son:
 
 | Herramienta | Qué hace |
 |---|---|
 | `status` | Qué tiene el proyecto de Lynkeus y qué falta, cada cosa con su arreglo, y si hay una app conectada. |
+| `setup` | Conecta la app de una vez: `init`, el dispositivo, Metro, la compilación de desarrollo, el arranque, la espera hasta que se conecta y `status`. Una línea por paso; los logs, en `.lynkeus/runs/setup`. |
 | `init` | Instala el agente de Lynkeus, lo monta y crea el token del proyecto. |
 | `headless_init` | Prepara la app para correr en Node, sin simulador. También una app con Expo Router. |
 | `headless_doctor` | Lista los módulos nativos que la app usa y que nada simula todavía, y puede escribir stubs para ellos. |
 | `fastsim_install` | Baja Lynkeus FastSim para esta máquina y una plataforma (`ios` o `android`), para las organizaciones cuyo plan lo incluye. Su README explica cómo correr casos con `case_run` y `host_command`. Ver [Correr casos en Lynkeus FastSim](/es/guides/fastsim/). |
 | `fastsim_start`, `fastsim_stop` | Arrancan un host de Lynkeus FastSim sobre un bundle y le conectan el servidor, para que `screen`, `press` y `type` recorran la app en FastSim antes de escribir un caso; y lo detienen. |
 | `case_init` | Escribe un caso de ejemplo y la referencia del formato. |
-| `case_run` | Corre casos, de a uno o en paralelo; uno que falla vuelve con su pantalla y su motivo. |
+| `case_run` | Corre casos, de a uno o en paralelo. Uno que pasa ocupa una línea; uno que falla vuelve con su paso, su pantalla y su motivo (con `verbose`, completo). Con `on: targets` y `brief`, una suite en varios destinos devuelve solo lo que no pasó y el conteo de cada destino. |
+| `evidence` | Corre casos con una captura por paso, un video por caso y `report.html`, y responde solo con la ruta del reporte, el resultado de cada caso en cada destino y las capturas sospechosas (una acción que no cambió la pantalla, una vista del sistema delante de la app). |
 | `case_status` | En qué va una corrida: casos terminados, qué corre cada trabajo y en qué sección, cuánto falta. |
 | `case_here` | Arma un caso con la pantalla que la app muestra ahora, con verificaciones que ya pasan. |
-| `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar, qué preparar, qué falta verificar. |
-| `case_coverage` | A qué pantallas llegan los casos, a cuáles ninguno, y cuáles nombra un caso aunque la app ya no las tenga. |
+| `case_new` | Arma el borrador de un caso para una pantalla: cómo llegar (el camino de un caso que ya llega, si lo hay), qué preparar, qué falta verificar. |
+| `case_coverage` | A qué pantallas llegan los casos, a cuáles ninguno, cuáles nombra un caso aunque la app ya no las tenga, y qué pasos repiten varios casos y convendría reunir en una macro. |
 | `case_impact` | Qué casos alcanza el cambio de una rama, para correr solo esos. |
 | `fixtures_describe` | Qué puede preparar y leer el servidor de fixtures del proyecto, con los parámetros de cada comando. |
 | `fixtures_check` | Si el servidor de fixtures cumple el protocolo. |
@@ -115,8 +121,18 @@ Las herramientas básicas son:
 | `os_deeplink` | Abre una URL en la app, como se la entregaría el sistema. |
 | `map_show` | Qué botones tiene una pantalla y a dónde llevan, según el código. |
 | `map_plan` | Indicaciones para ir de una ruta a otra. |
+| `crawl` | Recorre la pantalla actual: toca cada control y anota a dónde lleva. Por MCP es corto: un nivel y 12 toques. |
+| `guide` | Una sección del [skill de Lynkeus](#el-skill-de-lynkeus), o la lista de secciones de un tema, para un cliente que no carga skills. |
 
 Si `lynkeus.config.json` declara `language` o `locale`, aparece una más, `app_locale`, que le dice al modelo en qué idioma están las pantallas antes de que empiece a adivinar.
+
+### El mapa no se arma a mano
+
+`map_show`, `map_plan`, `case_new` y `case_coverage` responden con el mapa de la app, `.lynkeus/graph.json`, y ninguna herramienta te pide construirlo. La primera que lo necesita lee el código y lo escribe; las siguientes miran si algún archivo del código cambió desde entonces y, si cambió, lo leen de nuevo. Esa revisión solo compara fechas de archivos, así que no se nota.
+
+El código no cuenta todos los caminos: algunos aparecen recién cuando alguien toca la app. Lynkeus los junta mientras se usa. Cada `press` del agente y cada toque de un `case_run` que lleva a otra pantalla, o abre o cierra una hoja, queda guardado como un paso que `map_plan` usa la próxima vez, sin pedirle nada más a la app.
+
+Si aun así `map_plan` o `case_new` no saben llegar a una pantalla, lo barato es un `crawl` desde la pantalla más cercana. Por MCP se detiene tras un nivel y 12 toques y contesta en pocas líneas: qué pantallas encontró, qué pasos nuevos aprendió y qué falló. Si se le acaba el presupuesto, otra llamada sigue donde quedó; con `max` o `depth` recorre más.
 
 ## 5. Enséñale a leer una pantalla
 
@@ -149,6 +165,8 @@ Pruebas una app de React Native a través de las herramientas de lynkeus.
   botones tiene y a dónde llevan, sin abrirla.
 - Para ir de una pantalla a otra, pide el camino con map_plan (from, to) y
   sigue esos toques. No pruebes botones al azar.
+- Si map_plan no conoce el camino, llama a crawl desde la pantalla más
+  cercana antes de explorar a mano.
 - Señala los controles por #testId. Usa el texto solo si no hay testId.
 - Cuando una fila repite un control, acota con "in" (el texto de esa fila)
   o con "nth".
@@ -160,9 +178,34 @@ Pruebas una app de React Native a través de las herramientas de lynkeus.
 
 ### Por qué `why` y no otro `screen`
 
-Es la regla que más rinde. En una sola respuesta, `why` dice si el objetivo está cubierto, oculto tras una capa, deshabilitado o si no existe (y cuál es el parecido más cercano); si la sesión se perdió, si el backend falló o limitó las peticiones, si todavía hay peticiones en curso o si no se hizo ninguna; y si el navegador murió. Un modelo que relee la pantalla tras un fallo gasta lo mismo y tiene que deducir todo eso por su cuenta.
+Es la regla que más rinde. En una sola respuesta, `why` dice si el objetivo está cubierto, oculto tras una capa, deshabilitado o si no existe (y cuál es el parecido más cercano); si la sesión se perdió, si el backend falló o limitó las peticiones, si todavía hay peticiones en curso o si no se hizo ninguna; si una respuesta llegó con 2xx pero la app registró un error en consola justo después (un cuerpo con otra forma que la que la app espera); y si el navegador murió. Un modelo que relee la pantalla tras un fallo gasta lo mismo y tiene que deducir todo eso por su cuenta.
 
 Además, cuando una herramienta falla, la respuesta de error ya trae ese diagnóstico adjunto, bajo `why:`.
+
+## El skill de Lynkeus
+
+Lo que el servidor le dice al modelo al conectarse es corto a propósito. El cliente lo vuelve a leer en cada llamada, así que cada línea de más se paga muchas veces en una misma sesión. Todo lo demás que un agente necesita para escribir buenos casos vive en el skill de Lynkeus, que no cuesta nada hasta que una tarea lo pide. Ahí están el formato de los casos y cómo se comparan los textos, las macros y los bloques `on:`, `app.relaunch`, dónde corre cada caso y cómo repartir una suite en paralelo, la evidencia y cómo compartir una corrida, la integración continua y las corridas que se repiten idénticas.
+
+`lynkeus init` lo instala en `.claude/skills/lynkeus` y lo menciona en lo que imprime. Súmalo al repositorio: así lo tiene cualquiera que trabaje en la app. Claude Code y los demás clientes compatibles con Agent Skills guardan en contexto solo la descripción del skill, que es una línea, hasta que una tarea lo necesita.
+
+Cada tema está partido en secciones cortas, un archivo por sección, de unos cientos de bytes hasta 1,4 KB como mucho: `cases/mocks.md`, `targets/fastsim.md`, `troubleshooting/press.md`. `SKILL.md` las ordena por tema. Tanto el skill como las instrucciones del servidor le piden al modelo que abra una sección cuando la tarea llega a ella y no antes. El motivo es el costo: todo lo que entra a la conversación se vuelve a pagar en cada llamada siguiente. En una prueba con Claude Code, el agente leyó cuatro temas enteros al empezar (26 KB, unos 7.000 tokens) y los arrastró durante unas 215 llamadas.
+
+Si no lo quieres, usa `lynkeus init --no-skill`, que deja fuera también los subagentes; `LYNKEUS_NO_SKILL=1` hace lo mismo para cualquier `init`. Para pasar el skill y los subagentes a la versión de la CLI que tienes, `lynkeus skill install`. Lynkeus anota en `.lynkeus-skill.json` y en `.claude/agents/.lynkeus-agents.json` qué archivos escribió; si cambiaste alguno, no pisa esa parte y te dice cuál. Con `--force` la reemplaza igual.
+
+Los clientes que no cargan skills tienen el mismo texto en la herramienta `guide`. Sin argumentos devuelve el índice. Con `topic` (`cases`, `targets`, `evidence`, `ci`, `determinism` o `troubleshooting`) devuelve la lista de secciones de ese tema, una línea por sección. Con `topic` y `section` devuelve solo esa sección: `topic: "targets"`, `section: "headless"`. En una terminal, `npx lynkeus guide targets headless` muestra lo mismo.
+
+### Subagentes para el trabajo de rutina
+
+Buena parte de una sesión es mecánica: conectar la app, ver dónde pueden correr los casos, correr la suite, juntar la evidencia. Para eso `lynkeus init` deja, junto al skill, dos subagentes de Claude Code en `.claude/agents`:
+
+- `lynkeus-setup` llama a `status` y a `init`, compila la app y arranca Metro hasta que la app se conecta, y resume en pocas líneas dónde pueden correr los casos. Usa las herramientas de Lynkeus, Bash y Read.
+- `lynkeus-runner` corre casos o la suite en los destinos del proyecto y devuelve los totales y una línea por cada fallo. No toca casos ni código. Usa las herramientas de Lynkeus y Read.
+
+Los dos declaran `model: sonnet`, así que la rutina corre en un modelo más chico que el que escribe los casos. Pero el ahorro mayor está en el contexto: los logs de compilación, las pantallas y la salida de las corridas se quedan en el subagente, y la conversación principal recibe solo el resumen. Puedes cambiar el modelo o las herramientas en esos archivos; a partir de ahí Lynkeus no los toca.
+
+Las herramientas figuran como `mcp__lynkeus__*`, lo que supone que agregaste el servidor con el nombre `lynkeus`, como en el [paso 1](#1-conecta-el-servidor). Si usaste otro nombre, corrige la línea `tools` de los dos archivos.
+
+Ojo: los clientes leen estos archivos al empezar la sesión, así que los subagentes que `init` escribe a mitad de una sesión recién existen en la siguiente. Tampoco hacen falta: las instrucciones del servidor le piden a cualquier cliente (Claude Code, Codex, Gemini, Kimi, Qwen u otro) que use los trabajos de una sola llamada (`setup`, `case_run` con `on: targets` y `brief`, `evidence`) en lugar de compilar y manejar dispositivos desde su terminal, y que, si puede correr una tarea en un contexto aparte, le pase esos trabajos y se quede solo con los resúmenes. La salida larga de cada trabajo queda en archivos que el agente abre solo si la respuesta le indica uno.
 
 ## Un ciclo completo: revisar un pull request
 
@@ -186,6 +229,8 @@ printf '%s\n' '["press","#next-button"]' '["wait","Settings.Main"]' '["screen"]'
 
 Cada paso cuesta unos 50 ms, contra cerca de 1,5 s de un comando suelto. Cuando un paso falla, la respuesta trae `why` junto al error.
 
+Tanto la sesión como el servidor MCP pueden tener conectadas varias apps a la vez: un build de iOS, uno de Android y, después de `fastsim start`, un host de FastSim en un puerto aparte. Por eso cada respuesta sobre la app empieza indicando cuál contestó: `[iOS Simulator]`, `[Android emulator]`, `[FastSim iOS]`, `[FastSim Android]` o `[headless]`. En la sesión, además, la respuesta JSON trae ese valor en `lane`.
+
 ## Leer los reportes desde un agente
 
 Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agente que lee los resultados. El servicio de reportes ofrece su propio servidor MCP, solo de lectura, en `https://lynkeus.io/mcp`. Sus herramientas son `list_runs`, `get_run`, `get_case`, `get_step`, `get_frame`, `case_history` y `flaky_cases`. `get_case` dice qué prueba el caso y qué espera, y por cada paso los eventos de analítica que disparó, con el servicio al que fue cada uno (distinguiendo los de la app de los del backend), y las peticiones que mandó la app. `get_step` trae un paso completo: cada evento con sus propiedades, y cada petición con sus encabezados y cuerpos y lo que volvió, con los secretos ya ocultos. `get_frame` devuelve como imagen la pantalla que dejó un paso, por defecto el que falló, para que el cliente vea qué mostraba la app. Una ejecución guarda capturas cuando se hizo con `--screenshots`. Está descrito en [reportes](/es/guides/reports/).
@@ -201,14 +246,14 @@ Lo anterior es un agente que maneja la app. Hay otro uso, independiente: un agen
 
 **El cliente no muestra herramientas.** El servidor no arrancó. Ejecuta `npx lynkeus mcp --root /ruta/a/tu/app` a mano para ver el error; lo habitual es una ruta equivocada.
 
-**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
+**Todas las herramientas agotan el tiempo.** El servidor arrancó, pero la app no se conectó. Pídele al agente que llame a `status`: dice qué pieza falta. Lo habitual es que la app no esté abierta, que no sea un build de depuración, o que su bundle no tenga el token: después de que `init` lo creó, hay que reiniciar Metro con `--reset-cache`. `setup` ya arranca Metro con la caché limpia, y si encuentra uno que no levantó él, se detiene y lo dice. El token es el de `.lynkeus/token`, salvo que el entorno del servidor defina `LYNKEUS_TOKEN`.
 
-**`map_plan` no devuelve indicaciones.** El grafo estático solo conoce las navegaciones que pudo leer en el código. `npx lynkeus crawl` recorre la app y agrega los caminos observados.
+**`map_plan` no devuelve indicaciones.** Ese camino no está escrito en el código de forma que se pueda leer. Haz que el agente llame a `crawl` desde la pantalla de partida, o desde una cerca del destino, y que vuelva a pedir el camino.
 
 **El modelo insiste con un texto que no coincide.** Una palabra dentro de un párrafo no es un objetivo. Indícale que use `#testId`, y agrega `testID` a los controles que no lo tengan.
 
 ## Siguientes pasos
 
 - [Manejar la app](/es/guides/driving-the-app/): los mismos comandos, a mano.
-- [Referencia de la CLI](/es/reference/cli/): los 56 comandos que sirve `--full`.
+- [Referencia de la CLI](/es/reference/cli/): los 60 comandos que sirve `--full`.
 - [Seguridad](/es/security/): qué expone el agente y por qué solo en depuración.

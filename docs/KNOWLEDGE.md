@@ -12,6 +12,16 @@ route, the file that declares it, the testIds a screen is likely to have, and
 the navigations it can perform. Runs add observed edges (`.lynkeus/edges.jsonl`):
 this button, from this screen, actually landed there.
 
+You rarely run `map build` yourself. Every command that reads the graph
+(`case coverage`, `case new`, `map plan`, `map show`, `map paths`, `smoke`…)
+builds it first when there is none, and again when a source file it was read
+from changed or went away, or a folder holding one gained a file (a new screen
+in an Expo Router app is only a new file). The check stats the files and
+parses nothing, so it costs milliseconds; a rebuild costs what `map build`
+costs, once per change. That is why `map build` is not an MCP tool: an agent
+would have to know when to call it, and a check that runs on its own needs no
+call at all.
+
 | Command | |
 |---|---|
 | `lynkeus map build [--as-base]` | read the source; `--as-base` also keeps it as `graph.base.json` for `map check` |
@@ -26,6 +36,29 @@ this button, from this screen, actually landed there.
 `map plan` and `map paths` prefer observed edges over the static guess, so
 the more the app has been walked, the better the directions.
 
+## Edges: learned from every press
+
+Any press Lynkeus makes teaches the map: a case step, a flow step, `press` in a
+session or over MCP. When the press lands on another route, or raises or closes
+a sheet or modal, the edge goes into `.lynkeus/edges.jsonl` the same way a
+crawl writes it, so the next `map plan` or `case new` knows the way without
+anyone exploring.
+
+Nothing is asked of the app for it. Where the press started and where it led
+come from what the commands read anyway: the screens they read, the route a
+wait answers with, and the route the agent announces whenever its navigator
+changes. A press is recorded only when both ends are known for sure: the place
+was read after the previous press, and a screen read or an announced route
+comes after this one before anything else could move the app (another press,
+a swipe, a jump, a reset). Anything less is left out. A missed edge costs one
+more crawl; an invented one would send `map plan` the wrong way.
+
+Runs side by side (FastSim jobs, a crawl beside a suite) never write the same
+file: each process appends to its own part under `.lynkeus/edges.jsonl.parts/`
+and folds it into `edges.jsonl` under a lock when it ends. Readers merge the
+store with every part, so a run killed halfway loses nothing, and the next fold
+takes in the parts of processes that are gone.
+
 ## Edges: crawl and smoke
 
 `lynkeus crawl [Route] --depth <n>` presses every safe control it finds and
@@ -34,6 +67,14 @@ from the current screen when no route is given, stops after `--max` presses,
 and can log in again after a reset (`--login-flow a.json,b.json`, with
 `--var` and `--var-cmd` for the values those flows need). `--verbose` prints
 every recovery and decision.
+
+Over MCP, `crawl` is one of the default tools and is kept short: one level and
+12 presses per call unless the call passes `max` or `depth`. It answers with a
+few lines (the screens it stood on, the new edges, the problems, and the
+presses it did not explore past because they wrote), not a line per press. A
+second call continues where the first stopped. For an agent writing cases, one
+crawl from the screen nearest to where it needs to go is usually cheaper than
+pressing around by hand.
 
 It finishes a screen before it goes anywhere. Depth-first, the second control
 on a screen takes the whole budget into whatever it opened, and the controls
@@ -223,6 +264,10 @@ anything it did not mean to.
 
 `lynkeus map ci` writes a GitHub workflow that does this on every pull request
 and keeps one comment on it up to date with the screens the diff reaches.
+`--cases` adds a job that runs the cases the diff reaches (`lynkeus ci
+--affected`) on the project's CI targets in `cases.targets`; it is opt-in, as
+it needs the app's backend and, for FastSim, a key in the CI secrets, and
+`map ci` says what it would add when the project has such targets.
 
 ## Knowledge travels in the pull request
 

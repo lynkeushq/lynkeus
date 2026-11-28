@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import type { Screen } from 'lynkeus-protocol';
 
 import { diffGraphs, newFindings } from '../commands/check.js';
-import { mapCheckWorkflow } from '../commands/map.js';
+import { casesJobPlan, ciVersion, mapCheckWorkflow, mapCommands, registry } from '../commands/map.js';
+import type { LynkeusConfig } from '../config.js';
+import { register } from '../registry.js';
+import { execute } from '../runtime.js';
 import { summarizeRuns } from '../commands/flake.js';
 import type { FlowReport } from '../flow/types.js';
 import { lintScreen } from '../knowledge/lint.js';
@@ -86,10 +92,116 @@ test('flake runs are summarized by the step and error they died on', () => {
 });
 
 test('the map check workflow diffs against the pull request base and keeps one comment', () => {
-  const yml = mapCheckWorkflow(2, '0.7.5');
-  assert.match(yml, /lynkeus@0\.7\.5 map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 2/);
+  const yml = mapCheckWorkflow(4, '^0.7.5');
+  assert.match(yml, /'lynkeus@\^0\.7\.5' map check --base origin\/\$\{\{ github\.base_ref \}\} --depth 4/);
   // Pinned: an unpinned npx would run whatever is latest the day CI runs.
   assert.doesNotMatch(yml, /npx --yes lynkeus /);
   assert.match(yml, /--edit-last/);
   assert.match(yml, /pull-requests: write/);
+});
+
+test('the map check workflow runs the lynkeus range the app depends on, never a dev build CI cannot fetch', () => {
+  const app = (deps: Record<string, Record<string, string>>) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-'));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify(deps));
+    return root;
+  };
+  // npm answers as a registry would: 0.7.6 is the last release.
+  const npm = (range: string) => ({ matches: !/0\.7\.7/.test(range), latest: '0.7.6' });
+  assert.deepEqual(ciVersion(app({ devDependencies: { lynkeus: '^0.7.6' } }), '0.7.7', npm), { range: '^0.7.6' });
+  // The agent is released with the CLI: an app that has only the agent gets the same range.
+  assert.deepEqual(ciVersion(app({ dependencies: { 'lynkeus-agent': '~0.7.5' } }), '0.7.7', npm), { range: '~0.7.5' });
+  // A dev build leads to a release not out yet: the last release runs, and the note says to move it on.
+  const dev = ciVersion(app({ dependencies: { 'lynkeus-agent': '0.7.7-dev.20261127010441' } }), '0.7.7-dev.20261127010441', npm);
+  assert.equal(dev.range, '^0.7.6');
+  assert.match(
+    dev.note ?? '',
+    /^no published lynkeus matches \^0\.7\.7 yet \(lynkeus-agent is 0\.7\.7-dev\.20261127010441 in package\.json, which CI cannot install\): the workflow runs lynkeus@\^0\.7\.6, the last release; move it on once 0\.7\.7 is out$/,
+  );
+  assert.equal(ciVersion(app({ devDependencies: { lynkeus: 'file:../lynkeus' } }), '0.7.6', npm).range, '^0.7.6');
+  assert.deepEqual(ciVersion(app({}), '0.7.6', npm), { range: '^0.7.6' });
+  assert.equal(ciVersion(app({}), '0.7.7-dev.1', npm).range, '^0.7.6');
+  // Out once it is: the range the app asks for.
+  assert.equal(ciVersion(app({}), '0.7.7-dev.1', () => ({ matches: true })).range, '^0.7.7');
+  // npm unreachable: the range stands, with a note to check it.
+  assert.match(ciVersion(app({}), '0.7.7', () => undefined).note ?? '', /npm could not be asked whether lynkeus@\^0\.7\.7 is published/);
+});
+
+test('map ci --cases adds a job that runs the affected cases on the CI targets, installing and bundling FastSim first', () => {
+  const plan = casesJobPlan({ cases: { targets: ['fastsim:ios', 'fastsim:android', 'ios'] }, ci: { push: true } });
+  assert.ok(typeof plan !== 'string');
+  assert.deepEqual(plan, {
+    declared: true,
+    targets: ['fastsim:ios', 'fastsim:android'],
+    secrets: ['LYNKEUS_TOKEN', 'LYNKEUS_CLOUD_KEY', 'LYNKEUS_REPORTS_KEY'],
+    backend: false,
+  });
+  const yml = mapCheckWorkflow(4, '^0.7.7', { ...plan, manager: 'pnpm' });
+  // FastSim iOS draws as the Simulator does only on a Mac.
+  assert.match(yml, /\n {2}cases:\n {4}runs-on: macos-latest\n {4}env:\n {6}LYNKEUS_TOKEN: \$\{\{ secrets\.LYNKEUS_TOKEN \}\}/);
+  const android = casesJobPlan({ cases: { targets: ['fastsim:android', 'headless'] } });
+  assert.ok(typeof android !== 'string');
+  assert.match(mapCheckWorkflow(4, '^0.7.7', { ...android, manager: 'npm' }), /\n {2}cases:\n {4}runs-on: ubuntu-latest\n/);
+  assert.match(yml, /- run: corepack enable && pnpm install --frozen-lockfile/);
+  assert.match(yml, /'lynkeus@\^0\.7\.7' fastsim install --platform ios --json/);
+  assert.match(yml, /"\$kit\/bin\/fastsim-bundle" \. \.lynkeus\/fastsim-android android/);
+  // The bundle carries the token: the checkout has no .env.local.
+  assert.match(yml, /bundle the app\n {8}# .*\n {8}env:\n {10}EXPO_PUBLIC_LYNKEUS_TOKEN: \$\{\{ secrets\.LYNKEUS_TOKEN \}\}\n {8}run: \|/);
+  assert.match(yml, /run: npx --yes 'lynkeus@\^0\.7\.7' ci --affected --base origin\/\$\{\{ github\.base_ref \}\}/);
+  assert.doesNotMatch(mapCheckWorkflow(4, '^0.7.7'), /cases:/);
+  const headless = casesJobPlan({ cases: { targets: ['headless'] }, ci: { backend: { up: 'up' } } });
+  assert.deepEqual(headless, { declared: true, targets: ['headless'], secrets: ['LYNKEUS_TOKEN'], backend: true });
+  assert.match(String(casesJobPlan({ cases: { targets: ['web'] } })), /web is not a target/);
+});
+
+test('map ci hints at --cases when the project has CI targets, and refuses --cases with none a job can start', async () => {
+  register(mapCommands);
+  // No registry in a unit test: the range the app asks for is published.
+  registry.published = () => ({ matches: true });
+  const run = (config: LynkeusConfig, args: string[] = []) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-cases-'));
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { lynkeus: '^0.7.7' } }));
+    return execute(['map', 'ci', ...args], {
+      root,
+      config,
+      attached: true,
+      err: () => undefined,
+      graph: () => {
+        throw new Error('no graph');
+      },
+      device: async () => {
+        throw new Error('no app');
+      },
+    }).then((r) => ({ ...r, yml: fs.readFileSync(path.join(root, '.github', 'workflows', 'lynkeus-map-check.yml'), 'utf8') }));
+  };
+  const hinted = await run({ cases: { targets: ['fastsim:ios', 'ios'] } });
+  assert.equal(hinted.code ?? 0, 0);
+  assert.match(
+    hinted.text ?? '',
+    /\n--cases would also run the cases each pull request reaches on fastsim:ios \(`lynkeus ci --affected`\); that job needs LYNKEUS_TOKEN, LYNKEUS_CLOUD_KEY in the repository's secrets and a backend \(ci\.backend\)$/,
+  );
+  assert.doesNotMatch(hinted.yml, /\n {2}cases:/);
+  const quiet = await run({ cases: { targets: ['ios'] } });
+  assert.doesNotMatch(quiet.text ?? '', /--cases/);
+  const added = await run({ cases: { targets: ['headless'] }, ci: { backend: { up: 'up' } } }, ['--cases']);
+  assert.match(
+    added.text ?? '',
+    /with a cases job\)\nthe cases job runs `lynkeus ci --affected` on headless; it needs LYNKEUS_TOKEN in the repository's secrets$/,
+  );
+  assert.match(added.yml, /\n {2}cases:/);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'map-ci-none-'));
+  const refused = await execute(['map', 'ci', '--cases'], {
+    root,
+    config: { cases: { targets: ['ios', 'android'] } },
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => {
+      throw new Error('no app');
+    },
+  });
+  assert.equal(refused.code, 2);
+  assert.match(refused.text ?? '', /no target a CI job can start/);
 });

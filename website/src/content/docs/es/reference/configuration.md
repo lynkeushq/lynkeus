@@ -73,6 +73,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 
   "cases": {
     "dir": "cases",
+    "targets": ["fastsim:ios", "fastsim:android"],
     "start": "Home.Main",
     "flows": "flows",
     "fixtures": {
@@ -106,6 +107,7 @@ Este ejemplo usa todas las claves. En un proyecto real casi nunca hacen falta to
 |---|---|---|---|
 | `port` | número | `8123` | El puerto donde escucha el driver y al que se conecta la app. La variable `LYNKEUS_PORT` lo reemplaza. |
 | `device` | texto | el primer simulador encendido | El UDID o el nombre del simulador. Un nombre parcial también sirve: `"iPhone 16"` encuentra `iPhone 16 Pro`. Lo reemplazan `--device` y `LYNKEUS_DEVICE`. |
+| `avd` | texto | ninguno | El nombre del AVD del emulador Android que enciende [`lynkeus setup`](/es/reference/cli/#lynkeus-setup) cuando no hay ningún emulador ni teléfono conectado. `setup` no enciende un emulador que el proyecto no nombre, y un simulador solo si lo nombra `device`. |
 | `app` | texto | ninguno | El bundle id (iOS) o application id (Android). Lo usan `launch`, `--launch` y los comandos del simulador. Lo reemplazan `--app` y `LYNKEUS_APP_ID`. |
 | `attachTimeout` | número (ms) | `15000` | Cuánto esperar a que la app se conecte. Lo reemplazan `--attach-timeout` y `LYNKEUS_ATTACH_TIMEOUT_MS`. |
 
@@ -144,7 +146,7 @@ Lo lee [`lynkeus ci`](/es/reference/cli/#lynkeus-ci), que levanta el backend y l
 | `ci.backend.ready` | texto | ninguno | Una URL que responde con éxito cuando el backend ya puede servir. `lynkeus ci` la consulta hasta que responde. |
 | `ci.backend.timeoutMs` | número (ms) | `300000` | Cuánto espera a esa URL. |
 | `ci.hosts.count` | número | `2` | Cuántos hosts y jobs. `--jobs` lo reemplaza. |
-| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. `{port}` es el puerto donde se conecta; el primero sale de `LYNKEUS_PORT` o de `port` (`8123` si no hay ninguno) y los demás lo siguen. Por defecto, `headless start` con ese puerto. |
+| `ci.hosts.command` | texto | un host sin pantalla | El comando que arranca un host. Con `cases.targets`, se usa para el destino de FastSim de la plataforma de su bundle, o para `headless` si no arranca FastSim. `{port}` es el puerto donde se conecta; el primero sale de `LYNKEUS_PORT` o de `port` (`8123` si no hay ninguno) y los demás lo siguen. Por defecto, `headless start` con ese puerto. |
 | `ci.hosts.timeoutMs` | número (ms) | `600000` | Cuánto puede tardar cada host en conectarse; compilar la app es lo lento. Se pasa a `case run` como `--host-timeout`. |
 | `ci.push` | booleano | `false` | Sube la ejecución al servicio de reportes. Necesita `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | lista de textos | ninguno | Opciones extra de `case run`, tal como las escribirías en la línea de comandos. |
@@ -201,8 +203,9 @@ Estas claves las leen `lynkeus crawl` y `lynkeus smoke`.
 | `crawl.never` | lista de textos | ninguno | Controles que el recorrido nunca pulsa. |
 | `crawl.close` | lista de textos | ninguno | Controles que cierran una capa que la app abre por encima de la pantalla. |
 | `crawl.back` | lista de textos | ninguno | Controles que vuelven atrás. Si no declaras ninguno, el recorrido toma como tal un control pequeño en la esquina superior izquierda. |
+| `crawl.login` | texto o lista de pasos | ninguno | Cómo iniciar sesión: el nombre de una macro de `cases.macros` (`"app.signIn"`) o una lista de pasos. El recorrido la ejecuta cuando un toque cerró la sesión y el camino de vuelta queda detrás del inicio de sesión, y también al empezar, si arranca en la pantalla que esos pasos esperan (el primer `app.wait` o `app.see` de una ruta). Si lo primero que esperan es un control (`#login-button`), el recorrido inicia sesión solo mientras ese control está en pantalla: con la sesión ya iniciada no la ejecuta nunca, y una ruta a la que no llega se informa como cualquier otro problema. |
 
-Las expresiones de `crawl` se comparan contra el `testID` y contra la etiqueta de cada control. Tanto estas como las de `errorCopy` no distinguen mayúsculas de minúsculas.
+Las expresiones de `crawl.never`, `crawl.close` y `crawl.back` se comparan contra el `testID` y contra la etiqueta de cada control. Tanto estas como las de `errorCopy` no distinguen mayúsculas de minúsculas.
 
 :::caution
 `crawl.never` empieza vacío a propósito. Lynkeus no trae ninguna lista de palabras peligrosas, porque cuáles controles son irreversibles depende de cada app. Antes de recorrer una app conectada a datos que te importan, declara aquí lo que no se debe tocar: borrar la cuenta, pagar, enviar.
@@ -216,6 +219,8 @@ Todo lo que necesita `lynkeus case run` está bajo la clave `cases`. `lynkeus ca
 |---|---|---|---|
 | `cases.dir` | texto | `cases` | La carpeta donde viven los casos. Sin archivos en la línea de comandos, `case run` ejecuta todos los `.md` que haya allí y en sus subcarpetas, en orden de ruta; también acepta una carpeta como argumento. |
 | `cases.start` | texto | ninguno | La pantalla donde empieza un caso, para los borradores de `lynkeus case new`: la primera que ve una persona que ya inició sesión, por ejemplo. |
+| `cases.targets` | lista de textos | ninguno | Dónde tiene que pasar un caso en este proyecto: cualquiera de `headless`, `fastsim:ios`, `fastsim:android`, `ios` (la app en el simulador de iOS o en un iPhone) y `android` (la app en el emulador de Android o en un teléfono). `case run --on targets` corre cada caso ahí y en ningún otro lado; si a la máquina le falta un destino declarado, la comprobación queda incompleta. `lynkeus ci` corre los de `headless` y FastSim. El `targets` del encabezado de un caso reemplaza esta lista para ese caso. Si falta, `lynkeus init` escribe una propuesta y `lynkeus status` la muestra. |
+| `cases.stepCeilingMs` | número | `180000` | Cuánto puede durar un paso sin `timeoutMs` antes de fallar por trabado (la app o su host dejaron de contestar). Un paso que declara `timeoutMs` tiene ese tiempo más 30 segundos. Dentro de una macro, cada paso tiene su propio límite. |
 | `cases.flows` | texto | `flows` | La carpeta donde viven los flows que un caso ejecuta con `app.run`. |
 | `cases.fixtures` | objeto | ninguno | El comando que responde los pasos de fixtures. Ver abajo. |
 | `cases.inspect` | texto | `inspect` | El nombre del fixture por el que `assert` lee el backend. |
@@ -328,7 +333,9 @@ La configuración se envía a la app al comienzo de cada caso, así que un caso 
 
 Una clave también puede nombrar una constante en lugar de un método: `Módulo.nombre`, que la app lee como `NativeModules.Módulo.nombre`. Ni Lynkeus FastSim ni el host sin pantalla conocen todos los valores que un teléfono real entrega a sus apps. Una propiedad que nadie responde se lee como `true` en Lynkeus FastSim (devuelve una función, y una función es verdadera) y como `undefined` en el host sin pantalla. Cualquiera de las dos lecturas puede llevar a la app por el camino equivocado: un diseño de tableta, una animación omitida.
 
-Al terminar una corrida, los dos hosts informan qué propiedades leyó la app sin que ellos pudieran responderlas. El resumen enumera cada una con un fragmento de `nativeMocks` listo para pegar, y `run.json` guarda la lista en `nativeValues`. Si FastSim respondió con una función y la app la llamó, era una llamada a código nativo y no aparece; si solo se leyó, casi seguro es una constante.
+Al terminar una corrida, los dos hosts informan qué propiedades leyó la app sin que ellos pudieran responderlas. El resumen enumera cada una con un fragmento de `nativeMocks` listo para pegar, y `run.json` guarda la lista en `nativeValues`. Si FastSim respondió con una función y la app la llamó, era una llamada a código nativo y no aparece. Si la app la leyó y nunca la llamó, hay dos posibilidades: es una constante que quedó en `true`, o es un método del que la app solo guardó la referencia (`setFocusTo: Native.setFocusTo`), y eso no es un problema. Para distinguirlas, Lynkeus lee la especificación TurboModule del módulo en el mismo lugar donde la busca codegen, la carpeta que indica `codegenConfig.jsSrcsDir` en el `package.json` de la librería. Lo que la especificación declara como método no se informa; lo que declara como constante se informa como tal. Si no hay especificación, la propiedad aparece como dudosa y el fragmento aclara que sirve solo para una constante: un método al que se le fija un valor deja de poder llamarse.
+
+Además, FastSim responde algunas constantes con un valor inventado en lugar de dejarlas vacías: en expo-application, `applicationId` (`com.example.app`), `applicationName` (`App`), `nativeApplicationVersion` (`1.0.0`) y `nativeBuildVersion` (`1`). Ningún host informa lo que inventó, así que después de una corrida en FastSim de una app que depende de `expo-application`, el resumen las enumera junto a lo que dice la configuración de la app (el nombre, la versión y los números de build de `app.json`, el bundle id y el paquete). Las versiones de FastSim publicadas hasta ahora responden los módulos de Expo con reemplazos fijos y no les aplican `nativeMocks` (`LYNKEUS_NATIVE_VALUES` llega solo a los módulos nativos que el host simula por su cuenta). Por eso el resumen sigue mostrando las cuatro, indica cuáles fija `nativeMocks` sin ningún efecto y aclara que una comprobación de esos valores pasa en un dispositivo o en headless, pero no en ese FastSim. Un FastSim cuyo `share/capabilities` incluye `expo-native-mocks` los toma de la configuración de la app y de `nativeMocks`; con uno así, el resumen muestra solo las claves sin simular y un fragmento ya completado.
 
 | Campo | Tipo | Qué hace |
 |---|---|---|

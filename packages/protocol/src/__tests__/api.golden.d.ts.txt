@@ -65,6 +65,7 @@ export type Element = {
         text: string;
         frame: Frame;
     }[];
+    system?: boolean;
 };
 export type Screen = {
     route?: string;
@@ -81,6 +82,9 @@ export type Screen = {
         i: number;
         modal: boolean;
         testId?: string;
+    };
+    system?: {
+        frame: Frame;
     };
     costMs: number;
 };
@@ -205,6 +209,7 @@ export type CoreMethods = {
             pong: true;
             native: boolean;
             commands: string[];
+            js?: JsAge;
         };
     };
     screen: {
@@ -222,6 +227,7 @@ export type CoreMethods = {
             y: number;
             element?: Element;
             mode: 'native' | 'js';
+            opened?: string;
         };
     };
     type: {
@@ -263,6 +269,7 @@ export type CoreMethods = {
         params: undefined;
         result: {
             route?: string;
+            closed?: string;
         };
     };
     waitFor: {
@@ -335,14 +342,15 @@ export type Request = {
 };
 export type Response = {
     id: number;
+    method?: string;
+} & ({
     result: unknown;
 } | {
-    id: number;
     error: {
         message: string;
         code?: string;
     };
-};
+});
 export type HelloEvent = {
     event: 'hello';
     protocolVersion: number;
@@ -352,10 +360,16 @@ export type HelloEvent = {
     commands: string[];
     route?: string;
     app?: Record<string, unknown>;
+    appId?: string;
     locale?: string;
     nonce?: string;
     proof?: string;
     appState?: string;
+    js?: JsAge;
+};
+export type JsAge = {
+    loadedMs: number;
+    refreshedMs?: number;
 };
 export type NavigationEvent = {
     event: 'navigation';
@@ -402,10 +416,12 @@ export type RunBackendSpan = {
     error?: string;
     attributes?: Record<string, string | number | boolean>;
 };
+export type RunStepPhase = 'marks' | 'target' | 'action' | 'settle' | 'wait' | 'look' | 'events';
 export type RunStep = {
     step: string;
     status: RunStepStatus;
     ms: number;
+    phases?: Partial<Record<RunStepPhase, number>>;
     error?: string;
     section?: 'setup' | 'steps';
     heading?: string;
@@ -475,6 +491,7 @@ export type RunCase = {
         why?: string;
     };
     video?: string;
+    warnings?: string[];
 };
 export type RunLaunchFact = 'seed' | 'locale' | 'timeZone' | 'epoch';
 export type RunLaunch = {

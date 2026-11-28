@@ -50,3 +50,27 @@ test('a port another run of this same process drives is refused, naming that run
   assert.ok('release' in third);
   third.release();
 });
+
+test("runs of this process on a port's other apps go on side by side; a run that drives any app there waits for both", () => {
+  const at = dir();
+  const file = path.join(at, 'lynkeus-port-8131.pid');
+  const ios = claimPorts([8131], at, 'ios run', 'ios');
+  const android = claimPorts([8131], at, 'android run', 'android');
+  assert.ok('release' in ios && 'release' in android);
+  const again = claimPorts([8131], at, 'another', 'ios');
+  assert.ok('refused' in again);
+  assert.match(again.refused, /ios run/);
+  const any = claimPorts([8131], at, 'plain run');
+  assert.ok('refused' in any);
+  ios.release();
+  assert.equal(fs.existsSync(file), true);
+  assert.ok('refused' in claimPorts([8131], at, 'plain run'));
+  android.release();
+  assert.equal(fs.existsSync(file), false);
+  const plain = claimPorts([8131], at, 'plain run');
+  assert.ok('release' in plain);
+  const shared = claimPorts([8131], at, 'ios run', 'ios');
+  assert.ok('refused' in shared);
+  assert.match(shared.refused, /plain run/);
+  plain.release();
+});

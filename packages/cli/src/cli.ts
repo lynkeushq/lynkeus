@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
@@ -9,6 +10,8 @@ import { GLOBAL_FLAGS } from './args.js';
 import { caseCommands } from './commands/cases.js';
 import { driveCommands } from './commands/drive.js';
 import { headlessCommands } from './commands/headless.js';
+import { setupCommands } from './commands/setup.js';
+import { evidenceCommands } from './commands/evidence.js';
 import { mapCommands } from './commands/map.js';
 import { osCommands } from './commands/os.js';
 import { ciCommands } from './commands/ci.js';
@@ -19,13 +22,16 @@ import { fastsimCommands } from './commands/fastsim.js';
 import { loginCommands } from './commands/login.js';
 import { relayCommands } from './commands/relay.js';
 import { runsCommands } from './commands/runs.js';
-import { graphFile, loadConfig, loadGraph, portFromEnv, readToken } from './config.js';
+import { skillCommands } from './commands/skill.js';
+import { configReader, edgesFile, graphFile, loadGraph, portFromEnv, readToken } from './config.js';
 import { agentMismatch, appSwitched, helloIdentity } from './device/agentVersion.js';
 import { devMenuOnAttach } from './device/devMenu.js';
-import { HEADLESS_HOST, pickAgentDevice, pickAndroidDevice, reverseAndroid } from './device/devices.js';
+import { appDevice, type DeviceInfo, HEADLESS_HOST, pickAgentDevice, reverseAndroid } from './device/devices.js';
 import { Device } from './device/driver.js';
+import * as edges from './knowledge/edges.js';
+import { walk } from './knowledge/walk.js';
 import { type Base, commands, find, helpFor, inSession, referenceMarkdown, register, resolve, usage } from './registry.js';
-import { execute } from './runtime.js';
+import { drivenNote, execute, fromLane, laneLabel } from './runtime.js';
 
 register([
   ...driveCommands,
@@ -33,6 +39,7 @@ register([
   ...mapCommands,
   ...runsCommands,
   ...caseCommands,
+  ...evidenceCommands,
   ...coverageCommands,
   ...ciCommands,
   ...fixturesCommands,
@@ -41,6 +48,8 @@ register([
   ...fastsimCommands,
   ...loginCommands,
   ...headlessCommands,
+  ...setupCommands,
+  ...skillCommands,
 ]);
 
 /** The global flags, read leniently from the whole argv before any command parses its own. */
@@ -66,24 +75,57 @@ let mismatchTold = false;
 let switchTold = false;
 let lastApp: string | undefined;
 
-// `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device.
-const contextFor = (argv: string[], attached = false, port?: number, ownHost = false): Session => {
+// `ownHost`: the port belongs to a host this run started for a case; whatever dials in is the device. `accepts`: the
+// apps this context drives, sharing the port with others of this process that drive the rest. `ended`: why the port's
+// host can no longer bring its app (it exited), which ends a wait for the app at once.
+const contextFor = (
+  argv: string[],
+  attached = false,
+  port?: number,
+  ownHost = false,
+  accepts?: (hello: HelloEvent) => boolean,
+  shares?: string,
+  ended?: () => string | undefined,
+): Session => {
   const g = globals(argv);
   const root = path.resolve((g.root as string | undefined) ?? process.cwd());
-  const config = loadConfig(root);
+  const currentConfig = configReader(root);
+  currentConfig();
   const err = (line: string) => console.error(line);
-  let graph: ReturnType<typeof loadGraph> | undefined;
+  // Read again when the file changes: a long session outlives a graph rebuilt because the source changed.
+  let graph: { read: ReturnType<typeof loadGraph>; mtimeMs: number } | undefined;
   let device: Promise<Device> | undefined;
+  // The app this connection drives once it attached, for naming its lane without waiting for one.
+  let current: Device | undefined;
+  // Another connection that drives the app instead, while `fastsim start`'s host runs on a port of its own: the apps
+  // on this port (a Simulator's, an emulator's) stay attached and are not driven, so nothing of theirs reaches an answer.
+  let driving: Base | undefined;
+  // What answers last said of the apps on the port: the app driven, those turned away.
+  let toldApps: { key?: string; lane?: string; away?: string } = {};
+  // Every press this connection makes and sees land somewhere new is one more edge for map plan and case new.
+  const learning = (d: Device) => {
+    d.learn(walk((edge) => edges.append(edgesFile(root), edge)));
+    return d;
+  };
 
   const connect = async (): Promise<Device> => {
-    const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? config.app;
+    const appId = (g.app as string | undefined) ?? process.env.LYNKEUS_APP_ID ?? currentConfig().app;
     const started = performance.now();
     const attachedIn = (d: Device) => err(`attached in ${Math.round(performance.now() - started)}ms (${d.info.name})`);
-    const server = new AgentServer({ token: readToken(root), port: port ?? portFromEnv(config) });
+    // Set once the app attached: a call made while it is away asks the device whether its process still runs (reloading).
+    let driven: Device | undefined;
+    const server = new AgentServer({
+      token: readToken(root),
+      port: port ?? portFromEnv(currentConfig()),
+      accepts,
+      ended,
+      stillRunning: async () => (driven ? driven.processRunning() : false),
+    });
     server.on('hello', (hello: HelloEvent) => {
       const identity = helloIdentity(hello);
-      const switched = switchTold ? undefined : appSwitched(lastApp, identity, server.port);
-      lastApp = identity;
+      // A context that drives one platform's app shares the port by design: another app there is not a switch.
+      const switched = switchTold || accepts ? undefined : appSwitched(lastApp, identity, server.port);
+      if (!accepts) lastApp = identity;
       if (switched) {
         switchTold = true;
         err(switched);
@@ -95,11 +137,12 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     });
     // A host started for the case is the device: looking for the configured simulator would only replace a
     // late app's error with one about a simulator nobody asked for.
-    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? config.device;
+    const wantedDevice = (g.device as string | undefined) ?? process.env.LYNKEUS_DEVICE ?? currentConfig().device;
     const picking = ownHost ? Promise.resolve(HEADLESS_HOST) : pickAgentDevice(wantedDevice);
     if (g.launch && appId) {
-      const d = new Device(await picking, { appId, server });
+      const d = learning(new Device(await picking, { appId, server }));
       await d.launchApp(appId, { fresh: true });
+      driven = d;
       attachedIn(d);
       return d;
     }
@@ -108,37 +151,51 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
     await server.listen();
     if (!ownHost) void reverseAndroid(server.port);
     const hello = await server
-      .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? config.attachTimeout ?? 15000))
+      .waitForApp(Number(g['attach-timeout'] ?? process.env.LYNKEUS_ATTACH_TIMEOUT_MS ?? currentConfig().attachTimeout ?? 15000))
       .catch(async (error) => {
         await server.close();
         await picking;
         throw error;
       });
-    const headless = hello.app?.runtime === 'headless';
-    const info = {
+    const standIn = (said: HelloEvent): DeviceInfo => ({
       ...HEADLESS_HOST,
-      name: headless ? HEADLESS_HOST.name : String(hello.app?.name ?? hello.platform),
-      platform: hello.platform === 'android' ? ('android' as const) : ('ios' as const),
-    };
-    // The app says which platform it runs on; only then is it known whether simctl or adb names its device.
-    const resolving = headless || ownHost ? undefined : info.platform === 'android' ? pickAndroidDevice(wantedDevice) : picking;
-    const d = new Device(info, { appId: appId ?? null, server, resolving });
+      name: said.app?.runtime === 'headless' ? HEADLESS_HOST.name : String(said.app?.name ?? said.platform),
+      platform: said.platform === 'android' ? 'android' : 'ios',
+    });
+    // The app says which platform it runs on, and its id; only then is it known whether simctl or adb names its
+    // device, and which of the booted ones it is. Asked again when another app takes the port.
+    const onDevice = (said: HelloEvent) => !ownHost && said.app?.runtime !== 'headless';
+    const locate = async (said: HelloEvent): Promise<DeviceInfo> =>
+      onDevice(said) ? appDevice(said.platform === 'android' ? 'android' : 'ios', appId ?? said.appId, wantedDevice) : standIn(said);
+    const d = learning(new Device(standIn(hello), { appId: appId ?? null, server, locate }));
+    driven = d;
+    current = d;
     attachedIn(d);
-    if (resolving) void resolving.then((on) => devMenuOnAttach(root, appId, on, err)).catch(() => undefined);
+    if (onDevice(hello))
+      void d
+        .resolved()
+        .then((on) => devMenuOnAttach(root, appId, on, err))
+        .catch(() => undefined);
     return d;
   };
 
   const ctx: Base = {
     root,
-    config,
+    // A getter: a server that outlives the agent's edits to lynkeus.config.json sees the file as it is now.
+    get config() {
+      return currentConfig();
+    },
     attached,
+    ...(shares ? { shares } : {}),
     err,
     graph: () => {
-      graph ??= loadGraph(root);
-      if (!graph) throw new Error(`No graph at ${graphFile(root)}: run \`lynkeus map build\` in the app's folder first.`);
-      return graph;
+      const mtimeMs = fs.statSync(graphFile(root), { throwIfNoEntry: false })?.mtimeMs ?? 0;
+      if (graph?.mtimeMs !== mtimeMs) graph = { read: loadGraph(root), mtimeMs };
+      if (!graph.read) throw new Error(`No graph at ${graphFile(root)}: run \`lynkeus map build\` in the app's folder first.`);
+      return graph.read;
     },
     device: () => {
+      if (driving) return driving.device();
       // A connection that failed (no app yet) is tried again on the next command: a session outlives an app that was late.
       device ??= connect().catch((error: unknown) => {
         device = undefined;
@@ -146,15 +203,46 @@ const contextFor = (argv: string[], attached = false, port?: number, ownHost = f
       });
       return device;
     },
-    forPort: (other) => {
-      const scoped = contextFor(argv, attached, other, true);
+    forPort: (other, o) => {
+      const scoped = contextFor(argv, attached, other, true, undefined, undefined, o?.ended);
       return { base: scoped.ctx, stop: scoped.stop };
+    },
+    forApp: (which, share) => {
+      const scoped = contextFor(argv, attached, port, ownHost, which, share);
+      return { base: scoped.ctx, stop: scoped.stop };
+    },
+    takeOver: (other) => {
+      driving = other;
+    },
+    lane: () => {
+      if (driving) return driving.lane?.();
+      return current?.server.connected ? laneLabel(current.server.hello, current.info.type) : undefined;
+    },
+    appNote: () => {
+      if (driving) return driving.appNote?.();
+      const hello = current?.server.connected ? current.server.hello : null;
+      if (!current || !hello) return undefined;
+      const away = (current.server.apps?.() ?? [])
+        .filter((a) => a.driven === 'none')
+        .map((a) => ({
+          key: helloIdentity(a.hello),
+          lane: laneLabel(a.hello) ?? a.hello.platform,
+          name: String(a.hello.app?.name ?? a.hello.appId ?? 'an app'),
+        }));
+      const said = drivenNote(
+        { key: helloIdentity(hello), lane: laneLabel(hello, current.info.type) ?? hello.platform, away, port: current.server.port },
+        toldApps,
+      );
+      toldApps = said.told;
+      return said.note;
     },
   };
   return {
     ctx,
     stop: async () => {
-      await device?.then((d) => d.stop()).catch(() => undefined);
+      if (!device) return;
+      await device.then((d) => d.stop()).catch(() => undefined);
+      edges.fold(edgesFile(root));
     },
   };
 };
@@ -180,11 +268,19 @@ const session = async (argv: string[]) => {
       continue;
     }
     const r = await execute(av, ctx);
+    const lane = r.lane ?? (found?.needs === 'app' ? ctx.lane?.() : undefined);
+    const note = found?.needs === 'app' && !r.lane ? ctx.appNote?.() : undefined;
     console.log(
       JSON.stringify(
         r.error
-          ? { ok: false, error: r.error, ...(r.why ? { why: r.why } : {}) }
-          : { ok: r.code === 0, out: r.text ?? '', ...(r.json !== undefined ? { json: r.json } : {}) },
+          ? { ok: false, error: fromLane(lane, r.error), ...(r.why ? { why: r.why } : {}), ...(note ? { note } : {}) }
+          : {
+              ok: r.code === 0,
+              out: fromLane(lane, r.text ?? ''),
+              ...(r.json !== undefined ? { json: r.json } : {}),
+              ...(lane ? { lane } : {}),
+              ...(note ? { note } : {}),
+            },
       ),
     );
   }

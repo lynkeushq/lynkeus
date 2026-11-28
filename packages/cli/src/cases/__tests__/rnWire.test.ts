@@ -12,7 +12,10 @@ import { AgentServer } from 'lynkeus-client';
 import { driveCommands } from '../../commands/drive.js';
 import { osCommands } from '../../commands/os.js';
 import { hermetic } from '../../__tests__/goldens/hermetic.js';
+import { edgesFile } from '../../config.js';
 import { Device } from '../../device/driver.js';
+import * as edges from '../../knowledge/edges.js';
+import { walk } from '../../knowledge/walk.js';
 import { type Base, register } from '../../registry.js';
 import { parseCase } from '../format.js';
 import { runCase } from '../runner.js';
@@ -45,27 +48,38 @@ const ELEMENTS = [
 
 type Message = { event?: string; session?: string; nonce?: string; id?: number; method?: string; params?: Record<string, unknown> };
 
-/** A React Native app as the agent presents itself (a host that takes screenshots, as the headless one does). */
-const fakeReactNativeApp = async (port: number, dir: string) => {
+/**
+ * A React Native app as the agent presents itself (a host that takes screenshots, as the headless one does). With
+ * `loggedIn`, pressing #login moves it to that route and it says so, as the agent does when its navigator changes.
+ */
+const fakeReactNativeApp = async (port: number, dir: string, loggedIn?: string) => {
   const socket = new WebSocket(`ws://127.0.0.1:${port}`);
   const sent: string[] = [];
+  // Request ids count across every server of the process, so a run's first id depends on what ran before it: recorded
+  // from 1, as one run alone numbers them, each later id still one more than the one before.
+  let firstId: number | undefined;
+  let route = 'Auth.Login';
   const answer = (m: Message): unknown => {
     const p = m.params ?? {};
     const target = (p.target ?? p) as { testId?: string; text?: string };
     const element = ELEMENTS.find((e) => (target.testId && e.testId === target.testId) || (target.text && e.text === target.text)) ?? null;
     switch (m.method) {
       case 'screen':
-        return { route: 'Auth.Login', path: ['Auth.Login'], commit: 1, busy: false, window: { w: 390, h: 844 }, costMs: 1, elements: ELEMENTS };
+        return { route, path: [route], commit: 1, busy: false, window: { w: 390, h: 844 }, costMs: 1, elements: ELEMENTS };
       case 'find':
         return element;
       case 'press':
+        if (loggedIn && target.testId === 'login' && route !== loggedIn) {
+          route = loggedIn;
+          socket.send(JSON.stringify({ event: 'navigation', route }));
+        }
         return { x: 195, y: 202, mode: 'native', ...(element ? { element } : {}) };
       case 'type':
         return { typed: p.text, ...(element ? { element } : {}) };
       case 'swipe':
         return { from: { x: 195, y: 600 }, to: { x: 195, y: 300 } };
       case 'waitFor':
-        return { route: 'Auth.Login', waitedMs: 0, ...(element ? { matched: element } : {}) };
+        return { route, waitedMs: 0, ...(element ? { matched: element } : {}) };
       case 'idle':
         return { commit: 1, idle: true };
       case 'trace':
@@ -100,7 +114,12 @@ const fakeReactNativeApp = async (port: number, dir: string) => {
         }),
       );
     } else if (m.id !== undefined) {
-      sent.push(text.split(dir).join('<dir>'));
+      firstId ??= m.id;
+      sent.push(
+        JSON.stringify({ ...m, id: m.id - firstId + 1 })
+          .split(dir)
+          .join('<dir>'),
+      );
       socket.send(JSON.stringify({ id: m.id, result: answer(m) }));
     }
   });
@@ -132,16 +151,18 @@ const freePort = (): Promise<number> =>
     });
   });
 
-const record = async (screenshots: boolean) => {
+const record = async (screenshots: boolean, loggedIn?: string) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-rn-wire-'));
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ dependencies: { 'react-native': '0.76.0' } }));
   const dir = path.join(root, 'frames');
   const server = new AgentServer({ token: TOKEN, port: await freePort() });
   servers.push(server);
   await server.listen();
-  const app = await fakeReactNativeApp(server.port, dir);
+  const app = await fakeReactNativeApp(server.port, dir, loggedIn);
   await server.waitForApp(10_000);
   const device = new Device({ id: 'fake', name: 'fake', platform: 'ios', type: 'simulator', connected: true }, { server });
+  // Learning where presses lead, as every connection the CLI makes does: it must not cost the app a single message.
+  device.learn(walk((edge) => edges.append(edgesFile(root), edge)));
   const base: Base = {
     root,
     config: {},
@@ -157,16 +178,24 @@ const record = async (screenshots: boolean) => {
     config: {},
     ...(screenshots ? { evidence: { dir, screenshots: true, settleMs: 700, frames: 'png' as const } } : {}),
   });
+  await device.stop();
   app.socket.close();
-  await server.close();
   assert.equal(report.result, 'passed', report.steps.map((s) => `${s.step}: ${s.error ?? s.status}`).join('\n'));
-  return app.sent;
+  return { sent: app.sent, learned: edges.load(edgesFile(root)).map(({ from, to, via }) => ({ from, to, via })) };
 };
 
 test("a React Native app is sent what origin/main's CLI sends it, with frames and without", async () => {
-  const recorded = { frames: await record(true), noFrames: await record(false) };
+  const recorded = { frames: (await record(true)).sent, noFrames: (await record(false)).sent };
   if (process.env.UPDATE_RN_WIRE === '1') fs.writeFileSync(goldenFile, `${JSON.stringify(recorded, null, 2)}\n`);
   const golden = JSON.parse(fs.readFileSync(goldenFile, 'utf8')) as typeof recorded;
   assert.deepEqual(recorded.noFrames, golden.noFrames);
   assert.deepEqual(recorded.frames, golden.frames);
+});
+
+test('a case run learns where its presses led from what it reads anyway, and sends the app nothing more for it', async () => {
+  const quiet = await record(false);
+  assert.deepEqual(quiet.learned, []);
+  const moved = await record(false, 'Home.Feed');
+  assert.deepEqual(moved.learned, [{ from: 'Auth.Login', to: 'Home.Feed', via: 'login' }]);
+  assert.equal(moved.sent.length, quiet.sent.length);
 });

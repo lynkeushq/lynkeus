@@ -34,7 +34,9 @@ yarn ios
 
 Reading the screen and driving the app need no simulator lookup at all: whichever app dials in is the app being driven. The CLI only needs to know *which* simulator when it does something from outside the app, such as launching it or taking a screenshot.
 
-It asks Xcode for the booted simulators and picks one in this order:
+When the app attaches, it says it runs on iOS and gives its bundle id. The CLI asks Xcode for the booted simulators and, with more than one booted, uses the one where that app's process is running. Screenshots, films and `os` commands of a case therefore follow the app that is attached: an Android emulator open beside the simulator is never photographed instead, and neither is a second simulator that only shows its home screen. When the attached app changes (the Android app takes the port after the iOS one), the device is looked up again.
+
+Naming a simulator decides between several that run the app, and is used when the CLI cannot tell (no bundle id, or the app runs on none):
 
 | Source | Example |
 |---|---|
@@ -88,7 +90,7 @@ Some things are not the app's to decide: whether it has permission to use the ca
 | `lynkeus os push <payload>` | Delivers a push notification to the app. Needs the bundle identifier. |
 | `lynkeus os appearance <light\|dark>` | Switches the simulator between light and dark. |
 | `lynkeus os location <lat>,<lon>` | Sets where the device is. `lynkeus os location clear` removes it. |
-| `lynkeus os language [tag]` | Relaunches the app in a locale, such as `de-DE`. Needs the bundle identifier. |
+| `lynkeus os language [tag]` | Relaunches the app in a locale, such as `de-DE`. Needs the bundle identifier. With a simulator and an emulator both up, `--device` picks which. |
 | `lynkeus os appstate <background\|active>` | Sends the app to the background by opening Settings, and brings it back by launching it again. Its `AppState` listeners see both. Needs the bundle identifier for `active`. |
 | `lynkeus os biometrics --available <FaceID\|TouchID\|none>` | Enrolls the simulator in Face ID or Touch ID, or takes the enrollment away. Which of the two the simulator has depends on its model. |
 
@@ -119,7 +121,7 @@ The payload is either JSON or the path to a `.json` file. Inline JSON that is a 
 npx lynkeus os language de-DE
 ```
 
-There is no system-wide language switch on a booted simulator, so this terminates the app and launches it again with the launch arguments iOS reads for its language and locale. Without a tag, it uses `locale.languageTag` or `language` from `lynkeus.config.json`.
+There is no system-wide language switch on a booted simulator, so this terminates the app and launches it again with the launch arguments iOS reads for its language and locale. Without a tag, it uses `locale.languageTag` or `language` from `lynkeus.config.json`. Launch arguments last only as long as the process, so Lynkeus keeps them for that app on that simulator and passes them again whenever it launches the app itself: `app.relaunch`, the relaunch before a case when a system prompt covers the app, and bringing the app back to the front. An app you relaunch by hand comes back in the simulator's language.
 
 ### Light and dark
 

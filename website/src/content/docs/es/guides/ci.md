@@ -179,14 +179,22 @@ El flujo de las secciones anteriores (levantar el backend, arrancar N hosts, rep
           LYNKEUS_REPORTS_KEY: ${{ secrets.LYNKEUS_REPORTS_KEY }}
 ```
 
-`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run --screenshots` (más `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Su código de salida es el de la suite. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
+`lynkeus ci` ejecuta `backend.up`, espera a que `backend.ready` responda, ejecuta `case run --jobs <n> --ports … --host-command … --keep-hosts --out lynkeus-run` (más `--screenshots` si `hosts.command` arranca hosts que dibujan, como Lynkeus FastSim, `--push` si `ci.push` es verdadero y lo que pongas en `ci.run`; el host headless por defecto no dibuja nada, así que no se le piden capturas) y, pase lo que pase, ejecuta `backend.down`. Los hosts (por defecto, un `headless start` por puerto; `hosts.command` lo cambia) los arranca `case run`, uno por trabajo, y los reinicia si mueren o se quedan sin memoria, de modo que un host caído se lleva un caso y no todos los siguientes. Los puertos empiezan en `LYNKEUS_PORT` o en `port` de la configuración (`8123` si no hay ninguno). Si en uno ya escucha otro proceso (un `lynkeus mcp` que dejaste abierto en el proyecto, por ejemplo) o lo tiene reservado otra ejecución de casos, `lynkeus ci` lo salta y avisa qué puertos tomaron sus hosts. Al terminar, al fallar o al recibir Ctrl-C o SIGTERM detiene todos los hosts que arrancó, incluso si `case run` murió antes de hacerlo. Cuando la ejecución termina bien, `case run` espera a que sus hosts se cierren; el aviso `▸ stopped N host(s) the run left running` solo aparece si `case run` murió o lo mataron. Su código de salida es el de la suite. Lynkeus no conoce tu backend: solo ejecuta los comandos que declares.
 
 Dos opciones útiles:
 
-- `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`).
+- `--affected` ejecuta solo los casos que alcanzan los cambios de la rama contra `--base` (por defecto `origin/main`), los mismos que da `lynkeus case impact`. Construye el mapa si todavía no existe. Si ningún caso queda alcanzado, no ejecuta nada y lo dice. El checkout tiene que traer el historial para que `--base` exista (`fetch-depth: 0`). Si git no puede hacer el diff (la base no está en el checkout, o el checkout es superficial y no llega al punto donde la rama se separó), el job falla y explica cómo arreglarlo; nunca pasa en verde sin haber ejecutado nada. Con `--on-diff-error all`, en ese caso ejecuta todos los casos.
 - `--dry-run` imprime lo que haría (qué casos, qué backend, cuántos hosts) sin ejecutar nada. `--keep-up` deja el backend levantado al terminar, para investigar un fallo; los hosts terminan con la ejecución.
 
 Cuando existe `$GITHUB_STEP_SUMMARY`, `lynkeus ci` escribe ahí el resumen del job: cuántos casos pasaron, una tabla con los que fallaron y el enlace al reporte.
+
+### Con los destinos que declaró el proyecto
+
+Si `lynkeus.config.json` dice en `cases.targets` dónde tienen que pasar los casos, `lynkeus ci` se guía por eso: corre cada caso en los destinos declarados que un job puede levantar por su cuenta, es decir `headless`, `fastsim:ios` y `fastsim:android`. Con `"targets": ["fastsim:ios", "fastsim:android"]`, el job corre todos los casos en FastSim para iOS, después en FastSim para Android, y nunca en headless.
+
+Los destinos van uno detrás del otro, cada uno con sus `ci.hosts.count` hosts, para que el runner no cargue con los hosts de dos destinos al mismo tiempo. Si hay más de uno, cada ejecución queda en su carpeta (`lynkeus-run/fastsim-ios`, `lynkeus-run/headless`) y el resumen nombra cada caso con su destino y enlaza el reporte de cada uno. Un destino de FastSim usa `ci.hosts.command` si ese comando corre `fastsim-run` sobre un bundle de la misma plataforma; si no, el FastSim instalado para esa plataforma con su último bundle dentro de `.lynkeus`. Un `ci.hosts.command` que no arranca FastSim se toma como tu propio host headless.
+
+`ios` y `android` necesitan un simulador, un emulador o un teléfono: el job los menciona como no corridos, y se comprueban con `case run --on targets` en una máquina que tenga uno. Si un destino de FastSim declarado no puede arrancar en el job (no está instalado o no hay bundle de esa plataforma), el job falla y avisa que la comprobación quedó incompleta, en lugar de pasar con menos destinos de los declarados. Sin `cases.targets`, todo sigue como antes: cada caso en `ci.hosts.command` o en hosts headless. `--dry-run` muestra el plan de cada destino.
 
 El token no sale de `.lynkeus/token`, porque ese archivo no está en un checkout limpio: en CI, `LYNKEUS_TOKEN` tiene que estar definida.
 
@@ -208,10 +216,14 @@ npx lynkeus map ci
 ```
 
 ```text
-wrote .github/workflows/lynkeus-map-check.yml
+wrote .github/workflows/lynkeus-map-check.yml (lynkeus@^0.7.7, --depth 4)
 ```
 
-En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira (2 por defecto) y `--force` sobrescribe el archivo si ya existe.
+En cada pull request, ese flujo construye el mapa de la app a partir del código (sin app ni dispositivo), ejecuta `map check` contra la rama base y mantiene actualizado un único comentario con las pantallas que el cambio alcanza. Sirve para decidir qué casos importan en esa rama. `--depth <n>` fija a cuántas importaciones de distancia mira. Por defecto son 4, igual que en `case impact` y `ci --affected`: así el comentario y los casos que corre el pipeline coinciden. `--force` sobrescribe el archivo si ya existe.
+
+Con `--cases`, el mismo flujo suma un segundo job que corre `lynkeus ci --affected` en cada pull request: los casos que alcanza el cambio se ejecutan en los destinos de CI del proyecto, es decir las entradas `headless` y de FastSim de `cases.targets`. El job corre en `macos-latest` si incluye `fastsim:ios`, porque FastSim dibuja iOS igual que el simulador solo en una Mac; si no, corre en `ubuntu-latest`. Como los bundles no se suben al repositorio, para cada plataforma de FastSim el job instala FastSim y arma el bundle antes de correr. La versión de lynkeus que usa el flujo es la que pide la app; si npm todavía no tiene publicada ninguna versión en ese rango (por ejemplo, porque la app usa un build de desarrollo de una versión que aún no salió), el flujo usa la última publicada y `map ci` avisa que hay que actualizarla cuando salga la nueva. Ese job necesita un backend al que la app llegue (`ci.backend`) y estos secretos en el repositorio: `LYNKEUS_TOKEN` siempre, `LYNKEUS_CLOUD_KEY` si usa FastSim y `LYNKEUS_REPORTS_KEY` si `ci.push` está activo. No viene activado porque sin eso el job falla. Si el proyecto declara destinos que un job puede correr y no pasas `--cases`, `map ci` termina con una línea que cuenta qué agregaría y qué secretos pide.
+
+La versión de lynkeus que usa el flujo sale de tu `package.json`: el rango que declares para `lynkeus` o, si no está, para `lynkeus-agent` o `lynkeus-headless`, que se publican juntos. Si no hay ninguno, usa la versión del CLI que lo escribió. Un build de desarrollo o una ruta local no se pueden instalar en CI. En ese caso el flujo usa la versión publicada a la que corresponden (`0.7.7-dev.…` pasa a ser `^0.7.7`), y el comando lo avisa.
 
 ## Si usas un simulador o un emulador
 
@@ -229,7 +241,7 @@ Con la app instalada, el comando cambia poco:
 npx lynkeus case run --launch --app com.example.myapp --out run --screenshots --push
 ```
 
-`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` filma solo donde el host ofrece un comando `record`, y una sesión de simulador o de emulador no lo ofrece: la ejecución conserva sus capturas y no tiene película.
+`--launch --app <bundleId>` reinicia la app antes de conectarse. Aquí `--screenshots` sí produce una imagen por paso. `--video` también filma cada caso: en un simulador con `xcrun simctl io recordVideo` y en un emulador con `adb shell screenrecord`, que se corta a los 3 minutos.
 
 ## Cómo funciona
 

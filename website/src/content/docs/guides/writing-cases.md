@@ -39,7 +39,7 @@ npx lynkeus case here first-screen --host --write    # from the screen the app s
 npx lynkeus case new settings-dark-mode --to Settings.Main --from Home.Main --write    # for a screen: the way there, the setup to pick from, the checks to write
 ```
 
-`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the presses from `--from` (default `cases.start`) to the screen as `map plan` knows them, and offers the setup that your fixtures server describes, commented out, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
+`case here` reads the attached app's screen (`--host` starts the headless host for it) and writes a case that goes to that route and sees up to three things on it, so a project's first case runs green at once. `case new` prints the way to the screen. When one of your cases already gets there, it is that case's way: its setup and its steps up to the screen, under a comment that names the case, so a new case starts from navigation that already works. Otherwise it is the presses from `--from` (default `cases.start`, else the screen the app shows, else the first screen the navigator declares) as `map plan` knows them. When the start it picked has no known way and you gave no `--from`, it tries `cases.start` and then the first declared screen, and the draft's comment says which it used and why. With no case through the screen, the draft also lists, commented out, what is known to be on it: the testIDs its source writes, short texts runs saw there, and the presses that lead on from it. It also names, in one comment, the fixtures your server describes, because what state the case needs is your call. Without `--write` both print the case instead of saving it, and neither overwrites a file that is there.
 
 ## The shape of a case
 
@@ -264,6 +264,15 @@ Inside a macro, `{{param.x}}` is what the case passed. A parameter that names an
 
 `when` runs a step only if the case passed that parameter (`"when": "wait"`) or passed that value (`"when": "method=phone"`). `unless` is the opposite.
 
+You do not have to spot the repetition yourself. When three or more case files open with the same app steps, `lynkeus case coverage` ends with a hint that lists them and prints the entry to paste under `cases.macros`:
+
+```text
+hint: 3 cases (pay-ten, cards-freeze, rewards-redeem) open with the same 4 steps; declare them once under cases.macros in lynkeus.config.json and call `- app.goToHomeMain` instead:
+  "app.goToHomeMain": [{"app.type":{"target":"#email","text":"{{u.email}}"}}, …]
+```
+
+Lynkeus does not change the cases. Rename the macro, add parameters, and replace the steps where it makes sense.
+
 ## Things that get in the way: interruptions
 
 An app may put something in front of any step: a lock screen, a consent sheet. Writing a step for it in every case does not scale. An **interruption** says what it looks like and how to get past it.
@@ -305,7 +314,7 @@ Each step prints as it finishes, then the case's verdict, then the summary:
 
 The command exits with 0 when no case failed and 1 otherwise.
 
-When a step fails, the case prints the screen at the failure, the last requests, and why the step failed. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
+When a step fails, the case prints which step it was and its error, the screen at the failure, the requests that failed or were mocked, and why the step failed. The screen is cut to what you would name in a check: rows of a list are counted instead of repeated, and testIDs and controls come before texts. `--verbose` prints the whole screen and every request. The run's `cases.jsonl` and `--json` always keep everything. Add `--continue` to keep running the remaining steps of a case after one fails, to see everything that is wrong in one pass.
 
 ### Retries
 
@@ -318,6 +327,55 @@ A step the host cannot do, such as `app.network` or `app.clock` on a simulator o
 ```text
 3/5 passed, 2 cannot run on this host
 ```
+
+### Where a case must pass
+
+Your project decides where its cases must pass, and says it once in `lynkeus.config.json`:
+
+```json
+{ "cases": { "targets": ["headless", "ios"] } }
+```
+
+The targets are `headless`, `fastsim:ios`, `fastsim:android`, `ios` (your app on the iOS Simulator or an iPhone) and `android` (your app on the Android emulator or a phone). A team with Lynkeus FastSim for both platforms might declare `["fastsim:ios", "fastsim:android"]` and nothing else. If one case needs a feature only a device has, give it its own list in its frontmatter, `targets: [ios, android]`, and it replaces the project's for that case.
+
+A run on a named target (`--on headless`, or `--host`) honors it too: a case whose `targets:` leave that target out is skipped with one line (`skipped on headless: login, its targets are ios, android`), not failed.
+
+A case is finished when it passes on its targets. Check them all in one run:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on targets
+```
+
+```text
+✅ headless  settings-dark-mode
+✅ ios       settings-dark-mode
+headless 1/1 passed · ios 1/1 passed
+```
+
+Nothing else runs, so you do not pay for targets your project does not use. If a declared target is missing on this machine (no Simulator booted, FastSim not installed), the run names it with the reason and ends with `⚠ check incomplete`, and it fails: the case was not checked everywhere it must pass. If the project has no `cases.targets` yet, `--on targets` asks for them. `npx lynkeus status` proposes a value from what your machine has (FastSim for each platform of the app when it is installed, otherwise `headless` plus the platforms the app builds for), and `npx lynkeus init` writes that proposal when the config has none. Check it and change it if it is not what you want.
+
+While you write a case, plain `case run` on the attached app stays the quick loop.
+
+### Every target at once
+
+To try a case everywhere this machine can run it, use `--on all`:
+
+```bash
+npx lynkeus case run cases/settings-dark-mode.md --on all
+```
+
+```text
+✅ ios        settings-dark-mode
+✅ android    settings-dark-mode
+✅ headless   settings-dark-mode
+○ fastsim:ios not available: not installed: `lynkeus fastsim install --platform ios` (Team plan)
+○ fastsim:android not available: not installed: `lynkeus fastsim install --platform android` (Team plan)
+ios 1/1 passed · android 1/1 passed · headless 1/1 passed · fastsim:ios not available · fastsim:android not available
+```
+
+`--on` also takes target names separated by commas: `ios`, `android`, `fastsim:ios`, `fastsim:android` and `headless`; `all` means those five. `fastsim` alone is FastSim on the bundle you made last, whatever its platform. `ios` is your app on the iOS Simulator and `android` your app on the Android emulator (or a phone on USB). With a Simulator and an emulator both running, both apps attach to the same Lynkeus port and each is driven on its own connection, so the iOS and Android runs go on side by side. You do not need to rebuild either app or give it another port. `simulator` is still there: it means whichever device app is attached, and with two apps open that is the one that connected last. The targets run side by side, so checking several costs about as long as the slowest one.
+
+With `all` or a list of names, a target the machine does not have is listed with the reason and does not fail the run: no Simulator or emulator of that platform is running, or its app did not attach within 3 seconds, headless is not set up yet (`npx lynkeus headless init`), or FastSim is not installed, has no bundle, or your organization has no seat for you. Each FastSim target uses the bundle of its platform you made last under `.lynkeus`, or the one `--bundle` names. A case that fails on any target that ran fails the run, and its line names the step and the error. `--verbose` adds the screen and the requests, as a run on one target would.
 
 ### Several cases at once: jobs
 
@@ -348,12 +406,15 @@ A run of many cases says where it is. In a terminal a status line stays under th
 ### Run only the cases a change reaches
 
 ```bash
-npx lynkeus map build
 npx lynkeus case coverage                          # which screens the cases touch, which none does
 npx lynkeus case run $(npx lynkeus case impact --files)    # only the cases the branch's changes reach
 ```
 
-`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it, or went through it on its last passing run (`case run --seen <dir>`). `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers.
+`case coverage` crosses the route graph with the cases: a screen counts when a case goes to it, waits for it or checks it (in its own steps or in a macro it calls, with the parameters it passes), or went through it on its last passing run. A fresh CI checkout has no `.lynkeus/seen`, so there the steps and macros decide alone. A route bound to a navigator (a tab or stack navigator nested under a route) is not a screen to test: coverage leaves it out of its counts and `case impact` never lists it as untouched, while the screens inside it count as usual. `case run` keeps those screens in `.lynkeus/seen`, with the screen after each step, which is also where `case new` finds the way an existing case takes. `case impact` takes the screens a diff reaches and says which cases cover them, and which reached screens no case covers. A change to the file that registers the app, or to the root component it registers, reaches every screen, so every case is listed and the output says which file did it.
+
+A change to a string table, such as the app's translations, does not reach every screen that imports it. Lynkeus recognizes the file by its shape (top-level object literals of strings, nested or not), compares its strings with the base, and keeps the files that name a changed key (`tx="settings:title"`, `t('settings.title')`, `strings.settings.title`) and the cases whose steps mention the old or the new text. If a changed key is not written out whole anywhere, for example because a hook is bound to a prefix, the change reaches every importer as before and the output names that key.
+
+A change that only renames or removes testIDs is narrowed the same way. When the only differences in a file are the values of `testID`, `nativeID`, `accessibilityLabel` or `aria-label`, or comments and formatting, the file reaches no screen through its imports. Instead it reaches the cases whose steps name a changed testID, old or new, directly or through a macro, and the cases that name a changed label's text. Any other change in the file keeps every screen that imports it, and the other changed files in the diff still reach their screens.
 
 ## How it works
 

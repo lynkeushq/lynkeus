@@ -61,7 +61,9 @@ In an expo-router project you should see:
 ```text
 lynkeus-agent is already a dependency
 wrote index.js (mounts the agent, then loads expo-router) and pointed package.json's main at it
-made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it
+made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 wrote EXPO_PUBLIC_LYNKEUS_TOKEN to .env.local (check it is in .gitignore: Expo's template ignores .env*.local)
 Expo: the agent has native code, so it runs in a development build (npx expo run:ios, npx expo run:android), not in Expo Go
 Expo: restart the dev server so it reads .env.local; EXPO_PUBLIC_LYNKEUS_TOKEN in the environment still wins over the file
@@ -101,7 +103,7 @@ And `"main"` pointing at it:
 
 The order in `index.js` matters. `auto()` wraps the app's root component, so it has to run before the router registers that component.
 
-`auto()` runs only in development by default (`enabled` defaults to `__DEV__`). To gate it further, pass `enabled` yourself, for example to keep the agent off in a development build that points at production.
+`auto()` runs by default only in development and on Lynkeus FastSim, never in a store build (`enabled` defaults to `enabledByDefault()`). To gate it further, pass `enabled: enabledByDefault() && ...` yourself (import it from `lynkeus-agent`), for example to keep the agent off in a development build that points at production.
 
 If your project already has an `index.js` (it does not use expo-router, or you added an entry earlier), the `auto()` call goes there, before the app is registered.
 

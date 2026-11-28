@@ -65,6 +65,7 @@ For a value that can come from three places, flags win over the environment, and
   },
   "cases": {
     "dir": "cases",
+    "targets": ["headless", "ios"],
     "flows": "flows",
     "start": "Home.Main",
     "fixtures": {
@@ -100,6 +101,7 @@ The values above are examples. `app.unlock` and `IdScanner.start` stand for a ma
 |---|---|---|---|
 | `port` | number | `8123` | The port the driver listens on and the app dials. `LYNKEUS_PORT` overrides it. |
 | `device` | string | the first booted simulator | The simulator to use, by udid or by name, or an Android emulator by its `adb` serial (`emulator-5554`). A simulator's name matches when it contains the value. |
+| `avd` | string | none | The Android emulator, by its AVD name, that [`lynkeus setup`](/reference/cli/#lynkeus-setup) starts when no emulator or phone is up. `setup` starts no emulator the project does not name, and boots a Simulator only when `device` names it. |
 | `app` | string | none | The app's bundle id (iOS) or application id (Android), for `launch`, `--launch` and the simulator commands. |
 | `attachTimeout` | number (ms) | `15000` | How long a command waits for the app to attach before it gives up. |
 
@@ -167,6 +169,7 @@ The defaults for contrast are the figures of WCAG 2 level AA.
 | `crawl.never` | string[] | none | Controls the crawl must never press. |
 | `crawl.close` | string[] | none | Controls that close an overlay the app raises. Without them, the crawl closes an overlay by tapping its backdrop, then by swiping down. |
 | `crawl.back` | string[] | none | Controls that go back. Without them, the crawl takes a small control in the top-left corner for one. |
+| `crawl.login` | string or step[] | none | How to sign in: the name of a macro in `cases.macros` (`"app.signIn"`) or a list of steps. The crawl runs it when a press signed out and the way back is behind the sign-in, and first when it starts on the screen the steps wait for (their first `app.wait` or `app.see` of a route). When that first wait is for a control (`#login-button`), the crawl signs in only while the control is on screen, so a crawl that is already signed in never runs it; a route it cannot reach then is reported as a problem like any other. |
 
 The three `crawl` lists are regular expressions matched, without regard to case, against a control's `testID` and its label.
 
@@ -191,7 +194,7 @@ Everything under `ci` configures [`lynkeus ci`](/reference/cli/#lynkeus-ci), whi
 | `ci.backend.ready` | string | none | A URL to poll until it answers with a 2xx status, before the hosts start. |
 | `ci.backend.timeoutMs` | number (ms) | `300000` | How long to wait for `ready`. |
 | `ci.hosts.count` | number | `2` | How many hosts, and so how many cases run at once. `--jobs` overrides it. |
-| `ci.hosts.command` | string | a headless host | The shell command that starts one host. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
+| `ci.hosts.command` | string | a headless host | The shell command that starts one host. With `cases.targets`, it is used for the FastSim target of its bundle's platform, or for `headless` when it does not start FastSim. `{port}` is replaced by the port it must dial: the first is `LYNKEUS_PORT` or `port` (8123 unless told), the next one more, and so on. |
 | `ci.hosts.timeoutMs` | number (ms) | `600000` | How long a host may take to attach, passed to `case run` as `--host-timeout`. A host builds the app first, which is the slow part. |
 | `ci.push` | boolean | `false` | Upload the run to the report service. Needs `LYNKEUS_REPORTS_KEY`. |
 | `ci.run` | string[] | none | More `case run` flags, as on the command line: `["--video", "--once"]`. |
@@ -205,6 +208,8 @@ Everything under `cases` configures `lynkeus case run`. The file format itself i
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `cases.dir` | string | `cases` | The folder of case files. `case run` without arguments runs every `.md` file in it and its subfolders, in path order, except `README.md`, `FORMAT.md`, `CATALOG.md` and files that start with a dot. A folder named on the command line stands for the cases under it. |
+| `cases.targets` | string[] | none | Where a case must pass for this project: any of `headless`, `fastsim:ios`, `fastsim:android`, `ios` (the app on the iOS Simulator or an iPhone) and `android` (the app on the Android emulator or a phone). `case run --on targets` runs each case there and nowhere else, and a declared target the machine lacks makes that check incomplete. `lynkeus ci` runs the `headless` and FastSim ones. A case's `targets` in its frontmatter replaces this list for that case. `lynkeus init` writes a proposal when the key is missing, and `lynkeus status` shows it. |
+| `cases.stepCeilingMs` | number | `180000` | How long a step that names no `timeoutMs` may run before it fails as stuck (the app or its host stopped answering). A step that names one gets it plus 30 seconds. Inside a macro, each of its steps is held to its own. |
 | `cases.flows` | string | `flows` | The folder of the flows an `app.run` step names. |
 | `cases.fixtures` | object | none | The command that answers fixture steps. Without it, a case can only use `app.*` and `exec` steps. |
 | `cases.fixtures.command` | string | required | A shell command. Lynkeus starts it once per run and speaks JSON lines to it: one line in per step, one line out. |
@@ -283,7 +288,9 @@ Native mocks need a host whose app answers the `nativeMocks` command. Where it d
 
 A key can also name a constant instead of a method: `Module.name`, read as `NativeModules.Module.name`. Lynkeus FastSim and the headless host do not know every value a device gives its apps. A property nothing answers reads as `true` on Lynkeus FastSim (it answers with a function, which is truthy) and as `undefined` on headless, and either can send the app down the wrong path: a tablet layout, a skipped animation.
 
-After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed; one that was only read is almost always a constant.
+After a run, both hosts say which properties the app read that they could not answer. The summary lists each one, with a `nativeMocks` snippet to paste, and `run.json` keeps the list as `nativeValues`. A property that FastSim answered with a function the app then called is a call to native code and is not listed. One the app read and never called is either a constant that read as `true` or a method the app only took a reference to (`setFocusTo: Native.setFocusTo`), which is fine. Lynkeus tells them apart by the module's TurboModule spec, found where codegen finds it (`codegenConfig.jsSrcsDir` in the library's `package.json`): a method there is not listed, and a constant there is listed as one. A property no spec covers is listed as possibly either, and its snippet is meant for a constant only, since a method given a value can no longer be called.
+
+FastSim also answers some constants with a placeholder instead of nothing: expo-application's `applicationId` (`com.example.app`), `applicationName` (`App`), `nativeApplicationVersion` (`1.0.0`) and `nativeBuildVersion` (`1`). No host reports what it guessed, so after a FastSim run of an app that depends on `expo-application`, the summary lists them beside what the app's config says (`app.json`'s name, version and build numbers, the bundle id and package). FastSim releases so far answer Expo modules from fixed stand-ins and do not apply `nativeMocks` to them (`LYNKEUS_NATIVE_VALUES` reaches only the native modules the host shims itself), so the summary keeps listing all four, says which ones `nativeMocks` sets to no effect, and says that a check of these values passes on a device or headless, not on that FastSim. A FastSim whose `share/capabilities` lists `expo-native-mocks` reads them from the app's config and `nativeMocks`; with one, the summary lists only the keys not mocked, with a snippet filled from the config.
 
 | Key | Type | Meaning |
 |---|---|---|

@@ -33,6 +33,39 @@ double renders and double-mounted effects double every request, commit and
 millisecond the host measures. `"strictMode": true` in `lynkeus.config.json`
 keeps it.
 
+`case run --host` starts a host for the run, one per job with `--jobs <n>`, each
+with `LYNKEUS_PORT` set to a free driver port of its own and kept for the run
+(as `lynkeus ci` and `--on headless` do), logging to
+`lynkeus-headless-<pid>-<port>.log` in the temporary folder. The host never
+dials the configured port, so an app attached there from a Simulator or
+emulator (to a `lynkeus mcp` server, say) is left alone instead of being driven
+alongside the host. `case here --host` does the same for its read. A case that finds no app on a headless host is never put
+down to a bundle with the agent off: a headless host always runs it.
+
+A headless host that serves several cases (`--host`, or `--keep-hosts` with a
+command that runs `headless start`) is reset before each case after its first,
+about 200 ms: mocked storage (MMKV, keychain, AsyncStorage), network rules,
+clock, offline state and native mocks are emptied, the app's own `reset`
+command runs if it registered one, and the app is mounted again. State the
+app keeps at module scope (a query cache, a store made at import) survives,
+since modules load once per host; an app whose cases see each other through
+it wants `--host-command` without `--keep-hosts`, a host per case.
+
+`app.relaunch` (and a macro such as `app.fresh` built on it) does the same
+reset on a kept host instead of starting the host again: the same isolation
+as between cases, in about 100 ms instead of the 2 to 3 s a new host takes to
+boot jest and the app. A host that cannot reset is started again. With a host
+per case (`--host-command` without `--keep-hosts`) a relaunch still starts a
+new host, so module scope starts empty there too.
+
+The first start of a host transforms the app and every package it imports
+through babel, about 9 s on an Expo app with Reanimated. Jest keeps that work
+in `.lynkeus/jest-cache/`, and every later start reads it back: about 1.5 s on
+the same app, whatever port, job or command (`headless start`, `case run
+--host`, `--on headless`, `lynkeus ci`) starts the host. A change to a file
+transforms that file again, nothing else. The host runs the app's own jest bin
+with the CLI's node, not through `npx`.
+
 When the host crashes, the last thing printed is what the error usually
 means and the fix. `lynkeus headless doctor --explain "<first line>"` does the
 same for an error you paste.
@@ -64,8 +97,8 @@ export { App };
 ```
 
 `installDefaultMocks` mocks what is installed and would otherwise explode in
-Node: MMKV, keychain, device-info, safe-area-context, localize, async-storage,
-worklets, pager-view and webview. A library's own shipped jest mock or jest
+Node: MMKV, keychain, device-info, safe-area-context, react-native-localize,
+expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped jest mock or jest
 setup file is used automatically. Reanimated and gesture-handler are
 deliberately left alone (their jest story is a babel plugin, not
 `jest.mock`); pass `overrides` if your app wants them mocked.
@@ -84,6 +117,12 @@ axios, Reactotron and expo-linking work.
 Options: `skip`, `overrides`, `network` (`'real'` or `'banned'`), `networkHosts`, `websocket` (`'stub'`, `'real'` or `'none'`),
 `animations`, `deviceVersion`, `locale`, `initialUrl` (what `Linking.getInitialURL` answers).
 
+The launch locale (`case run --locale`, `launch.locale`, `LYNKEUS_LOCALE`) wins
+over `locale` and reaches expo-localization, react-native-localize and `Intl`'s
+default locale, all derived from the tag with Intl. The launch time zone
+(`--time-zone`, `LYNKEUS_TIME_ZONE`) also sets the host's `TZ`, so `Date` runs
+in it; an entry's `locale.timeZone` reaches the libraries only.
+
 `headless init` finds your App component through the app's own entry
 (`--component` otherwise), takes `--api-env <NAME>` to set the variable the
 app reads its API address from, and with
@@ -95,6 +134,19 @@ existing entry.
 - **Get**: no simulator, no build, start in ~40 s, several apps at once
   (`LYNKEUS_PORT`), a real backend if you point it at one, and the same screen
   reading and touches as on a device, layout included, computed with Yoga.
+  Where jest's stand-ins drop a style a device applies, the layout puts it
+  back: a scroll view's `contentContainerStyle` on its content view, and a
+  library's unstyled native view that only wraps a filling child fills too.
+  Reanimated's live values under jest (`jestAnimatedStyle`, `jestAnimatedProps`)
+  win over the rendered props, translations move frames, and frame callbacks
+  get performance.now's clock, so a react-native-drawer-layout drawer opens,
+  hides the screen behind it, and closes with `swipe left` (a swipe where
+  nothing scrolls that way drives the gesture-handler pan under the finger).
+  Before a scroll the host reports Yoga's sizes to the list's layout handlers
+  (`onContentSizeChange`, `onLayout` of the scroller and its rows), so a
+  FlatList or SectionList renders the rows further down and `wait --scroll`
+  reaches them; the scroller a finger lands on is the one drawn on top there.
+  A list the app scrolls itself (`scrollToIndex`) does not move yet.
 - **Give up**: anything native. Camera, biometrics, deep OS integrations are
   mocks. A WebView renders as an empty box. Native crashes are jest errors.
 
@@ -186,7 +238,10 @@ resolves `undefined`. Each run and `lynkeus headless doctor` list those modules 
 Under jest a native property nothing answers reads as `undefined`: `NativeModules.RNFoo.isTablet` is undefined, a
 module that is not there is undefined, `TurboModuleRegistry.get` answers null and `getEnforcing` throws. On a device
 the property has a value, and Lynkeus FastSim answers it with a function, which reads as true: the two hosts guess in
-opposite ways, so the app can take another path than on a phone.
+opposite ways, so the app can take another path than on a phone. FastSim records whether the app called each such
+function: one it called was a method. One read and never called is a constant or a method the app only took a
+reference to, and `case run` reads the module's TurboModule spec (under `codegenConfig.jsSrcsDir`) to tell which: a
+method is not listed.
 
 `installDefaultMocks` therefore wraps `NativeModules` and records each property or module the app reads that is not
 there (once each; `then`, `toJSON` and the event emitter's probes are not reads). The `nativeValues` command returns
@@ -199,13 +254,14 @@ list of platforms) sets a constant instead of answering a call:
 "nativeMocks": {
   "RNFoo.isTablet": { "value": false },
   "RNFoo.density": { "ios": 3, "android": 2.75 },
-  "RNFoo.legacyFlag": { "absent": ["android"] }
+  "RNFoo.legacyFlag": { "absent": ["android"] },
+  "EXDevLauncher": { "absent": true }
 }
 ```
 
 `lynkeus headless start` puts the constants in `LYNKEUS_NATIVE_VALUES` (JSON) and `installDefaultMocks` applies them
 before the app is required, so a module-level read finds them. A `nativeMocks` `set` during a case applies them too,
-but the app has already read what it read. The value to use is in the library's native code under `node_modules`.
+but the app has already read what it read. A key with no property (`"EXDevLauncher": { "absent": true }`) declares a whole module absent: the app reads it as undefined, and the run no longer lists it among the native values the host does not know. The value to use is in the library's native code under `node_modules`.
 
 ## What headless cannot tell you
 

@@ -8,18 +8,21 @@ import type { FlagSpec } from '../args.js';
 import { type ProgressEvent, RunState, statusLine } from '../cases/progress.js';
 import type { Session } from '../cli.js';
 import { type Command, commands, overMcp } from '../registry.js';
-import { execute } from '../runtime.js';
+import { execute, fromLane } from '../runtime.js';
 import { TARGET_HELP } from '../targets.js';
 
 const text = (body: string) => ({ content: [{ type: 'text' as const, text: body }] });
 
-type Property = { type: string; items?: { type: string }; description: string };
+type Property = { type: string; items?: { type: string }; enum?: string[]; description: string };
 
-const propertyFor = (f: FlagSpec): Property => ({
-  type: f.type === 'list' ? 'array' : f.type,
-  ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
-  description: f.help + (f.default !== undefined ? ` (default ${f.default})` : ''),
-});
+const propertyFor = (f: FlagSpec, mcpDefault?: number | string | boolean): Property => {
+  const fallback = mcpDefault ?? f.default;
+  return {
+    type: f.type === 'list' ? 'array' : f.type,
+    ...(f.type === 'list' ? { items: { type: 'string' } } : {}),
+    description: f.help + (fallback !== undefined ? ` (default ${fallback})` : ''),
+  };
+};
 
 const describe = (c: Command) => {
   const details = c.mcpDetails ?? c.details;
@@ -28,24 +31,119 @@ const describe = (c: Command) => {
 
 const identifier = (name: string) => name.replace(/[^a-z0-9]+/gi, '_');
 
+type Progress = { progress: number; total?: number; message?: string };
+
+const MARK: Record<string, string> = { passed: '✅', failed: '❌', skipped: '⏭️', unsupported: '🚫' };
+const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+const clipStep = (step: string) => {
+  const text = step.trim();
+  return text.length > 120 ? `${text.slice(0, 119)}…` : text;
+};
+
 /**
- * A run's events as MCP progress notifications, for a client that asked with a progress token: the cases done,
- * plus how far the running ones are through their steps, out of the cases in the run, with the live line as the
- * message. The value only ever grows, as MCP asks; a step that would not move it sends nothing.
+ * What one event of a run says in the client's progress line, headed by its lane on a run on several targets: a case
+ * starting (its attempt, the lane's count), each step starting and ending (`step N/M`, its text, the time), a case
+ * ending (result, duration, the lane's count). It shows in the client and never in the model's context.
  */
-export const progressNotifier = (send: (params: { progress: number; total?: number; message?: string }) => void) => {
-  const state = new RunState();
-  let last = -1;
-  return (event: ProgressEvent) => {
-    state.apply(event);
-    const s = state.status();
-    const partial = s.running.reduce((sum, r) => sum + (r.step ? (r.step.index + 1) / Math.max(1, r.steps) : 0), 0);
-    const progress = Math.round((s.done + Math.min(partial, s.running.length * 0.99)) * 100) / 100;
-    if (progress <= last) return;
-    last = progress;
-    send({ progress, ...(s.total ? { total: s.total } : {}), message: statusLine(s) });
+export const progressLine = () => {
+  const totals = new Map<string, number>();
+  const done = new Map<string, number>();
+  const cases = new Map<string, { attempt: number; startedAt: number }>();
+  const laneOf = (lane: string | undefined) => lane ?? '';
+  const head = (lane: string | undefined) => (lane ? `[${lane}] ` : '');
+  // Beside its lane the id carries it too (`login (fastsim:ios)`); the head already says it.
+  const bare = (id: string, lane: string | undefined) => (lane && id.endsWith(` (${lane})`) ? id.slice(0, -lane.length - 3) : id);
+  const count = (lane: string | undefined) => `${done.get(laneOf(lane)) ?? 0}/${totals.get(laneOf(lane)) ?? '?'} done`;
+  return (e: ProgressEvent): string | undefined => {
+    switch (e.type) {
+      case 'run-start': {
+        for (const c of e.cases) totals.set(laneOf(c.lane), (totals.get(laneOf(c.lane)) ?? 0) + 1);
+        const lanes = [...totals.keys()].filter(Boolean);
+        return `▶ ${e.total} case(s)${lanes.length ? ` on ${lanes.join(', ')}` : ''}, ${e.jobs} at a time`;
+      }
+      case 'report':
+        return `report: ${e.url}`;
+      case 'case-start': {
+        cases.set(`${e.lane}\0${e.id}`, { attempt: e.attempt, startedAt: Date.parse(e.at) });
+        return `${head(e.lane)}▶ ${bare(e.id, e.lane)}${e.attempt > 1 ? ` (attempt ${e.attempt})` : ''} · ${count(e.lane)}`;
+      }
+      case 'step': {
+        const c = cases.get(`${e.lane}\0${e.id}`);
+        const where = `${head(e.lane)}${bare(e.id, e.lane)}${c && c.attempt > 1 ? ` (attempt ${c.attempt})` : ''} · step ${e.index + 1}/${e.steps}`;
+        if (e.status === undefined) return `${where} ${clipStep(e.step)}${c ? ` · +${seconds(Date.parse(e.at) - c.startedAt)}` : ''}`;
+        return `${where} ${MARK[e.status] ?? e.status} ${clipStep(e.step)} · ${seconds(e.ms ?? 0)}`;
+      }
+      case 'case-end': {
+        if (!e.retrying) done.set(laneOf(e.lane), (done.get(laneOf(e.lane)) ?? 0) + 1);
+        return `${head(e.lane)}${MARK[e.result] ?? ''} ${bare(e.id, e.lane)} ${e.result} in ${seconds(e.ms)}${e.retrying ? ', retrying once' : ''} · ${count(e.lane)}`;
+      }
+      case 'run-end':
+        return `■ ${e.passed} passed, ${e.failed} failed${e.unsupported ? `, ${e.unsupported} unsupported` : ''} in ${seconds(e.ms)}${e.stopped ? ` (stopped: ${e.stopped})` : ''}`;
+    }
   };
 };
+
+/**
+ * A run's events as MCP progress notifications, for a client that asked with a progress token: one for every event
+ * (each case's start and end, each step's start and end), with `progressLine`'s text as the message. The value is the
+ * cases done plus how far the running ones are through their steps, out of the cases in the run; it only ever grows,
+ * as MCP asks, a hair at a time when an event does not move it. `beat` says the run's live line again, so a step that
+ * runs long still shows the run is alive (false before the run started).
+ */
+export const progressNotifier = (send: (params: Progress) => void) => {
+  const state = new RunState();
+  const line = progressLine();
+  let last = -1;
+  let started = false;
+  const post = (message: string) => {
+    const s = state.status();
+    const partial = s.running.reduce((sum, r) => sum + (r.step ? (r.step.index + 1) / Math.max(1, r.steps) : 0), 0);
+    const reached = Math.round((s.done + Math.min(partial, s.running.length * 0.99)) * 100) / 100;
+    last = reached > last ? reached : Math.round((Math.max(last, 0) + 0.001) * 1000) / 1000;
+    send({ progress: last, ...(s.total ? { total: s.total } : {}), message });
+  };
+  const notify = (event: ProgressEvent) => {
+    state.apply(event);
+    if (event.type === 'run-start') started = true;
+    const message = line(event);
+    if (message) post(message);
+  };
+  const beat = (): boolean => {
+    if (!started) return false;
+    post(statusLine(state.status()));
+    return true;
+  };
+  return Object.assign(notify, { beat });
+};
+
+/**
+ * A job's lines as MCP progress notifications: no total to count against, so the value counts the lines, and only
+ * grows. `beat` repeats the last line with how long the job has run.
+ */
+export const jobNotifier = (send: (params: { progress: number; message: string }) => void, startedAt = Date.now()) => {
+  let n = 0;
+  let said: string | undefined;
+  const notify = (message: string) => {
+    said = message;
+    send({ progress: ++n, message });
+  };
+  const beat = (name: string) => send({ progress: ++n, message: `${said ?? name}: still running, ${Math.round((Date.now() - startedAt) / 1000)} s in` });
+  return Object.assign(notify, { beat });
+};
+
+/** MCP wants each notification of a call to carry a larger value than the one before, whoever sends it. */
+export const growing = (send: (params: Progress) => void) => {
+  let last = -Infinity;
+  return (params: Progress) => {
+    const progress = params.progress > last ? params.progress : Math.round((last + 0.001) * 1000) / 1000;
+    last = progress;
+    send({ ...params, progress });
+  };
+};
+
+// Clients give up on a call that says nothing for a while (Claude Code after about 30 minutes in trial 7, with a
+// step stuck for 31 of them): a long command says it is alive at least this often.
+export const HEARTBEAT_MS = 20_000;
 
 // Written by hand: a schema library adds fields to every tool that a model pays for on every turn.
 export const schemaFor = (c: Command) => {
@@ -53,15 +151,19 @@ export const schemaFor = (c: Command) => {
   const required: string[] = [];
   for (const p of c.positionals ?? []) {
     const key = identifier(p.name);
-    properties[key] = p.rest ? { type: 'array', items: { type: 'string' }, description: p.help } : { type: 'string', description: p.help };
+    properties[key] = p.rest
+      ? { type: 'array', items: { type: 'string' }, description: p.help }
+      : { type: 'string', ...(p.choices ? { enum: p.choices } : {}), description: p.help };
     if (p.required) required.push(key);
   }
-  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f);
+  for (const [name, f] of Object.entries(c.flags ?? {})) if (!c.mcpOmit?.includes(name)) properties[identifier(name)] = propertyFor(f, c.mcpDefaults?.[name]);
   return { type: 'object' as const, properties, ...(required.length ? { required } : {}) };
 };
 
 /** Back to an argv, so the same runtime serves both surfaces. */
-const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
+export const argvFor = (c: Command, given: Record<string, unknown>): string[] => {
+  const defaults = Object.entries(c.mcpDefaults ?? {}).map(([name, value]) => [identifier(name), value]);
+  const input: Record<string, unknown> = { ...Object.fromEntries(defaults), ...given };
   const av = c.name.split(' ');
   for (const p of c.positionals ?? []) {
     const v = input[identifier(p.name)];
@@ -82,40 +184,27 @@ const argvFor = (c: Command, input: Record<string, unknown>): string[] => {
 
 // What a model is told once, when it connects: the order things are done in, so "set Lynkeus up" and "write me
 // a test for this" need nothing more from the person asking.
-const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, and runs cases written as readable steps.
+const INSTRUCTIONS = `Lynkeus drives a React Native app (bare or Expo) by what is on its screen, through lynkeus-agent inside it, and runs cases: markdown files of readable steps.
 
-In a project you do not know, call status first: it lists what is set up, where cases can run on this machine, and, for what is not set up, the one thing that fixes it.
-
-To set Lynkeus up: call init (it installs lynkeus-agent, mounts it from the app's entry and makes the project's token; nobody sets a variable). The agent has native code, so the app must then be built again (npx react-native run-ios or run-android; npx expo run:ios or run:android, never Expo Go) with Metro restarted with --reset-cache. Do that with your shell if you have one, or ask the person to. Then status until an app is attached.
-
-Where to run: a dev build on a Simulator or emulator runs every case, picks up saved JS through Fast Refresh and is free: use it while writing cases. The headless host (no device, Node) and Lynkeus FastSim start a fresh app per case and run cases side by side: use them for whole suites and CI, FastSim when the organization has it (frames, film, pixel-stable runs), headless otherwise. Lynkeus never boots or closes a device: when you are done, shut down the Simulators and emulators you booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running when you started.
+Prefer the one-call jobs to driving builds, Metro and devices through your shell: setup connects an app from scratch (init, the device, Metro, the development build, launch, attach, status; safe to re-run), case_run with on: targets and brief runs a suite on the project's targets, evidence runs it with frames, film and report.html. Each answers a few lines and keeps its logs in files: open one only when the answer points at it. If your client can run a task in a separate context, give it the one-call jobs and keep only their summaries. In a project you do not know, call status first. With no device: headless_init, headless_doctor, then case_run with host (the backend must be local: apiUrl in lynkeus.config.json).
 
 To write cases, spend tokens in this order and stop as soon as you know enough:
-1. case_coverage: the app's screens and which ones no case reaches yet.
-2. case_new with the screen: a draft with the way there (from the route map), the backend setup to pick from and the checks left to write. map_plan answers the way between two screens. On the screen already, case_here drafts from what is shown.
-3. Only then drive the app (press, type, wait; press with settle: true answers with the screen once the app has settled) and call screen to fill what the draft could not know. Prefer testIDs (#id) over text, and short texts over paragraphs. Read the app's source only for what the screen cannot tell (validation rules, the shape of a response to mock).
-4. Write the case as a markdown file in the cases folder (case_init writes the folder and a README.md with the format, once) and call case_run with that file. A failed step comes back with its error and the screen it failed on: fix the case or report the app's bug, never weaken the check.
+1. case_coverage: the app's screens and which no case reaches yet.
+2. case_new with the screen: a draft with the way there (an existing case's steps when one reaches it), the backend setup to pick from and the checks left to write. Keep the way it offers; steps several cases open with belong in a macro (case_coverage names it). On the screen already, case_here drafts from what is shown; map_plan answers the way between two screens.
+3. No known way to the screen: crawl from the nearest one.
+4. Only then drive the app (press, type, wait; press with settle: true answers with the settled screen) and call screen to fill what the draft could not know. Prefer testIDs (#id) over texts. Read the app's source only for what the screen cannot tell.
+5. Write the case as a markdown file in the cases folder (case_init writes it once, with a README.md of the format) and run it with case_run. A failed step comes back with its error and screen; why explains it. Fix the case or report the app's bug, never weaken the check.
+6. A case is done when one case_run with on: targets passes it on the project's targets (cases.targets in lynkeus.config.json; a case's own targets: frontmatter overrides them). Run nowhere else. If the project declares none, ask the person which targets matter (status proposes a value). Write it where it is cheapest among them.
 
-After changing the app's code, or to review a branch: case_impact with base (the branch's base) lists the cases the changes reach; run those with case_run, then fix what broke. In CI, \`lynkeus ci --affected\` does the same on every pull request, and \`lynkeus map ci\` writes a workflow that comments the screens a pull request reaches.
+After changing the app's code, or to review a branch: case_impact with base lists the cases the changes reach; run those and fix what broke.
 
-To test without a simulator: call headless_init (it installs what the Node host needs and writes its entry; an Expo Router app works too), then headless_doctor for the native modules still to mock, then case_run with host. The backend the app talks to must be local: set apiUrl in lynkeus.config.json. A native module the app uses and nobody provides is answered empty by default, and the run lists each one: tell the person, and when an empty answer changes what the app shows, give it a real one where the list says (the person decides).
+Lynkeus boots only a device the project names (setup says when it does) and never closes one: when you are done, shut down the Simulators and emulators you or setup booted (xcrun simctl shutdown <udid>, adb -s <serial> emu kill), never one that was already running.
 
-To test on Lynkeus FastSim (a simulator that runs the app on a Mac or Linux without Xcode or an emulator, much faster; optional and paid, part of the Team plan, plans at https://lynkeus.io/pricing; use it when the person asks for it or their organization already has it, otherwise the headless host and the Simulator or emulator are free and cover the same cases): fastsim_install with platform ios or android (the sign-in a member with a seat saved by running "lynkeus login" in a terminal, which you cannot do for them: when there is none, tell the person to run it; or, in CI, LYNKEUS_CLOUD_KEY in this server's environment: a key an owner made with "May download Lynkeus FastSim"), then read the README.md in the folder it answers: bin/fastsim-bundle makes the app's bundle, and case_run with host_command set to that folder's bin/fastsim-run <bundle folder> {port} runs each case on its own FastSim host. To look around the app on FastSim before writing a case, fastsim_start with that bundle folder attaches this server to a host of its own (screen, press and type then drive it) until fastsim_stop. iOS matches the simulator only on a Mac. When the service refuses (no FastSim in the organization's plan, no seat, a key without "May download Lynkeus FastSim"), tell the person what the refusal says and where to get it (an owner subscribes at https://lynkeus.io/pricing, or gives them a seat under Members), then carry on with headless or the Simulator; never retry with other credentials or look for a way around it.
+A native module or value the app reads that nobody provides is answered empty (headless) or guessed (FastSim), and each run lists it: tell the person; when that changes what the app shows, giving it a real answer in cases.nativeMocks is their decision.
 
-To share a run: case_run with out, screenshots and push uploads it and prints the report's address. That needs LYNKEUS_REPORTS_KEY in this server's environment.
+Lynkeus FastSim is optional and paid (Team plan): use it when the person asks or their organization has it. When the service refuses (no plan, no seat, no key), tell the person what it said and carry on with headless or a device; never retry with other credentials.
 
-For a run with everything (frames, film, requests, analytics, backend): case_run with out, screenshots, video (film needs FastSim), traces and push. When the run ends it warns about evidence it could not keep: pass that on.
-
-A case that changes something outside the app (a face enrolled on a shared Simulator) puts it back in \`teardown:\`, a list of steps with the same syntax as \`steps\`: it runs after them whether they passed, failed or were skipped, a failing teardown step is only a warning, and a run cut by a timeout never reaches it.
-A long case opens each part of its steps with a numbered comment (# 1 Sign in, # 2 A wrong PIN), numbered like its expected list: reports and the live status group the steps by them.
-
-For a long suite: case_run with jobs, ports and host_command runs cases side by side, each on its own host; a case that changes what every case sees (a global flag) declares exclusive: true and runs alone. While a run goes on, case_status says where it is (cases done, what each job runs and in which section, the time left); a client that passes a progress token also hears it as progress notifications. A client may move a long case_run to the background: follow it with case_status, and stop it with case_stop (cancelling the call stops it too). One case_run at a time drives an app: a second one on the same port is refused until the first ends or is stopped.
-
-For a run to repeat exactly (comparing two runs, a time-dependent screen): case_run with seed, locale, time_zone and epoch on a host the run starts (host or host_command). A simulator or emulator that is only attached keeps its own clock and zone; run.json says which facts it could not apply.
-
-A request a case mocked (app.mock) reads (mocked) in requests, trace and a failed case's evidence: it is the case's doing, never the backend's.
-
-To look at a loading state, a case holds the request and releases it later: app.mock with route and hold: true, the steps that look at the screen, then app.mock with release: true. A held request is not waited for (idle and screenshots go on without it) and is reported apart as held, not in inFlight.`;
+Everything else is in the guide tool: a topic lists its sections, topic and section answer one. Read a section when the task reaches it, not up front. Topics: cases (format, text matching, steps, app commands, macros, on: blocks, interruptions, mocks, app.relaunch), targets (cases.targets, on: targets, headless, FastSim, jobs), evidence (out, film, report.html, sharing, reading a failure), ci, determinism, troubleshooting. Clients that load Agent Skills have the same text as the Lynkeus skill.`;
 
 export const serve = async (session: Session, options: { full?: boolean } = {}) => {
   const { version } = createRequire(import.meta.url)('../../package.json') as { version: string };
@@ -169,20 +258,23 @@ export const serve = async (session: Session, options: { full?: boolean } = {}) 
     const token = request.params._meta?.progressToken;
     // A client that cancels the call (notifications/cancelled) stops a long command with it: a case run ends its
     // case, stops its hosts and lets go of its port instead of running on unseen.
-    const ctx = {
-      ...session.ctx,
-      signal: extra.signal,
-      ...(token === undefined
-        ? {}
-        : {
-            progress: progressNotifier((params) => {
-              void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, ...params } }).catch(() => undefined);
-            }),
-          }),
-    };
-    const r = await execute(argvFor(c, input), ctx);
-    if (r.error) return { ...text(`✗ ${r.error}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
-    const body = text(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'));
+    const send = growing((params) => {
+      void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token!, ...params } }).catch(() => undefined);
+    });
+    const progress = token === undefined ? undefined : progressNotifier(send);
+    const notify = token === undefined ? undefined : jobNotifier(send);
+    const ctx = { ...session.ctx, signal: extra.signal, ...(progress && notify ? { progress, notify } : {}) };
+    // Between a run's events (a step that waits a long time) and a job's lines (a build), the call still says it is alive.
+    const heartbeat = progress && notify ? setInterval(() => progress.beat() || notify.beat(c.name), HEARTBEAT_MS) : undefined;
+    heartbeat?.unref();
+    const r = await execute(argvFor(c, input), ctx).finally(() => clearInterval(heartbeat));
+    // Several apps can be attached at once (a Simulator's, an emulator's, a FastSim host's): an answer about the app says whose.
+    const lane = r.lane ?? (c.needs === 'app' ? ctx.lane?.() : undefined);
+    // The app it drives changed since the last answer, or another app on the port is turned away: said once.
+    const note = c.needs === 'app' && !r.lane ? ctx.appNote?.() : undefined;
+    const noted = (said: string) => (note ? `(${note})\n${said}` : said);
+    if (r.error) return { ...text(`✗ ${fromLane(lane, noted(r.error))}${r.why ? `\n\nwhy:\n${r.why}` : ''}`), isError: true };
+    const body = text(fromLane(lane, noted(r.text || (r.json !== undefined ? JSON.stringify(r.json, null, 2) : 'ok'))));
     // A command that ended with a non-zero code (a failed case, a server that does not keep the contract) is
     // reported as such, with everything it said, so a model does not read it as success.
     return r.code === 0 ? body : { ...body, isError: true };

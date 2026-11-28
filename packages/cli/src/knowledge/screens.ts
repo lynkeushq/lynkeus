@@ -20,7 +20,8 @@ export type ScreenChange = { route: string; date: string; added: string[]; remov
 // Sub-pixel rounding and font hinting move an element a point or two without any layout change.
 const GEOMETRY_TOLERANCE = 4;
 
-const presented = (e: Screen['elements'][number]) => !e.hidden || e.hidden === 'inert';
+// What another window shows over the app is not the screen's structure.
+const presented = (e: Screen['elements'][number]) => (!e.hidden || e.hidden === 'inert') && !e.system;
 
 const framesOf = (screen: Screen): Record<string, Frame> => {
   const out: Record<string, Frame> = {};
@@ -92,13 +93,28 @@ export const record = (lynkeusDir: string, screen: Screen): ScreenChange | null 
   return change;
 };
 
+/** A route's screen as it was last read, with the frames of its elements that have a testID: where a text used to be. */
+export const lastRead = (lynkeusDir: string, route: string): { elements: Screen['elements']; frames: Record<string, Frame> } | undefined => {
+  try {
+    const stored = JSON.parse(fs.readFileSync(fileOf(lynkeusDir, route), 'utf8')) as Stored;
+    return { elements: stored.elements ?? [], frames: stored.frames ?? {} };
+  } catch {
+    return undefined;
+  }
+};
+
 export type Observed = {
   route: string;
   path: string[];
   seen: number;
   date: string;
   testIds: string[];
+  /** Short texts on it (labels, headings), not paragraphs: what a draft can offer to check. */
+  texts?: string[];
 };
+
+// A label or a heading; a paragraph is copy that is rewritten and breaks a check on any change.
+const MAX_LABEL = 60;
 
 /** What runs have seen, by route: the routes and interpolated testIDs a static parser cannot find. */
 export const observed = (lynkeusDir: string): Map<string, Observed> => {
@@ -118,11 +134,14 @@ export const observed = (lynkeusDir: string): Map<string, Observed> => {
     }
     if (!stored.route) continue;
     const testIds: string[] = [];
+    const texts: string[] = [];
     for (const e of stored.elements ?? []) {
-      if (!e.testId || e.hidden) continue;
-      if (!testIds.includes(e.testId)) testIds.push(e.testId);
+      if (e.hidden || e.system) continue;
+      if (e.testId && !testIds.includes(e.testId)) testIds.push(e.testId);
+      const text = e.text?.trim();
+      if (!e.testId && text && text.length > 1 && text.length <= MAX_LABEL && !texts.includes(text)) texts.push(text);
     }
-    out.set(stored.route, { route: stored.route, path: stored.path ?? [], seen: stored.seen ?? 1, date: stored.date, testIds });
+    out.set(stored.route, { route: stored.route, path: stored.path ?? [], seen: stored.seen ?? 1, date: stored.date, testIds, texts });
   }
   return out;
 };

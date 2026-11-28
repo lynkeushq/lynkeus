@@ -33,7 +33,7 @@ The [last section](#what-why-tells-you) lists every answer `why` can give.
 **Fix.** Check these in order:
 
 1. **The build is a debug build.** The agent does not run in a release build.
-2. **`enabled` is true for this environment.** If you gate it, as in `enabled: __DEV__ && config.ENV !== 'prod'`, check what the expression gives in the build you are running.
+2. **`enabled` is true for this environment.** If you gate it, as in `enabled: enabledByDefault() && config.ENV !== 'prod'`, check what the expression gives in the build you are running. Gating on `__DEV__` alone turns the agent off on Lynkeus FastSim, which runs a release bundle.
 3. **The token reached the app.** Look in the app's log for `lynkeus: the app passed a token and it is empty`. If the line is there, the agent is off; see [the next entry](#the-app-logs-lynkeus-the-app-passed-a-token-and-it-is-empty).
 4. **The tokens match.** The token the app received when it was bundled must be the one the CLI reads: `LYNKEUS_TOKEN` in the terminal, else the project's `.lynkeus/token`. A mismatch looks like no app at all, with one difference: the error then ends with `An app connected but did not answer: its token is not this one. Start Metro with the LYNKEUS_TOKEN this driver has (.lynkeus/token or the environment), with --reset-cache.`
 5. **The app runs on a simulator, an emulator or an Android phone over USB.** An iPhone is not supported: the CLI looks for a booted simulator, or a device `adb devices` lists. For a phone, `adb` must be on your `PATH`, because the CLI runs `adb reverse` to give it the driver's port.
@@ -92,9 +92,31 @@ or, from `case run`:
 port 8123 is held by another lynkeus case run (pid 4242), which is probably still going: stop it, or give this run other --ports
 ```
 
+or, from `case run` with `--host-command`, when a port in `--ports` already has a listener:
+
+```text
+port 8123 is already in use by another process (a `lynkeus mcp` server or another run's driver?): this run's hosts would dial it. Stop that process, or give this run other --ports
+```
+
 **Why.** Only one driver can listen on a port. A `lynkeus session`, a `lynkeus mcp` server or another run is still holding it. Sharing a port would hand the app to whichever driver it dials next, and two runs' steps would mix.
 
-**Fix.** Stop the other process. To run two at once on purpose, give each pair its own port: set `LYNKEUS_PORT` for the driver and for the headless host, and the `port` option of an app on a simulator.
+**Fix.** Stop the other process. To run two at once on purpose, give each pair its own port: set `LYNKEUS_PORT` for the driver and for the headless host, and the `port` option of an app on a simulator. `lynkeus ci` needs neither: it passes over a port that is taken and says which ones its hosts use instead.
+
+`lynkeus status` names the process that holds the port, from `lsof` and `ps`, and when it is Lynkeus, its release and the project it serves:
+
+```text
+✗ port 8123 is taken by pid 13646 (npm exec lynkeus@0.7.6 mcp): Lynkeus 0.7.6 for another project, /Users/me/old-app. It cannot drive this project's app (each project has its own token) and keeps this driver from listening: stop it (`kill 13646`), or give this project another port (LYNKEUS_PORT, for the app and its driver alike)
+```
+
+A server left by another project cannot drive your app. Each project has its own `.lynkeus/token`, and the app and the driver each prove theirs to the other before anything is served. A driver with another token drops the app as soon as it proves its token, and the app drops a driver whose proof is wrong. Your app keeps dialing until the port is free. It logs one warning: `lynkeus: the driver at ws://localhost:8123 does not hold this app's token…`.
+
+### An app dialed in with another project's token
+
+**What you see.** `status` says `✗ an app is attached (port 8123): one dialed in with another project's token and was refused`. Other commands end with `An app dialed in once with another token and was refused…`.
+
+**Why.** An app reached this driver and proved a token that is not this project's. Either it is another project's development build, or its bundle was made before this project's token changed.
+
+**Fix.** Open this project's development build. If it is already open, restart Metro with `--reset-cache` so the bundle gets the token in `.lynkeus/token`.
 
 ### `No booted simulator matching "…"`
 
@@ -139,10 +161,35 @@ lynkeus screen
 | You see | Meaning | Fix |
 |---|---|---|
 | `~covered` | A touch at its center would land on something else. | Close what is over it, or press what covers it. If every control reads `~covered` on Android, see the next entry. |
+| `~system` | Words of a system alert or a native sheet in front of the app, not of the app. | Press its button by its text. See [A system alert or prompt is in front of the app](#a-system-alert-or-prompt-is-in-front-of-the-app). |
 | `!disabled` | The control will not answer a touch. | A form is not valid yet, or a request it depends on is still in flight. Wait for it. |
 | `3 hidden: 3 behind-overlay` in the header | The element is mounted but belongs to a screen the app is not showing. | Close what is open, or target something inside it. `lynkeus screen --all` lists the hidden elements. |
 
 `lynkeus press <target> --js` presses through the React handler instead of the OS. If that works where a normal press does not, something is over the element. It is a useful comparison, not a fix.
+
+### A system alert or prompt is in front of the app
+
+**What you see.** The header ends in `+system`, and a line starting with `!` says that a view the app did not draw is in front of it. A press of a control under it fails with `… is under a view the app did not draw`, instead of tapping the app behind the alert.
+
+**Why.** Something outside the app's React tree is showing: an alert from `Alert.alert`, a native SDK's sheet, a permission prompt, or iOS's "Save Password?" after a login form with a password field leaves the screen. Lynkeus reads what that view says when it runs in the app's process and lists it with `~system`.
+
+**Fix.**
+
+- When its words are listed, press its button by its text, as a person would: `lynkeus press "Not Now"`. To get past it in any step of any case, add it to [`cases.interruptions`](/reference/configuration/#casesinterruptions): `see` its text, `do` the press.
+- When the line says another process draws it (iOS draws "Save Password?" that way), nothing from inside the app can read or tap it. Relaunch the app, or answer it on the device. To keep a suite from meeting it, sign in through an app command (`qa.register`) rather than through the form.
+- On a development build with expo-dev-client, the same line on the first launch is usually Expo's dev-menu onboarding sheet ("This is the developer menu… Continue"), drawn natively outside React. `lynkeus setup` marks it seen after a fresh build and launches the app once more without it; otherwise `lynkeus status` marks it seen on every booted Simulator and emulator, and the next launch of the app does not show it.
+
+React Native's own development banner ("Refreshing...", "Loading from Metro..."), which a development build or the Expo dev client shows at the top while Metro sends new code, is not a system view: Lynkeus knows its window by the class that handles its touches and leaves it out, and `idle`, and so each frame of a run, waits until it has gone. An app built with an older `lynkeus-agent` still lists it as `+system` until it is rebuilt.
+
+### A press sent the app to the background
+
+**What you see.** `press` answers `! the app went to the background: it opened https://…, and the browser is in front`, or `screen` starts with that line.
+
+**Why.** The control opened a link or another app. What the agent lists then is the app's own tree, not what is on screen.
+
+**Fix.** If the case meant it, bring the app back with `lynkeus os appstate active` and go on. If it did not, the control is not the one the case wanted.
+
+In a run, the case that leaves the app in the background is the one whose failure says so: `this case left the app in the background: a press opened https://…`. The next case does not inherit it. Before a case starts on a simulator, emulator or phone, Lynkeus brings the app back to the front the way it launches it (`simctl launch`, the launcher intent), so the app keeps its state, and relaunches it only if it does not come back. That needs the app's id: `app` in `lynkeus.config.json` or `--app`. A `crawl` does the same after each such press, and lists the press as one that left the app.
 
 ### On Android, every control reads `~covered`
 
@@ -166,11 +213,22 @@ lynkeus screen
 
 **Fix.** Update `lynkeus-agent` and rebuild the app. The fix is in the native module, so a Metro reload is not enough.
 
+### `the app is gone (crashed or closed)` right after a relaunch or a reload
+
+**Why.** The app's connection closed and it has not dialed back in. An app that just left gets 10 seconds; after a relaunch Lynkeus made (`app.relaunch`, the relaunch before a case, bringing the app back), the commands that follow wait up to 60 seconds. Past those 10 seconds, Lynkeus asks the Simulator or emulator whether the app's process still runs: if it does, the app is loading or reloading its JavaScript (a Fast Refresh, a development build fetching its bundle from Metro), and the command waits for it, up to 60 seconds from when it left. Only an app whose process is gone fails as gone.
+
+**Fix.** When it says `the app is still running but its JavaScript has not attached again`, look at Metro and at the app: a bundle still building, a red screen, or a reload of a bundle without the agent. When it says the app is gone, the app crashed or was closed: open it again, or `lynkeus launch`.
+
 ### `No element matches …`
 
 **Why.** Nothing on screen answers the target. The most common causes are a `testID` that changed, a screen that has not arrived yet, and an element below the fold.
 
 **Fix.** Run `lynkeus screen` to see what is there. Wait for the element with `lynkeus wait <target>`, or scroll to it with `lynkeus wait <target> --scroll`.
+
+A press matches its target exactly as `wait` and `find` do, so when a press refuses what a wait just found, the message says why after a colon:
+
+- `: one is in the tree but not presented (a11y)`: an element answers the target but is hidden (behind a drawer, a sheet or a screen the app is not showing).
+- `: it was on screen 120 ms before, and left while the press waited for it to hold still`: the list it is in kept coasting, or a view animated away. On a device, the press first scrolls back to it once; the message means it did not come back. A `wait --scroll` returns only once the list it scrolled has stopped, so this is rare after one.
 
 ### A text target does not match
 
@@ -178,7 +236,7 @@ lynkeus screen
 
 A text that looks like something else is read as that. `12` is an index, and to `wait` and `see` a capitalized word is a route.
 
-**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. Put a text that could be mistaken in quotes of its own, inside the shell's: `lynkeus press '"12"'`. Since 0.3.0 the quotes mean "this is a text"; before, they stayed in the text and matched nothing. Prefer a `testID` for anything a test presses.
+**Fix.** `lynkeus why 'Log in'` says whether a text close to yours is on screen. After a case fails at an `app.see` of a text, the run's `why` does it for you: `"Community" is not on screen; "Meet the community" is (the text may have changed)`. When the app folder has uncommitted changes, a second line names the file and line that took the old text out and the line that replaced it, which is usually the translation or the copy someone just edited. Put a text that could be mistaken in quotes of its own, inside the shell's: `lynkeus press '"12"'`. Since 0.3.0 the quotes mean "this is a text"; before, they stayed in the text and matched nothing. Prefer a `testID` for anything a test presses.
 
 ### A wait times out on a screen that is clearly there
 
@@ -333,11 +391,11 @@ give_points is not a step Lynkeus has, and the project declares no fixtures (cas
 
 ### `--video kept no film`
 
-**What you see.** The run ends with `⚠ --video kept no film: this host does not film (fastsim does; a simulator, an emulator or headless keep frames only).`
+**What you see.** The run ends with `⚠ --video kept no film: the app’s host does not film and neither xcrun simctl io recordVideo (a Simulator) nor adb shell screenrecord (an emulator or phone) gave one. Headless keeps nothing.`
 
-**Why.** A case is filmed only where the host offers a `record` command, which it names in `hello`.
+**Why.** A host that films offers a `record` command, which it names in `hello`. Lynkeus FastSim does. On a Simulator the case is filmed with `xcrun simctl io <udid> recordVideo`, and on an emulator or Android phone with `adb shell screenrecord`, pulled at the end of the case. The headless host draws nothing, and a run that starts its own hosts (`--host`, `--host-command`) never films whatever Simulator happens to be booted.
 
-**Fix.** Nothing failed. Use a host that films, such as Lynkeus FastSim, which also works from another machine: the CLI fetches the film at the end of each case. Otherwise the report has frames and no film.
+**Fix.** Nothing failed. Check that `xcrun` or `adb` is on your `PATH` and that the Simulator or emulator is the one the app is attached to. `screenrecord` stops by itself after 3 minutes, so a longer case is filmed in 3-minute segments that are joined with `ffmpeg` (copied, not encoded again) when it is on your `PATH`; without it the case keeps `video.mp4` and its later segments beside it (`video.2.mp4`, …) and says so in its warnings. A film that still has no index (`no index (moov)`) means `screenrecord` did not finish within 10 s of being told to stop. The Simulator writes a frame only when the screen changes, so a film ends at the last change.
 
 ### A case fails and its evidence shows `(mocked)` on a request
 
@@ -473,6 +531,20 @@ The errors it recognizes:
 
 **Fix.** The run directory is intact. Upload it again with `lynkeus report push <dir>`.
 
+## Signing in to lynkeus.io
+
+### `your sign-in could not be renewed; run lynkeus login again: invalid_grant: …`
+
+**Why.** Each renewal of the sign-in that `lynkeus login` saved gets a new refresh token from lynkeus.io, and the old one stops working. When the old one is presented again, the service takes it as stolen and ends the whole sign-in. That happens when two copies of `credentials.json` hold the same token: you copied the file into another folder, or ran lynkeus with another `XDG_CONFIG_HOME`. Whichever copy renews second ends the sign-in for both. Processes that share one file are safe: lynkeus takes `credentials.json.lock` beside it while it renews, so an MCP server and a terminal on the same machine renew once between them.
+
+**Fix.** Run `lynkeus login` again, then keep a single `credentials.json`: give every process the same `XDG_CONFIG_HOME` (or none) instead of copying the file. For CI, containers and other automation, set `LYNKEUS_CLOUD_KEY` to an API key instead of a copied sign-in.
+
+### `another lynkeus process holds …/credentials.json.lock`
+
+**Why.** Another lynkeus process was renewing the sign-in and did not finish within 45 seconds. A lock whose process has exited on this machine, or older than 30 seconds, is taken over by itself.
+
+**Fix.** Try again. If no lynkeus is running, delete that `.lock` file.
+
 ## What `why` tells you
 
 `lynkeus why` reads the screen, the last requests and the trace, and reports every rule that matches. The rules about the backend (every request 401, 403, a 5xx, 429) read only what the server answered: a request that a mock answered or lost (`(mocked)` in `lynkeus requests`) is the case's own doing and is left out. Each line starts with one of these.
@@ -485,14 +557,17 @@ The errors it recognizes:
 | `the backend answered 5xx on …` | A server error, not the app. | Reproduce it with `curl` before touching the test. |
 | `a request answered 429` | The backend is rate limiting this client. | Space the runs out, or raise the limit locally. |
 | `the host broke a render loop` | A component whose effect and store feed each other. The screen is dead until a reset. | Fix the loop. |
-| `… is in the tree but not presented` | The target belongs to a screen the app is not showing. | Close what is open, or target something inside it. |
+| `… is in the tree but not presented` | Something hides the target: a screen the app is not showing, a closed drawer, a sheet over it. The step's own note says `found, hidden (a11y)`. | Open what holds it (the drawer, the tab), or close what is over it. |
 | `… is on the screen but covered` | A sheet or an overlay is over it. | Close it, or press what covers it. |
 | `… is on the screen but disabled` | A form is not valid yet, or a request it depends on is in flight. | Wait for what it depends on. |
-| `the text is not there, but "…" is` | A wording, accent or case difference. | Correct the text, or use a `testID`. |
+| `"…" is not on screen; "…" is (the text may have changed)` | A wording, accent or case difference, or the copy changed. A second line names the uncommitted change that took the text out, when there is one. | Correct the text, or use a `testID`. |
+| `"…" is not on screen, but others of its kind are (…)` | Items like the one sought are on screen (episode cards, list rows): the data came and is shown, and the case points at another item than the one there. Said before anything the app logged, and instead of blaming the body. | Check which item the case picks: `nth`, `within`, a filter, the order. |
+| `"…" is not on screen; file:line changed it in the working tree` | An uncommitted change took the text out, and nothing close to it is on screen. | Check the change, then update the case or the app. |
 | `the list shows N near matches and yours is not among them` | The data has accumulated look-alikes and the list is capped. | Search by something unique, or reset the data. |
 | `the app was on X and moved to Y` | Something navigated after the step: a redirect, a gate, a modal. | Read the order in `lynkeus trace`. |
 | `N request(s) still in flight when the command gave up` | The screen had not finished loading. | Use a longer timeout, or wait for the request it needs. |
 | `no request left the app while this ran` | Nothing was fetched. | Check that the user is logged in and that the app talks to the backend it should. |
 | `N request(s) were refused by the host` | The headless host blocked hosts outside `networkHosts`. | Allow the host, or mock it. |
+| `this host has no network: … never left it` | A FastSim host reaches only this machine (`localhost`, `127.0.0.1`, `10.0.2.2`). A request to any other server never leaves it; the app sees `network error or aborted`, and the host log marks it `(offline)`. | Mock the request in the case: `app.mock: { route: "GET /v1/feed", body: {...} }`. |
 | `the last command that failed was …` | Nothing else explains it; this is the last error the app recorded. | Start from that error. |
 | `nothing in the evidence explains it` | The screen, requests and trace look ordinary. | Read `lynkeus screen` and `lynkeus trace --last 20` yourself. |

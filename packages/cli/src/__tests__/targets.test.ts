@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { Screen } from 'lynkeus-protocol';
+import type { Element, Screen } from 'lynkeus-protocol';
 
 import { parseAdbDevices } from '../device/devices.js';
 import { describeScreen } from '../device/driver.js';
-import { expectedOf, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
+import { bareWordNote, expectedOf, isRoute, parseTarget, partMatchNote, routeOf, scopedTarget } from '../targets.js';
 
 test('a #-prefixed string is a testId', () => {
   assert.deepEqual(parseTarget('#next-button'), { testId: 'next-button' });
@@ -161,4 +161,34 @@ test('adb devices: only what is ready counts, an emulator by its serial', () => 
     ],
   );
   assert.deepEqual(parseAdbDevices('List of devices attached\n\n'), []);
+});
+
+test('a bare word that is no known route but a text on screen says it was read as a route, and how to mean the text', () => {
+  const known = new Set(['DemoShowroom', 'Login']);
+  assert.match(
+    bareWordNote('Card', ['Components', 'Card', 'Toggle'], known) ?? '',
+    /^Card was read as a route .* no route Card that Lynkeus knows of; "Card" is a text on screen: quote it \('"Card"'\)/,
+  );
+  assert.match(bareWordNote('Cards', ['Card'], known) ?? '', /the closest text on screen is "Card"/);
+  assert.match(bareWordNote('Card', ['card'], new Set()) ?? '', /knows no routes of this app/);
+  assert.equal(bareWordNote('Login', ['Login'], known), undefined);
+  assert.equal(bareWordNote('route:Card', ['Card'], known), undefined);
+  assert.equal(bareWordNote('"Card"', ['Card'], known), undefined);
+  assert.equal(bareWordNote('Settings', ['Profile'], known), undefined);
+});
+
+test('a text target that matched part of a label names the element pressed', () => {
+  const toggle = {
+    i: 3,
+    kind: 'button',
+    text: 'Only Show Favorites',
+    testId: 'fav-toggle',
+    enabled: true,
+    depth: 1,
+    frame: { x: 0, y: 0, w: 1, h: 1 },
+  } as Element;
+  assert.equal(partMatchNote({ text: 'Favorite' }, toggle), '"Favorite" matched only part of "Only Show Favorites" (button #fav-toggle)');
+  assert.equal(partMatchNote({ text: 'only show favorites' }, toggle), undefined);
+  assert.equal(partMatchNote({ testId: 'fav-toggle' }, toggle), undefined);
+  assert.equal(partMatchNote({ text: 'Favorite' }, undefined), undefined);
 });

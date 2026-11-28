@@ -18,7 +18,7 @@ The roles are the reverse of what you might expect. The **driver** is the WebSoc
 | Where the app dials | `ws://localhost:8123` on iOS, `ws://10.0.2.2:8123` on the Android emulator. The app can be given another host and port. |
 | When nobody answers | The app retries quietly: every 100 ms for the first 3 seconds after it starts or loses a connection, then with a wait that doubles each time, up to 1.5 seconds. |
 | When the app does not dial at all | An app with no `token` option, or one whose value is empty, keeps its agent off and logs why (unless it was given `allowUnauthenticated`). It never opens a socket, so a driver sees the same thing as with no app running. |
-| When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. |
+| When the app connects again | A relaunched app reconnects before its old socket notices it is gone. `lynkeus-client` therefore keeps the newest connection and closes the older one; a driver of your own should do the same. Another app (another platform, or another app id) does not take the place of one that is attached and in the foreground: once both sides have proven the token, `lynkeus-client` closes the newcomer with code 1013, and it attaches when it dials again after the first one leaves. |
 
 There are three kinds of message:
 
@@ -64,6 +64,8 @@ Neither side ever sends the token. Each proves that it holds it, with an HMAC-SH
 |---|---|---|
 | `protocolVersion` | number | The protocol version the agent speaks. |
 | `agentVersion` | string | The release of `lynkeus-agent` in the app. Absent from older agents. |
+| `appId` | string | The app's own bundle identifier (iOS) or application id (Android). The CLI uses it to bring the app back or relaunch it when neither `app` in `lynkeus.config.json` nor `--app` gives one. Absent from older agents and from hosts with none. |
+| `js` | object | How old the JavaScript the app runs is, in ms before this message: `loadedMs` since the bundle loaded, `refreshedMs` since a Fast Refresh last applied an edit (absent when none has). Ages, not instants, so a device clock that differs from the computer's does not matter. `ping` answers it too. `case run` compares it with the app's newest source file and warns when the app on a device runs older code. Absent from older agents. |
 | `platform` | string | `ios`, `android`, or whatever the host reports. |
 | `native` | boolean | Whether touch synthesis is compiled in, so that presses are real touches. Debug builds only. |
 | `commands` | string[] | The commands the app answers beyond the core methods: the ones it registered with `qa.register`, and the built-in ones. The driver calls them like any method. |
@@ -209,7 +211,7 @@ Takes a target, plus:
 | `holdMs` | number | `50` | How long the finger stays down. About 600 is a long press. |
 | `mode` | `"native"` or `"js"` | `"native"` | How to press. |
 
-It answers the point pressed, the element when the target named one, and the mode used.
+It answers the point pressed, the element when the target named one, and the mode used. When the press made the app open a URL (`Linking.openURL`), it also answers it as `opened`: the browser or another app is about to be in front.
 
 In `native` mode the app:
 
@@ -220,7 +222,7 @@ In `native` mode the app:
 
 In `js` mode the app calls the element's `onPress` directly. There is no touch, no gesture and no wait for animations. It refuses a control that is disabled or covered, so the app's own gates still mean something. Use it when you want the outcome, not the gesture.
 
-`press` refuses a hidden element with `<target> is not presented (<reason>)`, and a target that matches nothing with `No element matches <target>`.
+`press` refuses a hidden element with `<target> is not presented (<reason>)`, a target that matches nothing with `No element matches <target>`, and a control under a view the app did not draw (see `Screen.system`) with `<target> is under a view the app did not draw`, which names that view's buttons when it can read them.
 
 ### `type`
 
@@ -375,6 +377,7 @@ type Screen = {
   busy: boolean;
   window: { w: number; h: number };
   presenting?: { i: number; modal: boolean; testId?: string };
+  system?: { frame: { x: number; y: number; w: number; h: number } };
   costMs: number;
 };
 ```
@@ -388,6 +391,7 @@ type Screen = {
 | `busy` | True while requests are in flight, or while the app's `busy` command says so. |
 | `window` | The window's size, in points. |
 | `presenting` | The layer on top, when the app is presenting one over its screen: a sheet, a dialog. |
+| `system` | A view the app's React tree did not draw is in front of it, over this frame: a system alert or prompt, a native SDK's sheet. Its words are the elements marked `system`. There are none when another process draws it (iOS's "Save Password?"), and then no touch from inside the app reaches it. |
 | `costMs` | Milliseconds the app spent building this snapshot. |
 
 ### `Element`
@@ -412,6 +416,7 @@ type Element = {
   hidden?: 'a11y' | 'inert' | 'behind-modal' | 'behind-overlay';
   offscreen?: boolean;
   texts?: { text: string; frame: { x: number; y: number; w: number; h: number } }[];
+  system?: boolean;
 };
 ```
 
@@ -430,11 +435,12 @@ type Element = {
 | `covered` | A touch at its center would not reach it: something is on top. |
 | `hidden` | It is mounted but the app is not presenting it, and why. |
 | `offscreen` | Its frame lies outside the window: it is on screen only after scrolling. |
+| `system` | The words of a view the app did not draw (see `Screen.system`), listed after the app's own elements. A press by text reaches its buttons. |
 | `texts` | On a control that holds more than one piece of text (a card with a name and a balance), each piece and its frame. They are not elements: `see` and `find` still match the control's `text`. |
 
 `covered` and `hidden` mean different things, and both are reported.
 
-`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available. On Android the test asks React Native what a touch at that point would stop at, so a view that is drawn over the control but takes no touches, such as the invisible debugging overlay of a development build, does not cover it.
+`covered` answers "would a finger land on something else?". It comes from a native hit test at the element's center, when the native module is available, in whichever of the app's windows is in front at that point: an alert or a prompt in a window of its own covers what is under it, the keyboard does not. On Android the test asks React Native what a touch at that point would stop at, so a view that is drawn over the control but takes no touches, such as the invisible debugging overlay of a development build, does not cover it; the native views of the window outside React Native (the system bars' backgrounds) count only when they would take the touch, and a `Modal`'s controls are tested in the dialog window that shows them.
 
 :::note[Since 0.3.0]
 Two reads moved to the native module in 0.3.0, and both need the app rebuilt after `lynkeus-agent` is updated. `value` was read from React's props, so a field with no `value` prop read as empty after typing and one with a `defaultValue` kept reading as that; an app that has not been rebuilt still answers that way. On Android, `covered` was true for any visible view over the point, which in a development build was every control.
@@ -530,6 +536,10 @@ await server.close();
 | `host` | `127.0.0.1` | The address to listen on. |
 | `token` | none | Must match the app's token. |
 | `reconnectGraceMs` | `2500` | How long requests in flight wait for the app to reconnect before they fail. |
+| `goneMs` | `10000` | How long calls wait for an app that left to dial back in, from when it left, before they fail with code `gone`. |
+| `stillRunning` | none | An async function that says whether the app's process still runs, asked once `goneMs` has passed. When it does, the app is loading or reloading its JavaScript, and calls wait up to `reloadMs` from when it left, then fail with code `loading`. The CLI asks the Simulator (`launchctl list`) or the device (`pidof`). |
+| `reloadMs` | `60000` | How long calls wait for an app whose process still runs, from when it left. |
+| `accepts` | any app | A function of the app's `hello` that says whether this server drives it, such as `(hello) => hello.platform === 'android'`. Servers in one process may then share a port: each app goes to the server that accepts it, else to the one without `accepts`, and an app no server takes is let go. All of them must hold the same token. This is how `case run --on ios,android` drives the iOS Simulator's app and the emulator's at once. |
 
 | Member | Meaning |
 |---|---|
@@ -537,5 +547,6 @@ await server.close();
 | `waitForApp(timeoutMs = 15000)` | Resolves with the app's `hello`. |
 | `call(method, params?, timeoutMs = 20000)` | Sends a request and resolves with its result. Rejects with an `AgentError`, whose `code` is `timeout`, `disconnected`, or the code the app sent. |
 | `connected`, `hello` | Whether an app is attached, and what it said. |
+| `expectBack(ms)` | The app was started again on purpose (a relaunch): calls wait up to `ms` from now for its `hello`, whatever `goneMs` says. |
 | `close()` | Stops listening and fails the requests in flight. |
 | Events | `hello`, `navigation` and `disconnected`. |

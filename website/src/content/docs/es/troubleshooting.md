@@ -26,15 +26,18 @@ Cada línea de su respuesta corresponde a una regla. Esta tabla dice qué signif
 | `the backend answered 5xx on …` | Un error del servidor, no de la app. | Reprodúcelo con `curl` antes de tocar el test. |
 | `a request answered 429` | El backend está limitando la frecuencia de peticiones de este cliente. | Espacia las ejecuciones o sube el límite en tu entorno local. |
 | `the host broke a render loop` | El host cortó un ciclo de renders sin fin: un componente cuyo efecto y cuyo store se alimentan entre sí. La pantalla queda inservible hasta un `reset`. | Corrige el componente que nombra el mensaje. |
-| `… is in the tree but not presented` | El elemento está montado, pero pertenece a una pantalla que la app no está mostrando. | Cierra lo que esté abierto encima, o apunta a algo dentro de eso. |
+| `… is in the tree but not presented` | El elemento está montado, pero algo lo oculta: una pantalla que la app no muestra, un cajón cerrado o una hoja abierta encima. La nota del paso lo indica como `found, hidden (a11y)`. | Abre lo que lo contiene (el cajón, la pestaña) o cierra lo que esté encima. |
 | `… is on the screen but covered` | Hay una hoja o una capa sobre el elemento. | Ciérrala, o pulsa lo que lo tapa. |
 | `… is on the screen but disabled` | Un formulario todavía no es válido, o hay en curso una petición de la que el control depende. | Completa lo que falta, o espera la petición. |
-| `the text is not there, but "…" is` | El texto que buscas no está, pero hay uno parecido: difiere en la redacción, en un acento o en las mayúsculas. | Corrige el texto del objetivo, o usa un `testID`. |
+| `"…" is not on screen; "…" is (the text may have changed)` | El texto que buscas no está, pero hay uno parecido: difiere en la redacción, en un acento o en las mayúsculas, o alguien cambió el texto de la app. Si hay cambios sin commitear que lo quitaron, una segunda línea dice en qué archivo y línea. | Corrige el texto del objetivo, o usa un `testID`. |
+| `"…" is not on screen, but others of its kind are (…)` | En pantalla hay elementos como el que buscas (tarjetas de episodios, filas de una lista): los datos llegaron y se muestran, pero el caso apunta a otro elemento que el que está. Aparece antes que cualquier cosa que haya registrado la app, y en lugar de culpar al cuerpo de la respuesta. | Revisa cuál elige el caso: `nth`, `within`, un filtro, el orden. |
+| `"…" is not on screen; file:line changed it in the working tree` | Un cambio sin commitear quitó ese texto y en pantalla no hay nada parecido. | Revisa el cambio y después actualiza el caso o la app. |
 | `the list shows N near matches and yours is not among them` | Los datos acumularon elementos parecidos y la lista está recortada. | Busca por algo único, o limpia los datos. |
 | `the app was on X and moved to Y` | La app llegó a la ruta que esperabas y después se fue: una redirección, una barrera, un modal. | Mira el orden en `lynkeus trace`. |
 | `N request(s) still in flight when the command gave up` | La pantalla no había terminado de cargar. | Dale más tiempo con `--timeout`, o espera la petición que necesita. |
 | `no request left the app while this ran` | No se pidió nada. | Comprueba que el usuario tenga sesión y que la app hable con el backend correcto. |
 | `N request(s) were refused by the host` | El host sin pantalla bloqueó peticiones a servidores que no están permitidos. | Si la pantalla necesita alguno, permítelo en `networkHosts` o simúlalo con `lynkeus mock`. |
+| `this host has no network: … never left it` | Un host de FastSim no tiene red: solo llega a esta máquina (`localhost`, `127.0.0.1`, `10.0.2.2`). La petición a cualquier otro servidor no sale nunca; la app recibe `network error or aborted` y el log del host la marca `(offline)`. No es una caída del servidor ni de tu conexión. | Simula la respuesta en el caso con `app.mock: { route: "GET /v1/feed", body: {...} }`. |
 | `the last command that failed was …` | Ninguna otra regla explicó el fallo; este es el último error registrado. | Parte de ese error. |
 | `nothing in the evidence explains it` | La pantalla, las peticiones y la traza se ven normales. | Lee la pantalla con `lynkeus screen` y compárala con lo que esperabas. |
 
@@ -53,7 +56,7 @@ En `lynkeus session`, el mismo diagnóstico viaja en el campo `why` de la respue
 **Cómo se arregla.** Revisa estas causas, en este orden:
 
 1. **El build no es de depuración.** El agente solo existe en builds de depuración. Un build de producción no lo contiene.
-2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: __DEV__ && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo.
+2. **`enabled` es falso en este entorno.** Si condicionaste el agente a tu entorno (`enabled: enabledByDefault() && config.ENV !== 'prod'`), comprueba que la condición se cumpla en el build que estás corriendo. Si condicionas solo a `__DEV__`, el agente queda apagado en Lynkeus FastSim, que corre un bundle de release.
 3. **El token llegó vacío a la app.** El agente queda apagado y la app lo dice en su log. Está más abajo: [el log dice que el token está vacío](#la-app-registra-lynkeus-the-app-passed-a-token-and-it-is-empty).
 4. **El token no coincide.** El token que recibió la app tiene que ser el que lee el CLI: `LYNKEUS_TOKEN` si está definida y, si no, el de `.lynkeus/token`. En una app de React Native es el valor con el que se empaquetó el bundle, y Metro necesita `--reset-cache` después de un cambio. Si difieren, la app rechaza al driver en silencio, y el síntoma es exactamente este error.
 5. **Los puertos no coinciden.** Si definiste `LYNKEUS_PORT` o `port` en la configuración, la app tiene que haber recibido el mismo puerto al montar el agente.
@@ -118,6 +121,20 @@ Este comportamiento llega con la versión 0.3.0. Antes, un token vacío se trata
 
 **Cómo se arregla.** Detén el otro proceso. Si de verdad necesitas dos ejecuciones a la vez, dale a cada par su propio puerto: `LYNKEUS_PORT` en el driver y en el host, o `--ports` en `case run --jobs`.
 
+`lynkeus status` dice qué proceso tiene el puerto (lo averigua con `lsof` y `ps`). Si es Lynkeus, también dice qué versión es y de qué proyecto: `✗ port 8123 is taken by pid 13646 (npm exec lynkeus@0.7.6 mcp): Lynkeus 0.7.6 for another project, /Users/yo/app-vieja. …`. Con eso sabes qué detener (`kill 13646`) sin buscarlo a mano.
+
+Un servidor que quedó de otro proyecto no puede manejar tu app. Cada proyecto tiene su propio `.lynkeus/token`, y antes de atender nada la app y el driver se demuestran mutuamente que conocen el mismo token. Si los tokens no coinciden, el driver corta la conexión apenas la app presenta su prueba, y la app corta la de un driver cuya prueba no cierra. Tu app sigue intentando hasta que el puerto quede libre, y deja una sola advertencia en su log: `lynkeus: the driver at ws://localhost:8123 does not hold this app's token…`.
+
+Con `--host-command`, `case run` revisa los puertos de `--ports` antes de arrancar ningún host. Si alguno ya tiene a otro proceso escuchando, se niega con `port 8123 is already in use by another process …`: los hosts se conectarían a ese otro driver y la ejecución esperaría una app que nunca le llega. `lynkeus ci` no se detiene ahí: salta el puerto ocupado, toma el siguiente libre y avisa cuáles usa.
+
+### Se conectó una app con el token de otro proyecto
+
+**Qué ves.** `status` dice `✗ an app is attached (port 8123): one dialed in with another project's token and was refused`. Los demás comandos terminan con `An app dialed in once with another token and was refused…`.
+
+**Por qué pasa.** Llegó una app al driver, pero el token con el que se presentó no es el de este proyecto. Puede ser el development build de otro proyecto, o un bundle armado antes de que cambiara el token de este.
+
+**Cómo se arregla.** Abre el development build de este proyecto. Si ya es ese, reinicia Metro con `--reset-cache` para que el bundle tome el token de `.lynkeus/token`.
+
 ### Una advertencia sobre versiones distintas
 
 **Qué ves.** Al conectarse, el CLI avisa: `The app runs lynkeus-agent 0.2.0, this CLI is Lynkeus 0.4.0: they can misread each other without an error.`
@@ -141,6 +158,7 @@ Cada línea del listado muestra el estado del elemento:
 | Marca | Qué significa | Qué hacer |
 |---|---|---|
 | `~covered` | Un toque en su centro caería sobre otra cosa. | Cierra lo que lo tapa. |
+| `~system` | Texto de una alerta del sistema o de una hoja nativa que está delante de la app; no es de la app. | Pulsa su botón por su texto. Mira [Hay una alerta del sistema delante de la app](#hay-una-alerta-del-sistema-delante-de-la-app). |
 | `!disabled` | El control no responde a toques. | Completa el formulario o espera la petición de la que depende. |
 | `~inert` | Él o un ancestro tiene `pointerEvents: 'none'`. | Apunta al control que lo contiene. |
 
@@ -149,9 +167,43 @@ Puede ocurrir también que el elemento no esté en el listado. El encabezado cue
 Los errores correspondientes son:
 
 - `No element matches {"testId":"…"}`: no hay ningún elemento así en el árbol.
+- `No element matches {"text":"…"}: one is in the tree but not presented (a11y)`: hay uno, pero oculto, por ejemplo detrás de un cajón abierto o de otra pantalla.
+- `No element matches {"text":"…"}: it was on screen 120 ms before, and left while the press waited for it to hold still`: estaba, pero la lista siguió deslizándose (o una animación lo sacó) mientras el toque esperaba que se quedara quieto. En un dispositivo, el toque vuelve a desplazarse hasta él una vez antes de rendirse. `wait` con `scroll` ya no termina mientras la lista que movió sigue en movimiento, así que el toque que viene después lo encuentra donde lo vio.
 - `{"testId":"…"} is not presented (behind-overlay)`: existe, pero no se está mostrando. Entre paréntesis va el motivo.
 
 **Una comparación útil.** `--js` llama al `onPress` de React en lugar de sintetizar un toque. Si con `--js` funciona y sin él no, el control existe y algo se interpone entre el dedo y él. Es un diagnóstico, no un arreglo: un test que solo pasa con `--js` no está probando lo que haría un usuario.
+
+### `the app is gone (crashed or closed)` justo después de reiniciar o recargar la app
+
+**Qué ves.** Un `wait` o un `press` falla enseguida con `the app is gone (crashed or closed): it disconnected 20.7 s ago and has not dialed back in`, mientras la app todavía está cargando.
+
+**Por qué pasa.** La conexión de la app se cerró y no volvió a llamar. Una app que acaba de irse tiene 10 segundos para volver. Si fue Lynkeus quien la reinició (`app.relaunch`, el reinicio antes de un caso, traerla al frente), los comandos siguientes esperan hasta 60 segundos. Pasados los 10 segundos, Lynkeus le pregunta al simulador o al emulador si el proceso de la app sigue vivo: si sigue, la app está cargando su JavaScript (un Fast Refresh, una app de desarrollo que baja el bundle de Metro) y el comando la espera, hasta 60 segundos desde que se fue. Solo falla como `gone` una app cuyo proceso ya no existe.
+
+**Cómo se arregla.** Si dice `the app is still running but its JavaScript has not attached again`, mira Metro y la app: un bundle que sigue compilando, una pantalla roja o una recarga con un bundle sin el agente. Si dice que la app se fue, se cerró o falló: ábrela de nuevo, o usa `lynkeus launch`.
+
+### Hay una alerta del sistema delante de la app
+
+**Qué ves.** El encabezado termina en `+system` y una línea que empieza con `!` avisa que delante de la app hay una vista que la app no dibujó. Pulsar un control que quedó debajo falla con `… is under a view the app did not draw`, en lugar de tocar la app por detrás de la alerta.
+
+**Por qué pasa.** Se está mostrando algo que no sale del árbol de React de la app: un `Alert.alert`, la hoja de un SDK nativo, un pedido de permiso, o el "¿Guardar contraseña?" que iOS muestra cuando un formulario con contraseña desaparece de la pantalla. Si esa vista vive en el proceso de la app, Lynkeus lee lo que dice y lo lista con `~system`.
+
+**Cómo se arregla.**
+
+- Si su texto aparece en el listado, pulsa el botón por su texto, como lo haría una persona: `lynkeus press "Ahora no"`. Para quitarla en cualquier paso de cualquier caso, agrégala a [`cases.interruptions`](/es/reference/configuration/#casesinterruptions): en `see` su texto, en `do` la pulsación.
+- Si la línea dice que la dibuja otro proceso (así lo hace iOS con "¿Guardar contraseña?"), nada desde dentro de la app puede leerla ni tocarla. Vuelve a abrir la app, o respóndela en el dispositivo. Para que una suite no se la cruce, inicia sesión con un comando de la app (`qa.register`) en lugar del formulario.
+- En un build de desarrollo con expo-dev-client, esa misma línea en el primer arranque suele ser la hoja de bienvenida del menú de desarrollo de Expo ("This is the developer menu… Continue"), que se dibuja de forma nativa, fuera de React. `lynkeus setup` la marca como vista después de un build nuevo y vuelve a abrir la app sin ella. Si no usaste `setup`, `lynkeus status` la marca como vista en cada simulador y emulador encendido, y la app ya no la muestra la próxima vez que arranque.
+
+El aviso de desarrollo de React Native ("Refreshing...", "Loading from Metro..."), que una app de desarrollo o el Expo dev client muestran arriba mientras Metro manda código nuevo, no es una vista del sistema: Lynkeus reconoce su ventana por la clase que atiende sus toques y la deja fuera, e `idle` (y con él cada captura de una ejecución) espera a que desaparezca. Una app compilada con un `lynkeus-agent` anterior la sigue mostrando como `+system` hasta que la vuelvas a compilar.
+
+### Un toque mandó la app a segundo plano
+
+**Qué ves.** `press` responde `! the app went to the background: it opened https://…, and the browser is in front`, o `screen` empieza con esa línea.
+
+**Por qué pasa.** El control abrió un enlace u otra app. Lo que lista el agente desde entonces es el árbol de la app, no lo que se ve en pantalla.
+
+**Cómo se arregla.** Si el caso lo buscaba, trae la app de vuelta con `lynkeus os appstate active` y sigue. Si no, el control pulsado no es el que el caso quería.
+
+En una corrida, el fallo lo carga el caso que dejó la app en segundo plano, y lo dice: `this case left the app in the background: a press opened https://…`. Los casos siguientes no lo heredan. Antes de empezar cada caso en un simulador, emulador o teléfono, Lynkeus trae la app al frente igual que la lanza (`simctl launch`, el intent del launcher), así que conserva su estado, y solo la relanza si no vuelve. Para eso necesita el id de la app: `app` en `lynkeus.config.json` o `--app`. `crawl` hace lo mismo después de cada toque así, y lo anota como un toque que sacó a la app.
 
 ### En Android, todos los controles aparecen `~covered`
 
@@ -180,6 +232,8 @@ Los errores correspondientes son:
 ```bash
 npx lynkeus why '"Continuar"'
 ```
+
+Cuando un caso falla en un `app.see` de un texto, `why` lo hace solo y busca el texto más cercano en esa pantalla: `"Community" is not on screen; "Meet the community" is (the text may have changed)`. Si la carpeta de la app tiene cambios sin commitear, agrega una línea con el archivo y la línea que quitaron el texto viejo, que suele ser la traducción que alguien acaba de tocar.
 
 Si el texto cambia con el idioma o con el contenido, un `testID` es un objetivo más estable.
 
@@ -389,11 +443,11 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 
 ### Una ejecución con `--video` no tiene película
 
-**Qué ves.** `⚠ --video kept no film: this host does not film …`, o un reporte sin película.
+**Qué ves.** `⚠ --video kept no film: the app’s host does not film …`, o un reporte sin película.
 
-**Por qué pasa.** `--video` filma solo donde el host ofrece un comando `record`, y el host sin pantalla incluido, un simulador y un emulador no lo ofrecen. Si el host que filma está en otra máquina, la película se hace allá y el CLI la trae en trozos al terminar cada caso; si no llega, el caso no falla, y la película queda fuera.
+**Por qué pasa.** Un host que filma lo dice al presentarse con un comando `record`, como hace Lynkeus FastSim. En un simulador de iOS, Lynkeus filma con `xcrun simctl io <udid> recordVideo`. En un emulador o un teléfono Android usa `adb shell screenrecord` y se trae el archivo al terminar el caso. El host sin pantalla no dibuja nada, así que no hay qué filmar. Una ejecución que arranca sus propios hosts (`--host`, `--host-command`) tampoco filma el simulador que esté encendido, porque no es donde corre la app. Si el host que filma está en otra máquina, la película se hace allá y el CLI la trae en trozos al terminar cada caso. En ningún caso la falta de película hace fallar el caso: simplemente queda fuera.
 
-**Cómo se arregla.** Usa un host que filme. Con la película en un host remoto, confirma que el host sigue conectado hasta que termina el caso.
+**Cómo se arregla.** Revisa que `xcrun` o `adb` estén en el `PATH` y que el simulador o el emulador sea el mismo al que está conectada la app. Ten en cuenta dos límites. `screenrecord` se corta solo a los 3 minutos: un caso más largo se filma en tramos de 3 minutos, que se unen con `ffmpeg` (sin volver a codificar) si está en el `PATH`. Si no está, el caso guarda `video.mp4` y a su lado los tramos siguientes (`video.2.mp4`, …), y lo avisa entre sus advertencias. Si aun así la película queda sin índice (`no index (moov)`), es que `screenrecord` no terminó en los 10 s siguientes a la orden de parar. Y el simulador solo graba un cuadro cuando la pantalla cambia, así que la película termina en el último cambio. Con un host remoto, confirma que sigue conectado hasta que termina el caso.
 
 ### `not kept on this plan: …`
 
@@ -406,6 +460,20 @@ Una variante es `press has no foo`: el verbo existe, pero le pasaste un parámet
 **Por qué pasa.** Otro proceso usa ese puerto, a menudo un colector de OpenTelemetry que ya tenías corriendo.
 
 **Cómo se arregla.** Elige otro puerto con `--traces-port` y apunta la variable `OTEL_EXPORTER_OTLP_ENDPOINT` de tu backend al mismo.
+
+## Problemas con el inicio de sesión
+
+### `your sign-in could not be renewed; run lynkeus login again: invalid_grant: …`
+
+**Por qué pasa.** lynkeus.io entrega un refresh token nuevo cada vez que lynkeus renueva la sesión que guardó `lynkeus login`, y el anterior deja de valer. Si alguien vuelve a usar uno ya gastado, el servicio supone que se lo robaron y cierra la sesión entera. Eso ocurre cuando hay dos copias de `credentials.json` con el mismo token, por ejemplo si copiaste el archivo a otra carpeta o corriste lynkeus con otro `XDG_CONFIG_HOME`: la primera copia que renueva deja inválida a la otra, y cuando la otra intenta renovar se cierra la sesión de las dos. Los procesos que comparten un mismo archivo no tienen este problema, porque lynkeus toma `credentials.json.lock` mientras renueva; así, un servidor MCP y una terminal en la misma máquina renuevan una sola vez.
+
+**Cómo se arregla.** Vuelve a correr `lynkeus login` y deja un único `credentials.json`. No lo copies: usa el mismo `XDG_CONFIG_HOME` (o ninguno) en todos los procesos. En CI, contenedores y otros procesos automáticos, define `LYNKEUS_CLOUD_KEY` con una API key en lugar de llevar una copia de la sesión.
+
+### `another lynkeus process holds …/credentials.json.lock`
+
+**Por qué pasa.** Otro proceso de lynkeus estaba renovando la sesión y no terminó en 45 segundos. Si el proceso dueño del bloqueo ya terminó en esta máquina, o el bloqueo tiene más de 30 segundos, lynkeus lo toma por su cuenta.
+
+**Cómo se arregla.** Vuelve a intentarlo. Si no hay ningún lynkeus corriendo, borra ese archivo `.lock`.
 
 ## Problemas con el mapa
 

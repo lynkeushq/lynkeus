@@ -42,6 +42,7 @@ Each line is an element: its kind (`button`, `input`, `text`, `scroll`, `switch`
 | `!disabled` | The control will not answer a touch. |
 | `~covered` | Something is drawn over it. A touch at its center would land on something else. |
 | `~inert` | Readable, not touchable. |
+| `~system` | Not the app's: words of a system alert or a native sheet in front of it. Press its buttons by their text. |
 
 Useful variants:
 
@@ -59,7 +60,7 @@ A **target** is how you tell a command which element you mean. There are five sp
 | Spelling | Matches |
 |---|---|
 | `#next-button` | The element with that `testID`. |
-| `Continue` | A control (a button or an input) by exact label, then by substring. A paragraph matches only by its exact text. |
+| `Continue` | A control (a button or an input) by exact label, then by whole words of its label, then by substring. A paragraph matches only by its exact text. A press that matched by part says which element it pressed (`! pressed "Favorite" matched only part of "Only Show Favorites" (button #fav-toggle)…`), and a case run shows it as a warning. |
 | `"Continue"` | The same text, and only ever a text. See [Quoted targets](#quoted-targets). |
 | `12` | The element at that index in the last screen listing. |
 | `100,200` | A point, in window points. |
@@ -204,6 +205,8 @@ npx lynkeus back
 
 `back` pops the current route.
 
+A route only some navigator declares at times (an app that shows `Login` while signed out and `Welcome` once signed in) can be named right after the change that brings it: `nav` waits up to 1.5 s for a mounted navigator to declare it, then navigates. When none does, it fails with `No mounted navigator has a screen named Welcome (the root's: Login)`, instead of React Navigation dropping the navigate with a warning in Metro while the step passes.
+
 Both need a navigation adapter. With `auto()` the React Navigation container is found for you. Without an adapter you still get the screen, touches and waits, but no routes.
 
 ## Tell similar elements apart: scoping
@@ -223,6 +226,8 @@ npx lynkeus press '#like-message-button' --nth 2   # the third match
 ```
 
 `press`, `type` and `wait` all accept both. `--in` takes a `#testId` or a text.
+
+An accessible card reads its children's words run together, so its label contains the text of every button inside it. Inside the scope, an element whose own label is the text wins over one whose label only contains it, and of two that match equally, the inner one wins: `press '"Favorite"' --in '"Offline first"'` presses that episode's Favorite button, not the episode's card.
 
 ## Run many commands on one connection
 

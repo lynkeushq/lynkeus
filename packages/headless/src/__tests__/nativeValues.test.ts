@@ -117,6 +117,12 @@ describe('nativeMocks values', () => {
     expect(report().some((r) => r.property === 'gone')).toBe(false);
   });
 
+  it('does not list a module the project declared absent as one the host does not know', () => {
+    expect(applyNativeValues({ EXDevLauncher: { absent: true } })).toContain('EXDevLauncher');
+    expect(modules.EXDevLauncher).toBeUndefined();
+    expect(report().some((r) => r.module === 'EXDevLauncher')).toBe(false);
+  });
+
   it('applies the entries of the environment before the app reads them', () => {
     expect(applyNativeValues({ 'RNBar.level': { value: 7 }, 'RNBar.launch': { result: 1 } })).toEqual(['RNBar.level']);
     expect(modules.RNBar?.level).toBe(7);

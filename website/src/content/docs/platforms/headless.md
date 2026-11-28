@@ -44,7 +44,9 @@ You should see what it did and what to do next:
 ```text
 installed jest, @testing-library/react-native, lynkeus-headless (npm install --save-dev …)
 wrote cases/headless.tsx (runs index.js, which registers the default export of src/App.tsx)
-made a token for this project in .lynkeus/token (kept out of git); the CLI and the MCP server read it
+made a token for this project in .lynkeus/token; the CLI and the MCP server read it
+git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore
+     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)
 jest: when the app has no jest configuration, `headless start` passes the preset it needs …
 next: lynkeus headless start  (the app reads its API address from API_URL: set it, or "apiUrl" in lynkeus.config.json, to your local backend; the token is the project's, in .lynkeus/token)
       or, in one go: lynkeus case here first-screen --host --write, then lynkeus case run --host  (lynkeus headless doctor lists what still needs a mock)
@@ -146,6 +148,8 @@ hosting; waiting for a driver (press Ctrl-C or call the exit command to stop)
 
 The host stays in the foreground until you stop it. Arguments after `--` are passed to Jest.
 
+The first start is the slow one: Jest transforms your app and each package it imports, about 9 seconds for an Expo app with Reanimated. It keeps the result in `.lynkeus/jest-cache/`, so the next start takes about a second and a half, and so does a host that `case run --host`, `--on headless` or `lynkeus ci` starts on another port or for another job. Editing a file costs that file alone.
+
 ### 5. Drive it
 
 In another shell, in the same project, so that it reads the same token:
@@ -164,9 +168,13 @@ With the host running, `npx lynkeus case run` uses it like any other host. To ha
 API_URL=http://127.0.0.1:3000/ npx lynkeus case run --host
 ```
 
-You should see `host: up (its log: …)` once the host is ready, then the cases. The run waits up to 180 seconds for the host to come up, and reports the last lines of its output if it does not.
+You should see `--host: a headless host on port 8124, its own …` and the host's log, then the cases. The host dials a free port of its own, never the configured one, so a development build attached there from a Simulator or emulator is not driven by the same run. The run waits up to 10 minutes for the host to attach (`--host-timeout`), and says so if it does not; its log has what it printed.
 
 With `--host`, the run also looks after the host. If it dies during a case (out of memory, a crash) or its app stops answering, the run starts it again before the next case, so the cases after it do not all fail with `No app attached`. The case that lost the host still fails, and its reasons say how the host ended, with its last words and its log; the host started again writes a log of its own. Before each case, the run reads the host's heap (one line in the log) and starts it again past `--host-heap` percent of its limit, 60 unless told. See [Hosts that die](/reference/cli/#hosts-that-die).
+
+**Cases on one host start fresh.** A host that serves several cases (`--host`, or `--keep-hosts` with a host command that runs `headless start`, which `lynkeus ci` uses) is reset before each case after its first, in about 200 ms: its mocked storage (MMKV, keychain, AsyncStorage), network rules, clock, offline state and native mocks are emptied, the app's own `reset` command runs when it registered one, and the app is mounted again, so navigation starts over. The case's log says so with a `↺` line. One thing survives: what the app keeps at module scope, such as a query cache or a store created when a file is imported, because the app's modules are loaded once per host. When cases see each other's data that way, give each case a host of its own with `--host-command` and no `--keep-hosts`, at the cost of a host start per case.
+
+`app.relaunch` on such a host, and a macro built on it such as an `app.fresh` that resets and relaunches, does the same reset instead of starting the host again. It takes about 100 ms where a new host took 2 to 3 s to boot Jest and the app, and it isolates exactly as the reset between cases does. A host that cannot reset is started again. With a host per case, a relaunch still starts a new host.
 
 ## How it works
 
@@ -174,11 +182,19 @@ With `--host`, the run also looks after the host. If it dies during a case (out 
 
 Inside, the agent is the same code as on a device with a different backend underneath. It reads the same React tree. Layout is computed with Yoga, so elements have frames, a swipe across a scroller scrolls it, and the frames follow the scroll. The host also respects what a device would refuse: a swipe on an element that is not presented fails.
 
+Jest's stand-ins lose some of the styles a device applies, and the host puts them back where it can tell: a scroll view's `contentContainerStyle` goes on the view that holds its content, and a library's native view with no size of its own (a keyboard or gesture provider) that only wraps a screen meant to fill fills like it. Without that, a whole screen collapsed to no height, each field lay on the next, and a control read as covered made every press and type into it wait for it to clear.
+
+What Reanimated animates reaches the screen as it does on a device. Under Jest, Reanimated keeps an animation's current style and props beside the ones the view rendered with; the host reads those, follows a `translateX` or `translateY`, and hands frame callbacks the clock Reanimated's animations run on, also when a run sets `--epoch`. A drawer built on react-native-drawer-layout opens and closes: its rows are presented while it is open, the screen behind it is hidden while it is open, and `app.swipe: { direction: left }` closes it, because a swipe where nothing scrolls that way drives the gesture-handler pan under the finger. A case that pressed the drawer's button again to close it headless (a way around this before) now fails as on a device, where that button is hidden while the drawer is open; use the swipe on every target.
+
+A long FlatList or SectionList scrolls into view as on a device. Jest's scroll view never measures, and a virtualized list renders its first rows until it learns its content length and its rows' sizes from layout events, so a row further down was never in the tree. Before each scroll the host reports what Yoga measured for the list, its content and its rows; `app.wait: { target: …, scroll: true }` then reaches a row thousands of points down. A finger lands on the list drawn on top at that point: a closed drawer's list behind its screen is never the one scrolled. `Image.getSize` answers a square of 100 points, as a device does once the image has loaded, where jest's loader answered nothing and an auto-sizing image scrolled into view took the screen down. What the host still does not do is move a list the app scrolls itself (`scrollToIndex`, `scrollToLocation`): a jump the app makes on a press stays where it was.
+
+A step costs what the app takes, not what a device's keyboard and transitions take. On a device a press waits 300 ms for the keyboard to slide away when a field is focused, and typing waits 80 ms for the keyboard to attach and 25 ms between keys; the host has no keyboard, commits each key before it answers, and skips those waits. A press by `testID` does not read its target twice a quiet window apart either: the host has no transitions, and the agent's press still waits for a target that moves to hold still. On a small app this took a press from about 170 ms to 85 ms, a press right after typing from about 550 ms to 130 ms, and typing three letters from about 370 ms to 30 ms. Each step's `phases` in `cases.jsonl` says where the rest goes.
+
 The host renders without `React.StrictMode`. Production has none, and its double renders and double-mounted effects would double every request and every millisecond the host measures. `"strictMode": true` in `lynkeus.config.json` keeps it.
 
 ## The entry in detail
 
-`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, localize, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
+`installDefaultMocks` mocks these libraries when they are installed: MMKV, keychain, device-info, safe-area-context, react-native-localize, expo-localization, async-storage, worklets, pager-view and webview. A library's own shipped Jest mock or Jest setup file is used automatically. Reanimated and gesture-handler are deliberately left alone, because their Jest support is a Babel plugin rather than a mock.
 
 The mocks for biometrics, in-app-review, vision-camera, image-picker, video, fast-image and the native half of vector-icons are opt-in. Pass the ones the app needs through `overrides`:
 
@@ -203,11 +219,13 @@ Its options:
 | `networkHosts` | local hosts only | The hosts that real requests and sockets may reach. Anything else is refused at once. |
 | `websocket` | `'stub'` | What `WebSocket` is. `'stub'` connects and stays silent; `'real'` is a real socket, restricted to `networkHosts`; `'none'` leaves it undefined. |
 | `animations` | `'deferred'` | Reanimated's mock completes `withTiming` and `withSpring` synchronously, which can loop forever when a completion triggers another animation. `'deferred'` moves completions to the next tick; `'sync'` leaves the mock as the app registered it. |
-| `locale` | US, `en-US`, `en` | The locale the localize mock reports, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. |
+| `locale` | US, `en-US`, `en`, America/New_York | The locale the app reads, for example `{ country: 'DE', languageTag: 'de-DE', languageCode: 'de' }`. `case run --locale` and `--time-zone` win over it. |
 | `deviceVersion` | version 9.9.9, build 9999, iOS | What the device-info mock reports. |
 | `initialUrl` | none | What `Linking.getInitialURL` answers: the deep link the app was opened with. |
 | `skip` | none | Modules to leave alone, so that you mock them yourself. |
 | `overrides` | none | Your own mock factories by module name. One wins over the default, and applies even when the module is not installed. |
+
+**Language and time zone.** A run started with `--locale es-AR` (or `launch.locale` in `lynkeus.config.json`) reaches the app wherever it asks: expo-localization, react-native-localize, and `Intl` itself, so `toLocaleString()` and `new Intl.NumberFormat()` with no locale format for es-AR. Separators, currency, 12- or 24-hour clock and first weekday are what Intl says a phone in that locale shows. `--time-zone` moves both what those libraries report and the zone `Date` runs in (the host's `TZ`). The `locale` option in the entry sets the same answers when no run says otherwise, but cannot move `Date`'s zone, which only the host's environment sets.
 
 Mocks for your own native modules are ordinary `jest.mock` calls in the entry, placed before the app is required:
 
@@ -278,7 +296,7 @@ LYNKEUS_PORT=8201 npx lynkeus screen
 
 `LYNKEUS_HOST` tells a host where its driver is listening, for a host that does not run in the same place as its driver, such as a container dialing out.
 
-`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
+`lynkeus case run --jobs <n> --ports <list>` runs cases in parallel, each job on its own host. With `--host`, the run starts one headless host per job, each dialing its job's port (picked free when `--ports` is left out), keeps it for the run and starts it again when it dies; each writes its log to the system's temporary folder, named after the run and the port. See [Writing cases](/guides/writing-cases/) and [Running on CI](/guides/ci/).
 
 ## Security
 
@@ -297,6 +315,7 @@ The host runs your JavaScript against a real backend with the native layer mocke
 - **Native crashes.** There is no native code to crash. A native module that is missing surfaces as a Jest error instead.
 - **Pixels.** The host renders nothing to capture. `lynkeus screenshot` and `lynkeus snapshot --pixels` need a simulator; the tree baseline of `lynkeus snapshot` works under the host.
 - **Video.** `case run --video` films a case only where the host offers a `record` command, which it names in `hello`. The built-in headless host draws nothing, so it offers none and a run has no video.
+- **Something leaving the window.** A list here renders every item and scrolls none, so a check that a text has scrolled out of view (`app.see: { text: …, absent: true }` on an item still in a list or scroll view) cannot pass. When it times out on such an item, the step is reported as unsupported (`this host has no window (…)`), not failed. An absent check of something that was unmounted, such as a closed modal or an error that went away, still works and still fails when the thing stays.
 
 For those, run the same cases on a simulator or emulator. Only the way the app is started differs.
 

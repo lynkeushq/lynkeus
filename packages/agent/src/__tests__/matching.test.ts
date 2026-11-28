@@ -40,6 +40,15 @@ describe('score', () => {
     const button = el({ kind: 'button', text: 'Submit via email' });
     expect(score(button, { text: 'submit' })).toBe(2);
   });
+
+  it('prefers part of a label as whole words over part of a word', () => {
+    const toggle = el({ kind: 'button', text: 'Only Show Favorites' });
+    const heart = el({ kind: 'button', accessibilityLabel: 'Add to Favorite list' });
+    expect(score(toggle, { text: 'Favorite' })).toBe(1);
+    expect(score(heart, { text: 'Favorite' })).toBe(2);
+    expect(pick([el({ ...heart, i: 0 }), el({ ...toggle, i: 1 })], { text: 'Favorite' })?.i).toBe(0);
+    expect(score(el({ kind: 'button', text: '¿Olvidaste la contraseña?' }), { text: 'contraseña' })).toBe(2);
+  });
 });
 
 describe('pick', () => {
@@ -103,6 +112,38 @@ describe('a target within a scope', () => {
 
   it('counts nth inside the scope', () => {
     expect(pick(feed, { testId: 'like-message-button', within: { testId: 'feed' }, nth: 1 })?.i).toBe(6);
+  });
+
+  // Ignite's podcast list: each episode is an accessible Card whose label runs its children's words together.
+  const episodes: Element[] = [
+    el(0, { testId: 'episodes' }),
+    el(1, { kind: 'button', accessibilityLabel: 'Apr 24, 202440:0RNR 300 - Offline firstFavorite', parent: 0 }),
+    el(2, { kind: 'text', text: 'Apr 24, 2024', parent: 1 }),
+    el(3, { kind: 'text', text: '40:0', parent: 1 }),
+    el(4, { kind: 'text', text: 'RNR 300 - Offline first', parent: 1 }),
+    el(5, { kind: 'button', accessibilityLabel: 'Favorite', parent: 1 }),
+    el(6, { kind: 'text', text: 'Favorite', parent: 5 }),
+    el(7, { kind: 'button', accessibilityLabel: 'Apr 17, 202438:0RNR 299 - HooksFavorite', parent: 0 }),
+    el(8, { kind: 'text', text: 'Apr 17, 2024', parent: 7 }),
+    el(9, { kind: 'text', text: '38:0', parent: 7 }),
+    el(10, { kind: 'text', text: 'RNR 299 - Hooks', parent: 7 }),
+    el(11, { kind: 'button', accessibilityLabel: 'Favorite', parent: 7 }),
+    el(12, { kind: 'text', text: 'Favorite', parent: 11 }),
+  ];
+
+  it('takes the button labeled with the text over the card around it whose label only contains it', () => {
+    expect(pick(episodes, { text: 'Favorite', within: { text: 'Offline first' } })?.i).toBe(5);
+    expect(pick(episodes, { text: 'Favorite', within: { text: 'Hooks' } })?.i).toBe(11);
+  });
+
+  it('of matches nested in one another that answer equally, takes the innermost', () => {
+    const relabeled: Record<number, Partial<Element>> = { 5: { accessibilityLabel: 'Add to favorites' }, 6: { kind: 'image', text: undefined } };
+    const nested = episodes.map((e) => ({ ...e, ...relabeled[e.i] }));
+    expect(pick(nested, { text: 'favorite', within: { text: 'Offline first' } })?.i).toBe(5);
+  });
+
+  it('still takes the card when nothing inside it answers', () => {
+    expect(pick(episodes, { text: 'Offline first', within: { testId: 'episodes' } })?.i).toBe(1);
   });
 
   it('finds nothing when the scope is not there', () => {

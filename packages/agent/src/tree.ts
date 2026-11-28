@@ -6,6 +6,7 @@ import { touch } from './native';
 import {
   blocksTouches,
   isA11yHidden,
+  isOpenDrawer,
   isUnrendered,
   layerKindOf,
   opaqueContainer,
@@ -218,6 +219,33 @@ const markCovered = (elements: Element[]): void => {
     if (chains[index]?.includes(e.tag as number)) delete e.covered;
     else e.covered = true;
   });
+};
+
+const rectOf = ([x = 0, y = 0, w = 0, h = 0]: number[]): Frame => ({ x, y, w, h });
+
+// What another window shows over the app is read as words with frames, after the app's own elements: the overlay
+// mechanism and a press by text then find an alert's buttons like any others.
+const addSystemViews = (elements: Element[]): Snapshot['system'] => {
+  let found: ReturnType<typeof touch.systemViews>;
+  try {
+    found = touch.systemViews();
+  } catch {
+    return undefined;
+  }
+  if (!found) return undefined;
+  for (const item of found.items) {
+    if (typeof item.text !== 'string' || !Array.isArray(item.frame)) continue;
+    elements.push({
+      i: elements.length,
+      kind: item.kind === 'button' ? 'button' : 'text',
+      frame: rectOf(item.frame),
+      enabled: true,
+      depth: 0,
+      text: item.text,
+      system: true,
+    });
+  }
+  return { frame: rectOf(found.frame) };
 };
 
 /**
@@ -438,7 +466,8 @@ export const snapshotElements = (): Snapshot => {
   readFields(fields);
   const presenting = resolvePresentation(elements, layers);
   markCovered(elements);
-  return { elements, presenting };
+  const system = addSystemViews(elements);
+  return system ? { elements, presenting, system } : { elements, presenting };
 };
 
 type Pressable = {
@@ -468,6 +497,20 @@ export const pressHandlerFor = (testId: string): ((event: unknown) => void) | un
     if (typeof p.onClick === 'function') return p.onClick;
   }
   return undefined;
+};
+
+/** The `onClose` of the innermost open drawer in the tree (`isOpenDrawer`), composite components included. */
+export const openDrawerOnClose = (): (() => void) | undefined => {
+  let found: (() => void) | undefined;
+  const visit = (fiber: Fiber | null) => {
+    for (let node = fiber; node; node = node.sibling) {
+      const p = props(node);
+      if (isOpenDrawer(p)) found = p.onClose as () => void;
+      visit(node.child);
+    }
+  };
+  for (const root of rootFibers()) visit(root.child);
+  return found;
 };
 
 let commits = 0;

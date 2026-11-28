@@ -53,11 +53,22 @@ export type RunBackendSpan = {
   attributes?: Record<string, string | number | boolean>;
 };
 
+/**
+ * Where a step's time went, timed where the runner waits anyway. `marks`: where the trace and the requests stood
+ * before it acted. `target`: waiting for its target to be listed, clear and enabled (a scroll to it included).
+ * `action`: the command itself, the agent's wait for the target to hold still included. `settle`: the app going quiet
+ * after it. `wait`: an `app.wait`, or the wait for the route a nav leads to. `look`: an `app.see`. `events`: reading
+ * what the app told its analytics. A macro's steps add to the step that runs it.
+ */
+export type RunStepPhase = 'marks' | 'target' | 'action' | 'settle' | 'wait' | 'look' | 'events';
+
 export type RunStep = {
   /** The step as the case words it. */
   step: string;
   status: RunStepStatus;
   ms: number;
+  /** Its `ms` by phase, those it spent time in; what is left is the runner's own work. */
+  phases?: Partial<Record<RunStepPhase, number>>;
   error?: string;
   /** Which part of the case it belongs to. */
   section?: 'setup' | 'steps';
@@ -121,6 +132,8 @@ export type RunCase = {
   evidence?: { screen?: string; requests?: string[]; why?: string };
   /** The case's film, relative to the run directory. */
   video?: string;
+  /** What the run noticed that did not change the result: a teardown step that failed, a mock rule nothing matched, a relaunch before the first step. */
+  warnings?: string[];
 };
 
 /** The four facts a run can pin at launch. */
@@ -130,7 +143,8 @@ export type RunLaunchFact = 'seed' | 'locale' | 'timeZone' | 'epoch';
  * What the run asked its hosts to start with. `seed` makes random values repeatable, `locale` is a language tag
  * (`es-AR`), `timeZone` an IANA name, `epoch` the instant (ISO 8601, UTC) the app's clock starts at. `unsupported`
  * names the facts that were asked for and the host the run used could not apply (an attached simulator or emulator
- * has the Mac's time zone and clock); the run is still valid, it just did not have them.
+ * has the Mac's time zone and clock, and its app's own random values: a seed there makes only the case's `{{random.*}}`
+ * repeatable); the run is still valid, it just did not have them.
  */
 export type RunLaunch = {
   seed?: string;
@@ -143,7 +157,8 @@ export type RunLaunch = {
 /**
  * A native property the app read that its host could not answer, so the host's own default stood in: Lynkeus FastSim
  * (`host: 'fastsim'`) answers with a function, which reads as true, and headless with undefined. `called` says whether
- * the app ever called that function: one read and never called is a constant with a wrong value. A read of a whole
+ * the app ever called that function: one read and never called is a constant with a wrong value, or a method the app
+ * only took a reference to (the CLI tells them apart by the module's TurboModule spec, when it finds one). A read of a whole
  * module that does not exist has no `property`. The cases config's `nativeMocks` sets it.
  *
  * `readAs: 'empty'` is a whole module headless's fallback answered, because the library that needs it has no mock:

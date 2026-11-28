@@ -239,7 +239,7 @@ export const mountAgent = (root: string): string[] => {
     notes.push(`added auto() to ${index}`);
   }
   const { token, made } = ensureToken(root);
-  if (made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI, the MCP server and the app all read it');
+  if (made) notes.push('made a token for this project in .lynkeus/token; the CLI, the MCP server and the app all read it', ...WHAT_TO_COMMIT);
   // A project set up before .lynkeus/.gitignore covered runs and bundles gets the fuller one.
   else ensureLynkeusIgnore(root);
   if (!expo) {
@@ -253,6 +253,13 @@ export const mountAgent = (root: string): string[] => {
   }
   return notes;
 };
+
+// `git status` lists `.lynkeus/` as new even though nothing secret in it would be committed: its own .gitignore is the
+// one file there meant for git. Said, so nobody adds `.lynkeus` to the root .gitignore and loses the shared baselines.
+const WHAT_TO_COMMIT = [
+  'git: .lynkeus/.gitignore keeps the token out, with runs, caches and the route map, so `git status` showing .lynkeus/ as new is expected; nothing to add to the root .gitignore',
+  '     commit: .lynkeus/.gitignore, lynkeus.config.json and the cases folder (and .lynkeus/snapshots, funnels and lint once they exist)',
+];
 
 export const init = (root: string, opts: InitOptions): string[] => {
   const notes: string[] = [];
@@ -282,7 +289,7 @@ export const init = (root: string, opts: InitOptions): string[] => {
   }
   if (opts.auto) notes.push(...mountAgent(root));
   // `headless start` refuses to run without one, and an app tested only headless never runs `lynkeus init`.
-  else if (ensureToken(root).made) notes.push('made a token for this project in .lynkeus/token (kept out of git); the CLI and the MCP server read it');
+  else if (ensureToken(root).made) notes.push('made a token for this project in .lynkeus/token; the CLI and the MCP server read it', ...WHAT_TO_COMMIT);
   notes.push(
     "jest: when the app has no jest configuration, `headless start` passes the preset it needs (jest-expo for Expo, React Native's otherwise) and the packages to transpile; an app that sets its own lets 'lynkeus-[^/]+' through, next to react-native",
   );
@@ -310,7 +317,7 @@ const lockfileOf = (root: string): { manager: Manager; dir: string } => {
   }
 };
 
-const managerOf = (root: string): Manager => lockfileOf(root).manager;
+export const managerOf = (root: string): Manager => lockfileOf(root).manager;
 
 /** The pnpm that laid out node_modules, as it wrote itself into node_modules/.modules.yaml (`packageManager: pnpm@9.15.9`). */
 export const pnpmThatInstalled = (root: string): string | undefined => {
@@ -426,7 +433,7 @@ export const installAgent = (root: string): { text: string; ok: boolean } => {
 };
 
 /** `optional`: a line that is not a fault when it fails (shown ○, not ✗). `group`: where status puts it. */
-export type SetupCheck = { what: string; ok: boolean; fix?: string; optional?: boolean; group?: 'runs-on' | 'advice' };
+export type SetupCheck = { what: string; ok: boolean; fix?: string; optional?: boolean; group?: 'runs-on' | 'targets' | 'advice' };
 
 /** What a project has of lynkeus and what it still lacks, each with the one thing that fixes it. Reads files only. */
 export const setupChecks = (root: string): SetupCheck[] => {
