@@ -407,6 +407,8 @@ Algunas opciones tienen un nombre alternativo, más claro dentro de un caso:
 
 `app.mock` responde una petición antes de que llegue a la red. La ruta se escribe `MÉTODO /ruta`; sin método coincide con cualquiera, y se compara por contenido (con `^` al principio, como expresión regular).
 
+Una regla que pone un caso dura hasta que el caso termina, en cualquier destino: si dentro del caso se reinicia la app (por ejemplo, una macro de inicio de sesión que llama al `reset` de la app), la regla sigue. Cada caso empieza y termina sin reglas. Una regla puesta a mano con `lynkeus mock` sí se pierde cuando un host reinicia la app, salvo que sea `--sticky`.
+
 ```yaml
 - app.mock: { route: "GET /v3/accounts", status: 500, delayMs: 3000 }
 - app.mock: { route: "POST /v1/transfers", lost: true, times: 1 }

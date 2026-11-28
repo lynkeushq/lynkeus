@@ -1381,7 +1381,18 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
           mocksSet = true;
           if (mockedFrom === undefined) mockedFrom = await lastRequest(d).catch(() => undefined);
         }
-        await timed('action', () => cli(argvFor(command, value, isKnownRoute)));
+        // A case's rule is the case's until it ends (the runner clears them before and after each case): an app reset
+        // inside it (a sign-in macro calling the app's `reset`) must not drop it on a host, as it does not on a device
+        // (trial run 12: headless lost the feed's mock to app.signedIn and the request went to the network).
+        const kept =
+          name !== 'mock'
+            ? value
+            : typeof value === 'string'
+              ? ({ route: value, sticky: true } as StepValue)
+              : value && typeof value === 'object' && !Array.isArray(value) && 'route' in value && !('sticky' in value)
+                ? ({ ...value, sticky: true } as StepValue)
+                : value;
+        await timed('action', () => cli(argvFor(command, kept, isKnownRoute)));
         if (name === 'appstate') away = (params?.state ?? value) === 'background' && onWallClock(d);
         return undefined;
       }

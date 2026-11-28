@@ -52,6 +52,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.2.0",
     "@types/ws": "^8.18.1",
+    "axios": "1.21.1",
     "jest": "^29.7.0",
     "lynkeus-agent": "workspace:^",
     "lynkeus-client": "workspace:^",

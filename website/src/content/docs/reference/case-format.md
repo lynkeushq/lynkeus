@@ -450,6 +450,8 @@ The arguments and flags of each command are in the [CLI reference](/reference/cl
 
 `app.mock` answers a request in place of the server, on the headless host and on a device alike. The same keys as the command's flags apply: `route`, `status`, `body`, `delay`, `times`, `sticky`, `lost`, `hold`, `release`.
 
+A rule a case sets lasts until the case ends, on every target: an app reset inside the case, such as a sign-in macro that calls the app's `reset`, keeps it. Each case starts and ends with no rules. (A rule set by hand with `lynkeus mock` is still dropped by an app reset on a host unless it is `--sticky`.)
+
 ```yaml
 - app.mock: { route: "GET /v3/accounts", status: 500 }
 - app.mock: { route: "GET /v3/accounts", body: "[]", times: 1 }

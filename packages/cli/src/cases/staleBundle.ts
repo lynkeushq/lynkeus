@@ -182,19 +182,22 @@ export const bundleToken = (bundle: string, token: string | undefined): 'present
  * Whether the kit a host command runs hands the app's agent the token it is started with (LYNKEUS_TOKEN), so a bundle
  * need not carry it: a kit that does lists `host-token` in `share/capabilities`.
  */
-export const kitGivesToken = (command: string, cwd: string): boolean => {
-  const run = RUN.exec(command)?.[1];
-  if (!run) return false;
+/** What the kit a host command runs says it does, from `share/capabilities` (one word each); none for an older kit. */
+export const kitCapabilities = (command: string | undefined, cwd: string): string[] => {
+  const run = command ? RUN.exec(command)?.[1] : undefined;
+  if (!run) return [];
   try {
     const kit = path.dirname(path.dirname(path.resolve(cwd, unquote(run))));
     return fs
       .readFileSync(path.join(kit, 'share', 'capabilities'), 'utf8')
       .split(/\s+/)
-      .includes('host-token');
+      .filter(Boolean);
   } catch {
-    return false;
+    return [];
   }
 };
+
+export const kitGivesToken = (command: string, cwd: string): boolean => kitCapabilities(command, cwd).includes('host-token');
 
 /** The environment a bundle is made in: the project's token where the app's bundler inlines it (Expo, and the babel plugin). */
 export const bundleEnv = (token: string | undefined): NodeJS.ProcessEnv =>
