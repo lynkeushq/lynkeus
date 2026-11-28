@@ -291,8 +291,9 @@ Letter case never matters, and spaces around a text do not count. A target that 
 | `contains` | boolean | `false` | With a target that is a text: an element whose text contains it matches, inside `within` when given; `nth` counts among those. |
 | `route` | string | | The app must be on this route. |
 | `layer` | boolean or string | | `true`: a layer (a sheet, a dialog) is open over the screen. `false`: none is. A string: one is open and its `testID` contains the string. |
-| `request` | string | | The app must have made this request, written `METHOD /path`. |
-| `status` | number | any | With `request`: the status the answer must have. |
+| `request` | string | | The app must have made this request, written `METHOD /path`, and it must have been answered: a request with status 0 (no network on the host, refused, aborted) fails the step and says so. |
+| `status` | number | any answer | With `request`: the status the answer must have. `status: 0` checks for a request that got no answer. |
+| `answered` | boolean | `true` | With `request`: `false` accepts a request that was only sent, answered or not. |
 | `event` | string | | The app must have reported this analytics event. |
 | `props` | object | | With `event`: properties the event must carry. Values are compared as text. |
 | `absent` | boolean | `false` | Turn the assertion around: the step passes when the conditions do not hold. |

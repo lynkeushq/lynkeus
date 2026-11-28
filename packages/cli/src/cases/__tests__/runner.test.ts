@@ -776,6 +776,34 @@ test('a step waits only for requests started after the action before it began', 
   assert.match(report.steps[3]!.error!, /not requested since the step before began: POST \/api\/points/);
 });
 
+test('a seen request wants an answer: one with status 0 fails and says so, unless the step says answered: false or names the status', async () => {
+  const c = parseCase(
+    '---\nid: offline\n---\nsteps:\n  - app.press: "#refresh"\n  - app.see: { request: "GET /v1/feed.json", timeoutMs: 100 }\n  - app.see: { request: "GET /v1/feed.json", answered: false }\n  - app.see: { request: "GET /v1/feed.json", status: 0 }\n',
+    'offline.md',
+  );
+  const { base, requests } = fakeApp();
+  const device = await base.device();
+  const press = device.press.bind(device);
+  (device as unknown as { press: typeof press }).press = async (params) => {
+    const answer = await press(params);
+    requests.push({
+      id: requests.length + 1,
+      method: 'GET',
+      url: 'https://feed.example/v1/feed.json',
+      status: 0,
+      error: 'network error or aborted',
+      startedAt: 0,
+    });
+    return answer;
+  };
+  const report = await runCase(c, { base, config, fixtures, continue: true });
+  assert.deepEqual(
+    report.steps.map((s) => s.status),
+    ['passed', 'failed', 'passed', 'passed'],
+  );
+  assert.match(report.steps[1]!.error!, /^GET \/v1\/feed\.json was requested but got no answer \(status 0: network error or aborted\); .*`answered: false`/);
+});
+
 test('a request the press before did not cause is not waited for', async () => {
   const c = parseCase('---\nid: stale\n---\nsteps:\n  - app.type: { text: "x" }\n  - app.wait: { request: "GET /api/points", timeoutMs: 300 }\n', 'stale.md');
   const { base } = fakeApp();

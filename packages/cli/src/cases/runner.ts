@@ -919,8 +919,14 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     } else if (text !== undefined && !elements.some((e) => says(e, text))) return `not on screen: ${JSON.stringify(text)}`;
     if (typeof params.request === 'string') {
       const status = typeof params.status === 'number' ? params.status : undefined;
-      if (!(await requestsSinceMark()).some((e) => requestMatches(e, params.request as string, status)))
-        return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      const made = (await requestsSinceMark()).filter((e) => requestMatches(e, params.request as string, status));
+      if (made.length === 0) return `not requested since ${markedByHand ? 'the mark' : 'the step before began'}: ${params.request}`;
+      // Made is not answered: a request that never got a response (status 0: no network, refused, aborted) passed this
+      // check in trial run 10. It wants an answer unless the step names a status or says `answered: false`.
+      if (status === undefined && params.answered !== false && !made.some((e) => (e.status ?? 0) > 0)) {
+        const lost = made.at(-1)!;
+        return `${params.request} was requested but got no answer (status 0${lost.error ? `: ${lost.error}` : ''}); a check that it was only sent says \`answered: false\`, one for a status names it (\`status: 500\`)`;
+      }
       markedByHand = false;
     }
     if (typeof params.event === 'string') {
