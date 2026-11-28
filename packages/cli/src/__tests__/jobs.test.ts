@@ -48,6 +48,8 @@ const fakeDeps = (o: {
   const detached: string[][] = [];
   let clock = 0;
   return {
+    // These tests drive a Mac's Simulator, also when CI runs them on Linux.
+    mac: true,
     calls,
     streamed,
     detached,

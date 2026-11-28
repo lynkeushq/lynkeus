@@ -27,6 +27,8 @@ export type Ran = { code: number; stdout: string };
 
 /** What setup does to the machine, behind one seam so a test can answer for it and check what it would have run. */
 export type SetupDeps = {
+  /** Whether this machine can build iOS; read from the OS when not given. */
+  mac?: boolean;
   /** A short command, to its end; code 127 when the program is not there. */
   exec: (command: string, args: string[], o?: { cwd?: string; timeoutMs?: number }) => Promise<Ran>;
   /** A long command (a build), its output appended to `log`, each line told to `line`; its exit code. */
@@ -318,7 +320,7 @@ export const runSetup = async (ctx: Ctx, o: SetupOptions, deps: SetupDeps): Prom
     asked: o.platforms,
     declared: Array.isArray(declared) ? declared : undefined,
     app: appPlatforms(ctx.root),
-    mac: process.platform === 'darwin',
+    mac: deps.mac ?? process.platform === 'darwin',
   });
   if (typeof platforms === 'string') return fail('platforms', platforms);
   if (o.device && platforms.length > 1) return fail('platforms', `device names one device: pass one platform with it (${platforms.join(' or ')})`);
