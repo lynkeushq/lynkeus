@@ -172,13 +172,14 @@ export const describeGuessed = (
       "  A check of these values passes on a device or headless, not on this FastSim; a FastSim whose share/capabilities lists expo-native-mocks reads them from the app's config and nativeMocks.",
     ];
   }
-  const open = guessed.filter(([key]) => nativeMocks[key] === undefined);
+  // Such a kit reads the identity from the app's config: only what neither it nor nativeMocks gives is a placeholder.
+  const open = guessed.filter(([key, , v]) => v === undefined && nativeMocks[key] === undefined);
   if (open.length === 0) return [];
   return [
-    `native values Lynkeus FastSim guessed (${open.length}): the app reads expo-application, which FastSim answers with placeholders`,
+    `native values Lynkeus FastSim guessed (${open.length}): the app reads expo-application and its config gives none of these, so FastSim answers placeholders`,
     ...open.map((g) => line(g, false)),
     '  Give the real ones in the cases config:',
-    JSON.stringify({ nativeMocks: Object.fromEntries(open.map(([key, , v]) => [key, v ?? { value: null }])) }, null, 2)
+    JSON.stringify({ nativeMocks: Object.fromEntries(open.map(([key]) => [key, { value: null }])) }, null, 2)
       .split('\n')
       .map((l) => `  ${l}`)
       .join('\n'),
