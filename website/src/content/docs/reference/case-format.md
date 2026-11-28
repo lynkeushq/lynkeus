@@ -370,7 +370,8 @@ Starts the app again, as a fresh case finds it. It takes no value.
 | Where | What happens |
 |---|---|
 | A simulator or emulator | The app is terminated and launched again (`simctl launch --terminate-running-process`, `am force-stop` and the launcher), and the step waits for it to attach. It needs `app` in `lynkeus.config.json`. |
-| A host the run started (`--host-command`, `host_command`) | The host is stopped and started again, the way the case's own host was started. |
+| A host the run started for the case (`--host-command`, `host_command`) | The host is stopped and started again, the way the case's own host was started. |
+| A headless host the run keeps for its cases (`--host`, `--on headless`, `--keep-hosts`) | The app is mounted again in the same process, as between cases: the host's mocked native state is wiped, and what the app keeps at module scope stays. It takes about 100 ms instead of the 2 to 3 s of a new host. A host that cannot reset is started again. |
 | Any other host (headless) | The app is mounted again from scratch (the agent's `reset`), with the host's mocked native state wiped. A host that cannot do that answers `unsupported`. |
 
 The case's mocks go with the app on a device: set them again after the relaunch. The config's `nativeMocks` are sent again.

@@ -71,7 +71,7 @@ who never opened the file knows what they are looking at.
 | \`app.back\` | | |
 | \`app.requests\` | \`mark\` | A \`request\` counts only what the app asked for after the step before it began; this marks further back, until a step has looked for a request. |
 | \`app.call\` | \`{ command, params?, expect?, as? }\` | A command the app registered: \`qa.register('reset', async (params) => { … })\`, with \`qa\` from \`lynkeus-agent\`. What the function returns is what \`expect\` and \`as\` read. Right after the app attached (a launch, a relaunch) a command it has not registered yet is asked for again for up to 5 s; then it fails, naming those it did. |
-| \`app.relaunch\` | | Starts the app again as a fresh case finds it: on a Simulator or emulator the app is terminated and launched, a host the run started (\`host_command\`) is started again, and any other host mounts the app again. The case's mocks go with it; set them after. |
+| \`app.relaunch\` | | Starts the app again as a fresh case finds it: on a Simulator or emulator the app is terminated and launched, a host the run started for the case (\`host_command\`) is started again, and a headless host the run keeps for its cases (\`--host\`, \`keep_hosts\`) or any other host mounts the app again. The case's mocks go with it; set them after. |
 | \`app.run\` | \`{ flow, vars? }\` | A Lynkeus flow, from the flows folder. |
 | \`app.events\` / \`app.event\` | \`clear\` / \`{ name, props?, absent? }\` | What the app told its analytics. |
 | \`app.<command>\` | its arguments by name | Any other Lynkeus command: \`app.mock\`, \`app.network\`, \`app.appstate\`, \`app.deeplink\`… |

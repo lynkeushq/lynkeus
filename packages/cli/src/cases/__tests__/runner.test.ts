@@ -1262,6 +1262,34 @@ test("app.relaunch starts the run's own host again, or mounts the app again on a
   assert.match(report.steps[0]!.error!, /host_command/);
 });
 
+test('app.relaunch on a kept host mounts the app again in it, and starts the host again only when that fails', async () => {
+  const c = parseCase('---\nid: relaunch\n---\nsteps:\n  - app.relaunch\n  - app.see: { text: "Hello" }\n', 'relaunch.md');
+  const { base } = fakeApp();
+  const logs: string[] = [];
+  let restarted = 0;
+  let remounts = 0;
+  const run = (remounted: boolean) =>
+    runCase(c, {
+      base,
+      config,
+      fixtures,
+      log: (line) => logs.push(line),
+      remount: async () => {
+        remounts += 1;
+        return remounted;
+      },
+      relaunch: async () => {
+        restarted += 1;
+      },
+    });
+  assert.equal((await run(true)).result, 'passed');
+  assert.deepEqual([remounts, restarted], [1, 0]);
+  assert.ok(logs.some((l) => /mounted the app again \(the host is kept for the run\)/.test(l)));
+  assert.equal((await run(false)).result, 'passed');
+  assert.deepEqual([remounts, restarted], [2, 1]);
+  assert.ok(logs.some((l) => /started the host again/.test(l)));
+});
+
 test('a phone covered by a view the app did not draw is relaunched before the first step, and the case says so', async () => {
   const c = parseCase('---\nid: covered\n---\nsteps:\n  - app.see: { text: "Hello" }\n', 'covered.md');
   const { base } = fakeApp();

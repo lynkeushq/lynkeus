@@ -118,6 +118,8 @@ Si el host muere a mitad de la ejecución (se queda sin memoria, un fallo), o es
 
 **Cada caso empieza de cero, aunque compartan host.** Cuando un host atiende varios casos (`--host`, o `--keep-hosts` con un comando que ejecuta `headless start`, como hace `lynkeus ci`), antes de cada caso, salvo el primero, se reinicia en unos 200 ms. Vacía su almacenamiento simulado (MMKV, keychain, AsyncStorage), las reglas de red, el reloj, el modo sin conexión y los mocks nativos; ejecuta el comando `reset` de la app si la app registró uno, y vuelve a montar la app, así que la navegación arranca desde el principio. El registro del caso lo indica con una línea `↺`. Hay algo que no se reinicia: lo que la app guarda a nivel de módulo, como una caché de consultas o un store creado al importar un archivo, porque cada host carga los módulos de la app una sola vez. Si por eso un caso ve datos de otro, dale a cada caso su propio host con `--host-command` y sin `--keep-hosts`. Cuesta un arranque de host por caso.
 
+En un host así, `app.relaunch` (y cualquier macro que lo use, como un `app.fresh` que reinicia y relanza) hace ese mismo reinicio en vez de levantar otro host. Tarda unos 100 ms, cuando arrancar Jest y la app de nuevo llevaba entre 2 y 3 s, y aísla igual que el reinicio entre casos. Si el host no puede reiniciarse, se arranca otro. Con un host por caso, relanzar sigue levantando un host nuevo.
+
 ## El archivo de entrada
 
 El archivo exporta `App` y, opcionalmente, un adaptador `navigation`. Su forma es esta:
