@@ -31,7 +31,7 @@ import { trafficEvents } from '../knowledge/analyticsTraffic.js';
 import { type AppEvent, normalizeEvents, type RunEvent } from '../knowledge/events.js';
 import { leafOf } from '../knowledge/nesting.js';
 import { type Base, type Command, find } from '../registry.js';
-import { execute, laneLabel, noteCaseEnd, notePrinted, onPhone, platformOf, scopeWhy, targetOf, unreachable, whyFor } from '../runtime.js';
+import { execute, laneLabel, markLogs, noteCaseEnd, notePrinted, onPhone, platformOf, scopeWhy, targetOf, unreachable, whyFor } from '../runtime.js';
 import * as screens from '../knowledge/screens.js';
 import { type Expected, isRoute, parseTarget, routeOf, scopedTarget } from '../targets.js';
 import type { Fixtures, FixturesConfig } from './fixtures.js';
@@ -2007,6 +2007,11 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
     if (d?.server.connected) await d.command('netmock', { action: 'clear' }).catch(() => undefined);
   };
   await clearMocks();
+  // The app's log from here on is this case's: why reads nothing an earlier case or run printed.
+  if (!options.dry && !options.setupOnly && !away) {
+    const d = await device().catch(() => undefined);
+    if (d?.server.connected) await markLogs(d);
+  }
   // What native SDKs answer in this case starts as the config says, whatever the last case on this app set.
   if (config.nativeMocks && !options.setupOnly && !options.dry) {
     const d = await device().catch(() => undefined);

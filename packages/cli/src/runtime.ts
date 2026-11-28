@@ -184,18 +184,42 @@ export const notePrinted = (port: number | undefined, lines: Printed[], platform
   if (lines.length) printed.set(lane(port, platform), [...(printed.get(lane(port, platform)) ?? []), ...lines].slice(-PRINTED_KEPT));
 };
 
-// What the app logged from `startedAt` on: lines a run already took, and those the app still holds (read, not taken).
-const printedSince = async (device: Awaited<ReturnType<Base['device']>>, startedAt: number | undefined): Promise<Printed[]> => {
-  const held = device.server.hello?.commands?.includes('logs')
-    ? await device.command('logs').then(
+const heldLogs = async (device: Awaited<ReturnType<Base['device']>>): Promise<Printed[]> =>
+  device.server.hello?.commands?.includes('logs')
+    ? device.command('logs').then(
         (raw) =>
           (Array.isArray(raw) ? (raw as Partial<Printed>[]) : []).flatMap((l) =>
             typeof l?.text === 'string' && typeof l.at === 'number' ? [{ at: l.at, level: String(l.level ?? 'info'), text: l.text }] : [],
           ),
         () => [],
       )
-    : [];
-  const all = [...(printed.get(lane(device.server.port, platformOf(device))) ?? []), ...held];
+    : Promise.resolve([]);
+
+// Where each lane's current case began in its app's log: the last line's time on the app's own clock (a host's
+// virtual clock included), so a line printed before it never counts for this case, whatever the clocks say.
+const logMarks = new Map<string, number>();
+
+/**
+ * A case begins on this app: what the app logged before (an earlier case, an earlier run on a port a new host took
+ * again) is not this case's. Trial run 13: `why` quoted podcast-error's "Error fetching episodes" for another case.
+ */
+export const markLogs = async (device: Awaited<ReturnType<Base['device']>>): Promise<void> => {
+  const key = lane(device.server.port, platformOf(device));
+  printed.delete(key);
+  const held = await heldLogs(device).catch(() => []);
+  logMarks.set(
+    key,
+    held.reduce((latest, l) => Math.max(latest, l.at), Number.NEGATIVE_INFINITY),
+  );
+};
+
+// What the app logged from `startedAt` on, and since its case began: lines a run already took, and those the app
+// still holds (read, not taken).
+const printedSince = async (device: Awaited<ReturnType<Base['device']>>, startedAt: number | undefined): Promise<Printed[]> => {
+  const key = lane(device.server.port, platformOf(device));
+  const held = await heldLogs(device);
+  const after = logMarks.get(key) ?? Number.NEGATIVE_INFINITY;
+  const all = [...(printed.get(key) ?? []), ...held].filter((l) => l.at > after);
   const unique = all.filter((l, i) => all.findIndex((o) => o.at === l.at && o.text === l.text) === i);
   return fromStart(unique, startedAt, (l) => l.at);
 };
