@@ -1358,7 +1358,7 @@ Drafts a case for a screen, for you to finish. It prints:
 lynkeus case here <id> [--title <text>] [--write] [--host]
 ```
 
-Drafts a case from the screen the app shows now, with checks that pass as it is. It reads the attached app's screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three things on it, `testID`s first and then texts. Use it for a project's first case that runs green at once, or as the start of one for a screen.
+Drafts a case from the screen the app shows now, with checks that pass as it is. It reads the attached app's screen and writes a case that goes there the way `case new` drafts it: the steps of a case that reaches that screen, sign-in included, else the route map's presses from `cases.start`, else `app.nav` to its route with a note that a jump works only where the route is mounted (a signed-in screen cannot be jumped to from a signed-out app). Then it sees up to three things on it, `testID`s first and then texts. Use it for a project's first case that runs green at once, or as the start of one for a screen.
 
 | Argument | Meaning |
 |---|---|

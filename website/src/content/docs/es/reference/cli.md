@@ -1372,7 +1372,7 @@ lynkeus case here <id> [--title <text>] [--write] [--host]
 
 Redacta un caso a partir de la pantalla que la app muestra ahora, con comprobaciones que pasan tal como está.
 
-Lee la pantalla de la app conectada y escribe un caso que va a su ruta (`app.nav`, si tiene una) y comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
+Lee la pantalla de la app conectada y escribe un caso que llega hasta ahí igual que lo redacta `case new`: con los pasos de un caso que ya llega a esa pantalla (inicio de sesión incluido), o si no con los toques que conoce el mapa de rutas desde `cases.start`, o si no con `app.nav` a su ruta y una nota de que saltar solo funciona donde la ruta está montada (a una pantalla con sesión no se salta desde una app sin sesión). Después comprueba hasta tres de las cosas que hay en ella, primero `testID` y después textos. Es el primer caso de un proyecto que pasa en verde de inmediato, o el comienzo de uno para una pantalla.
 
 | Argumento | Qué es |
 |---|---|

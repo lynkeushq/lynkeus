@@ -392,12 +392,12 @@
     "now": "d1a00748823ea491"
   },
   "surface/help/case here": {
-    "why": "case run --host and case here --host start their headless host on a free driver port of its own: on the configured port it met a device app attached there and the run drove both (a trial saw the emulator's screens and another case's mocks).",
-    "now": "632bc57d4f66da15"
+    "why": "case run --host and case here --host start their headless host on a free driver port of its own: on the configured port it met a device app attached there and the run drove both (a trial saw the emulator's screens and another case's mocks). case here drafts the way to the screen as case new does (a case's way there, else the route map's presses, else app.nav that works only where the route is mounted): in trial run 10 it suggested app.nav: Welcome from a signed-out app.",
+    "now": "da5f90e1f00f59dc"
   },
   "surface/mcp/tool/case_here": {
-    "why": "case run --host and case here --host start their headless host on a free driver port of its own: on the configured port it met a device app attached there and the run drove both (a trial saw the emulator's screens and another case's mocks).",
-    "now": "c804eb25b568089d"
+    "why": "case run --host and case here --host start their headless host on a free driver port of its own: on the configured port it met a device app attached there and the run drove both (a trial saw the emulator's screens and another case's mocks). case here drafts the way to the screen as case new does (a case's way there, else the route map's presses, else app.nav that works only where the route is mounted): in trial run 10 it suggested app.nav: Welcome from a signed-out app.",
+    "now": "27ad867a7039839d"
   },
   "surface/help/fastsim install": {
     "why": "fastsim install says that, without a terminal, a missing or expired sign-in exits 2 with a first line saying signing in is a step only the person can do (lynkeus login): in a trial an agent over MCP had only the service's invalid_grant to go by.",

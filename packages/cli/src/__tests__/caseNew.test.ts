@@ -79,3 +79,48 @@ test('a draft with no case through the screen offers what the source and runs kn
   assert.match(text, /# - app\.see: "Version 1\.0"/);
   assert.match(text, /# - app\.press: "#about-close" {4}# leads to Welcome/);
 });
+
+test('case here drafts the way to the screen as case new does, not a jump that only works where the route is mounted', async () => {
+  const caseHere = coverageCommands.find((c) => c.name === 'case here')!;
+  const here = async (shown: string, cases: Record<string, string>, config: Record<string, unknown> = {}) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lk-case-here-'));
+    fs.mkdirSync(path.join(root, 'cases'), { recursive: true });
+    for (const [file, text] of Object.entries(cases)) fs.writeFileSync(path.join(root, 'cases', file), text);
+    const device = {
+      server: { hello: null },
+      screen: async () =>
+        ({
+          route: shown,
+          path: [shown],
+          elements: [{ i: 0, kind: 'text', text: 'About us', depth: 0, frame: { x: 0, y: 0, w: 9, h: 9 } }],
+        }) as unknown as Screen,
+    } as unknown as Device;
+    const ctx = {
+      root,
+      config: { cases: { dir: 'cases', base: root, ...config } },
+      device: async () => device,
+      graph: () => graph,
+      err: () => undefined,
+      attached: true,
+      args: ['about-here'],
+      flags: {},
+      passthrough: [],
+    } as unknown as Ctx;
+    return ((await caseHere.run(ctx)) as Result).text ?? '';
+  };
+  // A case that signs in and reaches About lends its way, sign-in included.
+  const reused = await here('About', {
+    'about.md': '---\nid: about\n---\nsetup:\n  - app.signIn\nsteps:\n  - app.press: "#about-button"\n  - app.wait: About\n',
+  });
+  assert.match(reused, /setup:\n {2}# The way to About from case about [^\n]*\n {2}- app\.signIn\n {2}- app\.press: "#about-button"\n {2}- app\.wait: About\n/);
+  assert.doesNotMatch(reused, /app\.nav/);
+  // No case goes there: the route map's presses from cases.start.
+  const planned = await here('About', {}, { start: 'Welcome' });
+  assert.match(
+    planned,
+    /setup:\n {2}- app\.press: "#about-button" {4}# from the source: confirm it on screen\n {2}- app\.wait: \{ what: About, timeoutMs: 10000 \}/,
+  );
+  // No known way at all: the jump, saying where it works.
+  const jump = await here('DemoShowroom', {}, { start: 'Welcome' });
+  assert.match(jump, /# No known way from Welcome to DemoShowroom: .*app\.nav works only where DemoShowroom is mounted .*\n {2}- app\.nav: DemoShowroom/);
+});

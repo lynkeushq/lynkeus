@@ -860,7 +860,7 @@ Prints a case to finish: the frontmatter with the questions a reader needs answe
 
 Draft a case from the screen the app shows now, with checks that pass as it is
 
-Reads the attached app’s screen and writes a case that goes to its route (`app.nav`, when it has one) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
+Reads the attached app’s screen and writes a case that goes there the way `case new` drafts it (the steps of a case that reaches it, sign-in included, else the route map’s presses from cases.start, else `app.nav` to its route, which works only where the route is mounted) and sees up to three of what is on it, testIDs first, then texts: a project’s first case that runs green at once, or the start of one for a screen. --write saves it as <cases dir>/<id>.md, never over a file that is there.
 
 | Argument | |
 |---|---|
