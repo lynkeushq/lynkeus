@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 
 import { caseCommands } from '../commands/cases.js';
+import type { TargetPlan } from '../cases/onTargets.js';
 import { growing, jobNotifier, progressNotifier, schemaFor } from '../mcp/server.js';
+import type { Ctx } from '../registry.js';
 
 test('an MCP caller hears every event of a run, each case start, step and end, with a value that only grows', () => {
   const sent: { progress: number; total?: number; message?: string }[] = [];
@@ -120,4 +125,70 @@ test('a job beats with its last line and how long it has run; every value a call
   );
   assert.match(sent[0]!.message!, /^setup: still running, 42 s in$/);
   assert.match(sent[2]!.message!, /^building the iOS app: still running, 42 s in$/);
+});
+
+test('a 3-step case on two lanes reaches the MCP client as one notification per step start and end, each headed by its lane', async () => {
+  const { runOnTargets } = await import('../cases/onTargets.js');
+  const sent: string[] = [];
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lynkeus-progress-'));
+  const steps = ['app.fresh', 'app.press #login-submit', 'app.wait Welcome'];
+  const ctx: Ctx = {
+    root,
+    config: {},
+    attached: true,
+    err: () => undefined,
+    graph: () => {
+      throw new Error('no graph');
+    },
+    device: async () => {
+      throw new Error('no app');
+    },
+    args: [],
+    flags: { on: 'fastsim:ios,fastsim:android' },
+    passthrough: [],
+    progress: progressNotifier((p) => sent.push(p.message ?? '')),
+  };
+  const host: TargetPlan = { flags: { 'host-command': 'start {port}', jobs: 1 }, jobs: 1 };
+  await runOnTargets(ctx, {
+    targets: ['fastsim:ios', 'fastsim:android'],
+    cases: [{ id: 'sign-in' }],
+    plan: async () => host,
+    // Each lane's run says what case run says: the case, each step as it starts and ends, the case's end.
+    run: async (sub) => {
+      const at = () => new Date().toISOString();
+      sub.progress?.({ type: 'case-start', at: at(), id: 'sign-in', job: 0, attempt: 1, steps: 3 });
+      for (const [index, step] of steps.entries()) {
+        sub.progress?.({ type: 'step', at: at(), id: 'sign-in', job: 0, index, steps: 3, section: 'steps', step });
+        await new Promise((r) => setImmediate(r));
+        sub.progress?.({ type: 'step', at: at(), id: 'sign-in', job: 0, index, steps: 3, section: 'steps', step, status: 'passed', ms: 5 });
+      }
+      sub.progress?.({ type: 'case-end', at: at(), id: 'sign-in', job: 0, attempt: 1, result: 'passed', ms: 20 });
+      return { code: 0, reports: [{ id: 'sign-in', file: 'sign-in.md', result: 'passed', ms: 20, steps: [] }] };
+    },
+    detail: () => '',
+    verbose: false,
+  });
+  for (const lane of ['fastsim:ios', 'fastsim:android']) {
+    const mine = sent.filter((m) => m.startsWith(`[${lane}] `));
+    const starts = mine.filter((m) => /· step \d\/3 app\./.test(m));
+    const ends = mine.filter((m) => /· step \d\/3 ✅ app\./.test(m));
+    assert.deepEqual(
+      starts.map((m) => /step (\d)\/3/.exec(m)![1]),
+      ['1', '2', '3'],
+      `${lane}: one notification as each step starts`,
+    );
+    assert.deepEqual(
+      ends.map((m) => /step (\d)\/3/.exec(m)![1]),
+      ['1', '2', '3'],
+      `${lane}: one as each ends`,
+    );
+    assert.ok(ends.every((m) => m.endsWith(' · 5 ms')));
+    assert.deepEqual(
+      mine.filter((m) => !m.includes('· step ')),
+      [`[${lane}] ▶ sign-in · 0/1 done`, `[${lane}] ✅ sign-in passed in 20 ms · 1/1 done`],
+    );
+  }
+  assert.equal(sent[0], '▶ 2 case(s) on fastsim:ios, fastsim:android, 2 at a time');
+  assert.match(sent.at(-1)!, /^■ 2 passed, 0 failed in /);
+  assert.equal(sent.length, 1 + 2 * (1 + 3 * 2 + 1) + 1);
 });
