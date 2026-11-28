@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { bundleInputs, changedInput, keepInputs, snapshotInputs } from './bundleInputs.js';
+
 const SOURCE = /\.(?:[cm]?[jt]sx?|json)$/;
 const TEST = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const NOT_APP_CODE = new Set(['node_modules', 'ios', 'android', 'build', 'dist', 'coverage', 'web-build', '__tests__', '__mocks__']);
@@ -113,9 +115,13 @@ export const staleBundle = (command: string, appDir: string, skip: string[] = []
       // no host.args either: fastsim-bundle's own default
     }
   }
-  const newest = newestSource(app, skip);
+  const found = { bundle, app, platform: platform ?? 'ios' };
+  // What the bundle was made from decides, by content; dates only when that cannot be told.
+  const changed = changedInput(bundle, app, built);
+  if (changed !== undefined) return changed === null ? undefined : { ...found, newest: changed };
+  const newest = newestSource(app, skip, (file) => path.basename(file) === 'lynkeus.config.json');
   if (!newest || newest.mtimeMs <= built) return undefined;
-  return { bundle, app, platform: platform ?? 'ios', newest: path.relative(app, newest.file) };
+  return { ...found, newest: path.relative(app, newest.file) };
 };
 
 const shellWord = (word: string): string => (/^[\w@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`);
@@ -164,7 +170,14 @@ export const freshBundle = async (
     return { ok: false, text: `${older}, and no fastsim-bundle is beside the host command's fastsim-run; bundle it again, then run again:\n  ${again}` };
   o.log?.(`${older}; bundling it again: ${again}`);
   const t0 = Date.now();
+  // Read before the bundler starts: a file edited while it runs is then still a change next time.
+  const inputs = bundleInputs(stale.bundle, stale.app);
+  const before = inputs && snapshotInputs(stale.app, inputs);
+  const hbc = path.join(stale.bundle, 'app.hbc');
+  const builtBefore = fs.statSync(hbc, { throwIfNoEntry: false })?.mtimeMs;
   const done = await (o.bundle ?? spawnBundle)(bundler, [stale.app, stale.bundle, stale.platform], { cwd: stale.app, signal: o.signal });
+  const builtNow = fs.statSync(hbc, { throwIfNoEntry: false })?.mtimeMs;
+  if (done.code === 0 && before && builtNow !== undefined && builtNow !== builtBefore) keepInputs(stale.bundle, builtNow, before);
   if (done.code !== 0) {
     const tail = done.output.trim().split('\n').slice(-15).join('\n');
     return {
