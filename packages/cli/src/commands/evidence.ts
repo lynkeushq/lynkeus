@@ -83,10 +83,12 @@ export const evidenceCommands = [
       out: { type: 'string', help: 'the run folder (default .lynkeus/runs/evidence/<time>)', value: 'dir' },
       'no-video': { type: 'boolean', help: 'no film' },
       push: { type: 'boolean', help: 'upload to the reports service' },
+      budget: { type: 'number', help: 'as case run --budget: stop the run after this many seconds (over MCP 1500 unless given; 0: none)', value: 's' },
     },
     needs: 'nothing',
     session: false,
     mcp: 'core',
+    mcpDefaults: { budget: 1500 },
     mcpDetails:
       'case_run with frames, film and report.html. Answers only the report path, a line per case with its result per target, and frames that look wrong (an action that changed nothing on screen, a system view in front).',
     run: async (ctx) => {
@@ -104,6 +106,7 @@ export const evidenceCommands = [
         ...(on ? ['--on', on] : []),
         ...(ctx.flags.host ? ['--host'] : []),
         ...(ctx.flags.push ? ['--push'] : []),
+        ...(ctx.flags.budget !== undefined ? ['--budget', String(ctx.flags.budget)] : []),
       ];
       const r = await execute(argv, ctx);
       fs.mkdirSync(out, { recursive: true });

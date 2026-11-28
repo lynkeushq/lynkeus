@@ -1108,6 +1108,7 @@ Opciones para seguir una ejecución larga:
 
 | Opción | Qué hace |
 |---|---|
+| `--budget <s>` | Detiene la ejecución pasados estos segundos, igual que `case stop`: no arranca ningún caso más y la respuesta nombra los que no llegaron a correr. Por MCP vale 1500 salvo que se pase otro valor; `0` es sin límite. |
 | `--progress <json\|none>` | Cómo dice la ejecución dónde va, además del archivo `progress.ndjson` que escribe siempre. `json` imprime los eventos por la salida estándar, uno por línea, y el resumen pasa a la salida de error. `none` quita la línea de estado de la terminal. Ver [Seguir una ejecución larga](#seguir-una-ejecución-larga). |
 
 Opciones para ejecutar en paralelo:

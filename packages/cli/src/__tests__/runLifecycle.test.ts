@@ -37,7 +37,7 @@ const project = () => {
   });
   hanging.catch(() => undefined);
   const device = {
-    server: { connected: true, hello: null, port },
+    server: { connected: true, hello: null, port, call: async () => null },
     screen: async () => ({ route: 'Home', path: ['Home'], commit: 1, busy: false, window: { w: 390, h: 844 }, costMs: 1, elements: [] }),
     trace: async () => ({ last: 0, events: [] }),
     requests: async () => ({ inFlight: 0, requests: [] }),
@@ -131,6 +131,43 @@ test('a run stops when another process asks it to with case stop', async () => {
   assert.match(outcome.text ?? '', /⏹ stopped \(stopped with case stop\)/);
   assert.equal(fs.existsSync(stop), false);
   p.free();
+});
+
+test('a step that runs past its timeout and the margin, or past the ceiling, fails as stuck and the case goes on to its end', async () => {
+  const p = project();
+  // The project's ceiling stands in for the default 180 s; a step naming its own timeout gets that plus 30 s.
+  p.base.config.cases = { dir: 'cases', stepCeilingMs: 300 };
+  fs.writeFileSync(path.join(p.root, 'cases', 'slow.md'), '---\nid: slow\n---\nsteps:\n  - app.wait: "#never"\n  - app.press: "#after"\n');
+  const t0 = Date.now();
+  const outcome = await execute(['case', 'run', '--once'], p.base);
+  assert.ok(Date.now() - t0 < 3000, `the run took ${Date.now() - t0} ms`);
+  assert.equal(outcome.code, 1, JSON.stringify(outcome));
+  assert.match(outcome.text ?? '', /app\.wait #never: still running after 0\.3 s \(the step ceiling, cases\.stepCeilingMs\), so it was given up/);
+  assert.deepEqual(p.pressed, [], 'no step runs after the stuck one');
+  p.free();
+});
+
+test('a run held to a budget stops when it runs out and names the cases it did not reach', async () => {
+  const p = project();
+  fs.writeFileSync(path.join(p.root, 'cases', 'later.md'), '---\nid: later\n---\nsteps:\n  - app.press: "#x"\n');
+  const t0 = Date.now();
+  const outcome = await execute(
+    ['case', 'run', '--once', '--in-order', '--budget', '1', path.join(p.root, 'cases', 'slow.md'), path.join(p.root, 'cases', 'later.md')],
+    p.base,
+  );
+  const took = Date.now() - t0;
+  assert.ok(took >= 900 && took < 3000, `the run took ${took} ms`);
+  assert.equal(outcome.code, 130);
+  assert.match(outcome.text ?? '', /⏹ stopped \(the run's budget of 1 s ran out\) after 0 of 2 cases/);
+  assert.match(outcome.text ?? '', /not run: slow, later; run them in another call \(name their files\), or give budget more seconds/);
+  p.free();
+});
+
+test('case_run over MCP is held to 1500 s unless the caller gives a budget', async () => {
+  const { argvFor } = await import('../mcp/server.js');
+  const run = caseCommands.find((c) => c.name === 'case run')!;
+  assert.deepEqual(argvFor(run, {}).slice(-2), ['--budget', '1500']);
+  assert.deepEqual(argvFor(run, { budget: 0 }).slice(-2), ['--budget', '0']);
 });
 
 test('case status of a run that goes on says how to stop it', async () => {

@@ -694,11 +694,11 @@ The tree is the screen as nested lines of meaning: kinds, labels, testIDs, value
 | `--tolerance <ratio>` | pixels allowed to differ, as a fraction (default `0.001`) |
 | `--no-freeze` | do not pin the status bar before the screenshot |
 
-### `lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--brief] [--verbose] [--progress <json|none>]`
+### `lynkeus case run [files]… [--on <targets>] [--bundle <dir>] [--host] [--host-heap <percent>] [--seed <text>] [--locale <tag>] [--time-zone <zone>] [--epoch <iso>] [--once] [--continue] [--seen <dir>] [--report <file>] [--events <dir>] [--out <dir>] [--no-app-events] [--screenshots] [--settle <ms>] [--frames-on-change] [--still <ms>] [--frames <avif|png>] [--video] [--traces] [--traces-port <port>] [--push] [--project <name>] [--video-fps <n>] [--video-scale <n>] [--flakes <file>] [--prepared <dir>] [--jobs <n>] [--ports <list>] [--host-command <command>] [--keep-hosts] [--host-timeout <ms>] [--in-order] [--ahead <n>] [--idle <share>] [--dry-run] [--brief] [--verbose] [--budget <s>] [--progress <json|none>]`
 
 Run cases: setup through fixtures, steps against the app, the evidence when one fails
 
-A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
+A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. A step that runs past its own `timeoutMs` plus 30 s (one with none: 180 s, `cases.stepCeilingMs`) fails as stuck. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.
 
 | Argument | |
 |---|---|
@@ -746,6 +746,7 @@ A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case in
 | `--dry-run` | parse and list the steps without running them |
 | `--brief` | with --on: only the cases that did not pass, each target's count and notes cut to a line (a suite on several targets) |
 | `--verbose` | a failed case with its whole screen, every request and its full error; without it the screen is cut to what a check can name, and a notice the last run gave is not repeated |
+| `--budget <s>` | stop the run after this many seconds, as case stop does: no case starts after it and the answer names the cases not run (over MCP 1500 unless given; 0: none) |
 | `--progress <json|none>` | how the run says where it is, besides <out>/progress.ndjson (`case status` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal |
 
 ### `lynkeus case status [dir]`
@@ -793,7 +794,7 @@ Write an example case, the reference of the format and a fixtures server to star
 |---|---|
 | `--force` | overwrite what is there |
 
-### `lynkeus evidence [files]… [--on <targets>] [--host] [--out <dir>] [--no-video] [--push]`
+### `lynkeus evidence [files]… [--on <targets>] [--host] [--out <dir>] [--no-video] [--push] [--budget <s>]`
 
 Run cases with a frame per step, a film per case and report.html; answer with the report, each case per target and the frames that look wrong
 
@@ -810,6 +811,7 @@ The evidence a person reviews, in one call: `case run` with `--out`, `--screensh
 | `--out <dir>` | the run folder (default .lynkeus/runs/evidence/<time>) |
 | `--no-video` | no film |
 | `--push` | upload to the reports service |
+| `--budget <s>` | as case run --budget: stop the run after this many seconds (over MCP 1500 unless given; 0: none) |
 
 ### `lynkeus case coverage [--route <Route>] [--seen <dir>]`
 

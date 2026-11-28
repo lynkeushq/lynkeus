@@ -7,6 +7,7 @@
 import { exec } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { clearTimeout as clearWallTimer, setTimeout as wallTimer } from 'node:timers';
 import { promisify } from 'node:util';
 
 import type {
@@ -93,6 +94,8 @@ export type CasesConfig = {
   serverEvents?: { fixture: string; provider?: string };
   /** The service the app's own event list feeds (its `events` command), so a report names it instead of "App". */
   appEvents?: { provider: string };
+  /** How long a step that names no `timeoutMs` may run before it fails as stuck (default 180000); one that names one gets it plus 30 s. */
+  stepCeilingMs?: number;
 };
 
 /** What a host's analytics capture saw a step send: the SDK it went to and the event. */
@@ -309,6 +312,18 @@ export const fetchFilm = async (d: Pick<Device, 'command'>, film: string, bytes:
   }
 };
 const run = promisify(exec);
+
+// A step that outlives its own timeout by this much is stuck, not slow: the app or its host stopped answering mid-step.
+export const STEP_MARGIN_MS = 30_000;
+// A step that names no timeout: the longest wait Lynkeus itself makes in one (a host started again for a relaunch, an
+// exec) is 120 s. In trial 7 a stuck `app.fresh` ran 31 minutes and an `app.openDemo` 862 s.
+export const STEP_CEILING_MS = 180_000;
+
+/** How long one step may run before it is given up: its own `timeoutMs` and a margin, else the project's ceiling or 180 s. */
+export const stepCeilingMs = (value: unknown, ceiling: number = STEP_CEILING_MS): number => {
+  const own = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).timeoutMs : undefined;
+  return typeof own === 'number' && Number.isFinite(own) ? Math.max(own + STEP_MARGIN_MS, 0) : ceiling;
+};
 
 export const label = (step: Step): string => {
   const value = step.value;
@@ -1321,7 +1336,8 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
 
   const shell = async (value: StepValue): Promise<void> => {
     const params = typeof value === 'string' ? { run: value } : ((value ?? {}) as Record<string, unknown>);
-    const { stdout } = await run(String(params.run), { cwd: config.base ?? base.root, env: process.env, timeout: 120_000 });
+    // A stopped run takes its command down with it.
+    const { stdout } = await run(String(params.run), { cwd: config.base ?? base.root, env: process.env, timeout: 120_000, signal: options.signal });
     if (typeof params.as !== 'string') return;
     const json = /\{[\s\S]*\}/.exec(stdout)?.[0];
     scope[params.as] = json ? JSON.parse(json) : { out: stdout.trim() };
@@ -1439,10 +1455,42 @@ export const runCase = async (c: Case, options: RunOptions): Promise<CaseReport>
       await macro(custom, value);
       return undefined;
     }
-    if (step.verb.startsWith('app.')) return app(step.verb.slice(4), value);
-    if (step.verb === 'assert') return void (await assert(value));
-    if (step.verb === 'exec') return void (await shell(value));
-    return void (await fixture(step.verb, value));
+    return bounded(step, value, async () => {
+      if (step.verb.startsWith('app.')) return app(step.verb.slice(4), value);
+      if (step.verb === 'assert') return void (await assert(value));
+      if (step.verb === 'exec') return void (await shell(value));
+      return void (await fixture(step.verb, value));
+    });
+  };
+
+  // A step ends by its ceiling or by the run being stopped, whatever it waits on: a run that is cancelled or stuck
+  // would otherwise sit in one step for as long as that wait lasts. A macro's own steps are each held to theirs.
+  const bounded = <T>(step: Step, value: unknown, work: () => Promise<T>): Promise<T> => {
+    const signal = options.signal;
+    if (signal?.aborted) return Promise.reject(new Error(`stopped (${String(signal.reason ?? 'the run was stopped')}) before this step`));
+    const ms = stepCeilingMs(value, typeof config.stepCeilingMs === 'number' ? config.stepCeilingMs : undefined);
+    return new Promise<T>((resolve, reject) => {
+      const own = typeof (value as { timeoutMs?: unknown } | null | undefined)?.timeoutMs === 'number';
+      const seconds = ms < 10_000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000));
+      // On the wall clock, whatever clock the app's waits run on (a test's virtual one).
+      const timer = wallTimer(
+        () =>
+          reject(
+            new Error(
+              `${label(step)}: still running after ${seconds} s (${own ? `its timeoutMs and ${STEP_MARGIN_MS / 1000} s` : 'the step ceiling, cases.stepCeilingMs'}), so it was given up: the app or its host stopped answering`,
+            ),
+          ),
+        ms,
+      );
+      const stop = () => reject(new Error(`stopped (${String(signal?.reason ?? 'the run was stopped')}) during this step`));
+      signal?.addEventListener('abort', stop, { once: true });
+      work()
+        .then(resolve, reject)
+        .finally(() => {
+          clearWallTimer(timer);
+          signal?.removeEventListener('abort', stop);
+        });
+    });
   };
 
   // A case before this one may have left the app behind another app (a link it opened): every step of this one would

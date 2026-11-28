@@ -31,6 +31,7 @@ import { onPhone } from '../runtime.js';
 import { runtimeAt } from '../runtimes/index.js';
 import type { FlagValues } from '../args.js';
 import {
+  budgetAdvice,
   DEVICE_TARGETS,
   declaredTargets,
   skippedOn,
@@ -555,6 +556,10 @@ const deviceJsWarning = async (device: Device, root: string, skip: string[]): Pr
 };
 
 const STOP_POLL_MS = 500;
+const BUDGET_SPENT = "the run's budget of";
+const budgetSpent = (seconds: number) => `${BUDGET_SPENT} ${seconds} s ran out`;
+// Over MCP a run stops after this long unless told otherwise, short of the half hour a client waited in trial 7.
+const MCP_BUDGET_S = 1500;
 // A host started again for `app.relaunch` boots as the case's first did: a FastSim host takes seconds, not minutes.
 const HOST_RELAUNCH_MS = 120_000;
 // How often a kept host still on its way up is asked whether its app attached, at most.
@@ -652,9 +657,14 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
   const cancelled = () => stopWith(typeof ctx.signal?.reason === 'string' ? ctx.signal.reason : 'the caller cancelled case run');
   if (ctx.signal?.aborted) cancelled();
   ctx.signal?.addEventListener('abort', cancelled, { once: true });
+  // A run held to a time (over MCP by default, so a call ends before its client gives up on it) stops as case stop does.
+  const budgetS = Number(ctx.flags.budget ?? 0);
+  const budget = budgetS > 0 && !dry ? setTimeout(() => stopWith(budgetSpent(budgetS)), budgetS * 1000) : undefined;
+  budget?.unref();
   // A port claim left behind would refuse every later run of this process on that port.
   const letGo = () => {
     claimed?.release();
+    clearTimeout(budget);
     ctx.signal?.removeEventListener('abort', cancelled);
   };
   const progressFile = dry
@@ -1215,6 +1225,7 @@ const runSuite = async (ctx: Ctx, as: { target?: TargetName } = {}): Promise<Sui
       : stoppedBy
         ? [
             `⏹ stopped (${stoppedBy}) after ${reports.length} of ${cases.length} cases; no step starts after it, any host it started is stopped and its ports are let go`,
+            ...(stoppedBy.startsWith(BUDGET_SPENT) ? [budgetAdvice(cases.filter((c) => !reports.some((r) => r.id === c.id)).map((c) => c.id))] : []),
           ]
         : []),
     // Its full path: a relative --out resolves against where the CLI was started, which over MCP is the app's folder.
@@ -1489,6 +1500,7 @@ const casesOnTargets = async (ctx: Ctx): Promise<Result> => {
     brief: !!ctx.flags.brief && !ctx.flags.verbose,
     progressFile: out ? path.join(path.resolve(out), PROGRESS_FILE) : path.join(ctx.root, '.lynkeus', `last-run.${PROGRESS_FILE}`),
     jsonProgress: ctx.flags.progress === 'json' && !ctx.attached,
+    ...(Number(ctx.flags.budget ?? 0) > 0 ? { budget: { stop: budgetSpent(Number(ctx.flags.budget)), ms: Number(ctx.flags.budget) * 1000 } } : {}),
   });
 };
 
@@ -1498,7 +1510,7 @@ export const caseCommands = [
     group: 'runs',
     summary: 'Run cases: setup through fixtures, steps against the app, the evidence when one fails',
     details:
-      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
+      "A case is a markdown file with `setup`, `steps` and `expected` (`lynkeus case init` writes an example and the reference). Without files, every case in `cases.dir`. A failed case runs once more before it counts as failed, unless `--once`. A step that runs past its own `timeoutMs` plus 30 s (one with none: 180 s, `cases.stepCeilingMs`) fails as stuck. `--host` hosts the app in Node for the run. `--on targets` runs each case on the targets the project declared (`cases.targets` in lynkeus.config.json, or the case's own `targets:`) at once and answers one line per case per target: that is how a case is checked done, and a declared target this machine lacks leaves the check incomplete (named with why, and the run fails). `--on all` runs them on every target this machine has (the app on the iOS Simulator, the app on the Android emulator, FastSim for each platform, headless); a target it lacks is named with why and fails nothing. Each case on FastSim gets a host of its own; headless keeps a host per job and resets it between cases. The iOS and Android apps both dial the driver's port and each is driven on its own connection, so both run side by side without a rebuild; `simulator` is whichever device's app is attached.",
     positionals: [{ name: 'files', help: 'case files (default: every .md under cases.dir)', rest: true }],
     flags: {
       on: {
@@ -1621,6 +1633,11 @@ export const caseCommands = [
         type: 'boolean',
         help: 'a failed case with its whole screen, every request and its full error; without it the screen is cut to what a check can name, and a notice the last run gave is not repeated',
       },
+      budget: {
+        type: 'number',
+        help: `stop the run after this many seconds, as case stop does: no case starts after it and the answer names the cases not run (over MCP ${MCP_BUDGET_S} unless given; 0: none)`,
+        value: 's',
+      },
       progress: {
         type: 'string',
         help: `how the run says where it is, besides <out>/${PROGRESS_FILE} (\`case status\` reads it): json, one event per line on stdout (the summary then goes to stderr); none, no live status line in a terminal`,
@@ -1630,6 +1647,7 @@ export const caseCommands = [
     needs: 'nothing',
     session: false,
     mcp: 'core',
+    mcpDefaults: { budget: MCP_BUDGET_S },
     mcpOmit: [
       'progress',
       'seen',
@@ -1647,7 +1665,7 @@ export const caseCommands = [
       'project',
     ],
     mcpDetails:
-      "Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason. `on: targets` runs each case on the project's declared targets (cases.targets, or the case's own `targets:`) at once and answers one line per case per target (`brief`: only the cases that did not pass, and each target's count); a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: \"png\"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. On FastSim (`on: fastsim:ios`, `fastsim:android`, or a fastsim-run `host_command`) every case gets a host of its own, started in well under a second, `keep_hosts` or not: nothing carries over from the case before (storage, MMKV, navigation, module scope). `seed`, `locale`, `time_zone` and `epoch` pin the launch facts on a host the run starts (`host` or `host_command`); an attached simulator or emulator keeps its own, listed under `launch.unsupported` in run.json (guide determinism launch-facts). On FastSim and headless the answer lists the native values the app read that the host does not know, each with a `nativeMocks` snippet to fill from the library's native code (guide troubleshooting native-values).",
+      "Runs case files (default: all in cases.dir) against the attached app, or with `host` in Node. A case that fails comes back with its screen and reason; a step stuck past its timeoutMs plus 30 s (else 180 s) fails. Progress reaches the caller at least every 20 s. `on: targets` runs each case on the project's declared targets (cases.targets, or the case's own `targets:`) at once and answers one line per case per target (`brief`: only the cases that did not pass, and each target's count); a declared target not available here leaves the check incomplete and fails the run. `on: all` runs them on every target this machine has, and one not available is named and fails nothing; or name them: headless, fastsim:ios, fastsim:android, ios, android (`bundle`: the FastSim bundle, default the last under .lynkeus). `out` + `screenshots` + `push` uploads the run and prints its address; the report fills case by case from the first. For frames two runs are compared by pixel for pixel, add `frames: \"png\"`, `settle: 700` and, on a simulator or emulator, `still: 300`. `jobs` runs cases side by side, each on its own host (`ports`; `host` starts one headless host per job, `host_command` one per case); a case with `exclusive: true` in its frontmatter runs alone. With `host`, a host that dies or passes `host_heap` percent of its heap is started again before the next case. A headless host that serves several cases (`host`, or `keep_hosts` with a headless `host_command`) is reset before each case after its first (mocked storage, network rules, clock, a new tree); what the app keeps at module scope survives, and such an app wants `host_command` without `keep_hosts`, a host per case. On FastSim (`on: fastsim:ios`, `fastsim:android`, or a fastsim-run `host_command`) every case gets a host of its own, started in well under a second, `keep_hosts` or not: nothing carries over from the case before (storage, MMKV, navigation, module scope). `seed`, `locale`, `time_zone` and `epoch` pin the launch facts on a host the run starts (`host` or `host_command`); an attached simulator or emulator keeps its own, listed under `launch.unsupported` in run.json (guide determinism launch-facts). On FastSim and headless the answer lists the native values the app read that the host does not know, each with a `nativeMocks` snippet to fill from the library's native code (guide troubleshooting native-values).",
     run: async (ctx) => {
       if (typeof ctx.flags.on === 'string' && !ctx.flags['dry-run']) return casesOnTargets(ctx);
       const { reports: _reports, notes: _notes, ...result } = await runSuite(ctx);

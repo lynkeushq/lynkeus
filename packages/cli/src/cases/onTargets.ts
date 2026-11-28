@@ -133,7 +133,15 @@ export type OnTargetsOptions = {
   progressFile?: string;
   /** The events on stdout too (--progress json), the summary then on stderr. */
   jsonProgress?: boolean;
+  /** The whole run's time: past `ms` every target stops, with `stop` as the reason. */
+  budget?: { ms: number; stop: string };
 };
+
+/** What to do about the cases a run held to a budget did not reach. */
+export const budgetAdvice = (left: string[]): string =>
+  left.length
+    ? `not run: ${left.slice(0, 8).join(', ')}${left.length > 8 ? ` and ${left.length - 8} more` : ''}; run them in another call (name their files), or give budget more seconds`
+    : 'every case ran; give budget more seconds if its last one was cut short';
 
 const MARK = { passed: '✅', failed: '❌', unsupported: '🚫' } as const;
 const STEP_CHARS = 100;
@@ -224,6 +232,8 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
       }, 500)
     : undefined;
   watching?.unref();
+  const budget = o.budget ? setTimeout(() => stopAll(o.budget!.stop), o.budget.ms) : undefined;
+  budget?.unref();
   const emit = (e: ProgressEvent) => {
     if (o.progressFile) fs.appendFileSync(o.progressFile, `${JSON.stringify(e)}\n`);
     if (o.jsonProgress) process.stdout.write(`${JSON.stringify(e)}\n`);
@@ -247,7 +257,8 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
           ...ctx,
           ...(lane.base ? { device: lane.base.device, forPort: lane.base.forPort, forApp: lane.base.forApp, shares: lane.base.shares } : {}),
           ...(lane.files ? { args: lane.files } : {}),
-          flags: { ...ctx.flags, on: undefined, bundle: undefined, progress: 'none', ...lane.flags },
+          // The run's budget is kept here, for every target at once.
+          flags: { ...ctx.flags, on: undefined, bundle: undefined, budget: undefined, progress: 'none', ...lane.flags },
           err: (line) => ctx.err(indent(line, `${lane.label}: `)),
           // A target's own start and end are not the run's: the run starts and ends once, for all of them.
           progress: (e) => {
@@ -263,6 +274,7 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     );
   } finally {
     if (watching) clearInterval(watching);
+    clearTimeout(budget);
     ctx.signal?.removeEventListener('abort', cancelled);
     await stopPlans(planned);
   }
@@ -320,6 +332,12 @@ export const runOnTargets = async (ctx: Ctx, o: OnTargetsOptions): Promise<Resul
     ...(stoppedBy ? { stopped: stoppedBy } : {}),
   });
   if (stoppedBy) lines.push(`⏹ stopped (${stoppedBy}): no step starts after it, and every host a target started is stopped`);
+  if (stoppedBy && stoppedBy === o.budget?.stop) {
+    const left = results.flatMap(({ lane, result }) =>
+      lane.cases.filter((c) => !result.reports?.some((r) => r.id === c.id)).map((c) => `${c.id} (${lane.label})`),
+    );
+    lines.push(budgetAdvice(left));
+  }
   const code = stoppedBy ? 130 : failed ? 1 : 0;
   const text = lines.join('\n');
   const json = [
