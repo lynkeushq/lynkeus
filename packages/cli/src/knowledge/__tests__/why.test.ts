@@ -201,3 +201,25 @@ test('a probe Lynkeus sends itself is never the last command that failed', () =>
   const own: TraceEvent = { seq: 2, t: 2, kind: 'command', method: 'signOut', ms: 1, error: 'Unknown method signOut' };
   assert.deepEqual(rules(explain({ screen: s, requests: [], inFlight: 0, trace: [own, probe] })), ['last-error']);
 });
+
+test('a request a host with no network could not send says so and to mock it, not that the network failed', () => {
+  const s = screen([el({ kind: 'text', text: 'So empty... so sad' }, 0)], 'DemoPodcastList');
+  const feed = req(0, 'https://api.rss2json.com/v1/api.json?rss_url=x', 'network error or aborted');
+  const local = req(0, 'http://localhost:3000/health', 'network error or aborted');
+  const found = explain({ screen: s, requests: [feed, local], inFlight: 0, target: { text: 'Episode One' }, noNetwork: true });
+  assert.deepEqual(rules(found), ['host-offline', 'request-failed']);
+  assert.equal(
+    found[0]?.message,
+    'this host has no network: GET /v1/api.json never left it (it reaches only this machine); mock the request (app.mock: { route: "GET /v1/api.json", body: … })',
+  );
+  // Only the local request, which this host does send, is left for request-failed.
+  assert.match(found[1]?.message ?? '', /GET \/health network error or aborted failed/);
+  assert.doesNotMatch(found[1]?.message ?? '', /api\.json/);
+  // A mocked answer is the case's own; a host with network is not told it has none.
+  assert.ok(
+    !rules(explain({ screen: s, requests: [{ ...feed, mocked: true }], inFlight: 0, target: { text: 'Episode One' }, noNetwork: true })).includes(
+      'host-offline',
+    ),
+  );
+  assert.ok(!rules(explain({ screen: s, requests: [feed], inFlight: 0, target: { text: 'Episode One' } })).includes('host-offline'));
+});

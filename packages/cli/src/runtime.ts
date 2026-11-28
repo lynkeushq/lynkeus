@@ -202,6 +202,7 @@ export const whyFor = async (base: Base, expected?: Expected, startedAt?: number
         trace: events.slice(-40),
         target: expected,
         fetchedBefore: during.length < requests.requests.length,
+        ...(device.server.hello?.native && device.server.hello.commands?.includes('clock') ? { noNetwork: true } : {}),
         ...(sourceDiff ? { sourceDiff } : {}),
         ...(lastSeen ? { lastSeen } : {}),
         ...(logs.length ? { logs: logs.slice(-40) } : {}),
